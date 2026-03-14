@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ENGiN3 — Market Timing System</title>
+<style>
+:root{
+  --black:   #070809;
+  --black2:  #0d1114;
+  --panel:   #11161b;
+  --panel2:  #151c22;
+  --white:   #eef4f7;
+  --gray:    #5f666d;
+  --dimgray: #8a9199;
+  --lime:    #7CFC00;
+  --lime2:   #a0ff2a;
+  --olive:   #556B2F;
+  --darkolive:#3f5323;
+  --orange:  #d8842b;
+  --gold:    #d4af37;
+  --gold2:   #f0cc55;
+  --line:    #1e2830;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--black);color:var(--white);font:14px/1.6 'Arial Narrow',Arial,sans-serif}
+a{color:var(--gold);text-decoration:none}
+
+/* ── GATE ── */
+#gate{
+position:fixed;inset:0;z-index:999;background:var(–black);
+display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+transition:opacity .4s,visibility .4s;
+}
+#gate.gone{opacity:0;visibility:hidden;pointer-events:none}
+.g-logo{font-size:56px;font-weight:900;letter-spacing:8px;color:var(–lime);margin-bottom:6px}
+.g-logo span{color:var(–gold)}
+.g-sub{font-size:10px;letter-spacing:5px;color:var(–gray);margin-bottom:32px}
+.g-input{
+width:260px;background:var(–panel);border:1px solid var(–line);
+color:var(–white);font-size:13px;letter-spacing:3px;
+padding:11px 16px;text-align:center;outline:none;border-radius:8px;
+margin-bottom:10px;transition:border-color .2s;font-family:inherit;
+}
+.g-input:focus{border-color:var(–lime)}
+.g-input.err{border-color:var(–orange)!important;animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+.g-btn{
+width:260px;padding:12px;border:none;border-radius:8px;cursor:pointer;
+background:var(–lime);color:#070809;font-weight:900;font-size:14px;letter-spacing:3px;
+transition:background .15s,transform .15s;font-family:inherit;
+}
+.g-btn:hover{background:var(–lime2);transform:translateY(-1px)}
+.g-hint{font-size:9px;color:var(–gray);letter-spacing:2px;margin-top:8px;text-align:center;line-height:1.9}
+.g-err{font-size:9px;color:var(–orange);letter-spacing:2px;height:14px}
+
+/* ── NAV ── */
+nav{
+position:sticky;top:0;z-index:100;
+background:rgba(7,8,9,.94);backdrop-filter:blur(12px);
+border-bottom:1px solid var(–line);
+display:flex;align-items:center;justify-content:space-between;
+padding:0 28px;height:52px;
+}
+.nav-logo{font-size:22px;font-weight:900;letter-spacing:4px;color:var(–lime)}
+.nav-logo span{color:var(–gold)}
+.nav-clocks{display:flex;gap:18px;align-items:center}
+.nc{display:flex;flex-direction:column;align-items:center}
+.ntz{font-size:7px;letter-spacing:2px;color:var(–gray)}
+.nt{font-size:12px;color:var(–white);letter-spacing:1px;font-family:‘Courier New’,monospace}
+.nav-right{display:flex;align-items:center;gap:10px}
+.s-dot{width:8px;height:8px;border-radius:50%;background:var(–gray);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.s-lbl{font-size:11px;color:var(–gray);letter-spacing:2px;font-weight:700}
+#lock-btn{
+font-size:9px;letter-spacing:2px;color:var(–gray);background:none;
+border:1px solid var(–line);padding:3px 10px;cursor:pointer;border-radius:999px;display:none;
+font-family:inherit;transition:all .2s;
+}
+#lock-btn:hover{color:var(–orange);border-color:var(–orange)}
+
+/* ── WRAP ── */
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+
+/* ── HERO ── */
+.hero{
+display:grid;grid-template-columns:1.2fr .8fr;gap:20px;padding:36px 0 32px;
+border-bottom:1px solid var(–line);
+}
+.hero-card{
+background:linear-gradient(180deg,var(–panel),var(–panel2));
+border:1px solid var(–line);border-radius:18px;padding:28px;
+}
+.kicker{font-size:11px;font-weight:700;letter-spacing:3px;color:var(–gold);margin-bottom:10px}
+.h1{font-size:46px;line-height:1.02;font-weight:900;margin-bottom:14px}
+.h1 .e3{color:var(–lime)}
+.sub{color:var(–dimgray);font-size:14px;max-width:680px;margin-bottom:20px;line-height:1.7}
+.tag-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.tag{
+border:1px solid var(–line);background:var(–black2);
+padding:6px 12px;border-radius:999px;font-size:12px;color:#cfd8de;
+}
+.hero-cta{
+display:inline-block;padding:12px 22px;border-radius:10px;font-weight:700;
+border:1px solid var(–gold);background:rgba(212,175,55,.09);color:var(–gold);
+font-size:14px;letter-spacing:1px;transition:all .2s;
+}
+.hero-cta:hover{background:rgba(212,175,55,.18);transform:translateY(-1px)}
+
+/* ── PREVIEW PANEL ── */
+.preview{
+border-radius:16px;border:1px solid var(–line);
+background:linear-gradient(180deg,#0f1419,#0a0d10);
+position:relative;overflow:hidden;min-height:300px;
+}
+.gridlines{
+position:absolute;inset:0;
+background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+background-size:40px 40px;
+}
+.glow-lime{position:absolute;top:-20%;left:10%;width:240px;height:240px;border-radius:50%;background:radial-gradient(rgba(124,252,0,.12),transparent 70%);pointer-events:none}
+.glow-gold{position:absolute;top:-10%;right:10%;width:180px;height:180px;border-radius:50%;background:radial-gradient(rgba(212,175,55,.1),transparent 70%);pointer-events:none}
+.vwap-svg{position:absolute;left:6%;right:6%;top:14%;height:52%}
+.vwap-svg svg{width:100%;height:100%}
+.mini-meter{
+position:absolute;right:14px;top:14px;width:130px;
+background:rgba(0,0,0,.7);border:1px solid #2a3540;border-radius:10px;padding:10px;
+}
+.mini-meter h4{font-size:10px;letter-spacing:2px;color:var(–gold);margin-bottom:6px}
+.mm-row{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;font-family:‘Courier New’,monospace}
+.plus{color:var(–gold);font-weight:700}
+.minus{color:var(–lime);font-weight:700}
+.preview-badge{
+position:absolute;bottom:14px;left:14px;
+background:rgba(0,0,0,.7);border:1px solid var(–line);border-radius:8px;
+padding:8px 12px;font-size:10px;color:var(–dimgray);
+}
+.preview-badge span{color:var(–lime);font-weight:700}
+
+/* ── SECTION HEAD ── */
+.sec-head{margin:36px 0 16px;font-size:11px;font-weight:700;letter-spacing:3px;color:var(–gray);text-transform:uppercase}
+
+/* ── FEATURES GRID ── */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.feat{background:var(–panel);border:1px solid var(–line);border-radius:14px;padding:18px}
+.feat h3{font-size:17px;margin-bottom:6px}
+.feat p{color:var(–dimgray);font-size:13px;line-height:1.6}
+.feat .icon{font-size:20px;margin-bottom:8px}
+
+/* ── DIVIDER ── */
+.div{height:1px;background:var(–line);margin:32px 0}
+
+/* ── TIERS ── */
+.tier-note{color:var(–dimgray);margin-bottom:20px;font-size:14px;max-width:800px;line-height:1.7}
+.tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.tier{
+background:linear-gradient(180deg,var(–panel),var(–black2));
+border:1px solid var(–line);border-radius:16px;padding:22px;position:relative;
+}
+.tier.core{border-color:rgba(212,175,55,.3)}
+.tier.elite{border-color:rgba(124,252,0,.25)}
+.tier h3{font-size:22px;font-weight:900;margin-bottom:6px}
+.tier-price{font-size:28px;font-weight:900;color:var(–gold);margin:8px 0 14px}
+.tier-lock{
+position:absolute;right:16px;top:16px;font-size:11px;
+padding:4px 10px;border-radius:999px;border:1px solid var(–line);
+background:var(–black);
+}
+.tier-lock.open{color:var(–lime)}
+.tier-lock.locked{color:var(–orange)}
+.tier ul{padding-left:18px;color:#cfd8de;font-size:13px}
+.tier li{margin:7px 0}
+.tier-note-card{
+background:rgba(255,255,255,.025);border:1px solid var(–line);
+border-radius:10px;padding:11px;margin-top:14px;color:var(–dimgray);font-size:13px;
+}
+
+/* ── LOCKED SAUCE TIERS ── */
+.sauce-label{
+margin:36px 0 6px;font-size:11px;font-weight:700;
+letter-spacing:3px;color:var(–gray);text-transform:uppercase
+}
+.sauce-sub{color:var(–dimgray);margin-bottom:18px;font-size:13px}
+.sauce-stack{display:flex;flex-direction:column;gap:10px}
+.sauce-item{
+display:flex;align-items:center;gap:16px;
+border:1px solid var(–line);border-radius:12px;
+background:linear-gradient(90deg,var(–panel),var(–black2));
+padding:16px 20px;position:relative;overflow:hidden;
+transition:border-color .2s;
+}
+.sauce-item:hover{border-color:#2e3c48}
+.sauce-item.open{border-color:rgba(124,252,0,.18)}
+.sauce-icon{font-size:24px;flex-shrink:0}
+.sauce-txt{flex:1}
+.sauce-name{font-size:16px;font-weight:700;letter-spacing:1px;margin-bottom:3px}
+.sauce-desc{font-size:12px;color:var(–dimgray);line-height:1.6}
+.sauce-badge{
+flex-shrink:0;font-size:11px;font-weight:700;letter-spacing:1px;
+padding:5px 14px;border-radius:999px;border:1px solid;
+}
+.sauce-badge.free{background:rgba(124,252,0,.08);color:var(–lime);border-color:rgba(124,252,0,.3)}
+.sauce-badge.core-b{background:rgba(212,175,55,.08);color:var(–gold);border-color:rgba(212,175,55,.35)}
+.sauce-badge.elite-b{background:rgba(216,132,43,.08);color:var(–orange);border-color:rgba(216,132,43,.35)}
+
+/* unlock state */
+body.unlocked .sauce-item .sauce-badge{display:none}
+body.unlocked .sauce-item{border-color:rgba(124,252,0,.25)}
+
+/* ── EXPANDED SAUCE CONTENT ── */
+.sauce-expand{
+display:none;border-left:1px solid var(–line);
+border-right:1px solid var(–line);border-bottom:1px solid var(–line);
+border-radius:0 0 12px 12px;padding:18px 20px;background:var(–black2);
+margin-top:-10px;
+}
+.sauce-item.open+.sauce-expand{display:block}
+body.unlocked .sauce-expand{display:block!important}
+
+/* Expand content styles */
+.ex-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ex-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.ex-card{background:var(–panel);border:1px solid var(–line);border-radius:8px;padding:12px}
+.ex-card h4{font-size:12px;letter-spacing:2px;color:var(–gold);margin-bottom:6px}
+.ex-card p,.ex-card li{font-size:12px;color:var(–dimgray);line-height:1.7}
+.ex-card ul{padding-left:14px}
+.row-item{display:flex;align-items:center;gap:10px;padding:5px 8px;border-bottom:1px solid var(–line)}
+.row-item:last-child{border-bottom:none}
+.ri-time{color:var(–gold);font-family:‘Courier New’,monospace;font-size:11px;min-width:44px}
+.ri-type{font-size:12px;font-weight:700;letter-spacing:1px}
+.ri-type.trap{color:var(–orange)}
+.ri-type.exec{color:var(–lime)}
+.ri-type.recal{color:var(–gray)}
+.ri-note{font-size:10px;color:var(–gray);margin-left:auto}
+.sf-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(–line)}
+.sf-row:last-child{border-bottom:none}
+.sf-time{color:var(–gold);font-size:11px;min-width:96px;font-family:‘Courier New’,monospace}
+.sf-name{font-size:13px;font-weight:700;flex:1}
+.sf-pill{font-size:10px;padding:2px 9px;border-radius:999px;border:1px solid}
+.sf-pill.lime{background:rgba(124,252,0,.08);color:var(–lime);border-color:rgba(124,252,0,.3)}
+.sf-pill.gold{background:rgba(212,175,55,.08);color:var(–gold);border-color:rgba(212,175,55,.3)}
+.sf-pill.orange{background:rgba(216,132,43,.08);color:var(–orange);border-color:rgba(216,132,43,.3)}
+.cur-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cur-hdr{font-size:9px;letter-spacing:2px;color:var(–gray);margin-bottom:5px}
+.cur-row{display:flex;justify-content:space-between;align-items:center;padding:3px 6px;border-left:2px solid var(–line)}
+.cur-code{font-size:11px;font-weight:700;color:#cfd8de;letter-spacing:1px}
+.cur-code.usd{color:var(–orange)}
+.cur-sign{font-size:17px;font-weight:700}
+.cur-sign.pos{color:var(–gold)}
+.cur-sign.neg{color:var(–lime)}
+.pol-4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pol-card{background:var(–panel);border:1px solid var(–line);border-radius:8px;padding:10px;text-align:center}
+.pol-f{font-size:14px;font-weight:700;color:#cfd8de;margin-bottom:3px}
+.pol-r{font-size:17px;font-weight:900;letter-spacing:1px}
+.pol-r.buy{color:var(–lime)}
+.pol-r.sell{color:var(–gold)}
+.risk-stack{display:flex;flex-direction:column;gap:4px}
+.rk{display:flex;gap:10px;padding:8px 10px;border-radius:6px;background:var(–panel);border-left:3px solid var(–line)}
+.rk.stop{border-left-color:var(–orange)}
+.rk.trail{border-left-color:var(–gold)}
+.rk.exit{border-left-color:var(–lime)}
+.rk.limit{border-left-color:var(–gray)}
+.rk-k{font-weight:700;font-size:12px;color:var(–gray);min-width:42px}
+.rk-v{font-size:12px;color:#cfd8de}
+.ck-list{display:flex;flex-direction:column;gap:4px}
+.ck{display:flex;align-items:flex-start;gap:10px;padding:8px;border:1px solid var(–line);border-radius:6px;cursor:pointer;transition:border-color .15s}
+.ck.done{border-color:var(–olive);background:rgba(85,107,47,.1)}
+.ck-box{width:14px;height:14px;border:1px solid var(–gray);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:2px}
+.ck.done .ck-box{background:var(–olive);border-color:var(–olive);color:#fff}
+.ck-t{font-size:12px;font-weight:700;color:#cfd8de}
+.ck-s{font-size:10px;color:var(–gray);margin-top:1px}
+.ck-status{margin-top:8px;padding:9px;text-align:center;border:1px solid var(–line);border-radius:6px;font-size:14px;font-weight:700;letter-spacing:2px;color:var(–gray)}
+.ck-status.go{color:var(–lime);border-color:var(–lime);background:rgba(124,252,0,.06)}
+.ck-status.wait{color:var(–gold);border-color:var(–gold)}
+.wr-inputs{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.wr-row{display:flex;align-items:center;gap:10px}
+.wr-lbl{font-size:11px;color:var(–gray);min-width:70px}
+select{background:var(–black2);border:1px solid var(–line);color:#cfd8de;font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;outline:none;font-family:inherit}
+.tog{padding:4px 10px;border:1px solid var(–line);border-radius:6px;background:var(–black2);color:#cfd8de;cursor:pointer;font-size:11px;font-family:inherit}
+.tog.on{background:rgba(85,107,47,.2);border-color:var(–olive);color:var(–lime)}
+.tog.off{background:rgba(216,132,43,.1);border-color:var(–orange);color:var(–orange)}
+.wr-result{background:var(–panel);border:1px solid var(–line);border-radius:8px;padding:12px}
+.wr-top{display:flex;justify-content:space-between;font-size:11px;color:var(–gray);margin-bottom:4px}
+.wr-bar{height:5px;background:var(–black);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.wr-fill{height:100%;border-radius:3px;background:var(–lime);transition:width .4s}
+.wr-desc{font-size:11px;color:var(–gray)}
+.sigma-rows{display:flex;flex-direction:column;gap:3px}
+.sig-row{display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(–panel);border-radius:6px}
+.sig-lv{color:var(–gold);font-weight:700;min-width:36px;font-size:12px}
+.sig-rng{flex:1;color:#cfd8de;font-size:12px}
+.sig-act{color:var(–gray);font-size:11px}
+
+/* ── CTA ── */
+.cta-sec{padding:50px 0 60px;text-align:center;border-top:1px solid var(–line)}
+.cta-big{font-size:42px;font-weight:900;line-height:1.05;margin-bottom:10px}
+.cta-big span{color:var(–lime)}
+.cta-sub{color:var(–dimgray);font-size:14px;margin-bottom:32px;line-height:1.8}
+.cc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:580px;margin:0 auto 28px}
+.cc{
+padding:18px 12px;background:var(–panel);border:1px solid var(–line);
+border-radius:14px;text-decoration:none;display:flex;flex-direction:column;
+align-items:center;gap:6px;transition:all .2s;position:relative;overflow:hidden;
+}
+.cc::after{content:’’;position:absolute;bottom:0;left:0;right:0;height:2px;opacity:0;transition:opacity .2s}
+.cc.ig::after{background:linear-gradient(90deg,#f09433,#e6683c,#dc2743,#cc2366)}
+.cc.ph::after{background:var(–lime)}
+.cc.em::after{background:var(–gold)}
+.cc:hover{background:var(–panel2);transform:translateY(-3px)}
+.cc:hover::after{opacity:1}
+.cc-icon{font-size:20px}
+.cc-type{font-size:8px;letter-spacing:3px;color:var(–gray)}
+.cc-val{font-size:13px;font-weight:700;color:#cfd8de}
+.cta-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn-lime{
+padding:12px 28px;background:var(–lime);color:#070809;
+font-weight:900;font-size:14px;letter-spacing:2px;
+border-radius:10px;text-decoration:none;transition:all .15s;display:inline-block;
+}
+.btn-lime:hover{background:var(–lime2);transform:translateY(-1px)}
+.btn-ghost{
+padding:12px 22px;color:#cfd8de;border:1px solid var(–line);
+font-size:13px;letter-spacing:1px;border-radius:10px;
+text-decoration:none;transition:all .15s;display:inline-block;
+}
+.btn-ghost:hover{border-color:var(–gold);color:var(–gold)}
+
+/* ── FOOTER ── */
+footer{padding:16px 28px;border-top:1px solid var(–line);display:flex;justify-content:space-between;align-items:center}
+.ft-logo{font-size:16px;font-weight:900;letter-spacing:4px;color:var(–gray)}
+.ft-copy{font-size:11px;color:var(–gray)}
+
+@media(max-width:900px){
+.hero,.feat-grid,.tiers-grid,.cc-grid,.ex-grid2,.ex-grid3{grid-template-columns:1fr}
+.pol-4{grid-template-columns:1fr 1fr}
+.h1{font-size:34px}
+nav .nav-clocks{display:none}
+}
+</style>
+
+</head>
+<body>
+
+<!-- GATE -->
+
+<div id="gate">
+  <div class="g-logo">ENGiN<span>3</span></div>
+  <div class="g-sub">MARKET TIMING SYSTEM</div>
+  <input class="g-input" id="gi" type="password" placeholder="ACCESS CODE" maxlength="32" autocomplete="off" onkeydown="if(event.key==='Enter')tryLogin()">
+  <button class="g-btn" onclick="tryLogin()">ENTER</button>
+  <div class="g-err" id="gerr"></div>
+  <div class="g-hint">PRESS ENTER FOR PUBLIC VIEW<br>MENTORSHIP CODE UNLOCKS ALL TIERS</div>
+</div>
+
+<!-- NAV -->
+
+<nav>
+  <div class="nav-logo">ENGiN<span>3</span></div>
+  <div class="nav-clocks">
+    <div class="nc"><div class="ntz">ET</div><div class="nt" id="et-t">--:--:--</div></div>
+    <div style="color:var(--line);font-size:18px">|</div>
+    <div class="nc"><div class="ntz">UTC</div><div class="nt" id="utc-t">--:--:--</div></div>
+  </div>
+  <div class="nav-right">
+    <div class="s-dot" id="sdot"></div>
+    <div class="s-lbl" id="slbl">LOADING</div>
+    <button id="lock-btn" onclick="doLock()">LOCK</button>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- HERO -->
+
+<section class="hero">
+  <div class="hero-card">
+    <div class="kicker">PRECISION MARKET TIMING SYSTEM</div>
+    <div class="h1">Clean edge.<br>Tiered <span class="e3">sauce</span>.</div>
+    <p class="sub">ENGiN3 is a trap-anchored VWAP execution system for BTC 5M. The front page shows the brand and the edge. The deeper timing logic, execution rules, and advanced dashboard unlock in mentorship.</p>
+    <div class="tag-row">
+      <span class="tag">5M Entry</span>
+      <span class="tag">15M Context</span>
+      <span class="tag">Trap → Execute</span>
+      <span class="tag">±2σ / ±3σ</span>
+      <span class="tag">75-Min Anchor</span>
+      <span class="tag">Dark mode</span>
+    </div>
+    <a href="#contact" class="hero-cta">Apply for Mentorship →</a>
+  </div>
+  <div class="preview">
+    <div class="gridlines"></div>
+    <div class="glow-lime"></div>
+    <div class="glow-gold"></div>
+    <div class="vwap-svg">
+      <svg viewBox="0 0 1000 420" preserveAspectRatio="none">
+        <polyline points="0,280 100,265 220,270 340,235 460,242 580,198 700,210 820,168 930,178 1000,148"
+          fill="none" stroke="#696969" stroke-width="4"/>
+        <polyline points="0,200 100,188 220,192 340,160 460,166 580,128 700,140 820,104 930,112 1000,85"
+          fill="none" stroke="#3f5323" stroke-width="3" stroke-dasharray="8 8"/>
+        <polyline points="0,360 100,344 220,350 340,308 460,318 580,270 700,282 820,236 930,246 1000,215"
+          fill="none" stroke="#3f5323" stroke-width="3" stroke-dasharray="8 8"/>
+        <line x1="200" y1="20" x2="200" y2="400" stroke="#d8842b" stroke-width="2" stroke-dasharray="5 8"/>
+        <line x1="560" y1="20" x2="560" y2="400" stroke="#d4af37" stroke-width="2" stroke-dasharray="5 8"/>
+        <line x1="820" y1="20" x2="820" y2="400" stroke="#7CFC00" stroke-width="2" stroke-dasharray="5 8"/>
+      </svg>
+    </div>
+    <div class="mini-meter">
+      <h4>CURRENCY METER</h4>
+      <div class="mm-row"><span>JPY</span><span class="minus">−</span></div>
+      <div class="mm-row"><span>EUR</span><span class="minus">−</span></div>
+      <div class="mm-row"><span>GBP</span><span class="plus">+</span></div>
+      <div class="mm-row"><span>CAD</span><span class="plus">+</span></div>
+      <div class="mm-row"><span style="color:var(--orange)">USD</span><span style="color:var(--gray);font-size:10px">⚓</span></div>
+    </div>
+    <div class="preview-badge">TRAP-ANCHORED VWAP · <span>BTC 5M</span></div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+
+<div class="sec-head">Front page presentation</div>
+<section class="feat-grid">
+  <div class="feat"><div class="icon">⚡</div><h3>System edge</h3><p>Trap-anchored VWAP with 75-minute anchor delay. Regime-aware direction. Liquidity sweep required on every entry.</p></div>
+  <div class="feat"><div class="icon">🎯</div><h3>Execution first</h3><p>No predictions. No guessing. Six-step entry checklist with displacement confirmation before any trade is taken.</p></div>
+  <div class="feat"><div class="icon">🔐</div><h3>Tier funnel</h3><p>Visitors see the brand and the edge. Timing maps, polarity engine, currency meter, and full execution rules sit locked below.</p></div>
+</section>
+
+<div class="div"></div>
+
+<!-- TIERS -->
+
+<div class="sec-head">Access tiers</div>
+<p class="tier-note">The front page stays clean. The deeper material sits underneath so you protect your edge and market the system the right way.</p>
+<div class="tiers-grid">
+  <div class="tier">
+    <div class="tier-lock open">Open</div>
+    <h3>FREE</h3>
+    <div class="tier-price">$0</div>
+    <ul>
+      <li>Main presentation page</li>
+      <li>Brand + chart visual style</li>
+      <li>Core system overview</li>
+      <li>Instagram / funnel entry</li>
+    </ul>
+    <div class="tier-note-card">Just enough sauce to create curiosity.</div>
+  </div>
+  <div class="tier core">
+    <div class="tier-lock locked">Locked</div>
+    <h3>CORE</h3>
+    <div class="tier-price">$49/mo</div>
+    <ul>
+      <li>Session flow timing</li>
+      <li>Money rhythm windows</li>
+      <li>Currency meter context</li>
+      <li>Polarity and reaction framework</li>
+      <li>Entry checklist + win rate calc</li>
+    </ul>
+    <div class="tier-note-card">Where the real structure starts to open up.</div>
+  </div>
+  <div class="tier elite">
+    <div class="tier-lock locked">Locked</div>
+    <h3>ELITE</h3>
+    <div class="tier-price">$149/mo</div>
+    <ul>
+      <li>Mentorship classes and courses</li>
+      <li>Full regime engine + VWAP modes</li>
+      <li>Advanced dashboard access</li>
+      <li>Risk management full ruleset</li>
+      <li>Private breakdowns + guidance</li>
+    </ul>
+    <div class="tier-note-card">Highest level. Everything unlocked.</div>
+  </div>
+</div>
+
+<div class="div"></div>
+
+<!-- SAUCE TIERS -->
+
+<div class="sauce-label">The sauce — tiered below the main presentation</div>
+<p class="sauce-sub">Public visitors see the overview and know something real is here. The actual system content unlocks as they move up tiers.</p>
+
+<div class="sauce-stack">
+
+  <!-- FREE: Principles (open) -->
+
+  <div class="sauce-item open">
+    <div class="sauce-icon">📐</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">SYSTEM PRINCIPLES</div>
+      <div class="sauce-desc">Foundation rules. The 6 core laws that govern every single trade in ENGiN3.</div>
+    </div>
+    <div class="sauce-badge free">FREE</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="ex-grid2">
+      <div class="ex-card"><h4>WICKS LIE · CLOSES CONFIRM</h4><p>The body is truth. The wick is noise. Only 5M closes give permission to enter.</p></div>
+      <div class="ex-card"><h4>REGIME = DIRECTION</h4><p>Every trade starts with orientation. BUY CORE or SELL RESET governs all signal reads.</p></div>
+      <div class="ex-card"><h4>LIQUIDITY = LOCATION</h4><p>No sweep = no trade. Non-negotiable. The market must take a high or low first.</p></div>
+      <div class="ex-card"><h4>VWAP DEFINES WHERE</h4><p>Mean anchor. Value reversion origin. Trap-anchored with 75-min delay, max 75 bars.</p></div>
+      <div class="ex-card"><h4>TRAP DEFINES WHEN</h4><p>Time is the edge. Rhythm is the trigger. Trap fires at :30. Execute fires at :00.</p></div>
+      <div class="ex-card"><h4>CLOSE = PERMISSION</h4><p>5M body close beyond sweep. &gt;60% of candle range. Volume expansion. All three.</p></div>
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:var(--panel);border-radius:8px;font-size:13px;color:var(--gray);text-align:center;letter-spacing:2px">
+      WE DON'T PREDICT. WE EXECUTE.
+    </div>
+  </div>
+
+  <!-- CORE: Session Flow -->
+
+  <div class="sauce-item">
+    <div class="sauce-icon">🕐</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">SESSION FLOW MAP</div>
+      <div class="sauce-desc">All 6 phases. Exact ET windows. When to be in, when to stand aside. The timing map that drives everything.</div>
+    </div>
+    <div class="sauce-badge core-b">CORE</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="sf-row"><div class="sf-time">4:30 – 6:30</div><div class="sf-name">ACCUMULATION</div><span class="sf-pill gold">BUY CORE</span></div>
+    <div class="sf-row"><div class="sf-time">6:30 – 7:30</div><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
+    <div class="sf-row"><div class="sf-time">7:30 – 10:30</div><div class="sf-name">EXPANSION ⚡ PRIME</div><span class="sf-pill lime">PRIME</span></div>
+    <div class="sf-row"><div class="sf-time">10:30 – 12:30</div><div class="sf-name">DISTRIBUTION</div><span class="sf-pill orange">SELL RESET</span></div>
+    <div class="sf-row"><div class="sf-time">12:30 – 1:30</div><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
+    <div class="sf-row"><div class="sf-time">1:30 – 4:30</div><div class="sf-name">CONTINUATION ⚡ PRIME</div><span class="sf-pill lime">PRIME</span></div>
+  </div>
+
+  <!-- CORE: Money Rhythm -->
+
+  <div class="sauce-item">
+    <div class="sauce-icon">⏱</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">MONEY RHYTHM — TRAP → EXECUTE</div>
+      <div class="sauce-desc">The exact timestamps the market sets traps and fires moves. The heartbeat of ENGiN3.</div>
+    </div>
+    <div class="sauce-badge core-b">CORE</div>
+  </div>
+  <div class="sauce-expand">
+    <div id="rhythm-rows"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <div class="ex-card"><h4>PRIME WINDOWS</h4><p>7:30 – 10:30 ET<br>1:30 – 4:30 ET</p></div>
+      <div class="ex-card"><h4 style="color:var(--orange)">DEAD ZONES</h4><p style="color:var(--gray)">1:30 – 4:30 AM · Thin liquidity. Only trade if sweep + 2σ/3σ + regime + news all align.</p></div>
+    </div>
+  </div>
+
+  <!-- CORE: Entry Checklist -->
+
+  <div class="sauce-item">
+    <div class="sauce-icon">✔</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">LIVE ENTRY CHECKLIST</div>
+      <div class="sauce-desc">Interactive six-step pre-trade checklist. Real-time EXECUTE signal when all conditions are green.</div>
+    </div>
+    <div class="sauce-badge core-b">CORE</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="ck-list" id="cklist"></div>
+    <div class="ck-status" id="ckstatus">AWAITING SIGNALS</div>
+  </div>
+
+  <!-- ELITE: Regime Engine -->
+
+  <div class="sauce-item">
+    <div class="sauce-icon">⚡</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">REGIME ENGINE</div>
+      <div class="sauce-desc">BUY CORE vs SELL RESET. Mirror logic, sign inversion, USD anchor override. Full directional framework.</div>
+    </div>
+    <div class="sauce-badge elite-b">ELITE</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="ex-grid2" style="margin-bottom:10px">
+      <div class="ex-card" style="border-top:3px solid var(--lime)">
+        <h4 style="color:var(--lime)">BUY CORE</h4>
+        <p>Connector: <strong style="color:var(--lime)">−</strong> = mirror<br>Windows: 12:30–1:30 · 4:30–6:30 · 7:30–10:30</p>
+      </div>
+      <div class="ex-card" style="border-top:3px solid var(--gold)">
+        <h4 style="color:var(--gold)">SELL RESET</h4>
+        <p>Connector: <strong style="color:var(--gold)">+</strong> = aligned<br>Windows: 6:30–7:30 · 10:30–12:30 · 1:30–4:30</p>
+      </div>
+    </div>
+    <div class="ex-card"><h4>DYNAMIC OVERRIDE</h4><p>If symbol ≤ USD anchor → invert sign. RESET = (+) normal. CORE = (−) mirror.</p></div>
+  </div>
+
+  <!-- ELITE: Currency Meter -->
+
+  <div class="sauce-item">
+    <div class="sauce-icon">💱</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">INTEREST RATE CURRENCY METER</div>
+      <div class="sauce-desc">14-currency USD-anchored sign system. Dynamic override logic and regime alignment matrix.</div>
+    </div>
+    <div class="sauce-badge elite-b">ELITE</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="cur-2col" id="cur-grid"></div>
+    <div style="margin-top:8px;font-size:11px;color:var(--gray);padding:6px;border:1px solid var(--line);border-radius:6px;line-height:1.7">
+      BUY CORE: above USD = − · ≤USD = + &nbsp;|&nbsp; SELL RESET: above USD = + · ≤USD = −
+    </div>
+  </div>
+
+  <!-- ELITE: Polarity Engine -->
+
+  <div class="sauce-item">
+    <div class="sauce-icon">⚖</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">POLARITY ENGINE</div>
+      <div class="sauce-desc">Conviction multiplier. Regime × news alignment. Separates high-conviction setups from noise.</div>
+    </div>
+    <div class="sauce-badge elite-b">ELITE</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="pol-4">
+      <div class="pol-card"><div class="pol-f">−/−</div><div class="pol-r buy">BUY</div></div>
+      <div class="pol-card"><div class="pol-f">+/+</div><div class="pol-r sell">SELL</div></div>
+      <div class="pol-card"><div class="pol-f">−/+</div><div class="pol-r sell">SELL</div></div>
+      <div class="pol-card"><div class="pol-f">+/−</div><div class="pol-r buy">BUY</div></div>
+    </div>
+    <div class="ex-card" style="margin-top:10px"><h4>VWAP SIGMA TARGETS</h4>
+      <div class="sigma-rows">
+        <div class="sig-row"><span class="sig-lv">±2σ</span><span class="sig-rng">100–127%</span><span class="sig-act">TP1</span></div>
+        <div class="sig-row"><span class="sig-lv">±3σ</span><span class="sig-rng">161–200%</span><span class="sig-act">TP2</span></div>
+        <div class="sig-row"><span class="sig-lv">Ext</span><span class="sig-rng">261–300%</span><span class="sig-act">TP3</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ELITE: Full Execution -->
+
+  <div class="sauce-item">
+    <div class="sauce-icon">🎯</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">FULL EXECUTION RULESET + RISK</div>
+      <div class="sauce-desc">Stop placement, trail logic, 15M reassess, win rate calculator, weekly/monthly sizing — complete playbook.</div>
+    </div>
+    <div class="sauce-badge elite-b">ELITE</div>
+  </div>
+  <div class="sauce-expand">
+    <div style="margin-bottom:12px">
+      <div class="risk-stack">
+        <div class="rk stop"><div class="rk-k">STOP</div><div class="rk-v">Below last 5M flat body</div></div>
+        <div class="rk trail"><div class="rk-k">TRAIL</div><div class="rk-v">Below new structure</div></div>
+        <div class="rk exit"><div class="rk-k">EXIT IF</div><div class="rk-v">% target · 15M reassess · Structure break</div></div>
+        <div class="rk limit"><div class="rk-k">LIMIT</div><div class="rk-v">2 trades max per execution window</div></div>
+      </div>
+    </div>
+    <div class="wr-inputs">
+      <div class="wr-row"><div class="wr-lbl">Session</div><select id="sel-sess" onchange="calcWR()"><option value="prime">Prime (7:30 / 1:30)</option><option value="normal">Normal</option><option value="dead">Dead Zone</option></select></div>
+      <div class="wr-row"><div class="wr-lbl">VWAP Mode</div><select id="sel-vwap" onchange="calcWR()"><option value="extreme">Extreme (±2/3σ)</option><option value="value">Value Break</option></select></div>
+      <div class="wr-row"><div class="wr-lbl">Regime</div><select id="sel-reg" onchange="calcWR()"><option value="aligned">Aligned</option><option value="mixed">Mixed</option></select></div>
+      <div class="wr-row"><div class="wr-lbl">News</div><select id="sel-news" onchange="calcWR()"><option value="3">⭐⭐⭐</option><option value="2">⭐⭐</option><option value="1">⭐</option><option value="0">None</option></select></div>
+      <div class="wr-row"><div class="wr-lbl">Sweep</div><button class="tog on" id="btn-sw" onclick="toggleF(this,'sw')">YES</button>&nbsp;<div class="wr-lbl">Displace</div><button class="tog on" id="btn-dp" onclick="toggleF(this,'dp')">YES</button></div>
+    </div>
+    <div class="wr-result">
+      <div class="wr-top"><span>Win Rate Estimate</span><span id="wr-pct" style="color:var(--lime);font-weight:700">—%</span></div>
+      <div class="wr-bar"><div class="wr-fill" id="wr-fill" style="width:0%"></div></div>
+      <div class="wr-desc" id="wr-desc"></div>
+    </div>
+  </div>
+
+</div><!-- end sauce-stack -->
+
+<!-- CTA -->
+
+<section class="cta-sec" id="contact">
+  <div class="cta-big">LEARN THE <span>FULL SYSTEM</span></div>
+  <p class="cta-sub">Mentorship is limited. Direct access only.<br>Reach out through any channel below.</p>
+  <div class="cc-grid">
+    <a href="https://instagram.com/izbiggie" target="_blank" class="cc ig">
+      <div class="cc-icon">📸</div><div class="cc-type">INSTAGRAM</div><div class="cc-val">@izbiggie</div>
+    </a>
+    <a href="tel:7702559341" class="cc ph">
+      <div class="cc-icon">📞</div><div class="cc-type">PHONE / TEXT</div><div class="cc-val">770.255.9341</div>
+    </a>
+    <a href="mailto:tropnevad757@gmail.com" class="cc em">
+      <div class="cc-icon">✉</div><div class="cc-type">EMAIL</div><div class="cc-val">tropnevad757</div>
+    </a>
+  </div>
+  <div class="cta-btns">
+    <a href="https://instagram.com/izbiggie" target="_blank" class="btn-lime">APPLY ON INSTAGRAM</a>
+    <a href="mailto:tropnevad757@gmail.com" class="btn-ghost">SEND EMAIL</a>
+  </div>
+</section>
+
+</div><!-- end wrap -->
+
+<footer>
+  <div class="ft-logo">ENGiN3</div>
+  <div class="ft-copy">© 2025 · @izbiggie · ALL RIGHTS RESERVED</div>
+</footer>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const CODE='ENGINE3'; // change your mentorship code here
+const factors={sw:true,dp:true};
+
+// ── GATE ────────────────────────────────────────────────────
+function tryLogin(){
+  const v=document.getElementById('gi').value.trim().toUpperCase();
+  if(v===''){closeGate(false);return;}
+  if(v===CODE){closeGate(true);return;}
+  const i=document.getElementById('gi');
+  i.classList.add('err');
+  document.getElementById('gerr').textContent='INVALID CODE';
+  setTimeout(()=>{i.classList.remove('err');document.getElementById('gerr').textContent='';i.value='';},1200);
+}
+function closeGate(unlock){
+  document.getElementById('gate').classList.add('gone');
+  if(unlock){
+    document.body.classList.add('unlocked');
+    document.getElementById('lock-btn').style.display='block';
+    sessionStorage.setItem('e3','1');
+  }
+}
+function doLock(){
+  document.body.classList.remove('unlocked');
+  document.getElementById('lock-btn').style.display='none';
+  sessionStorage.removeItem('e3');
+  document.getElementById('gate').classList.remove('gone');
+  document.getElementById('gi').value='';
+}
+if(sessionStorage.getItem('e3')==='1') closeGate(true);
+else setTimeout(()=>document.getElementById('gi').focus(),300);
+
+// ── CLOCKS ──────────────────────────────────────────────────
+const SESS=[
+  {n:'ACCUMULATION',s:270,e:390,c:'#d4af37'},
+  {n:'RECALIBRATION',s:390,e:450,c:'#d8842b'},
+  {n:'EXPANSION',s:450,e:630,c:'#7CFC00'},
+  {n:'DISTRIBUTION',s:630,e:750,c:'#d8842b'},
+  {n:'RECALIBRATION',s:750,e:810,c:'#d8842b'},
+  {n:'CONTINUATION',s:810,e:990,c:'#7CFC00'},
+];
+function tick(){
+  const now=new Date();
+  const m=now.getUTCMonth()+1,d=now.getUTCDate();
+  const dst=(m>3&&m<11)||(m===3&&d>=8)||(m===11&&d<7);
+  const et=new Date(now.getTime()+(dst?-4:-5)*3600000);
+  document.getElementById('et-t').textContent=et.toISOString().split('T')[1].substring(0,8);
+  document.getElementById('utc-t').textContent=now.toUTCString().split(' ')[4];
+  const em=et.getUTCHours()*60+et.getUTCMinutes();
+  let f=null;SESS.forEach(s=>{if(em>=s.s&&em<s.e)f=s;});
+  const dot=document.getElementById('sdot'),lbl=document.getElementById('slbl');
+  if(f){dot.style.background=f.c;lbl.textContent=f.n;lbl.style.color=f.c;}
+  else{dot.style.background='var(--gray)';lbl.textContent='OFF-SESSION';lbl.style.color='var(--gray)';}
+}
+tick();setInterval(tick,1000);
+
+// ── RHYTHM ──────────────────────────────────────────────────
+const RH=[
+  {t:'6:30',l:'RECAL',cls:'recal',note:'Reanchor VWAP'},
+  {t:'7:30',l:'TRAP',cls:'trap',note:'Prime window opens'},
+  {t:'8:00',l:'EXECUTE',cls:'exec',note:'NY Open pressure'},
+  {t:'10:30',l:'TRAP',cls:'trap',note:'—'},
+  {t:'11:00',l:'EXECUTE',cls:'exec',note:'—'},
+  {t:'12:30',l:'RECAL',cls:'recal',note:'Reanchor VWAP'},
+  {t:'1:30',l:'TRAP',cls:'trap',note:'Continuation opens'},
+  {t:'2:00',l:'EXECUTE',cls:'exec',note:'—'},
+  {t:'4:30',l:'TRAP',cls:'trap',note:'Late session'},
+  {t:'5:00',l:'EXECUTE',cls:'exec',note:'—'},
+];
+const rr=document.getElementById('rhythm-rows');
+RH.forEach(r=>{
+  const d=document.createElement('div');d.className='row-item';
+  d.innerHTML=`<span class="ri-time">${r.t}</span><span class="ri-type ${r.cls}">${r.l}</span><span class="ri-note">${r.note}</span>`;
+  rr.appendChild(d);
+});
+
+// ── CURRENCY METER ──────────────────────────────────────────
+const lower=[{c:'JPY',r:0.75},{c:'EUR',r:2.15},{c:'GBP',r:3.75},{c:'CAD',r:2.25}];
+const higher=[{c:'ZAR',r:8.25},{c:'AUD',r:3.85},{c:'ILS',r:4.00},{c:'INR',r:5.25}];
+const USD=5.25;
+function renderCur(){
+  const cg=document.getElementById('cur-grid');cg.innerHTML='';
+  function col(title,arr){
+    const d=document.createElement('div');
+    d.innerHTML=`<div class="cur-hdr">${title}</div>`;
+    arr.forEach(c=>{
+      const sign=c.r>USD?'-':'+';
+      const row=document.createElement('div');row.className='cur-row';
+      row.style.borderLeftColor=sign==='-'?'var(--lime)':'var(--gold)';
+      row.innerHTML=`<span class="cur-code">${c.c}</span><span class="cur-sign ${sign==='-'?'neg':'pos'}">${sign}</span>`;
+      d.appendChild(row);
+    });
+    cg.appendChild(d);
+  }
+  col('LOWER YIELD',lower);col('HIGHER YIELD',higher);
+  const usd=document.createElement('div');
+  usd.style.cssText='grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:6px;border-top:1px solid var(--line);margin-top:6px;font-size:11px;color:var(--gray)';
+  usd.innerHTML='<span class="cur-code usd">USD</span> = INTEREST RATE ANCHOR ('+USD+'%)';
+  cg.appendChild(usd);
+}
+renderCur();
+
+// ── CHECKLIST ────────────────────────────────────────────────
+const CK=[
+  {t:'① Time Window Active',s:'Rhythm phase must be open — TRAP or EXECUTE window'},
+  {t:'② Liquidity Sweep',s:'Previous high or low must be taken first'},
+  {t:'③ VWAP Rule',s:'Extreme (±2σ/3σ) or Value Break confirmed'},
+  {t:'④ Bias — Regime + Polarity',s:'Direction confirmed with conviction score'},
+  {t:'⑤ Fuel — News Layer',s:'News event present or absorbed — give 5 min'},
+  {t:'⑥ 5M Displacement Close',s:'Body beyond sweep · >60% range · Volume ↑'},
+];
+const cl=document.getElementById('cklist');
+CK.forEach(item=>{
+  const d=document.createElement('div');d.className='ck';
+  d.innerHTML=`<div class="ck-box"></div><div><div class="ck-t">${item.t}</div><div class="ck-s">${item.s}</div></div>`;
+  d.onclick=()=>{
+    d.classList.toggle('done');
+    d.querySelector('.ck-box').textContent=d.classList.contains('done')?'✓':'';
+    updateCK();
+  };
+  cl.appendChild(d);
+});
+function updateCK(){
+  const all=document.querySelectorAll('.ck'),total=all.length;
+  let n=0;all.forEach(i=>{if(i.classList.contains('done'))n++;});
+  const s=document.getElementById('ckstatus');
+  if(n===total){s.textContent='✔ EXECUTE';s.className='ck-status go';}
+  else if(n>=4){s.textContent=`WAIT — ${total-n} REMAINING`;s.className='ck-status wait';}
+  else{s.textContent=n>0?`BUILDING — ${n}/${total}`:'AWAITING SIGNALS';s.className='ck-status';}
+}
+
+// ── WIN RATE ─────────────────────────────────────────────────
+function toggleF(btn,key){
+  factors[key]=!factors[key];
+  btn.textContent=factors[key]?'YES':'NO';
+  btn.className='tog '+(factors[key]?'on':'off');
+  calcWR();
+}
+function calcWR(){
+  let b=55;
+  const sess=document.getElementById('sel-sess').value;
+  const vwap=document.getElementById('sel-vwap').value;
+  const reg=document.getElementById('sel-reg').value;
+  const news=parseInt(document.getElementById('sel-news').value);
+  if(sess==='prime')b+=10;else if(sess==='dead')b-=15;
+  if(vwap==='extreme')b+=5;
+  if(reg==='aligned')b+=8;else b-=5;
+  if(news===3)b+=8;else if(news===2)b+=5;else if(news===1)b+=2;else b-=8;
+  if(!factors.sw)b-=20;if(!factors.dp)b-=15;
+  b=Math.max(0,Math.min(85,b));
+  const desc=b>=70?'🟢 High conviction — full size':b>=60?'🟡 Moderate — standard size':b>=50?'🟠 Marginal — reduce or skip':'🔴 Below threshold — skip';
+  const fill=document.getElementById('wr-fill');
+  document.getElementById('wr-pct').textContent=b+'%';
+  fill.style.width=b+'%';
+  fill.style.background=b>=70?'var(--lime)':b>=60?'var(--gold)':b>=50?'var(--orange)':'#c0504f';
+  document.getElementById('wr-desc').textContent=desc;
+}
+calcWR();
+</script>
+
+</body>
+</html>
