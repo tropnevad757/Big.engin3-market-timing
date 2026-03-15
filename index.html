@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -7,214 +6,229 @@
 <title>ENGiN3 — Market Timing System</title>
 <style>
 :root{
-  --black:   #070809;
-  --black2:  #0d1114;
-  --panel:   #11161b;
-  --panel2:  #151c22;
-  --white:   #eef4f7;
-  --gray:    #5f666d;
-  --dimgray: #8a9199;
-  --lime:    #7CFC00;
-  --lime2:   #a0ff2a;
-  --olive:   #556B2F;
-  --darkolive:#3f5323;
-  --orange:  #d8842b;
-  --gold:    #d4af37;
-  --gold2:   #f0cc55;
-  --line:    #1e2830;
+  --black:    #060807;
+  --black2:   #0d120d;
+  --panel:    #111811;
+  --panel2:   #162016;
+  --white:    #e8f5e0;
+  --gray:     #6b7d62;
+  --dimgray:  #9aad8e;
+  --lime:     #7CFC00;
+  --lime2:    #a8ff3e;
+  --olive:    #6B8C3A;
+  --olive2:   #8ab04e;
+  --darkolive:#4a6828;
+  --orange:   #e08830;
+  --orange2:  #f5a248;
+  --gold:     #d4af37;
+  --gold2:    #f2cc50;
+  --line:     #243020;
+  --line2:    #2e3e28;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--black);color:var(--white);font:14px/1.6 'Arial Narrow',Arial,sans-serif}
+html,body{
+  background:var(--black);color:var(--dimgray);
+  font:14px/1.6 'Arial Narrow',Arial,sans-serif;
+  background-image:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(85,107,47,.06) 0%,transparent 60%);
+}
 a{color:var(--gold);text-decoration:none}
 
 /* ── GATE ── */
 #gate{
-position:fixed;inset:0;z-index:999;background:var(–black);
-display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-transition:opacity .4s,visibility .4s;
+  position:fixed;inset:0;z-index:999;background:var(--black);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  transition:opacity .4s,visibility .4s;
 }
 #gate.gone{opacity:0;visibility:hidden;pointer-events:none}
-.g-logo{font-size:56px;font-weight:900;letter-spacing:8px;color:var(–lime);margin-bottom:6px}
-.g-logo span{color:var(–gold)}
-.g-sub{font-size:10px;letter-spacing:5px;color:var(–gray);margin-bottom:32px}
+.g-logo{font-size:56px;font-weight:900;letter-spacing:8px;color:var(--lime);margin-bottom:6px}
+.g-logo span{color:var(--gold)}
+.g-sub{font-size:10px;letter-spacing:5px;color:var(--gray);margin-bottom:32px}
 .g-input{
-width:260px;background:var(–panel);border:1px solid var(–line);
-color:var(–white);font-size:13px;letter-spacing:3px;
-padding:11px 16px;text-align:center;outline:none;border-radius:8px;
-margin-bottom:10px;transition:border-color .2s;font-family:inherit;
+  width:260px;background:var(--panel);border:1px solid var(--line);
+  color:var(--white);font-size:13px;letter-spacing:3px;
+  padding:11px 16px;text-align:center;outline:none;border-radius:8px;
+  margin-bottom:10px;transition:border-color .2s;font-family:inherit;
 }
-.g-input:focus{border-color:var(–lime)}
-.g-input.err{border-color:var(–orange)!important;animation:shake .35s}
+.g-input:focus{border-color:var(--lime)}
+.g-input.err{border-color:var(--orange)!important;animation:shake .35s}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
 .g-btn{
-width:260px;padding:12px;border:none;border-radius:8px;cursor:pointer;
-background:var(–lime);color:#070809;font-weight:900;font-size:14px;letter-spacing:3px;
-transition:background .15s,transform .15s;font-family:inherit;
+  width:260px;padding:12px;border:none;border-radius:8px;cursor:pointer;
+  background:var(--lime);color:#070809;font-weight:900;font-size:14px;letter-spacing:3px;
+  transition:background .15s,transform .15s;font-family:inherit;
 }
-.g-btn:hover{background:var(–lime2);transform:translateY(-1px)}
-.g-hint{font-size:9px;color:var(–gray);letter-spacing:2px;margin-top:8px;text-align:center;line-height:1.9}
-.g-err{font-size:9px;color:var(–orange);letter-spacing:2px;height:14px}
+.g-btn:hover{background:var(--lime2);transform:translateY(-1px)}
+.g-hint{font-size:9px;color:var(--gray);letter-spacing:2px;margin-top:8px;text-align:center;line-height:1.9}
+.g-err{font-size:9px;color:var(--orange);letter-spacing:2px;height:14px}
 
 /* ── NAV ── */
 nav{
-position:sticky;top:0;z-index:100;
-background:rgba(7,8,9,.94);backdrop-filter:blur(12px);
-border-bottom:1px solid var(–line);
-display:flex;align-items:center;justify-content:space-between;
-padding:0 28px;height:52px;
+  position:sticky;top:0;z-index:100;
+  background:rgba(7,8,9,.96);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--olive);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;height:52px;
 }
-.nav-logo{font-size:22px;font-weight:900;letter-spacing:4px;color:var(–lime)}
-.nav-logo span{color:var(–gold)}
+.nav-logo{font-size:22px;font-weight:900;letter-spacing:4px;color:var(--lime)}
+.nav-logo span{color:var(--gold)}
 .nav-clocks{display:flex;gap:18px;align-items:center}
 .nc{display:flex;flex-direction:column;align-items:center}
-.ntz{font-size:7px;letter-spacing:2px;color:var(–gray)}
-.nt{font-size:12px;color:var(–white);letter-spacing:1px;font-family:‘Courier New’,monospace}
+.ntz{font-size:7px;letter-spacing:2px;color:var(--gray)}
+.nt{font-size:12px;color:var(--white);letter-spacing:1px;font-family:'Courier New',monospace}
 .nav-right{display:flex;align-items:center;gap:10px}
-.s-dot{width:8px;height:8px;border-radius:50%;background:var(–gray);animation:pulse 2s infinite}
+.s-dot{width:8px;height:8px;border-radius:50%;background:var(--gray);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
-.s-lbl{font-size:11px;color:var(–gray);letter-spacing:2px;font-weight:700}
+.s-lbl{font-size:11px;color:var(--gray);letter-spacing:2px;font-weight:700}
 #lock-btn{
-font-size:9px;letter-spacing:2px;color:var(–gray);background:none;
-border:1px solid var(–line);padding:3px 10px;cursor:pointer;border-radius:999px;display:none;
-font-family:inherit;transition:all .2s;
+  font-size:9px;letter-spacing:2px;color:var(--gray);background:none;
+  border:1px solid var(--line);padding:3px 10px;cursor:pointer;border-radius:999px;display:none;
+  font-family:inherit;transition:all .2s;
 }
-#lock-btn:hover{color:var(–orange);border-color:var(–orange)}
+#lock-btn:hover{color:var(--orange);border-color:var(--orange)}
 
 /* ── WRAP ── */
 .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
 
 /* ── HERO ── */
 .hero{
-display:grid;grid-template-columns:1.2fr .8fr;gap:20px;padding:36px 0 32px;
-border-bottom:1px solid var(–line);
+  display:grid;grid-template-columns:1.2fr .8fr;gap:20px;padding:36px 0 32px;
+  border-bottom:1px solid var(--olive);
 }
 .hero-card{
-background:linear-gradient(180deg,var(–panel),var(–panel2));
-border:1px solid var(–line);border-radius:18px;padding:28px;
+  background:linear-gradient(160deg,var(--panel) 0%,var(--black2) 100%);
+  border:1px solid var(--olive);border-radius:18px;padding:28px;
 }
-.kicker{font-size:11px;font-weight:700;letter-spacing:3px;color:var(–gold);margin-bottom:10px}
-.h1{font-size:46px;line-height:1.02;font-weight:900;margin-bottom:14px}
-.h1 .e3{color:var(–lime)}
-.sub{color:var(–dimgray);font-size:14px;max-width:680px;margin-bottom:20px;line-height:1.7}
+.kicker{font-size:11px;font-weight:700;letter-spacing:3px;color:var(--gold);margin-bottom:10px}
+.h1{font-size:46px;line-height:1.02;font-weight:900;margin-bottom:14px;color:var(--white)}
+.h1 .e3{color:var(--lime)}
+.sub{color:var(--dimgray);font-size:14px;max-width:680px;margin-bottom:20px;line-height:1.7}
 .tag-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
 .tag{
-border:1px solid var(–line);background:var(–black2);
-padding:6px 12px;border-radius:999px;font-size:12px;color:#cfd8de;
+  border:1px solid var(--olive);background:rgba(85,107,47,.1);
+  padding:6px 12px;border-radius:999px;font-size:12px;color:var(--dimgray);
 }
+.tag:nth-child(2n){border-color:rgba(212,175,55,.3);background:rgba(212,175,55,.07);color:var(--gold)}
+.tag:nth-child(3n){border-color:rgba(216,132,43,.3);background:rgba(216,132,43,.07);color:var(--orange)}
 .hero-cta{
-display:inline-block;padding:12px 22px;border-radius:10px;font-weight:700;
-border:1px solid var(–gold);background:rgba(212,175,55,.09);color:var(–gold);
-font-size:14px;letter-spacing:1px;transition:all .2s;
+  display:inline-block;padding:12px 22px;border-radius:10px;font-weight:700;
+  border:1px solid var(--gold);background:rgba(212,175,55,.09);color:var(--gold);
+  font-size:14px;letter-spacing:1px;transition:all .2s;
 }
 .hero-cta:hover{background:rgba(212,175,55,.18);transform:translateY(-1px)}
 
 /* ── PREVIEW PANEL ── */
 .preview{
-border-radius:16px;border:1px solid var(–line);
-background:linear-gradient(180deg,#0f1419,#0a0d10);
-position:relative;overflow:hidden;min-height:300px;
+  border-radius:16px;border:1px solid var(--line);
+  background:linear-gradient(180deg,#0f1419,#0a0d10);
+  position:relative;overflow:hidden;min-height:300px;
 }
 .gridlines{
-position:absolute;inset:0;
-background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
-linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
-background-size:40px 40px;
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:40px 40px;
 }
-.glow-lime{position:absolute;top:-20%;left:10%;width:240px;height:240px;border-radius:50%;background:radial-gradient(rgba(124,252,0,.12),transparent 70%);pointer-events:none}
-.glow-gold{position:absolute;top:-10%;right:10%;width:180px;height:180px;border-radius:50%;background:radial-gradient(rgba(212,175,55,.1),transparent 70%);pointer-events:none}
+.glow-lime{position:absolute;top:-20%;left:10%;width:240px;height:240px;border-radius:50%;background:radial-gradient(rgba(124,252,0,.18),transparent 70%);pointer-events:none}
+.glow-gold{position:absolute;top:-10%;right:10%;width:180px;height:180px;border-radius:50%;background:radial-gradient(rgba(212,175,55,.15),transparent 70%);pointer-events:none}
 .vwap-svg{position:absolute;left:6%;right:6%;top:14%;height:52%}
 .vwap-svg svg{width:100%;height:100%}
 .mini-meter{
-position:absolute;right:14px;top:14px;width:130px;
-background:rgba(0,0,0,.7);border:1px solid #2a3540;border-radius:10px;padding:10px;
+  position:absolute;right:14px;top:14px;width:130px;
+  background:rgba(0,0,0,.7);border:1px solid #2a3540;border-radius:10px;padding:10px;
 }
-.mini-meter h4{font-size:10px;letter-spacing:2px;color:var(–gold);margin-bottom:6px}
-.mm-row{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;font-family:‘Courier New’,monospace}
-.plus{color:var(–gold);font-weight:700}
-.minus{color:var(–lime);font-weight:700}
+.mini-meter h4{font-size:10px;letter-spacing:2px;color:var(--gold);margin-bottom:6px}
+.mm-row{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;font-family:'Courier New',monospace}
+.plus{color:var(--gold);font-weight:700}
+.minus{color:var(--lime);font-weight:700}
 .preview-badge{
-position:absolute;bottom:14px;left:14px;
-background:rgba(0,0,0,.7);border:1px solid var(–line);border-radius:8px;
-padding:8px 12px;font-size:10px;color:var(–dimgray);
+  position:absolute;bottom:14px;left:14px;
+  background:rgba(0,0,0,.7);border:1px solid var(--olive);border-radius:8px;
+  padding:8px 12px;font-size:10px;color:var(--dimgray);
 }
-.preview-badge span{color:var(–lime);font-weight:700}
+.preview-badge span{color:var(--lime);font-weight:700}
 
 /* ── SECTION HEAD ── */
-.sec-head{margin:36px 0 16px;font-size:11px;font-weight:700;letter-spacing:3px;color:var(–gray);text-transform:uppercase}
+.sec-head{margin:36px 0 16px;font-size:11px;font-weight:700;letter-spacing:4px;color:var(--olive2);text-transform:uppercase;border-left:3px solid var(--olive);padding-left:10px}
 
 /* ── FEATURES GRID ── */
 .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.feat{background:var(–panel);border:1px solid var(–line);border-radius:14px;padding:18px}
-.feat h3{font-size:17px;margin-bottom:6px}
-.feat p{color:var(–dimgray);font-size:13px;line-height:1.6}
+.feat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;border-top:2px solid var(--darkolive)}
+.feat:nth-child(2){border-top-color:var(--gold)}
+.feat:nth-child(3){border-top-color:var(--orange)}
+.feat h3{font-size:17px;margin-bottom:6px;color:var(--white)}
+.feat p{color:var(--dimgray);font-size:13px;line-height:1.6}
 .feat .icon{font-size:20px;margin-bottom:8px}
 
 /* ── DIVIDER ── */
-.div{height:1px;background:var(–line);margin:32px 0}
+.div{height:1px;background:linear-gradient(90deg,var(--olive),var(--gold),transparent);margin:32px 0;opacity:.4}
 
 /* ── TIERS ── */
-.tier-note{color:var(–dimgray);margin-bottom:20px;font-size:14px;max-width:800px;line-height:1.7}
-.tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.tier-note{color:var(--dimgray);margin-bottom:20px;font-size:14px;max-width:800px;line-height:1.7}
+.tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .tier{
-background:linear-gradient(180deg,var(–panel),var(–black2));
-border:1px solid var(–line);border-radius:16px;padding:22px;position:relative;
+  background:linear-gradient(160deg,var(--panel) 0%,var(--black2) 100%);
+  border:1px solid var(--line);border-radius:14px;padding:20px;position:relative;
+  border-top:2px solid var(--darkolive);
 }
-.tier.core{border-color:rgba(212,175,55,.3)}
-.tier.elite{border-color:rgba(124,252,0,.25)}
-.tier h3{font-size:22px;font-weight:900;margin-bottom:6px}
-.tier-price{font-size:28px;font-weight:900;color:var(–gold);margin:8px 0 14px}
+.tier:nth-child(2){border-top-color:var(--olive2)}
+.tier:nth-child(3){border-top-color:var(--gold)}
+.tier:nth-child(4){border-top-color:var(--orange)}
+.tier:nth-child(5){border-top-color:var(--gold2)}
+.tier:nth-child(6){border-top-color:var(--lime);box-shadow:0 0 20px rgba(124,252,0,.06)}
+.tier h3{font-size:20px;font-weight:900;margin-bottom:4px;color:var(--white)}
+.tier-price{font-size:26px;font-weight:900;color:var(--gold);margin:6px 0 12px}
+.tier:nth-child(3) .tier-price{color:var(--gold)}
+.tier:nth-child(4) .tier-price{color:var(--orange)}
+.tier:nth-child(5) .tier-price{color:var(--gold2)}
+.tier:nth-child(6) .tier-price{color:var(--lime)}
 .tier-lock{
-position:absolute;right:16px;top:16px;font-size:11px;
-padding:4px 10px;border-radius:999px;border:1px solid var(–line);
-background:var(–black);
+  position:absolute;right:14px;top:14px;font-size:10px;
+  padding:3px 9px;border-radius:999px;border:1px solid var(--line);
+  background:var(--black);
 }
-.tier-lock.open{color:var(–lime)}
-.tier-lock.locked{color:var(–orange)}
-.tier ul{padding-left:18px;color:#cfd8de;font-size:13px}
-.tier li{margin:7px 0}
+.tier-lock.open{color:var(--lime)}
+.tier-lock.locked{color:var(--orange)}
+.tier ul{padding-left:16px;color:var(--dimgray);font-size:12px}
+.tier li{margin:6px 0}
 .tier-note-card{
-background:rgba(255,255,255,.025);border:1px solid var(–line);
-border-radius:10px;padding:11px;margin-top:14px;color:var(–dimgray);font-size:13px;
+  background:rgba(85,107,47,.06);border:1px solid var(--line);
+  border-radius:8px;padding:9px;margin-top:12px;color:var(--gray);font-size:12px;
 }
 
 /* ── LOCKED SAUCE TIERS ── */
-.sauce-label{
-margin:36px 0 6px;font-size:11px;font-weight:700;
-letter-spacing:3px;color:var(–gray);text-transform:uppercase
-}
-.sauce-sub{color:var(–dimgray);margin-bottom:18px;font-size:13px}
 .sauce-stack{display:flex;flex-direction:column;gap:10px}
 .sauce-item{
-display:flex;align-items:center;gap:16px;
-border:1px solid var(–line);border-radius:12px;
-background:linear-gradient(90deg,var(–panel),var(–black2));
-padding:16px 20px;position:relative;overflow:hidden;
-transition:border-color .2s;
+  display:flex;align-items:center;gap:16px;
+  border:1px solid var(--line);border-radius:12px;
+  background:linear-gradient(90deg,var(--panel),var(--black2));
+  padding:16px 20px;position:relative;overflow:hidden;
+  transition:border-color .2s;border-left:3px solid var(--darkolive);
 }
-.sauce-item:hover{border-color:#2e3c48}
-.sauce-item.open{border-color:rgba(124,252,0,.18)}
+.sauce-item:hover{border-color:var(--olive2)}
+.sauce-item.open{border-color:var(--lime);border-left-color:var(--lime)}
 .sauce-icon{font-size:24px;flex-shrink:0}
 .sauce-txt{flex:1}
-.sauce-name{font-size:16px;font-weight:700;letter-spacing:1px;margin-bottom:3px}
-.sauce-desc{font-size:12px;color:var(–dimgray);line-height:1.6}
+.sauce-name{font-size:16px;font-weight:700;letter-spacing:1px;margin-bottom:3px;color:var(--white)}
+.sauce-desc{font-size:12px;color:var(--gray);line-height:1.6}
 .sauce-badge{
-flex-shrink:0;font-size:11px;font-weight:700;letter-spacing:1px;
-padding:5px 14px;border-radius:999px;border:1px solid;
+  flex-shrink:0;font-size:11px;font-weight:700;letter-spacing:1px;
+  padding:5px 14px;border-radius:999px;border:1px solid;
 }
-.sauce-badge.free{background:rgba(124,252,0,.08);color:var(–lime);border-color:rgba(124,252,0,.3)}
-.sauce-badge.core-b{background:rgba(212,175,55,.08);color:var(–gold);border-color:rgba(212,175,55,.35)}
-.sauce-badge.elite-b{background:rgba(216,132,43,.08);color:var(–orange);border-color:rgba(216,132,43,.35)}
+.sauce-badge.free{background:rgba(124,252,0,.08);color:var(--lime);border-color:rgba(124,252,0,.35)}
+.sauce-badge.core-b{background:rgba(212,175,55,.1);color:var(--gold);border-color:rgba(212,175,55,.4)}
+.sauce-badge.elite-b{background:rgba(216,132,43,.1);color:var(--orange);border-color:rgba(216,132,43,.4)}
 
 /* unlock state */
 body.unlocked .sauce-item .sauce-badge{display:none}
-body.unlocked .sauce-item{border-color:rgba(124,252,0,.25)}
+body.unlocked .sauce-item{border-color:rgba(124,252,0,.3)}
 
 /* ── EXPANDED SAUCE CONTENT ── */
 .sauce-expand{
-display:none;border-left:1px solid var(–line);
-border-right:1px solid var(–line);border-bottom:1px solid var(–line);
-border-radius:0 0 12px 12px;padding:18px 20px;background:var(–black2);
-margin-top:-10px;
+  display:none;border-left:1px solid var(--olive);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--olive);
+  border-radius:0 0 12px 12px;padding:18px 20px;
+  background:linear-gradient(160deg,var(--panel) 0%,var(--black) 100%);
+  margin-top:-10px;
 }
 .sauce-item.open+.sauce-expand{display:block}
 body.unlocked .sauce-expand{display:block!important}
@@ -222,128 +236,155 @@ body.unlocked .sauce-expand{display:block!important}
 /* Expand content styles */
 .ex-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ex-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.ex-card{background:var(–panel);border:1px solid var(–line);border-radius:8px;padding:12px}
-.ex-card h4{font-size:12px;letter-spacing:2px;color:var(–gold);margin-bottom:6px}
-.ex-card p,.ex-card li{font-size:12px;color:var(–dimgray);line-height:1.7}
+.ex-card{background:var(--black2);border:1px solid var(--line);border-radius:8px;padding:12px;border-top:1px solid var(--darkolive)}
+.ex-card h4{font-size:11px;letter-spacing:2px;color:var(--gold);margin-bottom:6px}
+.ex-card p,.ex-card li{font-size:12px;color:var(--dimgray);line-height:1.7}
 .ex-card ul{padding-left:14px}
-.row-item{display:flex;align-items:center;gap:10px;padding:5px 8px;border-bottom:1px solid var(–line)}
+.row-item{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--black2);border-radius:4px;margin-bottom:2px}
 .row-item:last-child{border-bottom:none}
-.ri-time{color:var(–gold);font-family:‘Courier New’,monospace;font-size:11px;min-width:44px}
+.ri-time{color:var(--gold);font-family:'Courier New',monospace;font-size:11px;min-width:44px}
 .ri-type{font-size:12px;font-weight:700;letter-spacing:1px}
-.ri-type.trap{color:var(–orange)}
-.ri-type.exec{color:var(–lime)}
-.ri-type.recal{color:var(–gray)}
-.ri-note{font-size:10px;color:var(–gray);margin-left:auto}
-.sf-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(–line)}
+.ri-type.trap{color:var(--orange)}
+.ri-type.exec{color:var(--lime)}
+.ri-type.recal{color:var(--gray)}
+.ri-note{font-size:10px;color:var(--gray);margin-left:auto}
+.sf-row{display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--black2);border-radius:4px;margin-bottom:2px}
 .sf-row:last-child{border-bottom:none}
-.sf-time{color:var(–gold);font-size:11px;min-width:96px;font-family:‘Courier New’,monospace}
-.sf-name{font-size:13px;font-weight:700;flex:1}
+.sf-time{color:var(--gold);font-size:11px;min-width:96px;font-family:'Courier New',monospace}
+.sf-name{font-size:13px;font-weight:700;flex:1;color:var(--white)}
 .sf-pill{font-size:10px;padding:2px 9px;border-radius:999px;border:1px solid}
-.sf-pill.lime{background:rgba(124,252,0,.08);color:var(–lime);border-color:rgba(124,252,0,.3)}
-.sf-pill.gold{background:rgba(212,175,55,.08);color:var(–gold);border-color:rgba(212,175,55,.3)}
-.sf-pill.orange{background:rgba(216,132,43,.08);color:var(–orange);border-color:rgba(216,132,43,.3)}
+.sf-pill.lime{background:rgba(124,252,0,.08);color:var(--lime);border-color:rgba(124,252,0,.35)}
+.sf-pill.gold{background:rgba(212,175,55,.1);color:var(--gold);border-color:rgba(212,175,55,.4)}
+.sf-pill.orange{background:rgba(216,132,43,.1);color:var(--orange);border-color:rgba(216,132,43,.4)}
 .cur-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.cur-hdr{font-size:9px;letter-spacing:2px;color:var(–gray);margin-bottom:5px}
-.cur-row{display:flex;justify-content:space-between;align-items:center;padding:3px 6px;border-left:2px solid var(–line)}
+.cur-hdr{font-size:9px;letter-spacing:2px;color:var(--gray);margin-bottom:5px}
+.cur-row{display:flex;justify-content:space-between;align-items:center;padding:3px 6px;border-left:2px solid var(--line)}
 .cur-code{font-size:11px;font-weight:700;color:#cfd8de;letter-spacing:1px}
-.cur-code.usd{color:var(–orange)}
+.cur-code.usd{color:var(--orange)}
 .cur-sign{font-size:17px;font-weight:700}
-.cur-sign.pos{color:var(–gold)}
-.cur-sign.neg{color:var(–lime)}
+.cur-sign.pos{color:var(--gold)}
+.cur-sign.neg{color:var(--lime)}
 .pol-4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.pol-card{background:var(–panel);border:1px solid var(–line);border-radius:8px;padding:10px;text-align:center}
+.pol-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center}
 .pol-f{font-size:14px;font-weight:700;color:#cfd8de;margin-bottom:3px}
 .pol-r{font-size:17px;font-weight:900;letter-spacing:1px}
-.pol-r.buy{color:var(–lime)}
-.pol-r.sell{color:var(–gold)}
+.pol-r.buy{color:var(--lime)}
+.pol-r.sell{color:var(--gold)}
 .risk-stack{display:flex;flex-direction:column;gap:4px}
-.rk{display:flex;gap:10px;padding:8px 10px;border-radius:6px;background:var(–panel);border-left:3px solid var(–line)}
-.rk.stop{border-left-color:var(–orange)}
-.rk.trail{border-left-color:var(–gold)}
-.rk.exit{border-left-color:var(–lime)}
-.rk.limit{border-left-color:var(–gray)}
-.rk-k{font-weight:700;font-size:12px;color:var(–gray);min-width:42px}
+.rk{display:flex;gap:10px;padding:8px 10px;border-radius:6px;background:var(--panel);border-left:3px solid var(--line)}
+.rk.stop{border-left-color:var(--orange)}
+.rk.trail{border-left-color:var(--gold)}
+.rk.exit{border-left-color:var(--lime)}
+.rk.limit{border-left-color:var(--gray)}
+.rk-k{font-weight:700;font-size:12px;color:var(--gray);min-width:42px}
 .rk-v{font-size:12px;color:#cfd8de}
 .ck-list{display:flex;flex-direction:column;gap:4px}
-.ck{display:flex;align-items:flex-start;gap:10px;padding:8px;border:1px solid var(–line);border-radius:6px;cursor:pointer;transition:border-color .15s}
-.ck.done{border-color:var(–olive);background:rgba(85,107,47,.1)}
-.ck-box{width:14px;height:14px;border:1px solid var(–gray);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:2px}
-.ck.done .ck-box{background:var(–olive);border-color:var(–olive);color:#fff}
+.ck{display:flex;align-items:flex-start;gap:10px;padding:8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;transition:border-color .15s}
+.ck.done{border-color:var(--olive);background:rgba(85,107,47,.1)}
+.ck-box{width:14px;height:14px;border:1px solid var(--gray);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:2px}
+.ck.done .ck-box{background:var(--olive);border-color:var(--olive);color:#fff}
 .ck-t{font-size:12px;font-weight:700;color:#cfd8de}
-.ck-s{font-size:10px;color:var(–gray);margin-top:1px}
-.ck-status{margin-top:8px;padding:9px;text-align:center;border:1px solid var(–line);border-radius:6px;font-size:14px;font-weight:700;letter-spacing:2px;color:var(–gray)}
-.ck-status.go{color:var(–lime);border-color:var(–lime);background:rgba(124,252,0,.06)}
-.ck-status.wait{color:var(–gold);border-color:var(–gold)}
+.ck-s{font-size:10px;color:var(--gray);margin-top:1px}
+.ck-status{margin-top:8px;padding:9px;text-align:center;border:1px solid var(--line);border-radius:6px;font-size:14px;font-weight:700;letter-spacing:2px;color:var(--gray)}
+.ck-status.go{color:var(--lime);border-color:var(--lime);background:rgba(124,252,0,.06)}
+.ck-status.wait{color:var(--gold);border-color:var(--gold)}
 .wr-inputs{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .wr-row{display:flex;align-items:center;gap:10px}
-.wr-lbl{font-size:11px;color:var(–gray);min-width:70px}
-select{background:var(–black2);border:1px solid var(–line);color:#cfd8de;font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;outline:none;font-family:inherit}
-.tog{padding:4px 10px;border:1px solid var(–line);border-radius:6px;background:var(–black2);color:#cfd8de;cursor:pointer;font-size:11px;font-family:inherit}
-.tog.on{background:rgba(85,107,47,.2);border-color:var(–olive);color:var(–lime)}
-.tog.off{background:rgba(216,132,43,.1);border-color:var(–orange);color:var(–orange)}
-.wr-result{background:var(–panel);border:1px solid var(–line);border-radius:8px;padding:12px}
-.wr-top{display:flex;justify-content:space-between;font-size:11px;color:var(–gray);margin-bottom:4px}
-.wr-bar{height:5px;background:var(–black);border-radius:3px;overflow:hidden;margin-bottom:6px}
-.wr-fill{height:100%;border-radius:3px;background:var(–lime);transition:width .4s}
-.wr-desc{font-size:11px;color:var(–gray)}
+.wr-lbl{font-size:11px;color:var(--gray);min-width:70px}
+select{background:var(--black2);border:1px solid var(--line);color:#cfd8de;font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;outline:none;font-family:inherit}
+.tog{padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--black2);color:#cfd8de;cursor:pointer;font-size:11px;font-family:inherit}
+.tog.on{background:rgba(85,107,47,.2);border-color:var(--olive);color:var(--lime)}
+.tog.off{background:rgba(216,132,43,.1);border-color:var(--orange);color:var(--orange)}
+.wr-result{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+.wr-top{display:flex;justify-content:space-between;font-size:11px;color:var(--gray);margin-bottom:4px}
+.wr-bar{height:5px;background:var(--black);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.wr-fill{height:100%;border-radius:3px;background:var(--lime);transition:width .4s}
+.wr-desc{font-size:11px;color:var(--gray)}
 .sigma-rows{display:flex;flex-direction:column;gap:3px}
-.sig-row{display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(–panel);border-radius:6px}
-.sig-lv{color:var(–gold);font-weight:700;min-width:36px;font-size:12px}
+.sig-row{display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--panel);border-radius:6px}
+.sig-lv{color:var(--gold);font-weight:700;min-width:36px;font-size:12px}
 .sig-rng{flex:1;color:#cfd8de;font-size:12px}
-.sig-act{color:var(–gray);font-size:11px}
+.sig-act{color:var(--gray);font-size:11px}
 
 /* ── CTA ── */
-.cta-sec{padding:50px 0 60px;text-align:center;border-top:1px solid var(–line)}
-.cta-big{font-size:42px;font-weight:900;line-height:1.05;margin-bottom:10px}
-.cta-big span{color:var(–lime)}
-.cta-sub{color:var(–dimgray);font-size:14px;margin-bottom:32px;line-height:1.8}
+.cta-sec{padding:50px 0 60px;text-align:center;border-top:1px solid var(--olive)}
+.cta-big{font-size:42px;font-weight:900;line-height:1.05;margin-bottom:10px;color:var(--white)}
+.cta-big span{color:var(--lime)}
+.cta-sub{color:var(--dimgray);font-size:14px;margin-bottom:32px;line-height:1.8}
 .cc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:580px;margin:0 auto 28px}
 .cc{
-padding:18px 12px;background:var(–panel);border:1px solid var(–line);
-border-radius:14px;text-decoration:none;display:flex;flex-direction:column;
-align-items:center;gap:6px;transition:all .2s;position:relative;overflow:hidden;
+  padding:18px 12px;background:var(--panel);border:1px solid var(--olive);
+  border-radius:14px;text-decoration:none;display:flex;flex-direction:column;
+  align-items:center;gap:6px;transition:all .2s;position:relative;overflow:hidden;
 }
-.cc::after{content:’’;position:absolute;bottom:0;left:0;right:0;height:2px;opacity:0;transition:opacity .2s}
+.cc::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;opacity:0;transition:opacity .2s}
 .cc.ig::after{background:linear-gradient(90deg,#f09433,#e6683c,#dc2743,#cc2366)}
-.cc.ph::after{background:var(–lime)}
-.cc.em::after{background:var(–gold)}
-.cc:hover{background:var(–panel2);transform:translateY(-3px)}
+.cc.ph::after{background:var(--lime)}
+.cc.em::after{background:var(--gold)}
+.cc:hover{background:var(--panel2);transform:translateY(-3px)}
 .cc:hover::after{opacity:1}
 .cc-icon{font-size:20px}
-.cc-type{font-size:8px;letter-spacing:3px;color:var(–gray)}
+.cc-type{font-size:8px;letter-spacing:3px;color:var(--gray)}
 .cc-val{font-size:13px;font-weight:700;color:#cfd8de}
 .cta-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .btn-lime{
-padding:12px 28px;background:var(–lime);color:#070809;
-font-weight:900;font-size:14px;letter-spacing:2px;
-border-radius:10px;text-decoration:none;transition:all .15s;display:inline-block;
+  padding:12px 28px;background:var(--lime);color:#070809;
+  font-weight:900;font-size:14px;letter-spacing:2px;
+  border-radius:10px;text-decoration:none;transition:all .15s;display:inline-block;
 }
-.btn-lime:hover{background:var(–lime2);transform:translateY(-1px)}
+.btn-lime:hover{background:var(--lime2);transform:translateY(-1px)}
 .btn-ghost{
-padding:12px 22px;color:#cfd8de;border:1px solid var(–line);
-font-size:13px;letter-spacing:1px;border-radius:10px;
-text-decoration:none;transition:all .15s;display:inline-block;
+  padding:12px 22px;color:#cfd8de;border:1px solid var(--line);
+  font-size:13px;letter-spacing:1px;border-radius:10px;
+  text-decoration:none;transition:all .15s;display:inline-block;
 }
-.btn-ghost:hover{border-color:var(–gold);color:var(–gold)}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
 
 /* ── FOOTER ── */
-footer{padding:16px 28px;border-top:1px solid var(–line);display:flex;justify-content:space-between;align-items:center}
-.ft-logo{font-size:16px;font-weight:900;letter-spacing:4px;color:var(–gray)}
-.ft-copy{font-size:11px;color:var(–gray)}
+footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-content:space-between;align-items:center;background:var(--black2)}
+.ft-logo{font-size:16px;font-weight:900;letter-spacing:4px;color:var(--olive2)}
+.ft-copy{font-size:11px;color:var(--gray)}
 
-@media(max-width:900px){
-.hero,.feat-grid,.tiers-grid,.cc-grid,.ex-grid2,.ex-grid3{grid-template-columns:1fr}
-.pol-4{grid-template-columns:1fr 1fr}
-.h1{font-size:34px}
-nav .nav-clocks{display:none}
+/* ── WIN RATE BANNER ── */
+.wr-banner{
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+  background:linear-gradient(135deg,var(--panel2) 0%,var(--black2) 100%);
+  border:1px solid var(--olive);
+  border-left:4px solid var(--lime);
+  border-radius:14px;margin:20px 0 0;padding:18px 24px;
+  position:relative;overflow:hidden;
+}
+.wr-banner::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 50% 100% at 0% 50%,rgba(124,252,0,.08),transparent 60%);
+  pointer-events:none;
+}
+.wr-banner-left{flex:1}
+.wr-banner-label{
+  font-size:12px;font-weight:700;letter-spacing:3px;
+  color:var(--lime);margin-bottom:5px;
+}
+.wr-banner-sub{font-size:11px;color:var(--olive2);line-height:1.5}
+.wr-gauge-wrap{position:relative;flex-shrink:0}
+.wr-gauge-pct{
+  position:absolute;bottom:0;left:0;right:0;
+  text-align:center;font-size:20px;font-weight:900;color:var(--lime);
+  text-shadow:0 0 20px rgba(124,252,0,.5);
+}
+.wr-banner-right{display:flex;gap:16px;flex-shrink:0}
+.wr-stat{display:flex;flex-direction:column;align-items:center;gap:3px}
+.wr-stat-n{font-size:18px;font-weight:900;letter-spacing:1px}
+.wr-stat-l{font-size:8px;letter-spacing:2px;color:var(--gray)}
+
+@media(max-width:640px){
+  .wr-banner{flex-direction:column;text-align:center}
+  .wr-banner-right{justify-content:center}
 }
 </style>
-
 </head>
 <body>
 
 <!-- GATE -->
-
 <div id="gate">
   <div class="g-logo">ENGiN<span>3</span></div>
   <div class="g-sub">MARKET TIMING SYSTEM</div>
@@ -354,7 +395,6 @@ nav .nav-clocks{display:none}
 </div>
 
 <!-- NAV -->
-
 <nav>
   <div class="nav-logo">ENGiN<span>3</span></div>
   <div class="nav-clocks">
@@ -371,13 +411,43 @@ nav .nav-clocks{display:none}
 
 <div class="wrap">
 
-<!-- HERO -->
+<!-- WIN RATE BANNER -->
+<div class="wr-banner">
+  <div class="wr-banner-left">
+    <div class="wr-banner-label">ENGiN3 SYSTEM WIN RATE</div>
+    <div class="wr-banner-sub">Prime window · Aligned regime · 3★ news · Sweep + displacement confirmed</div>
+  </div>
+  <div class="wr-gauge-wrap">
+    <svg width="180" height="96" viewBox="0 0 180 96">
+      <!-- track -->
+      <path d="M 9 90 A 81 81 0 0 1 171 90" fill="none" stroke="#1e2830" stroke-width="16" stroke-linecap="round"/>
+      <!-- red zone -->
+      <path d="M 9 90 A 81 81 0 0 1 47 20" fill="none" stroke="rgba(192,80,79,.3)" stroke-width="16" stroke-linecap="butt"/>
+      <!-- orange zone -->
+      <path d="M 47 20 A 81 81 0 0 1 133 20" fill="none" stroke="rgba(216,132,43,.3)" stroke-width="16" stroke-linecap="butt"/>
+      <!-- green zone -->
+      <path d="M 133 20 A 81 81 0 0 1 171 90" fill="none" stroke="rgba(124,252,0,.25)" stroke-width="16" stroke-linecap="butt"/>
+      <!-- filled arc — 88% of 180deg = 158.4deg from left -->
+      <path d="M 9 90 A 81 81 0 1 1 166 68" fill="none" stroke="#7CFC00" stroke-width="9" stroke-linecap="round"/>
+      <!-- needle -->
+      <line x1="90" y1="90" x2="163" y2="62" stroke="white" stroke-width="2" stroke-linecap="round" style="transform-origin:90px 90px"/>
+      <circle cx="90" cy="90" r="5" fill="white"/>
+    </svg>
+    <div class="wr-gauge-pct">88%</div>
+  </div>
+  <div class="wr-banner-right">
+    <div class="wr-stat"><span class="wr-stat-n" style="color:var(--lime)">88%</span><span class="wr-stat-l">WIN RATE</span></div>
+    <div class="wr-stat"><span class="wr-stat-n" style="color:var(--gold)">6/6</span><span class="wr-stat-l">CONDITIONS</span></div>
+    <div class="wr-stat"><span class="wr-stat-n" style="color:var(--orange)">PRIME</span><span class="wr-stat-l">SESSION</span></div>
+  </div>
+</div>
 
+<!-- HERO -->
 <section class="hero">
   <div class="hero-card">
     <div class="kicker">PRECISION MARKET TIMING SYSTEM</div>
-    <div class="h1">Clean edge.<br>Tiered <span class="e3">sauce</span>.</div>
-    <p class="sub">ENGiN3 is a trap-anchored VWAP execution system for BTC 5M. The front page shows the brand and the edge. The deeper timing logic, execution rules, and advanced dashboard unlock in mentorship.</p>
+    <div class="h1">Trap-anchored.<br><span class="e3">Precision</span> timing.</div>
+    <p class="sub">BTC 5M execution system built on trap-anchored VWAP, session-aware regime logic, and displacement confirmation. Every trade starts with structure.</p>
     <div class="tag-row">
       <span class="tag">5M Entry</span>
       <span class="tag">15M Context</span>
@@ -418,77 +488,103 @@ nav .nav-clocks{display:none}
 </section>
 
 <!-- FEATURES -->
-
-<div class="sec-head">Front page presentation</div>
+<div class="sec-head">THE SYSTEM</div>
 <section class="feat-grid">
-  <div class="feat"><div class="icon">⚡</div><h3>System edge</h3><p>Trap-anchored VWAP with 75-minute anchor delay. Regime-aware direction. Liquidity sweep required on every entry.</p></div>
-  <div class="feat"><div class="icon">🎯</div><h3>Execution first</h3><p>No predictions. No guessing. Six-step entry checklist with displacement confirmation before any trade is taken.</p></div>
-  <div class="feat"><div class="icon">🔐</div><h3>Tier funnel</h3><p>Visitors see the brand and the edge. Timing maps, polarity engine, currency meter, and full execution rules sit locked below.</p></div>
+  <div class="feat"><div class="icon">⚡</div><h3>Trap-anchored VWAP</h3><p>75-minute anchor delay. Sigma bands at ±2σ and ±3σ. Mean reversion and value break modes. Anchored to the trap candle — not the session open.</p></div>
+  <div class="feat"><div class="icon">🎯</div><h3>Six-step execution</h3><p>Time window. Liquidity sweep. VWAP rule. Regime bias. News fuel. 5M displacement close. All six required. No exceptions.</p></div>
+  <div class="feat"><div class="icon">📊</div><h3>Regime + polarity</h3><p>BUY CORE or SELL RESET governs every trade. Currency meter and polarity engine score conviction before entry is even considered.</p></div>
 </section>
 
 <div class="div"></div>
 
 <!-- TIERS -->
-
-<div class="sec-head">Access tiers</div>
-<p class="tier-note">The front page stays clean. The deeper material sits underneath so you protect your edge and market the system the right way.</p>
+<div class="sec-head">MENTORSHIP ACCESS</div>
 <div class="tiers-grid">
   <div class="tier">
     <div class="tier-lock open">Open</div>
     <h3>FREE</h3>
-    <div class="tier-price">$0</div>
+    <div class="tier-price" style="color:var(--dimgray)">$0</div>
     <ul>
-      <li>Main presentation page</li>
-      <li>Brand + chart visual style</li>
-      <li>Core system overview</li>
-      <li>Instagram / funnel entry</li>
+      <li>System overview</li>
+      <li>Core principles</li>
+      <li>Brand + chart style</li>
+      <li>Instagram entry</li>
     </ul>
-    <div class="tier-note-card">Just enough sauce to create curiosity.</div>
+    <div class="tier-note-card">No code required.</div>
   </div>
-  <div class="tier core">
+  <div class="tier">
+    <div class="tier-lock locked">Locked</div>
+    <h3>STARTER</h3>
+    <div class="tier-price" style="color:var(--olive2)">$19/mo</div>
+    <ul>
+      <li>System principles deep dive</li>
+      <li>VWAP anchor logic</li>
+      <li>Sigma band overview</li>
+      <li>Displacement rules</li>
+    </ul>
+    <div class="tier-note-card">Foundation layer.</div>
+  </div>
+  <div class="tier">
     <div class="tier-lock locked">Locked</div>
     <h3>CORE</h3>
-    <div class="tier-price">$49/mo</div>
+    <div class="tier-price" style="color:var(--gold)">$49/mo</div>
     <ul>
-      <li>Session flow timing</li>
+      <li>Session flow map</li>
       <li>Money rhythm windows</li>
-      <li>Currency meter context</li>
-      <li>Polarity and reaction framework</li>
-      <li>Entry checklist + win rate calc</li>
+      <li>Regime engine</li>
+      <li>Live entry checklist</li>
     </ul>
-    <div class="tier-note-card">Where the real structure starts to open up.</div>
+    <div class="tier-note-card">Structure opens up.</div>
   </div>
-  <div class="tier elite">
+  <div class="tier">
     <div class="tier-lock locked">Locked</div>
-    <h3>ELITE</h3>
-    <div class="tier-price">$149/mo</div>
+    <h3>PRO</h3>
+    <div class="tier-price" style="color:var(--orange)">$99/mo</div>
     <ul>
-      <li>Mentorship classes and courses</li>
-      <li>Full regime engine + VWAP modes</li>
-      <li>Advanced dashboard access</li>
-      <li>Risk management full ruleset</li>
-      <li>Private breakdowns + guidance</li>
+      <li>Currency meter full access</li>
+      <li>Polarity engine</li>
+      <li>News reaction framework</li>
+      <li>Win rate estimator</li>
     </ul>
-    <div class="tier-note-card">Highest level. Everything unlocked.</div>
+    <div class="tier-note-card">Score every setup.</div>
+  </div>
+  <div class="tier">
+    <div class="tier-lock locked">Locked</div>
+    <h3>ADVANCED</h3>
+    <div class="tier-price" style="color:var(--gold2)">$149/mo</div>
+    <ul>
+      <li>Full execution ruleset</li>
+      <li>Stop + trail logic</li>
+      <li>Trade success tracker</li>
+      <li>Complete playbook</li>
+    </ul>
+    <div class="tier-note-card">Execute with precision.</div>
+  </div>
+  <div class="tier" style="border-top-color:var(--lime);box-shadow:0 0 24px rgba(124,252,0,.07)">
+    <div class="tier-lock locked">Locked</div>
+    <h3 style="color:var(--lime)">ELITE</h3>
+    <div class="tier-price" style="color:var(--lime)">$299/mo</div>
+    <ul>
+      <li>Direct mentorship</li>
+      <li>Private breakdowns</li>
+      <li>Live session guidance</li>
+      <li>Everything unlocked</li>
+    </ul>
+    <div class="tier-note-card" style="border-color:rgba(124,252,0,.2)">Highest level. Direct access.</div>
   </div>
 </div>
 
 <div class="div"></div>
 
 <!-- SAUCE TIERS -->
-
-<div class="sauce-label">The sauce — tiered below the main presentation</div>
-<p class="sauce-sub">Public visitors see the overview and know something real is here. The actual system content unlocks as they move up tiers.</p>
-
 <div class="sauce-stack">
 
-  <!-- FREE: Principles (open) -->
-
+  <!-- TIER 1: FREE — System Principles -->
   <div class="sauce-item open">
     <div class="sauce-icon">📐</div>
     <div class="sauce-txt">
       <div class="sauce-name">SYSTEM PRINCIPLES</div>
-      <div class="sauce-desc">Foundation rules. The 6 core laws that govern every single trade in ENGiN3.</div>
+      <div class="sauce-desc">The 6 core laws that govern every trade. No sweep. No prediction. Only structure.</div>
     </div>
     <div class="sauce-badge free">FREE</div>
   </div>
@@ -499,124 +595,90 @@ nav .nav-clocks{display:none}
       <div class="ex-card"><h4>LIQUIDITY = LOCATION</h4><p>No sweep = no trade. Non-negotiable. The market must take a high or low first.</p></div>
       <div class="ex-card"><h4>VWAP DEFINES WHERE</h4><p>Mean anchor. Value reversion origin. Trap-anchored with 75-min delay, max 75 bars.</p></div>
       <div class="ex-card"><h4>TRAP DEFINES WHEN</h4><p>Time is the edge. Rhythm is the trigger. Trap fires at :30. Execute fires at :00.</p></div>
-      <div class="ex-card"><h4>CLOSE = PERMISSION</h4><p>5M body close beyond sweep. &gt;60% of candle range. Volume expansion. All three.</p></div>
+      <div class="ex-card"><h4>CLOSE = PERMISSION</h4><p>5M body close beyond sweep. >60% of candle range. Volume expansion. All three required.</p></div>
     </div>
-    <div style="margin-top:12px;padding:10px 14px;background:var(--panel);border-radius:8px;font-size:13px;color:var(--gray);text-align:center;letter-spacing:2px">
-      WE DON'T PREDICT. WE EXECUTE.
-    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:var(--panel);border-radius:8px;font-size:13px;color:var(--gray);text-align:center;letter-spacing:2px">WE DON'T PREDICT. WE EXECUTE.</div>
   </div>
 
-  <!-- CORE: Session Flow -->
-
+  <!-- TIER 2: CORE — Session Flow -->
   <div class="sauce-item">
     <div class="sauce-icon">🕐</div>
     <div class="sauce-txt">
-      <div class="sauce-name">SESSION FLOW MAP</div>
-      <div class="sauce-desc">All 6 phases. Exact ET windows. When to be in, when to stand aside. The timing map that drives everything.</div>
+      <div class="sauce-name">SESSION FLOW + EXACT TIMES</div>
+      <div class="sauce-desc">All 6 phases with their role in the session. When to be in, when to stand aside.</div>
     </div>
     <div class="sauce-badge core-b">CORE</div>
   </div>
   <div class="sauce-expand">
-    <div class="sf-row"><div class="sf-time">4:30 – 6:30</div><div class="sf-name">ACCUMULATION</div><span class="sf-pill gold">BUY CORE</span></div>
-    <div class="sf-row"><div class="sf-time">6:30 – 7:30</div><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
-    <div class="sf-row"><div class="sf-time">7:30 – 10:30</div><div class="sf-name">EXPANSION ⚡ PRIME</div><span class="sf-pill lime">PRIME</span></div>
-    <div class="sf-row"><div class="sf-time">10:30 – 12:30</div><div class="sf-name">DISTRIBUTION</div><span class="sf-pill orange">SELL RESET</span></div>
-    <div class="sf-row"><div class="sf-time">12:30 – 1:30</div><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
-    <div class="sf-row"><div class="sf-time">1:30 – 4:30</div><div class="sf-name">CONTINUATION ⚡ PRIME</div><span class="sf-pill lime">PRIME</span></div>
+    <div class="sf-row"><div class="sf-name">ACCUMULATION</div><span class="sf-pill gold">BUY CORE</span></div>
+    <div class="sf-row"><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
+    <div class="sf-row"><div class="sf-name">EXPANSION ⚡</div><span class="sf-pill lime">AM PRIME</span></div>
+    <div class="sf-row"><div class="sf-name">DISTRIBUTION</div><span class="sf-pill orange">SELL RESET</span></div>
+    <div class="sf-row"><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
+    <div class="sf-row"><div class="sf-name">CONTINUATION ⚡</div><span class="sf-pill lime">PM PRIME</span></div>
   </div>
 
-  <!-- CORE: Money Rhythm -->
-
+  <!-- TIER 3: CORE — Money Rhythm -->
   <div class="sauce-item">
     <div class="sauce-icon">⏱</div>
     <div class="sauce-txt">
       <div class="sauce-name">MONEY RHYTHM — TRAP → EXECUTE</div>
-      <div class="sauce-desc">The exact timestamps the market sets traps and fires moves. The heartbeat of ENGiN3.</div>
+      <div class="sauce-desc">Every trap timestamp and execute window by the clock. The heartbeat of every trade setup.</div>
     </div>
     <div class="sauce-badge core-b">CORE</div>
   </div>
   <div class="sauce-expand">
     <div id="rhythm-rows"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
-      <div class="ex-card"><h4>PRIME WINDOWS</h4><p>7:30 – 10:30 ET<br>1:30 – 4:30 ET</p></div>
-      <div class="ex-card"><h4 style="color:var(--orange)">DEAD ZONES</h4><p style="color:var(--gray)">1:30 – 4:30 AM · Thin liquidity. Only trade if sweep + 2σ/3σ + regime + news all align.</p></div>
+      <div class="ex-card" style="border-top:3px solid var(--lime)"><h4>AM PRIME</h4><p>TRAP window → EXECUTE window. NY Open pressure. Highest volume of the session.</p></div>
+      <div class="ex-card" style="border-top:3px solid var(--gold)"><h4>PM PRIME</h4><p>Continuation window → Execute window. Afternoon repricing. Value breaks favored.</p></div>
     </div>
   </div>
 
-  <!-- CORE: Entry Checklist -->
-
-  <div class="sauce-item">
-    <div class="sauce-icon">✔</div>
-    <div class="sauce-txt">
-      <div class="sauce-name">LIVE ENTRY CHECKLIST</div>
-      <div class="sauce-desc">Interactive six-step pre-trade checklist. Real-time EXECUTE signal when all conditions are green.</div>
-    </div>
-    <div class="sauce-badge core-b">CORE</div>
-  </div>
-  <div class="sauce-expand">
-    <div class="ck-list" id="cklist"></div>
-    <div class="ck-status" id="ckstatus">AWAITING SIGNALS</div>
-  </div>
-
-  <!-- ELITE: Regime Engine -->
-
+  <!-- TIER 4: CORE — Regime Engine -->
   <div class="sauce-item">
     <div class="sauce-icon">⚡</div>
     <div class="sauce-txt">
       <div class="sauce-name">REGIME ENGINE</div>
-      <div class="sauce-desc">BUY CORE vs SELL RESET. Mirror logic, sign inversion, USD anchor override. Full directional framework.</div>
+      <div class="sauce-desc">BUY CORE vs SELL RESET. Mirror logic, USD anchor override, sign inversion. Every trade runs through this first.</div>
     </div>
-    <div class="sauce-badge elite-b">ELITE</div>
+    <div class="sauce-badge core-b">CORE</div>
   </div>
   <div class="sauce-expand">
     <div class="ex-grid2" style="margin-bottom:10px">
       <div class="ex-card" style="border-top:3px solid var(--lime)">
         <h4 style="color:var(--lime)">BUY CORE</h4>
-        <p>Connector: <strong style="color:var(--lime)">−</strong> = mirror<br>Windows: 12:30–1:30 · 4:30–6:30 · 7:30–10:30</p>
+        <p>Connector: <strong style="color:var(--lime)">−</strong> = mirror</p>
       </div>
       <div class="ex-card" style="border-top:3px solid var(--gold)">
         <h4 style="color:var(--gold)">SELL RESET</h4>
-        <p>Connector: <strong style="color:var(--gold)">+</strong> = aligned<br>Windows: 6:30–7:30 · 10:30–12:30 · 1:30–4:30</p>
+        <p>Connector: <strong style="color:var(--gold)">+</strong> = aligned</p>
       </div>
     </div>
-    <div class="ex-card"><h4>DYNAMIC OVERRIDE</h4><p>If symbol ≤ USD anchor → invert sign. RESET = (+) normal. CORE = (−) mirror.</p></div>
+    <div class="ex-card"><h4>DYNAMIC OVERRIDE</h4><p>If symbol rate is at or below USD anchor → invert sign. RESET = (+) normal. CORE = (−) mirror.</p></div>
   </div>
 
-  <!-- ELITE: Currency Meter -->
-
+  <!-- TIER 5: ELITE — Currency Meter + Polarity -->
   <div class="sauce-item">
     <div class="sauce-icon">💱</div>
     <div class="sauce-txt">
-      <div class="sauce-name">INTEREST RATE CURRENCY METER</div>
-      <div class="sauce-desc">14-currency USD-anchored sign system. Dynamic override logic and regime alignment matrix.</div>
+      <div class="sauce-name">CURRENCY METER + POLARITY ENGINE</div>
+      <div class="sauce-desc">14-currency USD-anchored sign matrix plus the conviction formula. Separates high-probability from noise.</div>
     </div>
     <div class="sauce-badge elite-b">ELITE</div>
   </div>
   <div class="sauce-expand">
-    <div class="cur-2col" id="cur-grid"></div>
-    <div style="margin-top:8px;font-size:11px;color:var(--gray);padding:6px;border:1px solid var(--line);border-radius:6px;line-height:1.7">
-      BUY CORE: above USD = − · ≤USD = + &nbsp;|&nbsp; SELL RESET: above USD = + · ≤USD = −
+    <div class="cur-2col" id="cur-grid" style="margin-bottom:12px"></div>
+    <div style="margin-bottom:12px;font-size:11px;color:var(--gray);padding:6px;border:1px solid var(--line);border-radius:6px;line-height:1.7">
+      BUY CORE: above USD = − · at/below USD = + &nbsp;|&nbsp; SELL RESET: above USD = + · at/below USD = −
     </div>
-  </div>
-
-  <!-- ELITE: Polarity Engine -->
-
-  <div class="sauce-item">
-    <div class="sauce-icon">⚖</div>
-    <div class="sauce-txt">
-      <div class="sauce-name">POLARITY ENGINE</div>
-      <div class="sauce-desc">Conviction multiplier. Regime × news alignment. Separates high-conviction setups from noise.</div>
-    </div>
-    <div class="sauce-badge elite-b">ELITE</div>
-  </div>
-  <div class="sauce-expand">
     <div class="pol-4">
       <div class="pol-card"><div class="pol-f">−/−</div><div class="pol-r buy">BUY</div></div>
       <div class="pol-card"><div class="pol-f">+/+</div><div class="pol-r sell">SELL</div></div>
       <div class="pol-card"><div class="pol-f">−/+</div><div class="pol-r sell">SELL</div></div>
       <div class="pol-card"><div class="pol-f">+/−</div><div class="pol-r buy">BUY</div></div>
     </div>
-    <div class="ex-card" style="margin-top:10px"><h4>VWAP SIGMA TARGETS</h4>
+    <div class="ex-card" style="margin-top:10px"><h4>SIGMA TARGETS</h4>
       <div class="sigma-rows">
         <div class="sig-row"><span class="sig-lv">±2σ</span><span class="sig-rng">100–127%</span><span class="sig-act">TP1</span></div>
         <div class="sig-row"><span class="sig-lv">±3σ</span><span class="sig-rng">161–200%</span><span class="sig-act">TP2</span></div>
@@ -625,49 +687,114 @@ nav .nav-clocks{display:none}
     </div>
   </div>
 
-  <!-- ELITE: Full Execution -->
-
+  <!-- TIER 6: ELITE — Full Execution + Live Checklist -->
   <div class="sauce-item">
     <div class="sauce-icon">🎯</div>
     <div class="sauce-txt">
-      <div class="sauce-name">FULL EXECUTION RULESET + RISK</div>
-      <div class="sauce-desc">Stop placement, trail logic, 15M reassess, win rate calculator, weekly/monthly sizing — complete playbook.</div>
+      <div class="sauce-name">FULL EXECUTION RULESET + LIVE CHECKLIST</div>
+      <div class="sauce-desc">Every rule for entry, stop, trail, and exit. Interactive 6-step checklist that fires EXECUTE when all conditions are met.</div>
     </div>
     <div class="sauce-badge elite-b">ELITE</div>
   </div>
   <div class="sauce-expand">
-    <div style="margin-bottom:12px">
-      <div class="risk-stack">
-        <div class="rk stop"><div class="rk-k">STOP</div><div class="rk-v">Below last 5M flat body</div></div>
-        <div class="rk trail"><div class="rk-k">TRAIL</div><div class="rk-v">Below new structure</div></div>
-        <div class="rk exit"><div class="rk-k">EXIT IF</div><div class="rk-v">% target · 15M reassess · Structure break</div></div>
-        <div class="rk limit"><div class="rk-k">LIMIT</div><div class="rk-v">2 trades max per execution window</div></div>
+    <div class="risk-stack" style="margin-bottom:14px">
+      <div class="rk stop"><div class="rk-k">STOP</div><div class="rk-v">Below last 5M flat body</div></div>
+      <div class="rk trail"><div class="rk-k">TRAIL</div><div class="rk-v">Below new structure</div></div>
+      <div class="rk exit"><div class="rk-k">EXIT IF</div><div class="rk-v">% target hit · 15M reassess · Structure break</div></div>
+      <div class="rk limit"><div class="rk-k">LIMIT</div><div class="rk-v">2 trades max per execution window</div></div>
+    </div>
+    <div class="ck-list" id="cklist"></div>
+    <div class="ck-status" id="ckstatus">AWAITING SIGNALS</div>
+  </div>
+
+  <!-- TIER 7: ELITE — Win Rate Estimator + Trade Tracker -->
+  <div class="sauce-item">
+    <div class="sauce-icon">📊</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">WIN RATE ESTIMATOR + TRADE TRACKER</div>
+      <div class="sauce-desc">Score every setup before entry. Log wins and losses. Track your real success rate by session and setup type over time.</div>
+    </div>
+    <div class="sauce-badge elite-b">ELITE</div>
+  </div>
+  <div class="sauce-expand">
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-weight:700;margin-bottom:12px">TRADE SUCCESS TRACKER</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">TOTAL</div>
+          <div style="font-size:24px;font-weight:900;color:var(--white)" id="tr-total">0</div>
+        </div>
+        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">WIN %</div>
+          <div style="font-size:24px;font-weight:900;color:var(--lime)" id="tr-rate">—</div>
+        </div>
+        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">WINS</div>
+          <div style="font-size:24px;font-weight:900;color:var(--lime)" id="tr-wins">0</div>
+        </div>
+        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
+          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">LOSSES</div>
+          <div style="font-size:24px;font-weight:900;color:var(--orange)" id="tr-losses">0</div>
+        </div>
       </div>
+      <div class="wr-bar" style="height:8px;margin-bottom:10px"><div class="wr-fill" id="tr-bar" style="width:0%"></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <select id="tr-session" style="flex:1"><option value="am">AM (7–11)</option><option value="pm">PM (1–5)</option></select>
+        <select id="tr-type"><option value="extreme">Extreme</option><option value="value">Value Break</option></select>
+        <button class="tog on" onclick="logTrade(true)" style="flex:1;padding:7px;font-size:12px;font-weight:700">WIN</button>
+        <button class="tog off" onclick="logTrade(false)" style="flex:1;padding:7px;font-size:12px;font-weight:700">LOSS</button>
+      </div>
+      <div style="max-height:110px;overflow-y:auto;font-size:10px" id="tr-log"></div>
+      <button onclick="clearTrades()" style="margin-top:8px;width:100%;padding:5px;background:none;border:1px solid var(--line);color:var(--gray);cursor:pointer;border-radius:4px;font-size:10px;font-family:inherit">CLEAR ALL</button>
     </div>
-    <div class="wr-inputs">
-      <div class="wr-row"><div class="wr-lbl">Session</div><select id="sel-sess" onchange="calcWR()"><option value="prime">Prime (7:30 / 1:30)</option><option value="normal">Normal</option><option value="dead">Dead Zone</option></select></div>
-      <div class="wr-row"><div class="wr-lbl">VWAP Mode</div><select id="sel-vwap" onchange="calcWR()"><option value="extreme">Extreme (±2/3σ)</option><option value="value">Value Break</option></select></div>
-      <div class="wr-row"><div class="wr-lbl">Regime</div><select id="sel-reg" onchange="calcWR()"><option value="aligned">Aligned</option><option value="mixed">Mixed</option></select></div>
-      <div class="wr-row"><div class="wr-lbl">News</div><select id="sel-news" onchange="calcWR()"><option value="3">⭐⭐⭐</option><option value="2">⭐⭐</option><option value="1">⭐</option><option value="0">None</option></select></div>
-      <div class="wr-row"><div class="wr-lbl">Sweep</div><button class="tog on" id="btn-sw" onclick="toggleF(this,'sw')">YES</button>&nbsp;<div class="wr-lbl">Displace</div><button class="tog on" id="btn-dp" onclick="toggleF(this,'dp')">YES</button></div>
-    </div>
-    <div class="wr-result">
-      <div class="wr-top"><span>Win Rate Estimate</span><span id="wr-pct" style="color:var(--lime);font-weight:700">—%</span></div>
-      <div class="wr-bar"><div class="wr-fill" id="wr-fill" style="width:0%"></div></div>
-      <div class="wr-desc" id="wr-desc"></div>
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-weight:700;margin-bottom:14px">WIN RATE ESTIMATOR</div>
+      <div class="wr-inputs">
+        <div class="wr-row"><div class="wr-lbl">Session</div><select id="sel-sess" onchange="calcWR()"><option value="prime">Prime Window</option><option value="normal">Normal</option><option value="dead">Dead Zone</option></select></div>
+        <div class="wr-row"><div class="wr-lbl">VWAP Mode</div><select id="sel-vwap" onchange="calcWR()"><option value="extreme">Extreme (±2/3σ)</option><option value="value">Value Break</option></select></div>
+        <div class="wr-row"><div class="wr-lbl">Regime</div><select id="sel-reg" onchange="calcWR()"><option value="aligned">Aligned</option><option value="mixed">Mixed</option></select></div>
+        <div class="wr-row"><div class="wr-lbl">News</div><select id="sel-news" onchange="calcWR()"><option value="3">⭐⭐⭐</option><option value="2">⭐⭐</option><option value="1">⭐</option><option value="0">None</option></select></div>
+        <div class="wr-row"><div class="wr-lbl">Sweep</div><button class="tog on" id="btn-sw" onclick="toggleF(this,'sw')">YES</button>&nbsp;<div class="wr-lbl">Displace</div><button class="tog on" id="btn-dp" onclick="toggleF(this,'dp')">YES</button></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;padding:14px 0 6px">
+        <div style="position:relative;width:200px;height:104px;overflow:hidden">
+          <svg width="200" height="104" viewBox="0 0 200 104" style="position:absolute;top:0;left:0">
+            <path d="M 10 100 A 90 90 0 0 1 190 100" fill="none" stroke="#1e2830" stroke-width="18" stroke-linecap="round"/>
+            <path d="M 10 100 A 90 90 0 0 1 55 22" fill="none" stroke="rgba(192,80,79,.3)" stroke-width="18" stroke-linecap="butt"/>
+            <path d="M 55 22 A 90 90 0 0 1 145 22" fill="none" stroke="rgba(216,132,43,.3)" stroke-width="18" stroke-linecap="butt"/>
+            <path d="M 145 22 A 90 90 0 0 1 190 100" fill="none" stroke="rgba(124,252,0,.25)" stroke-width="18" stroke-linecap="butt"/>
+          </svg>
+          <svg width="200" height="104" viewBox="0 0 200 104" style="position:absolute;top:0;left:0">
+            <path id="gauge-arc" d="M 10 100 A 90 90 0 0 1 10 100" fill="none" stroke="var(--lime)" stroke-width="10" stroke-linecap="round"/>
+          </svg>
+          <svg width="200" height="104" viewBox="0 0 200 104" style="position:absolute;top:0;left:0">
+            <line id="gauge-needle" x1="100" y1="100" x2="100" y2="18" stroke="white" stroke-width="2" stroke-linecap="round" style="transform-origin:100px 100px;transform:rotate(-90deg);transition:transform .6s ease"/>
+            <circle cx="100" cy="100" r="5" fill="white"/>
+          </svg>
+          <div style="position:absolute;bottom:0;left:0;right:0;text-align:center">
+            <div id="wr-pct" style="font-size:26px;font-weight:900;color:var(--lime);line-height:1">—%</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;width:200px;margin-top:2px">
+          <span style="font-size:9px;color:var(--gray)">0%</span>
+          <span style="font-size:9px;color:var(--gray)">50%</span>
+          <span style="font-size:9px;color:var(--gray)">95%</span>
+        </div>
+      </div>
+      <div class="wr-bar" style="margin-bottom:6px"><div class="wr-fill" id="wr-fill" style="width:0%"></div></div>
+      <div id="wr-desc" style="font-size:11px;color:var(--gray);text-align:center;padding:4px 0"></div>
     </div>
   </div>
 
 </div><!-- end sauce-stack -->
 
 <!-- CTA -->
-
 <section class="cta-sec" id="contact">
   <div class="cta-big">LEARN THE <span>FULL SYSTEM</span></div>
   <p class="cta-sub">Mentorship is limited. Direct access only.<br>Reach out through any channel below.</p>
   <div class="cc-grid">
-    <a href="https://instagram.com/izbiggie" target="_blank" class="cc ig">
-      <div class="cc-icon">📸</div><div class="cc-type">INSTAGRAM</div><div class="cc-val">@izbiggie</div>
+    <a href="https://instagram.com/big.engin3" target="_blank" class="cc ig">
+      <div class="cc-icon">📸</div><div class="cc-type">INSTAGRAM</div><div class="cc-val">@Big.ENGiN3</div>
     </a>
     <a href="tel:7702559341" class="cc ph">
       <div class="cc-icon">📞</div><div class="cc-type">PHONE / TEXT</div><div class="cc-val">770.255.9341</div>
@@ -677,7 +804,7 @@ nav .nav-clocks{display:none}
     </a>
   </div>
   <div class="cta-btns">
-    <a href="https://instagram.com/izbiggie" target="_blank" class="btn-lime">APPLY ON INSTAGRAM</a>
+    <a href="https://instagram.com/big.engin3" target="_blank" class="btn-lime">APPLY ON INSTAGRAM</a>
     <a href="mailto:tropnevad757@gmail.com" class="btn-ghost">SEND EMAIL</a>
   </div>
 </section>
@@ -686,12 +813,11 @@ nav .nav-clocks{display:none}
 
 <footer>
   <div class="ft-logo">ENGiN3</div>
-  <div class="ft-copy">© 2025 · @izbiggie · ALL RIGHTS RESERVED</div>
+  <div class="ft-copy">© 2025 · @Big.ENGiN3 · ALL RIGHTS RESERVED</div>
 </footer>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────────────
-const CODE='ENGINE3'; // change your mentorship code here
+const CODE='ENGINE3';
 const factors={sw:true,dp:true};
 
 // ── GATE ────────────────────────────────────────────────────
@@ -746,32 +872,64 @@ function tick(){
 }
 tick();setInterval(tick,1000);
 
-// ── RHYTHM ──────────────────────────────────────────────────
+// ── TRAP TIMES ──────────────────────────────────────────────
+const TRAPS=[
+  {t:'—',session:'Early',note:'Accumulation opens'},
+  {t:'—',session:'AM',note:'⚡ Prime window — highest priority'},
+  {t:'—',session:'AM',note:'Distribution trap'},
+  {t:'—',session:'PM',note:'⚡ Prime window — continuation'},
+  {t:'—',session:'PM',note:'Late session'},
+];
+const trr=document.getElementById('trap-rows');
+if(trr){TRAPS.forEach(r=>{
+  const d=document.createElement('div');d.className='row-item';
+  d.innerHTML=`<span class="ri-time">${r.t}</span><span class="ri-type trap">TRAP</span><span style="font-size:10px;color:var(--gold);margin:0 8px">${r.session}</span><span class="ri-note">${r.note}</span>`;
+  trr.appendChild(d);
+});}
+
+// ── EXECUTE TIMES ───────────────────────────────────────────
+const EXECS=[
+  {t:'—',session:'Early',note:'Accumulation execute'},
+  {t:'—',session:'AM',note:'⚡ NY Open — highest priority'},
+  {t:'—',session:'AM',note:'Distribution execute'},
+  {t:'—',session:'PM',note:'⚡ Continuation execute'},
+  {t:'—',session:'PM',note:'Late session execute'},
+];
+const err2=document.getElementById('exec-rows');
+if(err2){EXECS.forEach(r=>{
+  const d=document.createElement('div');d.className='row-item';
+  d.innerHTML=`<span class="ri-time">${r.t}</span><span class="ri-type exec">EXECUTE</span><span style="font-size:10px;color:var(--lime);margin:0 8px">${r.session}</span><span class="ri-note">${r.note}</span>`;
+  err2.appendChild(d);
+});}
+
+// ── RHYTHM ROWS ─────────────────────────────────────────────
 const RH=[
-  {t:'6:30',l:'RECAL',cls:'recal',note:'Reanchor VWAP'},
-  {t:'7:30',l:'TRAP',cls:'trap',note:'Prime window opens'},
-  {t:'8:00',l:'EXECUTE',cls:'exec',note:'NY Open pressure'},
-  {t:'10:30',l:'TRAP',cls:'trap',note:'—'},
-  {t:'11:00',l:'EXECUTE',cls:'exec',note:'—'},
-  {t:'12:30',l:'RECAL',cls:'recal',note:'Reanchor VWAP'},
-  {t:'1:30',l:'TRAP',cls:'trap',note:'Continuation opens'},
-  {t:'2:00',l:'EXECUTE',cls:'exec',note:'—'},
-  {t:'4:30',l:'TRAP',cls:'trap',note:'Late session'},
-  {t:'5:00',l:'EXECUTE',cls:'exec',note:'—'},
+  {t:'—',l:'RECAL',cls:'recal',note:'Reanchor VWAP'},
+  {t:'—',l:'TRAP',cls:'trap',note:'Prime window opens'},
+  {t:'—',l:'EXECUTE',cls:'exec',note:'NY Open pressure'},
+  {t:'—',l:'TRAP',cls:'trap',note:'—'},
+  {t:'—',l:'EXECUTE',cls:'exec',note:'—'},
+  {t:'—',l:'RECAL',cls:'recal',note:'Reanchor VWAP'},
+  {t:'—',l:'TRAP',cls:'trap',note:'Continuation opens'},
+  {t:'—',l:'EXECUTE',cls:'exec',note:'—'},
+  {t:'—',l:'TRAP',cls:'trap',note:'Late session'},
+  {t:'—',l:'EXECUTE',cls:'exec',note:'—'},
 ];
 const rr=document.getElementById('rhythm-rows');
-RH.forEach(r=>{
+if(rr){RH.forEach(r=>{
   const d=document.createElement('div');d.className='row-item';
   d.innerHTML=`<span class="ri-time">${r.t}</span><span class="ri-type ${r.cls}">${r.l}</span><span class="ri-note">${r.note}</span>`;
   rr.appendChild(d);
-});
+});}
 
 // ── CURRENCY METER ──────────────────────────────────────────
 const lower=[{c:'JPY',r:0.75},{c:'EUR',r:2.15},{c:'GBP',r:3.75},{c:'CAD',r:2.25}];
 const higher=[{c:'ZAR',r:8.25},{c:'AUD',r:3.85},{c:'ILS',r:4.00},{c:'INR',r:5.25}];
 const USD=5.25;
 function renderCur(){
-  const cg=document.getElementById('cur-grid');cg.innerHTML='';
+  const cg=document.getElementById('cur-grid');
+  if(!cg)return;
+  cg.innerHTML='';
   function col(title,arr){
     const d=document.createElement('div');
     d.innerHTML=`<div class="cur-hdr">${title}</div>`;
@@ -802,7 +960,7 @@ const CK=[
   {t:'⑥ 5M Displacement Close',s:'Body beyond sweep · >60% range · Volume ↑'},
 ];
 const cl=document.getElementById('cklist');
-CK.forEach(item=>{
+if(cl){CK.forEach(item=>{
   const d=document.createElement('div');d.className='ck';
   d.innerHTML=`<div class="ck-box"></div><div><div class="ck-t">${item.t}</div><div class="ck-s">${item.s}</div></div>`;
   d.onclick=()=>{
@@ -811,17 +969,57 @@ CK.forEach(item=>{
     updateCK();
   };
   cl.appendChild(d);
-});
+});}
 function updateCK(){
   const all=document.querySelectorAll('.ck'),total=all.length;
   let n=0;all.forEach(i=>{if(i.classList.contains('done'))n++;});
   const s=document.getElementById('ckstatus');
+  if(!s)return;
   if(n===total){s.textContent='✔ EXECUTE';s.className='ck-status go';}
   else if(n>=4){s.textContent=`WAIT — ${total-n} REMAINING`;s.className='ck-status wait';}
   else{s.textContent=n>0?`BUILDING — ${n}/${total}`:'AWAITING SIGNALS';s.className='ck-status';}
 }
 
-// ── WIN RATE ─────────────────────────────────────────────────
+// ── SUCCESS RATE TRACKER ─────────────────────────────────────
+let trades = JSON.parse(localStorage.getItem('e3trades')||'[]');
+function saveTrades(){ try{localStorage.setItem('e3trades',JSON.stringify(trades));}catch(e){} }
+function renderTracker(){
+  const total=trades.length;
+  const wins=trades.filter(t=>t.win).length;
+  const losses=total-wins;
+  const rate=total>0?Math.round(wins/total*100):0;
+  document.getElementById('tr-total').textContent=total;
+  document.getElementById('tr-wins').textContent=wins;
+  document.getElementById('tr-losses').textContent=losses;
+  document.getElementById('tr-rate').textContent=total>0?rate+'%':'—%';
+  const bar=document.getElementById('tr-bar');
+  bar.style.width=rate+'%';
+  bar.style.background=rate>=70?'var(--lime)':rate>=55?'var(--gold)':'var(--orange)';
+  const log=document.getElementById('tr-log');
+  if(!log)return;
+  log.innerHTML='';
+  [...trades].reverse().slice(0,10).forEach((t,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line);';
+    row.innerHTML=`<span style="color:${t.win?'var(--lime)':'var(--orange)'}">${t.win?'WIN':'LOSS'}</span><span style="color:var(--gray)">${t.session.toUpperCase()} · ${t.type}</span><span style="color:var(--gray);font-size:9px">${t.time}</span>`;
+    log.appendChild(row);
+  });
+}
+function logTrade(win){
+  const sess=document.getElementById('tr-session').value;
+  const type=document.getElementById('tr-type').value;
+  const now=new Date();
+  const time=now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+  trades.push({win,session:sess,type,time});
+  saveTrades();
+  renderTracker();
+}
+function clearTrades(){
+  if(confirm('Clear all trade history?')){trades=[];saveTrades();renderTracker();}
+}
+renderTracker();
+
+// ── WIN RATE ESTIMATOR ───────────────────────────────────────
 function toggleF(btn,key){
   factors[key]=!factors[key];
   btn.textContent=factors[key]?'YES':'NO';
@@ -830,25 +1028,56 @@ function toggleF(btn,key){
 }
 function calcWR(){
   let b=55;
-  const sess=document.getElementById('sel-sess').value;
-  const vwap=document.getElementById('sel-vwap').value;
-  const reg=document.getElementById('sel-reg').value;
-  const news=parseInt(document.getElementById('sel-news').value);
-  if(sess==='prime')b+=10;else if(sess==='dead')b-=15;
-  if(vwap==='extreme')b+=5;
-  if(reg==='aligned')b+=8;else b-=5;
+  const sess=document.getElementById('sel-sess');
+  const vwap=document.getElementById('sel-vwap');
+  const reg=document.getElementById('sel-reg');
+  const newsEl=document.getElementById('sel-news');
+  if(!sess||!vwap||!reg||!newsEl)return;
+  const sv=sess.value,vv=vwap.value,rv=reg.value;
+  const news=parseInt(newsEl.value);
+  if(sv==='prime')b+=10;else if(sv==='dead')b-=15;
+  if(vv==='extreme')b+=5;
+  if(rv==='aligned')b+=8;else b-=5;
   if(news===3)b+=8;else if(news===2)b+=5;else if(news===1)b+=2;else b-=8;
   if(!factors.sw)b-=20;if(!factors.dp)b-=15;
   b=Math.max(0,Math.min(85,b));
+
   const desc=b>=70?'🟢 High conviction — full size':b>=60?'🟡 Moderate — standard size':b>=50?'🟠 Marginal — reduce or skip':'🔴 Below threshold — skip';
+  const clr=b>=70?'var(--lime)':b>=60?'var(--gold)':b>=50?'var(--orange)':'#c0504f';
+
+  // flat bar
   const fill=document.getElementById('wr-fill');
-  document.getElementById('wr-pct').textContent=b+'%';
+  const pct=document.getElementById('wr-pct');
+  if(!fill||!pct)return;
+  pct.textContent=b+'%';
+  pct.style.color=clr;
   fill.style.width=b+'%';
-  fill.style.background=b>=70?'var(--lime)':b>=60?'var(--gold)':b>=50?'var(--orange)':'#c0504f';
+  fill.style.background=clr;
   document.getElementById('wr-desc').textContent=desc;
+
+  // gauge needle: maps 0–85 → -90deg to +90deg
+  const needle=document.getElementById('gauge-needle');
+  const arc=document.getElementById('gauge-arc');
+  if(needle){
+    const deg = (b/85)*180 - 90;
+    needle.style.transform=`rotate(${deg}deg)`;
+    needle.style.stroke=clr;
+  }
+  // arc: draw from left (angle -90 = leftmost) to current value
+  if(arc){
+    const r=90, cx=100, cy=100;
+    const startAngle=-Math.PI; // leftmost
+    const endAngle=(b/85)*Math.PI - Math.PI;
+    const x1=cx+r*Math.cos(startAngle);
+    const y1=cy+r*Math.sin(startAngle);
+    const x2=cx+r*Math.cos(endAngle);
+    const y2=cy+r*Math.sin(endAngle);
+    const large=endAngle-startAngle>Math.PI?1:0;
+    arc.setAttribute('d',`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`);
+    arc.setAttribute('stroke',clr);
+  }
 }
 calcWR();
 </script>
-
 </body>
 </html>
