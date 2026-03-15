@@ -376,9 +376,132 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 .wr-stat-n{font-size:18px;font-weight:900;letter-spacing:1px}
 .wr-stat-l{font-size:8px;letter-spacing:2px;color:var(--gray)}
 
-@media(max-width:640px){
-  .wr-banner{flex-direction:column;text-align:center}
-  .wr-banner-right{justify-content:center}
+/* ── MOBILE ── */
+/* ── ACCESS CODE MODAL ── */
+#code-modal{
+  position:fixed;inset:0;z-index:998;
+  background:rgba(6,8,7,.88);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;
+}
+#code-modal.show{display:flex}
+.modal-box{
+  background:var(--panel);border:1px solid var(--olive);border-radius:14px;
+  padding:28px 24px;width:90%;max-width:320px;text-align:center;
+  position:relative;
+}
+.modal-title{
+  font-size:11px;letter-spacing:3px;color:var(--gold);font-weight:700;margin-bottom:6px;
+}
+.modal-name{
+  font-size:20px;font-weight:900;color:var(--white);letter-spacing:2px;margin-bottom:18px;
+}
+.modal-input{
+  width:100%;background:var(--black2);border:1px solid var(--line2);
+  color:var(--white);font-size:14px;letter-spacing:3px;
+  padding:11px 14px;text-align:center;outline:none;border-radius:8px;
+  margin-bottom:10px;font-family:inherit;transition:border-color .2s;
+}
+.modal-input:focus{border-color:var(--lime)}
+.modal-input.err{border-color:var(--orange)!important;animation:shake .35s}
+.modal-btn{
+  width:100%;padding:11px;border:none;border-radius:8px;cursor:pointer;
+  background:var(--lime);color:#060807;font-weight:900;font-size:13px;
+  letter-spacing:3px;font-family:inherit;transition:all .15s;
+}
+.modal-btn:hover{background:var(--lime2)}
+.modal-close{
+  position:absolute;top:12px;right:14px;
+  background:none;border:none;color:var(--gray);font-size:18px;cursor:pointer;
+  line-height:1;
+}
+.modal-err{font-size:9px;color:var(--orange);letter-spacing:2px;height:14px;margin-top:4px}
+.modal-hint{font-size:10px;color:var(--gray);margin-top:10px;line-height:1.7}
+@media(max-width:768px){
+  html,body{overflow-x:hidden;width:100%}
+  .wrap{padding:0 12px;width:100%;max-width:100%}
+  nav{padding:0 12px}
+  nav .nav-clocks{display:none}
+
+  /* win rate banner — stack vertically, centered */
+  .wr-banner{flex-direction:column;align-items:center;text-align:center;gap:12px;padding:14px 12px}
+  .wr-banner-left{width:100%}
+  .wr-banner-right{justify-content:center;gap:24px;width:100%}
+  .wr-gauge-wrap svg{width:140px;height:74px}
+  .wr-gauge-pct{font-size:16px}
+
+  /* hero — hide chart preview, full width card */
+  .hero{grid-template-columns:1fr;gap:0;padding:20px 0 16px}
+  .preview{display:none}
+  .h1{font-size:30px;letter-spacing:1px}
+  .hero-card{padding:20px 16px}
+  .sub{font-size:13px}
+  .tag-row{gap:6px}
+  .tag{font-size:11px;padding:5px 10px}
+  .hero-cta{width:100%;text-align:center;display:block;padding:13px}
+
+  /* section heads */
+  .sec-head{font-size:10px;letter-spacing:3px;margin:24px 0 12px}
+
+  /* feature cards — single column */
+  .feat-grid{grid-template-columns:1fr;gap:8px}
+  .feat{padding:14px}
+
+  /* divider */
+  .div{margin:20px 0}
+
+  /* tiers — 2 col on bigger phones, 1 col on small */
+  .tiers-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .tier{padding:12px 10px}
+  .tier h3{font-size:16px}
+  .tier-price{font-size:18px;margin:4px 0 10px}
+  .tier ul{font-size:11px}
+  .tier li{margin:4px 0}
+  .tier-note-card{padding:7px;font-size:11px;margin-top:8px}
+  .tier-lock{font-size:9px;padding:2px 7px;right:8px;top:8px}
+
+  /* sauce items */
+  .sauce-item{flex-wrap:wrap;gap:8px;padding:12px}
+  .sauce-icon{font-size:18px}
+  .sauce-name{font-size:13px}
+  .sauce-badge{font-size:9px;padding:3px 9px;align-self:flex-start}
+  .sauce-expand{padding:12px}
+
+  /* expanded content */
+  .ex-grid2{grid-template-columns:1fr}
+  .ex-grid3{grid-template-columns:1fr}
+  .pol-4{grid-template-columns:1fr 1fr}
+  .ex-card{padding:10px}
+  .sf-row{flex-wrap:wrap;gap:4px}
+
+  /* risk/checklist */
+  .risk-stack .rk{flex-wrap:wrap;gap:4px;padding:6px 8px}
+  #cklist .ck{padding:6px}
+
+  /* win rate estimator */
+  .wr-inputs .wr-row{flex-wrap:wrap;gap:6px}
+  select,button.tog{width:auto;flex:1}
+
+  /* trade tracker grid — 2x2 */
+  .tr-stats-grid{grid-template-columns:1fr 1fr!important}
+
+  /* gauge */
+  #gauge-arc,#gauge-needle{transform-box:fill-box}
+
+  /* contact cards — single column */
+  .cc-grid{grid-template-columns:1fr;max-width:100%}
+  .cta-big{font-size:26px;letter-spacing:2px}
+  .cta-btns{flex-direction:column;align-items:center}
+  .btn-lime,.btn-ghost{width:100%;text-align:center}
+
+  /* footer */
+  footer{flex-direction:column;gap:6px;text-align:center;padding:14px}
+}
+
+@media(max-width:420px){
+  /* tiers go single column on small phones */
+  .tiers-grid{grid-template-columns:1fr}
+  .h1{font-size:26px}
+  .wrap{padding:0 10px}
 }
 </style>
 </head>
@@ -386,17 +509,28 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 
 <!-- GATE -->
 <div id="gate">
-  <div class="g-logo">ENGiN<span>3</span></div>
+  <div class="g-logo">BIG<span> ENGiN3</span></div>
   <div class="g-sub">MARKET TIMING SYSTEM</div>
-  <input class="g-input" id="gi" type="password" placeholder="ACCESS CODE" maxlength="32" autocomplete="off" onkeydown="if(event.key==='Enter')tryLogin()">
-  <button class="g-btn" onclick="tryLogin()">ENTER</button>
+  <button class="g-btn" onclick="closeGate(false)">ENTER</button>
   <div class="g-err" id="gerr"></div>
-  <div class="g-hint">PRESS ENTER FOR PUBLIC VIEW<br>MENTORSHIP CODE UNLOCKS ALL TIERS</div>
+</div>
+
+<!-- ACCESS CODE MODAL (for locked tiers) -->
+<div id="code-modal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">MENTORSHIP ACCESS</div>
+    <div class="modal-name" id="modal-tier-name">CORE</div>
+    <input class="modal-input" id="modal-input" type="password" placeholder="· · · · · · · ·" maxlength="32" autocomplete="off" onkeydown="if(event.key==='Enter')tryModalLogin()">
+    <button class="modal-btn" onclick="tryModalLogin()">UNLOCK</button>
+    <div class="modal-err" id="modal-err"></div>
+    <div class="modal-hint">Get your access code at<br><strong style="color:var(--gold)">@Big.ENGiN3</strong> on Instagram</div>
+  </div>
 </div>
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo">ENGiN<span>3</span></div>
+  <div class="nav-logo">BIG<span> ENGiN3</span></div>
   <div class="nav-clocks">
     <div class="nc"><div class="ntz">ET</div><div class="nt" id="et-t">--:--:--</div></div>
     <div style="color:var(--line);font-size:18px">|</div>
@@ -404,7 +538,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
   <div class="nav-right">
     <div class="s-dot" id="sdot"></div>
-    <div class="s-lbl" id="slbl">LOADING</div>
+    <div class="s-lbl" id="slbl" style="font-size:22px;letter-spacing:0;font-weight:900;min-width:18px;text-align:center">−</div>
     <button id="lock-btn" onclick="doLock()">LOCK</button>
   </div>
 </nav>
@@ -474,14 +608,6 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
         <line x1="560" y1="20" x2="560" y2="400" stroke="#d4af37" stroke-width="2" stroke-dasharray="5 8"/>
         <line x1="820" y1="20" x2="820" y2="400" stroke="#7CFC00" stroke-width="2" stroke-dasharray="5 8"/>
       </svg>
-    </div>
-    <div class="mini-meter">
-      <h4>CURRENCY METER</h4>
-      <div class="mm-row"><span>JPY</span><span class="minus">−</span></div>
-      <div class="mm-row"><span>EUR</span><span class="minus">−</span></div>
-      <div class="mm-row"><span>GBP</span><span class="plus">+</span></div>
-      <div class="mm-row"><span>CAD</span><span class="plus">+</span></div>
-      <div class="mm-row"><span style="color:var(--orange)">USD</span><span style="color:var(--gray);font-size:10px">⚓</span></div>
     </div>
     <div class="preview-badge">TRAP-ANCHORED VWAP · <span>BTC 5M</span></div>
   </div>
@@ -601,7 +727,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 2: CORE — Session Flow -->
-  <div class="sauce-item">
+  <div class="sauce-item" onclick="openModal('SESSION FLOW')">
     <div class="sauce-icon">🕐</div>
     <div class="sauce-txt">
       <div class="sauce-name">SESSION FLOW + EXACT TIMES</div>
@@ -619,7 +745,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 3: CORE — Money Rhythm -->
-  <div class="sauce-item">
+  <div class="sauce-item" onclick="openModal('MONEY RHYTHM')">
     <div class="sauce-icon">⏱</div>
     <div class="sauce-txt">
       <div class="sauce-name">MONEY RHYTHM — TRAP → EXECUTE</div>
@@ -636,7 +762,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 4: CORE — Regime Engine -->
-  <div class="sauce-item">
+  <div class="sauce-item" onclick="openModal('REGIME ENGINE')">
     <div class="sauce-icon">⚡</div>
     <div class="sauce-txt">
       <div class="sauce-name">REGIME ENGINE</div>
@@ -659,7 +785,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 5: ELITE — Currency Meter + Polarity -->
-  <div class="sauce-item">
+  <div class="sauce-item" onclick="openModal('CURRENCY METER')">
     <div class="sauce-icon">💱</div>
     <div class="sauce-txt">
       <div class="sauce-name">CURRENCY METER + POLARITY ENGINE</div>
@@ -668,7 +794,22 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
     <div class="sauce-badge elite-b">ELITE</div>
   </div>
   <div class="sauce-expand">
-    <div class="cur-2col" id="cur-grid" style="margin-bottom:12px"></div>
+    <div style="filter:blur(2px);user-select:none;pointer-events:none;margin-bottom:12px">
+      <div class="cur-2col">
+        <div><div class="cur-hdr">GROUP A</div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign pos">+</span></div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign neg">−</span></div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign neg">−</span></div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign pos">+</span></div>
+        </div>
+        <div><div class="cur-hdr">GROUP B</div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign neg">−</span></div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign pos">+</span></div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign neg">−</span></div>
+          <div class="cur-row"><span class="cur-code">???</span><span class="cur-sign pos">+</span></div>
+        </div>
+      </div>
+    </div>
     <div style="margin-bottom:12px;font-size:11px;color:var(--gray);padding:6px;border:1px solid var(--line);border-radius:6px;line-height:1.7">
       BUY CORE: above USD = − · at/below USD = + &nbsp;|&nbsp; SELL RESET: above USD = + · at/below USD = −
     </div>
@@ -688,7 +829,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 6: ELITE — Full Execution + Live Checklist -->
-  <div class="sauce-item">
+  <div class="sauce-item" onclick="openModal('FULL EXECUTION')">
     <div class="sauce-icon">🎯</div>
     <div class="sauce-txt">
       <div class="sauce-name">FULL EXECUTION RULESET + LIVE CHECKLIST</div>
@@ -708,7 +849,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 7: ELITE — Win Rate Estimator + Trade Tracker -->
-  <div class="sauce-item">
+  <div class="sauce-item" onclick="openModal('WIN RATE + TRACKER')">
     <div class="sauce-icon">📊</div>
     <div class="sauce-txt">
       <div class="sauce-name">WIN RATE ESTIMATOR + TRADE TRACKER</div>
@@ -789,7 +930,51 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 </div><!-- end sauce-stack -->
 
 <!-- CTA -->
+
 <section class="cta-sec" id="contact">
+
+<!-- CURRENCY METER TEASER -->
+<div style="max-width:500px;margin:0 auto 40px">
+  <div class="sec-head" style="text-align:center;border-left:none;padding-left:0">INTEREST RATE CURRENCY METER</div>
+  <div style="background:var(--panel);border:1px solid var(--olive);border-radius:14px;padding:20px">
+
+    <!-- scrambled teaser — not real values -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;filter:blur(1.5px);user-select:none;pointer-events:none">
+      <div>
+        <div style="font-size:9px;letter-spacing:3px;color:var(--gold);font-weight:700;margin-bottom:8px">GROUP A</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--gold);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--gold)">+</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--lime);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--lime)">−</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--lime);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--lime)">−</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--gold);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--gold)">+</span></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:9px;letter-spacing:3px;color:var(--orange);font-weight:700;margin-bottom:8px">GROUP B</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--lime);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--lime)">−</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--gold);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--gold)">+</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--lime);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--lime)">−</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--black2);border-left:3px solid var(--gold);border-radius:4px"><span style="font-size:12px;font-weight:700;color:var(--white);letter-spacing:1px">???</span><span style="font-size:20px;font-weight:900;color:var(--gold)">+</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- anchor row — hide which currency -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:10px;background:var(--black2);border:1px solid var(--darkolive);border-radius:8px">
+      <span style="font-size:13px;font-weight:900;color:var(--orange);letter-spacing:2px">???</span>
+      <span style="font-size:16px">⚓</span>
+      <span style="font-size:10px;color:var(--gray);letter-spacing:2px">INTEREST RATE ANCHOR</span>
+    </div>
+
+    <div style="margin-top:12px;font-size:11px;color:var(--dimgray);text-align:center;line-height:1.8">
+      14 currencies. One anchor. Signs determined by rate position.<br>
+      <span style="color:var(--gray);font-size:10px;letter-spacing:1px">Which currencies and which anchor — that's the system.</span>
+    </div>
+
+  </div>
+</div>
+
   <div class="cta-big">LEARN THE <span>FULL SYSTEM</span></div>
   <p class="cta-sub">Mentorship is limited. Direct access only.<br>Reach out through any channel below.</p>
   <div class="cc-grid">
@@ -812,9 +997,15 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 </div><!-- end wrap -->
 
 <footer>
-  <div class="ft-logo">ENGiN3</div>
+  <div class="ft-logo">BIG ENGiN3</div>
   <div class="ft-copy">© 2025 · @Big.ENGiN3 · ALL RIGHTS RESERVED</div>
 </footer>
+<div style="background:var(--black);padding:14px 24px 24px;border-top:1px solid var(--line)">
+  <div style="max-width:900px;margin:0 auto;font-size:9px;color:var(--gray);line-height:1.9;letter-spacing:.3px">
+    <strong style="color:var(--gray);letter-spacing:1px;font-size:8px;display:block;margin-bottom:5px">FINANCIAL RISK WARNING & INVESTMENT DISCLAIMER</strong>
+    Trading and investing in financial markets, including cryptocurrency, involves substantial risk of loss and is not suitable for all investors. Past performance is not indicative of future results. The information, tools, systems, and educational content provided by BIG ENGiN3 are for educational and informational purposes only and do not constitute financial advice, investment advice, or any other type of advice. Nothing on this page should be construed as a recommendation to buy, sell, or hold any financial instrument. All trading involves risk. You may lose some or all of your invested capital. Never trade with money you cannot afford to lose. BIG ENGiN3 is not a registered investment advisor, broker-dealer, or financial planner. Any win rates or performance metrics shown are illustrative in nature and do not represent actual trading results. Individual results will vary. Consult a qualified financial professional before making any investment decisions.
+  </div>
+</div>
 
 <script>
 const CODE='ENGINE3';
@@ -822,13 +1013,7 @@ const factors={sw:true,dp:true};
 
 // ── GATE ────────────────────────────────────────────────────
 function tryLogin(){
-  const v=document.getElementById('gi').value.trim().toUpperCase();
-  if(v===''){closeGate(false);return;}
-  if(v===CODE){closeGate(true);return;}
-  const i=document.getElementById('gi');
-  i.classList.add('err');
-  document.getElementById('gerr').textContent='INVALID CODE';
-  setTimeout(()=>{i.classList.remove('err');document.getElementById('gerr').textContent='';i.value='';},1200);
+  closeGate(false);
 }
 function closeGate(unlock){
   document.getElementById('gate').classList.add('gone');
@@ -843,12 +1028,58 @@ function doLock(){
   document.getElementById('lock-btn').style.display='none';
   sessionStorage.removeItem('e3');
   document.getElementById('gate').classList.remove('gone');
-  document.getElementById('gi').value='';
 }
 if(sessionStorage.getItem('e3')==='1') closeGate(true);
-else setTimeout(()=>document.getElementById('gi').focus(),300);
+
+
+// ── ACCESS CODE MODAL ────────────────────────────────────────
+let pendingTier='';
+function openModal(tierName){
+  if(document.body.classList.contains('unlocked'))return;
+  pendingTier=tierName;
+  document.getElementById('modal-tier-name').textContent=tierName;
+  document.getElementById('modal-input').value='';
+  document.getElementById('modal-err').textContent='';
+  document.getElementById('code-modal').classList.add('show');
+  setTimeout(()=>document.getElementById('modal-input').focus(),200);
+}
+function closeModal(){
+  document.getElementById('code-modal').classList.remove('show');
+}
+function tryModalLogin(){
+  const v=document.getElementById('modal-input').value.trim().toUpperCase();
+  if(v===CODE){
+    closeModal();
+    closeGate(true);
+    return;
+  }
+  const inp=document.getElementById('modal-input');
+  inp.classList.add('err');
+  document.getElementById('modal-err').textContent='INVALID CODE';
+  setTimeout(()=>{inp.classList.remove('err');document.getElementById('modal-err').textContent='';inp.value='';},1200);
+}
+// Close modal on backdrop click
+document.getElementById('code-modal').addEventListener('click',function(e){
+  if(e.target===this)closeModal();
+});
 
 // ── CLOCKS ──────────────────────────────────────────────────
+// Regime windows (12-hr ET clock minutes)
+// BUY CORE (−): 12:30-1:30, 4:30-6:30, 7:30-10:30
+// SELL RESET (+): 6:30-7:30, 10:30-12:30, 1:30-4:30
+// All other hours: default to − (overnight/pre-market = core bias)
+function getRegimeSign(em12){
+  // em12 = minutes on a 12-hour ET clock (0-719)
+  const inRange=(s,e)=>em12>=s&&em12<e;
+  if(inRange(30,90))   return '-'; // 12:30-1:30
+  if(inRange(270,390)) return '-'; // 4:30-6:30
+  if(inRange(390,450)) return '+'; // 6:30-7:30
+  if(inRange(450,630)) return '-'; // 7:30-10:30
+  if(inRange(630,750)) return '+'; // 10:30-12:30
+  // 1:30-4:30 → + (sell reset)
+  if(inRange(90,270))  return '+'; // 1:30-4:30
+  return '-'; // overnight / all other hours
+}
 const SESS=[
   {n:'ACCUMULATION',s:270,e:390,c:'#d4af37'},
   {n:'RECALIBRATION',s:390,e:450,c:'#d8842b'},
@@ -865,10 +1096,18 @@ function tick(){
   document.getElementById('et-t').textContent=et.toISOString().split('T')[1].substring(0,8);
   document.getElementById('utc-t').textContent=now.toUTCString().split(' ')[4];
   const em=et.getUTCHours()*60+et.getUTCMinutes();
-  let f=null;SESS.forEach(s=>{if(em>=s.s&&em<s.e)f=s;});
+  const em12=em%720; // 12-hour clock minutes
+  const sign=getRegimeSign(em12);
   const dot=document.getElementById('sdot'),lbl=document.getElementById('slbl');
-  if(f){dot.style.background=f.c;lbl.textContent=f.n;lbl.style.color=f.c;}
-  else{dot.style.background='var(--gray)';lbl.textContent='OFF-SESSION';lbl.style.color='var(--gray)';}
+  if(sign==='-'){
+    dot.style.background='var(--lime)';
+    lbl.textContent='−';
+    lbl.style.color='var(--lime)';
+  } else {
+    dot.style.background='var(--gold)';
+    lbl.textContent='+';
+    lbl.style.color='var(--gold)';
+  }
 }
 tick();setInterval(tick,1000);
 
