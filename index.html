@@ -468,6 +468,9 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 .tpanel-btn{width:100%;padding:12px;border:none;border-radius:8px;cursor:pointer;background:var(--gold);color:#060807;font-weight:900;font-size:13px;letter-spacing:3px;font-family:inherit;transition:all .15s}
 .tpanel-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
 
+/* hide unlock buttons once tier is active */
+body[data-tier] .tpanel-btn{ display:none; }
+
 /* ── MOBILE ── */
 /* ── ACCESS CODE MODAL ── */
 #code-modal{
@@ -544,6 +547,44 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 }
 .modal-err{font-size:9px;color:var(--orange);letter-spacing:2px;height:14px;margin-top:4px}
 .modal-hint{font-size:10px;color:var(--gray);margin-top:10px;line-height:1.7}
+
+/* ── POST-UNLOCK: hide UNLOCK buttons, swap Locked → Unlocked ── */
+body[data-tier] .tpanel-btn{display:none}
+body[data-tier] .sauce-item{cursor:default}
+
+/* Any tier badge inside an unlocked panel becomes "Unlocked" in lime */
+body[data-tier="FREE"]    #tp-free .tpanel-badge,
+body[data-tier="STARTER"] #tp-free .tpanel-badge,
+body[data-tier="STARTER"] #tp-starter .tpanel-badge,
+body[data-tier="CORE"]    #tp-free .tpanel-badge,
+body[data-tier="CORE"]    #tp-starter .tpanel-badge,
+body[data-tier="CORE"]    #tp-core .tpanel-badge,
+body[data-tier="PRO"]     #tp-free .tpanel-badge,
+body[data-tier="PRO"]     #tp-starter .tpanel-badge,
+body[data-tier="PRO"]     #tp-core .tpanel-badge,
+body[data-tier="PRO"]     #tp-pro .tpanel-badge,
+body[data-tier="ELITE"]   .tpanel .tpanel-badge{
+  background:rgba(124,252,0,.1)!important;
+  color:var(--lime)!important;
+  border-color:rgba(124,252,0,.3)!important;
+  font-size:0; /* hide "Locked" text */
+}
+body[data-tier="FREE"]    #tp-free .tpanel-badge::before,
+body[data-tier="STARTER"] #tp-free .tpanel-badge::before,
+body[data-tier="STARTER"] #tp-starter .tpanel-badge::before,
+body[data-tier="CORE"]    #tp-free .tpanel-badge::before,
+body[data-tier="CORE"]    #tp-starter .tpanel-badge::before,
+body[data-tier="CORE"]    #tp-core .tpanel-badge::before,
+body[data-tier="PRO"]     #tp-free .tpanel-badge::before,
+body[data-tier="PRO"]     #tp-starter .tpanel-badge::before,
+body[data-tier="PRO"]     #tp-core .tpanel-badge::before,
+body[data-tier="PRO"]     #tp-pro .tpanel-badge::before,
+body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
+  content:'🔓 UNLOCKED';
+  font-size:10px;
+  letter-spacing:1px;
+}
+
 @media(max-width:768px){
   html,body{overflow-x:hidden;width:100%}
   .wrap{padding:0 12px;width:100%;max-width:100%}
