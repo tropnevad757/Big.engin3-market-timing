@@ -501,6 +501,42 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   letter-spacing:3px;font-family:inherit;transition:all .15s;
 }
 .modal-btn:hover{background:var(--lime2)}
+
+/* ── UNLOCK ANIMATION ── */
+.modal-unlocked{
+  display:none;flex-direction:column;align-items:center;gap:8px;
+  padding:10px 0;
+}
+.modal-unlocked.show{display:flex}
+.unlock-icon{
+  font-size:52px;
+  animation:unlockPop .5s cubic-bezier(.175,.885,.32,1.275) forwards;
+}
+.unlock-tier{
+  font-size:22px;font-weight:900;letter-spacing:3px;color:var(--lime);
+  animation:unlockFade .4s ease .2s both;
+}
+.unlock-label{
+  font-size:10px;letter-spacing:3px;color:var(--dimgray);
+  animation:unlockFade .4s ease .3s both;
+}
+@keyframes unlockPop{
+  0%{transform:scale(0) rotate(-20deg);opacity:0}
+  70%{transform:scale(1.2) rotate(5deg);opacity:1}
+  100%{transform:scale(1) rotate(0deg);opacity:1}
+}
+@keyframes unlockFade{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes unlockGlow{
+  0%,100%{box-shadow:0 0 0 0 rgba(124,252,0,0)}
+  50%{box-shadow:0 0 30px 8px rgba(124,252,0,.25)}
+}
+.modal-box.unlocked-state{
+  border-color:var(--lime);
+  animation:unlockGlow 1.5s ease 3;
+}
 .modal-close{
   position:absolute;top:12px;right:14px;
   background:none;border:none;color:var(--gray);font-size:18px;cursor:pointer;
@@ -614,8 +650,13 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
     <div class="modal-title">MENTORSHIP ACCESS</div>
     <div class="modal-name" id="modal-tier-name">CORE</div>
     <input class="modal-input" id="modal-input" type="password" placeholder="· · · · · · · ·" maxlength="32" autocomplete="off" onkeydown="if(event.key==='Enter')tryModalLogin()">
-    <button class="modal-btn" onclick="tryModalLogin()">UNLOCK</button>
+    <button class="modal-btn" id="modal-btn" onclick="tryModalLogin()">UNLOCK</button>
     <div class="modal-err" id="modal-err"></div>
+    <div class="modal-unlocked" id="modal-unlocked">
+      <div class="unlock-icon">🔓</div>
+      <div class="unlock-tier" id="unlock-tier-name">CORE</div>
+      <div class="unlock-label">UNLOCKED</div>
+    </div>
     <div class="modal-hint">
       Have a code? Enter it above.<br>
       Need access? Get it at<br>
@@ -1115,11 +1156,11 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 <script>
 // ── TIER CODES ───────────────────────────────────────────────
 const CODES = {
-  '0523': 'FREE',      // follow + DM SAUCE
-  '0412': 'STARTER',   // $19/mo
-  '0301': 'CORE',      // $49/mo
-  '0290': 'PRO',       // $99/mo
-  '0189': 'ELITE'      // $299/mo — set your own elite code
+  '05230523': 'FREE',
+  '04120412': 'STARTER',
+  '03010301': 'CORE',
+  '02900290': 'PRO',
+  '01890189': 'ELITE'
 };
 const CODE = '0189'; // master (ELITE unlocks everything)
 const factors={sw:true,dp:true};
@@ -1166,11 +1207,32 @@ function tryModalLogin(){
   const v=document.getElementById('modal-input').value.trim();
   const tier=CODES[v];
   if(tier){
-    closeModal();
-    closeGate(true);
-    // store which tier they unlocked
-    sessionStorage.setItem('e3tier', tier);
-    document.body.setAttribute('data-tier', tier);
+    const box=document.querySelector('.modal-box');
+    const inputEl=document.getElementById('modal-input');
+    const btn=document.getElementById('modal-btn');
+    const unlocked=document.getElementById('modal-unlocked');
+    const tierName=document.getElementById('unlock-tier-name');
+    const hint=document.getElementById('modal-hint') || document.querySelector('.modal-hint');
+    if(inputEl) inputEl.style.display='none';
+    if(btn) btn.style.display='none';
+    const errEl=document.getElementById('modal-err');
+    if(errEl) errEl.style.display='none';
+    if(hint) hint.style.display='none';
+    if(tierName) tierName.textContent=tier;
+    if(unlocked) unlocked.classList.add('show');
+    if(box) box.classList.add('unlocked-state');
+    setTimeout(()=>{
+      closeModal();
+      closeGate(true);
+      sessionStorage.setItem('e3tier',tier);
+      document.body.setAttribute('data-tier',tier);
+      if(inputEl){inputEl.style.display='';inputEl.value='';}
+      if(btn) btn.style.display='';
+      if(errEl) errEl.style.display='';
+      if(hint) hint.style.display='';
+      if(unlocked) unlocked.classList.remove('show');
+      if(box) box.classList.remove('unlocked-state');
+    },1800);
     return;
   }
   const inp=document.getElementById('modal-input');
