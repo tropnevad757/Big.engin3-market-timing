@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>ENGiN3 — Market Timing System</title>
+<title>BIG ENGiN3 — Market Timing System</title>
+<!-- Google Analytics — replace G-XXXXXXXXXX with your Measurement ID -->
+<!-- <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-XXXXXXXXXX');</script> -->
+
 <style>
 :root{
   --black:    #060807;
@@ -218,11 +222,54 @@ nav{
 .sauce-badge.core-b{background:rgba(212,175,55,.1);color:var(--gold);border-color:rgba(212,175,55,.4)}
 .sauce-badge.elite-b{background:rgba(216,132,43,.1);color:var(--orange);border-color:rgba(216,132,43,.4)}
 
-/* unlock state */
+/* unlock state — full unlock */
 body.unlocked .sauce-item .sauce-badge{display:none}
-body.unlocked .sauce-item{border-color:rgba(124,252,0,.3)}
+body.unlocked .sauce-item{border-color:rgba(124,252,0,.3);cursor:default}
+body.unlocked .sauce-expand{display:block!important}
 
-/* ── EXPANDED SAUCE CONTENT ── */
+/* tier-specific unlocks */
+body[data-tier="STARTER"] .sauce-item[data-tier="starter"],
+body[data-tier="CORE"] .sauce-item[data-tier="starter"],
+body[data-tier="CORE"] .sauce-item[data-tier="core"],
+body[data-tier="PRO"] .sauce-item[data-tier="starter"],
+body[data-tier="PRO"] .sauce-item[data-tier="core"],
+body[data-tier="PRO"] .sauce-item[data-tier="pro"],
+body[data-tier="ADVANCED"] .sauce-item[data-tier="starter"],
+body[data-tier="ADVANCED"] .sauce-item[data-tier="core"],
+body[data-tier="ADVANCED"] .sauce-item[data-tier="pro"],
+body[data-tier="ADVANCED"] .sauce-item[data-tier="advanced"],
+body[data-tier="ELITE"] .sauce-item[data-tier="starter"],
+body[data-tier="ELITE"] .sauce-item[data-tier="core"],
+body[data-tier="ELITE"] .sauce-item[data-tier="pro"],
+body[data-tier="ELITE"] .sauce-item[data-tier="advanced"],
+body[data-tier="ELITE"] .sauce-item[data-tier="elite"]
+{ border-color:rgba(124,252,0,.3);cursor:default; }
+
+body[data-tier="STARTER"] .sauce-item[data-tier="starter"] .sauce-badge,
+body[data-tier="CORE"] .sauce-item[data-tier="starter"] .sauce-badge,
+body[data-tier="CORE"] .sauce-item[data-tier="core"] .sauce-badge,
+body[data-tier="PRO"] .sauce-item[data-tier="starter"] .sauce-badge,
+body[data-tier="PRO"] .sauce-item[data-tier="core"] .sauce-badge,
+body[data-tier="PRO"] .sauce-item[data-tier="pro"] .sauce-badge,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="starter"] .sauce-badge,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="core"] .sauce-badge,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="pro"] .sauce-badge,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="advanced"] .sauce-badge,
+body[data-tier="ELITE"] .sauce-item .sauce-badge
+{ display:none; }
+
+body[data-tier="STARTER"] .sauce-item[data-tier="starter"] + .sauce-expand,
+body[data-tier="CORE"] .sauce-item[data-tier="starter"] + .sauce-expand,
+body[data-tier="CORE"] .sauce-item[data-tier="core"] + .sauce-expand,
+body[data-tier="PRO"] .sauce-item[data-tier="starter"] + .sauce-expand,
+body[data-tier="PRO"] .sauce-item[data-tier="core"] + .sauce-expand,
+body[data-tier="PRO"] .sauce-item[data-tier="pro"] + .sauce-expand,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="starter"] + .sauce-expand,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="core"] + .sauce-expand,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="pro"] + .sauce-expand,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="advanced"] + .sauce-expand,
+body[data-tier="ELITE"] .sauce-item + .sauce-expand
+{ display:block!important; }
 .sauce-expand{
   display:none;border-left:1px solid var(--olive);
   border-right:1px solid var(--line);border-bottom:1px solid var(--olive);
@@ -509,9 +556,9 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 
 <!-- GATE -->
 <div id="gate">
-  <div class="g-logo">BIG<span> ENGiN3</span></div>
+  <div class="g-logo">Bi<span>G ENGiN3</span></div>
   <div class="g-sub">MARKET TIMING SYSTEM</div>
-  <button class="g-btn" onclick="closeGate(false)">ENTER</button>
+  <button class="g-btn" onclick="closeGate(false)" style="margin-top:8px">ENTER</button>
   <div class="g-err" id="gerr"></div>
 </div>
 
@@ -524,7 +571,11 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
     <input class="modal-input" id="modal-input" type="password" placeholder="· · · · · · · ·" maxlength="32" autocomplete="off" onkeydown="if(event.key==='Enter')tryModalLogin()">
     <button class="modal-btn" onclick="tryModalLogin()">UNLOCK</button>
     <div class="modal-err" id="modal-err"></div>
-    <div class="modal-hint">Get your access code at<br><strong style="color:var(--gold)">@Big.ENGiN3</strong> on Instagram</div>
+    <div class="modal-hint">
+      Have a code? Enter it above.<br>
+      Need access? Get it at<br>
+      <a href="https://whop.com/bigengin3" target="_blank" style="color:var(--lime);font-weight:700;letter-spacing:1px">whop.com/bigengin3</a>
+    </div>
   </div>
 </div>
 
@@ -703,6 +754,15 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 <div class="div"></div>
 
 <!-- SAUCE TIERS -->
+<!-- FOLLOW FOR FREE TIER -->
+<div style="background:linear-gradient(135deg,var(--panel2) 0%,var(--black2) 100%);border:1px solid var(--olive);border-left:4px solid var(--lime);border-radius:12px;padding:18px 20px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+  <div style="flex:1">
+    <div style="font-size:11px;font-weight:700;letter-spacing:3px;color:var(--lime);margin-bottom:6px">FOLLOW</div>
+    <div style="font-size:11px;color:var(--dimgray);line-height:1.8">DM <strong style="color:var(--gold)">"SAUCE"</strong> for code</div>
+  </div>
+  <a href="https://instagram.com/big.engin3" target="_blank" style="flex-shrink:0;padding:12px 22px;background:var(--lime);color:#060807;font-weight:900;font-size:15px;letter-spacing:1px;text-decoration:none;border-radius:8px;white-space:nowrap;text-align:center;line-height:1.3" onmouseover="this.style.background='var(--lime2)'" onmouseout="this.style.background='var(--lime)'">@BiG.ENGiN3</a>
+</div>
+
 <div class="sauce-stack">
 
   <!-- TIER 1: FREE — System Principles -->
@@ -727,7 +787,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 2: CORE — Session Flow -->
-  <div class="sauce-item" onclick="openModal('SESSION FLOW')">
+  <div class="sauce-item" data-tier="core" onclick="openModal('SESSION FLOW')">
     <div class="sauce-icon">🕐</div>
     <div class="sauce-txt">
       <div class="sauce-name">SESSION FLOW + EXACT TIMES</div>
@@ -745,7 +805,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 3: CORE — Money Rhythm -->
-  <div class="sauce-item" onclick="openModal('MONEY RHYTHM')">
+  <div class="sauce-item" data-tier="core" onclick="openModal('MONEY RHYTHM')">
     <div class="sauce-icon">⏱</div>
     <div class="sauce-txt">
       <div class="sauce-name">MONEY RHYTHM — TRAP → EXECUTE</div>
@@ -762,7 +822,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 4: CORE — Regime Engine -->
-  <div class="sauce-item" onclick="openModal('REGIME ENGINE')">
+  <div class="sauce-item" data-tier="core" onclick="openModal('REGIME ENGINE')">
     <div class="sauce-icon">⚡</div>
     <div class="sauce-txt">
       <div class="sauce-name">REGIME ENGINE</div>
@@ -785,7 +845,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 5: ELITE — Currency Meter + Polarity -->
-  <div class="sauce-item" onclick="openModal('CURRENCY METER')">
+  <div class="sauce-item" data-tier="pro" onclick="openModal('CURRENCY METER')">
     <div class="sauce-icon">💱</div>
     <div class="sauce-txt">
       <div class="sauce-name">CURRENCY METER + POLARITY ENGINE</div>
@@ -829,7 +889,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 6: ELITE — Full Execution + Live Checklist -->
-  <div class="sauce-item" onclick="openModal('FULL EXECUTION')">
+  <div class="sauce-item" data-tier="advanced" onclick="openModal('FULL EXECUTION')">
     <div class="sauce-icon">🎯</div>
     <div class="sauce-txt">
       <div class="sauce-name">FULL EXECUTION RULESET + LIVE CHECKLIST</div>
@@ -849,7 +909,7 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 
   <!-- TIER 7: ELITE — Win Rate Estimator + Trade Tracker -->
-  <div class="sauce-item" onclick="openModal('WIN RATE + TRACKER')">
+  <div class="sauce-item" data-tier="elite" onclick="openModal('WIN RATE + TRACKER')">
     <div class="sauce-icon">📊</div>
     <div class="sauce-txt">
       <div class="sauce-name">WIN RATE ESTIMATOR + TRADE TRACKER</div>
@@ -1008,13 +1068,26 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 </div>
 
 <script>
-const CODE='ENGINE3';
+// ── TIER CODES ───────────────────────────────────────────────
+const CODES = {
+  '0523': 'STARTER',   // $19/mo
+  '0412': 'CORE',      // $49/mo
+  '0301': 'PRO',       // $99/mo
+  '0290': 'ADVANCED',  // $149/mo
+  '0189': 'ELITE'      // $299/mo
+};
+const CODE = '0189'; // master (ELITE unlocks everything)
 const factors={sw:true,dp:true};
 
 // ── GATE ────────────────────────────────────────────────────
-function tryLogin(){
-  closeGate(false);
+// ── GATE ────────────────────────────────────────────────────
+function showStep2(){
+  setTimeout(()=>{
+    document.getElementById('gate-step1').style.display='none';
+    document.getElementById('gate-step2').style.display='flex';
+  }, 800);
 }
+function tryLogin(){ closeGate(false); }
 function closeGate(unlock){
   document.getElementById('gate').classList.add('gone');
   if(unlock){
@@ -1029,7 +1102,11 @@ function doLock(){
   sessionStorage.removeItem('e3');
   document.getElementById('gate').classList.remove('gone');
 }
-if(sessionStorage.getItem('e3')==='1') closeGate(true);
+if(sessionStorage.getItem('e3')==='1'){
+  closeGate(true);
+  const savedTier=sessionStorage.getItem('e3tier');
+  if(savedTier) document.body.setAttribute('data-tier',savedTier);
+}
 
 
 // ── ACCESS CODE MODAL ────────────────────────────────────────
@@ -1047,10 +1124,14 @@ function closeModal(){
   document.getElementById('code-modal').classList.remove('show');
 }
 function tryModalLogin(){
-  const v=document.getElementById('modal-input').value.trim().toUpperCase();
-  if(v===CODE){
+  const v=document.getElementById('modal-input').value.trim();
+  const tier=CODES[v];
+  if(tier){
     closeModal();
     closeGate(true);
+    // store which tier they unlocked
+    sessionStorage.setItem('e3tier', tier);
+    document.body.setAttribute('data-tier', tier);
     return;
   }
   const inp=document.getElementById('modal-input');
@@ -1058,7 +1139,6 @@ function tryModalLogin(){
   document.getElementById('modal-err').textContent='INVALID CODE';
   setTimeout(()=>{inp.classList.remove('err');document.getElementById('modal-err').textContent='';inp.value='';},1200);
 }
-// Close modal on backdrop click
 document.getElementById('code-modal').addEventListener('click',function(e){
   if(e.target===this)closeModal();
 });
