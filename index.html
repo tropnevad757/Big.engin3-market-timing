@@ -101,12 +101,13 @@ nav{
 .hero-card{
   background:linear-gradient(160deg,var(--panel) 0%,var(--black2) 100%);
   border:1px solid var(--olive);border-radius:18px;padding:28px;
+  text-align:center;
 }
 .kicker{font-size:11px;font-weight:700;letter-spacing:3px;color:var(--gold);margin-bottom:10px}
 .h1{font-size:46px;line-height:1.02;font-weight:900;margin-bottom:14px;color:var(--white)}
 .h1 .e3{color:var(--lime)}
-.sub{color:var(--dimgray);font-size:14px;max-width:680px;margin-bottom:20px;line-height:1.7}
-.tag-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.sub{color:var(--dimgray);font-size:14px;max-width:680px;margin-bottom:12px;line-height:1.7}
+.tag-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;justify-content:center}
 .tag{
   border:1px solid var(--olive);background:rgba(85,107,47,.1);
   padding:6px 12px;border-radius:999px;font-size:12px;color:var(--dimgray);
@@ -152,7 +153,7 @@ nav{
 .preview-badge span{color:var(--lime);font-weight:700}
 
 /* ── SECTION HEAD ── */
-.sec-head{margin:36px 0 16px;font-size:11px;font-weight:700;letter-spacing:4px;color:var(--olive2);text-transform:uppercase;border-left:3px solid var(--olive);padding-left:10px}
+.sec-head{margin:36px 0 16px;font-size:11px;font-weight:700;letter-spacing:4px;color:var(--olive2);text-transform:uppercase;text-align:center}
 
 /* ── FEATURES GRID ── */
 .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -228,16 +229,22 @@ body.unlocked .sauce-item{border-color:rgba(124,252,0,.3);cursor:default}
 body.unlocked .sauce-expand{display:block!important}
 
 /* tier-specific unlocks */
+body[data-tier="FREE"] .sauce-item[data-tier="free"],
+body[data-tier="STARTER"] .sauce-item[data-tier="free"],
 body[data-tier="STARTER"] .sauce-item[data-tier="starter"],
+body[data-tier="CORE"] .sauce-item[data-tier="free"],
 body[data-tier="CORE"] .sauce-item[data-tier="starter"],
 body[data-tier="CORE"] .sauce-item[data-tier="core"],
+body[data-tier="PRO"] .sauce-item[data-tier="free"],
 body[data-tier="PRO"] .sauce-item[data-tier="starter"],
 body[data-tier="PRO"] .sauce-item[data-tier="core"],
 body[data-tier="PRO"] .sauce-item[data-tier="pro"],
+body[data-tier="ADVANCED"] .sauce-item[data-tier="free"],
 body[data-tier="ADVANCED"] .sauce-item[data-tier="starter"],
 body[data-tier="ADVANCED"] .sauce-item[data-tier="core"],
 body[data-tier="ADVANCED"] .sauce-item[data-tier="pro"],
 body[data-tier="ADVANCED"] .sauce-item[data-tier="advanced"],
+body[data-tier="ELITE"] .sauce-item[data-tier="free"],
 body[data-tier="ELITE"] .sauce-item[data-tier="starter"],
 body[data-tier="ELITE"] .sauce-item[data-tier="core"],
 body[data-tier="ELITE"] .sauce-item[data-tier="pro"],
@@ -245,12 +252,17 @@ body[data-tier="ELITE"] .sauce-item[data-tier="advanced"],
 body[data-tier="ELITE"] .sauce-item[data-tier="elite"]
 { border-color:rgba(124,252,0,.3);cursor:default; }
 
+body[data-tier="FREE"] .sauce-item[data-tier="free"] .sauce-badge,
+body[data-tier="STARTER"] .sauce-item[data-tier="free"] .sauce-badge,
 body[data-tier="STARTER"] .sauce-item[data-tier="starter"] .sauce-badge,
+body[data-tier="CORE"] .sauce-item[data-tier="free"] .sauce-badge,
 body[data-tier="CORE"] .sauce-item[data-tier="starter"] .sauce-badge,
 body[data-tier="CORE"] .sauce-item[data-tier="core"] .sauce-badge,
+body[data-tier="PRO"] .sauce-item[data-tier="free"] .sauce-badge,
 body[data-tier="PRO"] .sauce-item[data-tier="starter"] .sauce-badge,
 body[data-tier="PRO"] .sauce-item[data-tier="core"] .sauce-badge,
 body[data-tier="PRO"] .sauce-item[data-tier="pro"] .sauce-badge,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="free"] .sauce-badge,
 body[data-tier="ADVANCED"] .sauce-item[data-tier="starter"] .sauce-badge,
 body[data-tier="ADVANCED"] .sauce-item[data-tier="core"] .sauce-badge,
 body[data-tier="ADVANCED"] .sauce-item[data-tier="pro"] .sauce-badge,
@@ -258,12 +270,17 @@ body[data-tier="ADVANCED"] .sauce-item[data-tier="advanced"] .sauce-badge,
 body[data-tier="ELITE"] .sauce-item .sauce-badge
 { display:none; }
 
+body[data-tier="FREE"] .sauce-item[data-tier="free"] + .sauce-expand,
+body[data-tier="STARTER"] .sauce-item[data-tier="free"] + .sauce-expand,
 body[data-tier="STARTER"] .sauce-item[data-tier="starter"] + .sauce-expand,
+body[data-tier="CORE"] .sauce-item[data-tier="free"] + .sauce-expand,
 body[data-tier="CORE"] .sauce-item[data-tier="starter"] + .sauce-expand,
 body[data-tier="CORE"] .sauce-item[data-tier="core"] + .sauce-expand,
+body[data-tier="PRO"] .sauce-item[data-tier="free"] + .sauce-expand,
 body[data-tier="PRO"] .sauce-item[data-tier="starter"] + .sauce-expand,
 body[data-tier="PRO"] .sauce-item[data-tier="core"] + .sauce-expand,
 body[data-tier="PRO"] .sauce-item[data-tier="pro"] + .sauce-expand,
+body[data-tier="ADVANCED"] .sauce-item[data-tier="free"] + .sauce-expand,
 body[data-tier="ADVANCED"] .sauce-item[data-tier="starter"] + .sauce-expand,
 body[data-tier="ADVANCED"] .sauce-item[data-tier="core"] + .sauce-expand,
 body[data-tier="ADVANCED"] .sauce-item[data-tier="pro"] + .sauce-expand,
@@ -422,6 +439,29 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 .wr-stat{display:flex;flex-direction:column;align-items:center;gap:3px}
 .wr-stat-n{font-size:18px;font-weight:900;letter-spacing:1px}
 .wr-stat-l{font-size:8px;letter-spacing:2px;color:var(--gray)}
+
+/* ── TIER SELECTOR ── */
+.ttab{
+  flex:1;min-width:0;padding:8px 4px;
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  color:var(--gray);font-family:inherit;font-size:10px;font-weight:700;
+  letter-spacing:1px;cursor:pointer;transition:all .15s;
+}
+.ttab:hover{border-color:var(--olive);color:var(--dimgray)}
+.ttab.active{background:var(--panel2);border-color:var(--olive2);color:var(--white)}
+.tpanel{display:none;background:linear-gradient(160deg,var(--panel) 0%,var(--black2) 100%);border:1px solid var(--line);border-radius:12px;padding:20px;border-top:3px solid var(--darkolive)}
+.tpanel.active{display:block}
+.tpanel-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.tpanel-name{font-size:22px;font-weight:900;color:var(--white);letter-spacing:2px}
+.tpanel-price{font-size:20px;font-weight:900;color:var(--gold);margin-top:2px}
+.tpanel-badge{font-size:10px;font-weight:700;letter-spacing:1px;padding:4px 12px;border-radius:999px;border:1px solid}
+.tpanel-items{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.tpi{font-size:13px;color:var(--dimgray);padding:5px 0;border-bottom:1px solid var(--line)}
+.tpi:last-child{border-bottom:none}
+.tpi-all{color:var(--olive2)!important;font-size:11px;letter-spacing:1px}
+.tpanel-note{font-size:11px;color:var(--gray);padding:8px 10px;background:rgba(85,107,47,.06);border:1px solid var(--line);border-radius:6px;margin-bottom:12px}
+.tpanel-btn{width:100%;padding:12px;border:none;border-radius:8px;cursor:pointer;background:var(--gold);color:#060807;font-weight:900;font-size:13px;letter-spacing:3px;font-family:inherit;transition:all .15s}
+.tpanel-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
 
 /* ── MOBILE ── */
 /* ── ACCESS CODE MODAL ── */
@@ -589,7 +629,10 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
   <div class="nav-right">
     <div class="s-dot" id="sdot"></div>
-    <div class="s-lbl" id="slbl" style="font-size:22px;letter-spacing:0;font-weight:900;min-width:18px;text-align:center">−</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+      <div class="s-lbl" id="slbl" style="font-size:22px;letter-spacing:0;font-weight:900;min-width:18px;text-align:center;line-height:1">−</div>
+      <div id="regime-lbl" style="font-size:7px;letter-spacing:2px;color:var(--gray);line-height:1;margin-top:1px">CORE</div>
+    </div>
     <button id="lock-btn" onclick="doLock()">LOCK</button>
   </div>
 </nav>
@@ -630,18 +673,17 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 <!-- HERO -->
 <section class="hero">
   <div class="hero-card">
-    <div class="kicker">PRECISION MARKET TIMING SYSTEM</div>
-    <div class="h1">Trap-anchored.<br><span class="e3">Precision</span> timing.</div>
-    <p class="sub">BTC 5M execution system built on trap-anchored VWAP, session-aware regime logic, and displacement confirmation. Every trade starts with structure.</p>
+    <div class="kicker">BTC MARKET TIMING SYSTEM</div>
+    <div class="h1">Bitcoin timing<br>with <span class="e3">structure.</span></div>
+    <p class="sub">Every trade starts with a reason.</p>
+    <p style="font-size:18px;font-weight:900;color:var(--lime);letter-spacing:1px;margin-bottom:20px;text-align:center">Not guesswork.</p>
     <div class="tag-row">
       <span class="tag">5M Entry</span>
       <span class="tag">15M Context</span>
       <span class="tag">Trap → Execute</span>
       <span class="tag">±2σ / ±3σ</span>
-      <span class="tag">75-Min Anchor</span>
-      <span class="tag">Dark mode</span>
     </div>
-    <a href="#contact" class="hero-cta">Apply for Mentorship →</a>
+    <a href="#contact" class="hero-cta" style="display:block;text-align:center">Apply for Mentorship →</a>
   </div>
   <div class="preview">
     <div class="gridlines"></div>
@@ -664,113 +706,170 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
   </div>
 </section>
 
-<!-- FEATURES -->
+<!-- PROOF SECTION -->
+<div class="sec-head">WHY IT WORKS</div>
+<section class="feat-grid">
+  <div class="feat"><div class="icon">📍</div><h3>Structure first</h3><p>Every entry requires a liquidity sweep, VWAP confirmation, regime alignment, and 5M displacement close. No sweep — no trade. No exceptions.</p></div>
+  <div class="feat"><div class="icon">⏱</div><h3>Session-based timing</h3><p>Built around live BTC session phases. Trap fires at a specific window. Execute fires after confirmation. Timing is the edge — not prediction.</p></div>
+  <div class="feat"><div class="icon">📊</div><h3>Confirmation-first</h3><p>Price must close beyond the sweep with body >60% of range and volume expansion. The system waits for proof before entry is permitted.</p></div>
+</section>
+
+<div class="div"></div>
+
+<!-- PROOF SECTION -->
 <div class="sec-head">THE SYSTEM</div>
 <section class="feat-grid">
-  <div class="feat"><div class="icon">⚡</div><h3>Trap-anchored VWAP</h3><p>75-minute anchor delay. Sigma bands at ±2σ and ±3σ. Mean reversion and value break modes. Anchored to the trap candle — not the session open.</p></div>
+  <div class="feat"><div class="icon">⚡</div><h3>Trap-anchored VWAP</h3><p>Sigma bands at ±2σ and ±3σ. Mean reversion and value break modes. Anchored to the trap candle — not the session open.</p></div>
   <div class="feat"><div class="icon">🎯</div><h3>Six-step execution</h3><p>Time window. Liquidity sweep. VWAP rule. Regime bias. News fuel. 5M displacement close. All six required. No exceptions.</p></div>
   <div class="feat"><div class="icon">📊</div><h3>Regime + polarity</h3><p>BUY CORE or SELL RESET governs every trade. Currency meter and polarity engine score conviction before entry is even considered.</p></div>
 </section>
 
 <div class="div"></div>
 
-<!-- TIERS -->
-<div class="sec-head">MENTORSHIP ACCESS</div>
-<div class="tiers-grid">
-  <div class="tier">
-    <div class="tier-lock open">Open</div>
-    <h3>FREE</h3>
-    <div class="tier-price" style="color:var(--dimgray)">$0</div>
-    <ul>
-      <li>System overview</li>
-      <li>Core principles</li>
-      <li>Brand + chart style</li>
-      <li>Instagram entry</li>
-    </ul>
-    <div class="tier-note-card">No code required.</div>
-  </div>
-  <div class="tier">
-    <div class="tier-lock locked">Locked</div>
-    <h3>STARTER</h3>
-    <div class="tier-price" style="color:var(--olive2)">$19/mo</div>
-    <ul>
-      <li>System principles deep dive</li>
-      <li>VWAP anchor logic</li>
-      <li>Sigma band overview</li>
-      <li>Displacement rules</li>
-    </ul>
-    <div class="tier-note-card">Foundation layer.</div>
-  </div>
-  <div class="tier">
-    <div class="tier-lock locked">Locked</div>
-    <h3>CORE</h3>
-    <div class="tier-price" style="color:var(--gold)">$49/mo</div>
-    <ul>
-      <li>Session flow map</li>
-      <li>Money rhythm windows</li>
-      <li>Regime engine</li>
-      <li>Live entry checklist</li>
-    </ul>
-    <div class="tier-note-card">Structure opens up.</div>
-  </div>
-  <div class="tier">
-    <div class="tier-lock locked">Locked</div>
-    <h3>PRO</h3>
-    <div class="tier-price" style="color:var(--orange)">$99/mo</div>
-    <ul>
-      <li>Currency meter full access</li>
-      <li>Polarity engine</li>
-      <li>News reaction framework</li>
-      <li>Win rate estimator</li>
-    </ul>
-    <div class="tier-note-card">Score every setup.</div>
-  </div>
-  <div class="tier">
-    <div class="tier-lock locked">Locked</div>
-    <h3>ADVANCED</h3>
-    <div class="tier-price" style="color:var(--gold2)">$149/mo</div>
-    <ul>
-      <li>Full execution ruleset</li>
-      <li>Stop + trail logic</li>
-      <li>Trade success tracker</li>
-      <li>Complete playbook</li>
-    </ul>
-    <div class="tier-note-card">Execute with precision.</div>
-  </div>
-  <div class="tier" style="border-top-color:var(--lime);box-shadow:0 0 24px rgba(124,252,0,.07)">
-    <div class="tier-lock locked">Locked</div>
-    <h3 style="color:var(--lime)">ELITE</h3>
-    <div class="tier-price" style="color:var(--lime)">$299/mo</div>
-    <ul>
-      <li>Direct mentorship</li>
-      <li>Private breakdowns</li>
-      <li>Live session guidance</li>
-      <li>Everything unlocked</li>
-    </ul>
-    <div class="tier-note-card" style="border-color:rgba(124,252,0,.2)">Highest level. Direct access.</div>
-  </div>
+<!-- UNIFIED TIER SELECTOR -->
+<div class="sec-head">WHAT UNLOCKS</div>
+
+<!-- Tier selector tabs — 3 only -->
+<div id="tier-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+  <button class="ttab active" onclick="showTier('free')"    data-t="free">FREE</button>
+  <button class="ttab"        onclick="showTier('starter')" data-t="starter">STARTER · $19</button>
+  <button class="ttab"        onclick="showTier('core')"    data-t="core">CORE · $49</button>
+  <button class="ttab"        onclick="showTier('pro')"     data-t="pro">PRO · $99</button>
+  <button class="ttab"        onclick="showTier('elite')"   data-t="elite">ELITE · $299</button>
 </div>
 
+<!-- FREE -->
+<div class="tpanel active" id="tp-free">
+  <div class="tpanel-head">
+    <div>
+      <div class="tpanel-name">FREE</div>
+      <div class="tpanel-price" style="color:var(--dimgray)">$0</div>
+    </div>
+    <div class="tpanel-badge" style="background:rgba(124,252,0,.1);color:var(--lime);border-color:rgba(124,252,0,.3)">Follow + DM</div>
+  </div>
+  <!-- 1-2-3 steps inside FREE tier -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-bottom:14px">
+    <div style="background:var(--black2);border:1px solid var(--olive);border-radius:8px 0 0 8px;padding:14px;text-align:center">
+      <div style="font-size:24px;font-weight:900;color:var(--lime);margin-bottom:4px">1</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:3px">FOLLOW</div>
+      <div style="font-size:10px;color:var(--gray)">@BiG.ENGiN3</div>
+    </div>
+    <div style="background:var(--black2);border-top:1px solid var(--olive);border-bottom:1px solid var(--olive);padding:14px;text-align:center">
+      <div style="font-size:24px;font-weight:900;color:var(--gold);margin-bottom:4px">2</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:3px">DM</div>
+      <div style="font-size:10px;color:var(--gray)">"SAUCE"</div>
+    </div>
+    <div style="background:var(--black2);border:1px solid var(--olive);border-radius:0 8px 8px 0;padding:14px;text-align:center">
+      <div style="font-size:24px;font-weight:900;color:var(--orange);margin-bottom:4px">3</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:3px">GET CODE</div>
+      <div style="font-size:10px;color:var(--gray)">Free access</div>
+    </div>
+  </div>
+  <div class="tpanel-items">
+    <div class="tpi">📐 All 6 system principles</div>
+    <div class="tpi">📊 Chart visual style + system overview</div>
+  </div>
+  <a href="https://instagram.com/big.engin3" target="_blank" style="display:block;width:100%;padding:11px;background:var(--lime);color:#060807;font-weight:900;font-size:13px;letter-spacing:2px;text-decoration:none;border-radius:8px;text-align:center;margin-bottom:8px" onmouseover="this.style.background='var(--lime2)'" onmouseout="this.style.background='var(--lime)'">@BiG.ENGiN3 — DM SAUCE</a>
+  <button class="tpanel-btn" style="background:none;border:1px solid var(--line2);color:var(--dimgray);font-size:11px" onclick="openModal('FREE')">ALREADY HAVE A CODE</button>
+</div>
+
+<!-- STARTER -->
+<div class="tpanel" id="tp-starter">
+  <div class="tpanel-head">
+    <div>
+      <div class="tpanel-name">STARTER</div>
+      <div class="tpanel-price" style="color:var(--olive2)">$19/mo</div>
+    </div>
+    <div class="tpanel-badge" style="background:rgba(106,133,56,.1);color:var(--olive2);border-color:var(--olive)">Locked</div>
+  </div>
+  <div class="tpanel-items">
+    <div class="tpi tpi-all">Everything in FREE, plus:</div>
+    <div class="tpi">📈 VWAP anchor logic explained</div>
+    <div class="tpi">📉 Sigma bands — ±2σ / ±3σ targets</div>
+    <div class="tpi">🕐 Session phases 1 + 2</div>
+    <div class="tpi">✅ Displacement confirmation rules</div>
+  </div>
+  <div class="tpanel-note">Foundation layer. Start here.</div>
+  <button class="tpanel-btn" onclick="openModal('STARTER')">UNLOCK STARTER</button>
+</div>
+
+<!-- CORE -->
+<div class="tpanel" id="tp-core">
+  <div class="tpanel-head">
+    <div>
+      <div class="tpanel-name">CORE</div>
+      <div class="tpanel-price" style="color:var(--gold)">$49/mo</div>
+    </div>
+    <div class="tpanel-badge" style="background:rgba(212,175,55,.1);color:var(--gold);border-color:rgba(212,175,55,.4)">Locked</div>
+  </div>
+  <div class="tpanel-items">
+    <div class="tpi tpi-all">Everything in STARTER, plus:</div>
+    <div class="tpi">🕐 Session phases 3 + 4 (Expansion · Distribution)</div>
+    <div class="tpi">⏱ Money rhythm — TRAP → EXECUTE</div>
+    <div class="tpi">⚡ Regime engine — BUY CORE / SELL RESET</div>
+    <div class="tpi">✔ Live 6-step entry checklist</div>
+  </div>
+  <div class="tpanel-note">The timing and direction structure. The edge lives here.</div>
+  <button class="tpanel-btn" onclick="openModal('CORE')">UNLOCK CORE</button>
+</div>
+
+<!-- PRO -->
+<div class="tpanel" id="tp-pro">
+  <div class="tpanel-head">
+    <div>
+      <div class="tpanel-name">PRO</div>
+      <div class="tpanel-price" style="color:var(--orange)">$99/mo</div>
+    </div>
+    <div class="tpanel-badge" style="background:rgba(224,136,48,.1);color:var(--orange);border-color:rgba(224,136,48,.4)">Locked</div>
+  </div>
+  <div class="tpanel-items">
+    <div class="tpi tpi-all">Everything in CORE, plus:</div>
+    <div class="tpi">🕐 Session phases 5 + 6 (Recalibration · Continuation)</div>
+    <div class="tpi">💱 Currency meter — full matrix</div>
+    <div class="tpi">⚖ Polarity engine — conviction formula</div>
+    <div class="tpi">📰 News reaction framework</div>
+  </div>
+  <div class="tpanel-note">Conviction layer. Score every setup before entry.</div>
+  <button class="tpanel-btn" onclick="openModal('PRO')">UNLOCK PRO</button>
+</div>
+
+<!-- ELITE -->
+<div class="tpanel" id="tp-elite">
+  <div class="tpanel-head">
+    <div>
+      <div class="tpanel-name" style="color:var(--lime)">ELITE</div>
+      <div class="tpanel-price" style="color:var(--lime)">$299/mo</div>
+    </div>
+    <div class="tpanel-badge" style="background:rgba(124,252,0,.1);color:var(--lime);border-color:rgba(124,252,0,.3)">Locked</div>
+  </div>
+  <div class="tpanel-items">
+    <div class="tpi tpi-all">Everything in PRO, plus:</div>
+    <div class="tpi">🛑 Full execution — stop, trail, exit rules</div>
+    <div class="tpi">📋 15M reassess + sizing framework</div>
+    <div class="tpi">🧠 Direct mentorship with @BiG.ENGiN3</div>
+    <div class="tpi">📹 Private trade breakdowns</div>
+  </div>
+  <div class="tpanel-note" style="border-color:rgba(124,252,0,.2);color:var(--lime)">Everything. Nothing held back.</div>
+  <button class="tpanel-btn" style="background:var(--lime)" onclick="openModal('ELITE')">UNLOCK ELITE</button>
+</div>
+
+<!-- MID-PAGE CTA -->
+<div style="margin-top:20px;background:linear-gradient(135deg,var(--panel2),var(--black2));border:1px solid var(--olive);border-radius:12px;padding:20px;text-align:center">
+  <div style="font-size:11px;letter-spacing:3px;color:var(--gold);font-weight:700;margin-bottom:6px">READY TO START</div>
+  <div style="font-size:20px;font-weight:900;color:var(--white);margin-bottom:14px">Apply for mentorship</div>
+  <a href="#contact" style="display:inline-block;padding:11px 28px;background:var(--gold);color:#060807;font-weight:900;font-size:13px;letter-spacing:2px;text-decoration:none;border-radius:8px;transition:all .15s" onmouseover="this.style.background='var(--gold2)'" onmouseout="this.style.background='var(--gold)'">GET ACCESS →</a>
+</div>
 <div class="div"></div>
 
-<!-- SAUCE TIERS -->
-<!-- FOLLOW FOR FREE TIER -->
-<div style="background:linear-gradient(135deg,var(--panel2) 0%,var(--black2) 100%);border:1px solid var(--olive);border-left:4px solid var(--lime);border-radius:12px;padding:18px 20px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-  <div style="flex:1">
-    <div style="font-size:11px;font-weight:700;letter-spacing:3px;color:var(--lime);margin-bottom:6px">FOLLOW</div>
-    <div style="font-size:11px;color:var(--dimgray);line-height:1.8">DM <strong style="color:var(--gold)">"SAUCE"</strong> for code</div>
-  </div>
-  <a href="https://instagram.com/big.engin3" target="_blank" style="flex-shrink:0;padding:12px 22px;background:var(--lime);color:#060807;font-weight:900;font-size:15px;letter-spacing:1px;text-decoration:none;border-radius:8px;white-space:nowrap;text-align:center;line-height:1.3" onmouseover="this.style.background='var(--lime2)'" onmouseout="this.style.background='var(--lime)'">@BiG.ENGiN3</a>
-</div>
-
+<!-- SAUCE TIERS — ordered FREE → ELITE -->
 <div class="sauce-stack">
 
-  <!-- TIER 1: FREE — System Principles -->
-  <div class="sauce-item open">
+  <!-- FREE: System Principles — locked, needs DM code -->
+  <div class="sauce-item" data-tier="free" onclick="openModal('FREE')">
     <div class="sauce-icon">📐</div>
     <div class="sauce-txt">
       <div class="sauce-name">SYSTEM PRINCIPLES</div>
-      <div class="sauce-desc">The 6 core laws that govern every trade. No sweep. No prediction. Only structure.</div>
+      <div class="sauce-desc">The 6 core laws. Follow @BiG.ENGiN3 · DM SAUCE for your free code.</div>
     </div>
     <div class="sauce-badge free">FREE</div>
   </div>
@@ -786,52 +885,52 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
     <div style="margin-top:12px;padding:10px 14px;background:var(--panel);border-radius:8px;font-size:13px;color:var(--gray);text-align:center;letter-spacing:2px">WE DON'T PREDICT. WE EXECUTE.</div>
   </div>
 
-  <!-- TIER 2: CORE — Session Flow -->
-  <div class="sauce-item" data-tier="core" onclick="openModal('SESSION FLOW')">
-    <div class="sauce-icon">🕐</div>
+  <!-- STARTER: VWAP + first 2 phases -->
+  <div class="sauce-item" data-tier="starter" onclick="openModal('STARTER')">
+    <div class="sauce-icon">📈</div>
     <div class="sauce-txt">
-      <div class="sauce-name">SESSION FLOW + EXACT TIMES</div>
-      <div class="sauce-desc">All 6 phases with their role in the session. When to be in, when to stand aside.</div>
+      <div class="sauce-name">VWAP ANCHOR + ACCUMULATION · RECALIBRATION</div>
+      <div class="sauce-desc">How the anchor forms, sigma targets, and the first two session phases in full detail.</div>
     </div>
-    <div class="sauce-badge core-b">CORE</div>
-  </div>
-  <div class="sauce-expand">
-    <div class="sf-row"><div class="sf-name">ACCUMULATION</div><span class="sf-pill gold">BUY CORE</span></div>
-    <div class="sf-row"><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
-    <div class="sf-row"><div class="sf-name">EXPANSION ⚡</div><span class="sf-pill lime">AM PRIME</span></div>
-    <div class="sf-row"><div class="sf-name">DISTRIBUTION</div><span class="sf-pill orange">SELL RESET</span></div>
-    <div class="sf-row"><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
-    <div class="sf-row"><div class="sf-name">CONTINUATION ⚡</div><span class="sf-pill lime">PM PRIME</span></div>
-  </div>
-
-  <!-- TIER 3: CORE — Money Rhythm -->
-  <div class="sauce-item" data-tier="core" onclick="openModal('MONEY RHYTHM')">
-    <div class="sauce-icon">⏱</div>
-    <div class="sauce-txt">
-      <div class="sauce-name">MONEY RHYTHM — TRAP → EXECUTE</div>
-      <div class="sauce-desc">Every trap timestamp and execute window by the clock. The heartbeat of every trade setup.</div>
-    </div>
-    <div class="sauce-badge core-b">CORE</div>
-  </div>
-  <div class="sauce-expand">
-    <div id="rhythm-rows"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
-      <div class="ex-card" style="border-top:3px solid var(--lime)"><h4>AM PRIME</h4><p>TRAP window → EXECUTE window. NY Open pressure. Highest volume of the session.</p></div>
-      <div class="ex-card" style="border-top:3px solid var(--gold)"><h4>PM PRIME</h4><p>Continuation window → Execute window. Afternoon repricing. Value breaks favored.</p></div>
-    </div>
-  </div>
-
-  <!-- TIER 4: CORE — Regime Engine -->
-  <div class="sauce-item" data-tier="core" onclick="openModal('REGIME ENGINE')">
-    <div class="sauce-icon">⚡</div>
-    <div class="sauce-txt">
-      <div class="sauce-name">REGIME ENGINE</div>
-      <div class="sauce-desc">BUY CORE vs SELL RESET. Mirror logic, USD anchor override, sign inversion. Every trade runs through this first.</div>
-    </div>
-    <div class="sauce-badge core-b">CORE</div>
+    <div class="sauce-badge" style="background:rgba(106,133,56,.1);color:var(--olive2);border:1px solid var(--olive)">STARTER</div>
   </div>
   <div class="sauce-expand">
     <div class="ex-grid2" style="margin-bottom:10px">
+      <div class="ex-card"><h4>ANCHOR LOGIC</h4><p>Trap candle sets the anchor. 75-min delay. Max 75 bars. Reanchors at recalibration.</p></div>
+      <div class="ex-card"><h4>SIGMA TARGETS</h4><p>±2σ = 100–127% · ±3σ = 161–200% · Extension = 261–300%</p></div>
+    </div>
+    <div class="sf-row"><div class="sf-name">ACCUMULATION</div><span class="sf-pill gold">BUY CORE</span></div>
+    <div class="sf-row"><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
+  </div>
+
+  <!-- CORE: EXPANSION + DISTRIBUTION + Money Rhythm -->
+  <div class="sauce-item" data-tier="core" onclick="openModal('CORE')">
+    <div class="sauce-icon">⚡</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">EXPANSION · DISTRIBUTION + MONEY RHYTHM</div>
+      <div class="sauce-desc">Session phases 3 + 4 — the action phases — plus the TRAP → EXECUTE cadence that drives every entry.</div>
+    </div>
+    <div class="sauce-badge core-b">CORE</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="sf-row" style="margin-bottom:2px"><div class="sf-name">EXPANSION ⚡</div><span class="sf-pill lime">AM PRIME</span></div>
+    <div class="sf-row" style="margin-bottom:10px"><div class="sf-name">DISTRIBUTION</div><span class="sf-pill orange">SELL RESET</span></div>
+    <div id="rhythm-rows"></div>
+  </div>
+
+  <!-- PRO: RECALIBRATION + CONTINUATION + Regime Engine -->
+  <div class="sauce-item" data-tier="pro" onclick="openModal('PRO')">
+    <div class="sauce-icon">🔁</div>
+    <div class="sauce-txt">
+      <div class="sauce-name">RECALIBRATION · CONTINUATION · REGIME ENGINE</div>
+      <div class="sauce-desc">Session phases 5 + 6 — the reset and PM prime — plus the full directional logic BUY CORE vs SELL RESET.</div>
+    </div>
+    <div class="sauce-badge" style="background:rgba(224,136,48,.1);color:var(--orange);border:1px solid rgba(224,136,48,.4)">PRO</div>
+  </div>
+  <div class="sauce-expand">
+    <div class="sf-row" style="margin-bottom:2px"><div class="sf-name">RECALIBRATION</div><span class="sf-pill orange">REANCHOR</span></div>
+    <div class="sf-row" style="margin-bottom:10px"><div class="sf-name">CONTINUATION ⚡</div><span class="sf-pill lime">PM PRIME</span></div>
+    <div class="ex-grid2">
       <div class="ex-card" style="border-top:3px solid var(--lime)">
         <h4 style="color:var(--lime)">BUY CORE</h4>
         <p>Connector: <strong style="color:var(--lime)">−</strong> = mirror</p>
@@ -841,17 +940,17 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
         <p>Connector: <strong style="color:var(--gold)">+</strong> = aligned</p>
       </div>
     </div>
-    <div class="ex-card"><h4>DYNAMIC OVERRIDE</h4><p>If symbol rate is at or below USD anchor → invert sign. RESET = (+) normal. CORE = (−) mirror.</p></div>
+    <div class="ex-card" style="margin-top:8px"><h4>DYNAMIC OVERRIDE</h4><p>If symbol rate is at or below the anchor → invert sign. RESET = (+) normal. CORE = (−) mirror.</p></div>
   </div>
 
-  <!-- TIER 5: ELITE — Currency Meter + Polarity -->
-  <div class="sauce-item" data-tier="pro" onclick="openModal('CURRENCY METER')">
+  <!-- PRO: Currency Meter + Polarity + Checklist -->
+  <div class="sauce-item" data-tier="pro" onclick="openModal('ADVANCED')">
     <div class="sauce-icon">💱</div>
     <div class="sauce-txt">
-      <div class="sauce-name">CURRENCY METER + POLARITY ENGINE</div>
-      <div class="sauce-desc">14-currency USD-anchored sign matrix plus the conviction formula. Separates high-probability from noise.</div>
+      <div class="sauce-name">CURRENCY METER · POLARITY · ENTRY CHECKLIST</div>
+      <div class="sauce-desc">The conviction layer — rate matrix, polarity formula, and the 6-step entry checklist.</div>
     </div>
-    <div class="sauce-badge elite-b">ELITE</div>
+    <div class="sauce-badge" style="background:rgba(224,136,48,.1);color:var(--orange);border:1px solid rgba(224,136,48,.4)">PRO</div>
   </div>
   <div class="sauce-expand">
     <div style="filter:blur(2px);user-select:none;pointer-events:none;margin-bottom:12px">
@@ -870,30 +969,22 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
         </div>
       </div>
     </div>
-    <div style="margin-bottom:12px;font-size:11px;color:var(--gray);padding:6px;border:1px solid var(--line);border-radius:6px;line-height:1.7">
-      BUY CORE: above USD = − · at/below USD = + &nbsp;|&nbsp; SELL RESET: above USD = + · at/below USD = −
-    </div>
-    <div class="pol-4">
+    <div class="pol-4" style="margin-bottom:12px">
       <div class="pol-card"><div class="pol-f">−/−</div><div class="pol-r buy">BUY</div></div>
       <div class="pol-card"><div class="pol-f">+/+</div><div class="pol-r sell">SELL</div></div>
       <div class="pol-card"><div class="pol-f">−/+</div><div class="pol-r sell">SELL</div></div>
       <div class="pol-card"><div class="pol-f">+/−</div><div class="pol-r buy">BUY</div></div>
     </div>
-    <div class="ex-card" style="margin-top:10px"><h4>SIGMA TARGETS</h4>
-      <div class="sigma-rows">
-        <div class="sig-row"><span class="sig-lv">±2σ</span><span class="sig-rng">100–127%</span><span class="sig-act">TP1</span></div>
-        <div class="sig-row"><span class="sig-lv">±3σ</span><span class="sig-rng">161–200%</span><span class="sig-act">TP2</span></div>
-        <div class="sig-row"><span class="sig-lv">Ext</span><span class="sig-rng">261–300%</span><span class="sig-act">TP3</span></div>
-      </div>
-    </div>
+    <div class="ck-list" id="cklist"></div>
+    <div class="ck-status" id="ckstatus">AWAITING SIGNALS</div>
   </div>
 
-  <!-- TIER 6: ELITE — Full Execution + Live Checklist -->
-  <div class="sauce-item" data-tier="advanced" onclick="openModal('FULL EXECUTION')">
+  <!-- ELITE: Full Execution + Win Rate + Trade Tracker -->
+  <div class="sauce-item" data-tier="elite" onclick="openModal('ELITE')">
     <div class="sauce-icon">🎯</div>
     <div class="sauce-txt">
-      <div class="sauce-name">FULL EXECUTION RULESET + LIVE CHECKLIST</div>
-      <div class="sauce-desc">Every rule for entry, stop, trail, and exit. Interactive 6-step checklist that fires EXECUTE when all conditions are met.</div>
+      <div class="sauce-name">FULL EXECUTION · WIN RATE · TRADE TRACKER</div>
+      <div class="sauce-desc">Complete ruleset — stop, trail, exit, sizing — plus live win rate estimator and trade log.</div>
     </div>
     <div class="sauce-badge elite-b">ELITE</div>
   </div>
@@ -903,50 +994,6 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
       <div class="rk trail"><div class="rk-k">TRAIL</div><div class="rk-v">Below new structure</div></div>
       <div class="rk exit"><div class="rk-k">EXIT IF</div><div class="rk-v">% target hit · 15M reassess · Structure break</div></div>
       <div class="rk limit"><div class="rk-k">LIMIT</div><div class="rk-v">2 trades max per execution window</div></div>
-    </div>
-    <div class="ck-list" id="cklist"></div>
-    <div class="ck-status" id="ckstatus">AWAITING SIGNALS</div>
-  </div>
-
-  <!-- TIER 7: ELITE — Win Rate Estimator + Trade Tracker -->
-  <div class="sauce-item" data-tier="elite" onclick="openModal('WIN RATE + TRACKER')">
-    <div class="sauce-icon">📊</div>
-    <div class="sauce-txt">
-      <div class="sauce-name">WIN RATE ESTIMATOR + TRADE TRACKER</div>
-      <div class="sauce-desc">Score every setup before entry. Log wins and losses. Track your real success rate by session and setup type over time.</div>
-    </div>
-    <div class="sauce-badge elite-b">ELITE</div>
-  </div>
-  <div class="sauce-expand">
-    <div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px">
-      <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-weight:700;margin-bottom:12px">TRADE SUCCESS TRACKER</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
-        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
-          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">TOTAL</div>
-          <div style="font-size:24px;font-weight:900;color:var(--white)" id="tr-total">0</div>
-        </div>
-        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
-          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">WIN %</div>
-          <div style="font-size:24px;font-weight:900;color:var(--lime)" id="tr-rate">—</div>
-        </div>
-        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
-          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">WINS</div>
-          <div style="font-size:24px;font-weight:900;color:var(--lime)" id="tr-wins">0</div>
-        </div>
-        <div style="background:var(--black2);border:1px solid var(--line);border-radius:6px;padding:10px;text-align:center">
-          <div style="font-size:8px;letter-spacing:2px;color:var(--gray);margin-bottom:4px">LOSSES</div>
-          <div style="font-size:24px;font-weight:900;color:var(--orange)" id="tr-losses">0</div>
-        </div>
-      </div>
-      <div class="wr-bar" style="height:8px;margin-bottom:10px"><div class="wr-fill" id="tr-bar" style="width:0%"></div></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-        <select id="tr-session" style="flex:1"><option value="am">AM (7–11)</option><option value="pm">PM (1–5)</option></select>
-        <select id="tr-type"><option value="extreme">Extreme</option><option value="value">Value Break</option></select>
-        <button class="tog on" onclick="logTrade(true)" style="flex:1;padding:7px;font-size:12px;font-weight:700">WIN</button>
-        <button class="tog off" onclick="logTrade(false)" style="flex:1;padding:7px;font-size:12px;font-weight:700">LOSS</button>
-      </div>
-      <div style="max-height:110px;overflow-y:auto;font-size:10px" id="tr-log"></div>
-      <button onclick="clearTrades()" style="margin-top:8px;width:100%;padding:5px;background:none;border:1px solid var(--line);color:var(--gray);cursor:pointer;border-radius:4px;font-size:10px;font-family:inherit">CLEAR ALL</button>
     </div>
     <div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px">
       <div style="font-size:10px;letter-spacing:2px;color:var(--gold);font-weight:700;margin-bottom:14px">WIN RATE ESTIMATOR</div>
@@ -987,7 +1034,6 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
     </div>
   </div>
 
-</div><!-- end sauce-stack -->
 
 <!-- CTA -->
 
@@ -1070,23 +1116,17 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 <script>
 // ── TIER CODES ───────────────────────────────────────────────
 const CODES = {
-  '0523': 'STARTER',   // $19/mo
-  '0412': 'CORE',      // $49/mo
-  '0301': 'PRO',       // $99/mo
-  '0290': 'ADVANCED',  // $149/mo
-  '0189': 'ELITE'      // $299/mo
+  '0523': 'FREE',      // follow + DM SAUCE
+  '0412': 'STARTER',   // $19/mo
+  '0301': 'CORE',      // $49/mo
+  '0290': 'PRO',       // $99/mo
+  '0189': 'ELITE'      // $299/mo — set your own elite code
 };
 const CODE = '0189'; // master (ELITE unlocks everything)
 const factors={sw:true,dp:true};
 
 // ── GATE ────────────────────────────────────────────────────
 // ── GATE ────────────────────────────────────────────────────
-function showStep2(){
-  setTimeout(()=>{
-    document.getElementById('gate-step1').style.display='none';
-    document.getElementById('gate-step2').style.display='flex';
-  }, 800);
-}
 function tryLogin(){ closeGate(false); }
 function closeGate(unlock){
   document.getElementById('gate').classList.add('gone');
@@ -1143,6 +1183,12 @@ document.getElementById('code-modal').addEventListener('click',function(e){
   if(e.target===this)closeModal();
 });
 
+// ── TIER SELECTOR ─────────────────────────────────────────────
+function showTier(t){
+  document.querySelectorAll('.ttab').forEach(b=>b.classList.toggle('active',b.dataset.t===t));
+  document.querySelectorAll('.tpanel').forEach(p=>p.classList.toggle('active',p.id==='tp-'+t));
+}
+
 // ── CLOCKS ──────────────────────────────────────────────────
 // Regime windows (12-hr ET clock minutes)
 // BUY CORE (−): 12:30-1:30, 4:30-6:30, 7:30-10:30
@@ -1183,10 +1229,14 @@ function tick(){
     dot.style.background='var(--lime)';
     lbl.textContent='−';
     lbl.style.color='var(--lime)';
+    const rl=document.getElementById('regime-lbl');
+    if(rl){rl.textContent='CORE';rl.style.color='var(--lime)';}
   } else {
     dot.style.background='var(--gold)';
     lbl.textContent='+';
     lbl.style.color='var(--gold)';
+    const rl=document.getElementById('regime-lbl');
+    if(rl){rl.textContent='RESET';rl.style.color='var(--gold)';}
   }
 }
 tick();setInterval(tick,1000);
@@ -1307,17 +1357,21 @@ function renderTracker(){
   const wins=trades.filter(t=>t.win).length;
   const losses=total-wins;
   const rate=total>0?Math.round(wins/total*100):0;
-  document.getElementById('tr-total').textContent=total;
-  document.getElementById('tr-wins').textContent=wins;
-  document.getElementById('tr-losses').textContent=losses;
-  document.getElementById('tr-rate').textContent=total>0?rate+'%':'—%';
+  const elTotal=document.getElementById('tr-total');
+  const elWins=document.getElementById('tr-wins');
+  const elLosses=document.getElementById('tr-losses');
+  const elRate=document.getElementById('tr-rate');
   const bar=document.getElementById('tr-bar');
-  bar.style.width=rate+'%';
-  bar.style.background=rate>=70?'var(--lime)':rate>=55?'var(--gold)':'var(--orange)';
   const log=document.getElementById('tr-log');
+  if(!elTotal)return; // elements not in DOM yet (tier locked)
+  elTotal.textContent=total;
+  elWins.textContent=wins;
+  elLosses.textContent=losses;
+  elRate.textContent=total>0?rate+'%':'—%';
+  if(bar){bar.style.width=rate+'%';bar.style.background=rate>=70?'var(--lime)':rate>=55?'var(--gold)':'var(--orange)';}
   if(!log)return;
   log.innerHTML='';
-  [...trades].reverse().slice(0,10).forEach((t,i)=>{
+  [...trades].reverse().slice(0,10).forEach((t)=>{
     const row=document.createElement('div');
     row.style.cssText='display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line);';
     row.innerHTML=`<span style="color:${t.win?'var(--lime)':'var(--orange)'}">${t.win?'WIN':'LOSS'}</span><span style="color:var(--gray)">${t.session.toUpperCase()} · ${t.type}</span><span style="color:var(--gray);font-size:9px">${t.time}</span>`;
@@ -1372,7 +1426,8 @@ function calcWR(){
   pct.style.color=clr;
   fill.style.width=b+'%';
   fill.style.background=clr;
-  document.getElementById('wr-desc').textContent=desc;
+  const wrdesc=document.getElementById('wr-desc');
+  if(wrdesc)wrdesc.textContent=desc;
 
   // gauge needle: maps 0–85 → -90deg to +90deg
   const needle=document.getElementById('gauge-needle');
