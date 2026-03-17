@@ -229,9 +229,7 @@ nav{
 .sauce-badge.elite-b{background:rgba(216,132,43,.1);color:var(--orange);border-color:rgba(216,132,43,.4)}
 
 /* unlock state — full unlock */
-body.unlocked .sauce-item .sauce-badge{display:none}
-body.unlocked .sauce-item{border-color:rgba(124,252,0,.3);cursor:default}
-body.unlocked .sauce-expand{display:block!important}
+/* tier-specific unlocks only — see data-tier rules below */
 
 /* tier-specific unlocks */
 body[data-tier="FREE"] .sauce-item[data-tier="free"],
@@ -300,7 +298,7 @@ body[data-tier="ELITE"] .sauce-item + .sauce-expand
   margin-top:-10px;
 }
 .sauce-item.open+.sauce-expand{display:block}
-body.unlocked .sauce-expand{display:block!important}
+/* blanket unlock removed — tier-specific CSS handles this */
 
 /* Expand content styles */
 .ex-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -467,9 +465,26 @@ footer{padding:16px 28px;border-top:1px solid var(--olive);display:flex;justify-
 .tpanel-note{font-size:11px;color:var(--gray);padding:8px 10px;background:rgba(85,107,47,.06);border:1px solid var(--line);border-radius:6px;margin-bottom:12px}
 .tpanel-btn{width:100%;padding:12px;border:none;border-radius:8px;cursor:pointer;background:var(--gold);color:#060807;font-weight:900;font-size:13px;letter-spacing:3px;font-family:inherit;transition:all .15s}
 .tpanel-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+/* upgrade hint — shows only when a lower tier is active */
+.upgrade-hint{display:none;font-size:10px;color:var(--gold);letter-spacing:1px;text-align:center;margin-bottom:8px;padding:5px;background:rgba(212,175,55,.07);border:1px solid rgba(212,175,55,.2);border-radius:6px}
+body[data-tier="FREE"]    #tp-starter .upgrade-hint,
+body[data-tier="FREE"]    #tp-core .upgrade-hint,
+body[data-tier="FREE"]    #tp-pro .upgrade-hint,
+body[data-tier="FREE"]    #tp-elite .upgrade-hint,
+body[data-tier="STARTER"] #tp-core .upgrade-hint,
+body[data-tier="STARTER"] #tp-pro .upgrade-hint,
+body[data-tier="STARTER"] #tp-elite .upgrade-hint,
+body[data-tier="CORE"]    #tp-pro .upgrade-hint,
+body[data-tier="CORE"]    #tp-elite .upgrade-hint,
+body[data-tier="PRO"]     #tp-elite .upgrade-hint
+{ display:block; }
 
 /* hide unlock buttons once tier is active */
-body[data-tier] .tpanel-btn{ display:none; }
+/* tpanel-btn visibility handled per-tier below */
+
+/* hide DM SAUCE steps once unlocked */
+body[data-tier] #free-steps,
+body[data-tier] #free-ig-btn { display:none!important; }
 
 /* ── MOBILE ── */
 /* ── ACCESS CODE MODAL ── */
@@ -548,9 +563,33 @@ body[data-tier] .tpanel-btn{ display:none; }
 .modal-err{font-size:9px;color:var(--orange);letter-spacing:2px;height:14px;margin-top:4px}
 .modal-hint{font-size:10px;color:var(--gray);margin-top:10px;line-height:1.7}
 
-/* ── POST-UNLOCK: hide UNLOCK buttons, swap Locked → Unlocked ── */
-body[data-tier] .tpanel-btn{display:none}
-body[data-tier] .sauce-item{cursor:default}
+/* ── POST-UNLOCK: only hide button on unlocked tiers, keep locked tiers' UNLOCK buttons ── */
+body[data-tier="FREE"]    #tp-free .tpanel-btn,
+body[data-tier="STARTER"] #tp-free .tpanel-btn,
+body[data-tier="STARTER"] #tp-starter .tpanel-btn,
+body[data-tier="CORE"]    #tp-free .tpanel-btn,
+body[data-tier="CORE"]    #tp-starter .tpanel-btn,
+body[data-tier="CORE"]    #tp-core .tpanel-btn,
+body[data-tier="PRO"]     #tp-free .tpanel-btn,
+body[data-tier="PRO"]     #tp-starter .tpanel-btn,
+body[data-tier="PRO"]     #tp-core .tpanel-btn,
+body[data-tier="PRO"]     #tp-pro .tpanel-btn,
+body[data-tier="ELITE"]   .tpanel .tpanel-btn
+{ display:none; }
+
+/* only already-unlocked sauce items are not clickable */
+body[data-tier="FREE"]    .sauce-item[data-tier="free"],
+body[data-tier="STARTER"] .sauce-item[data-tier="free"],
+body[data-tier="STARTER"] .sauce-item[data-tier="starter"],
+body[data-tier="CORE"]    .sauce-item[data-tier="free"],
+body[data-tier="CORE"]    .sauce-item[data-tier="starter"],
+body[data-tier="CORE"]    .sauce-item[data-tier="core"],
+body[data-tier="PRO"]     .sauce-item[data-tier="free"],
+body[data-tier="PRO"]     .sauce-item[data-tier="starter"],
+body[data-tier="PRO"]     .sauce-item[data-tier="core"],
+body[data-tier="PRO"]     .sauce-item[data-tier="pro"],
+body[data-tier="ELITE"]   .sauce-item
+{ cursor:default; pointer-events:none; }
 
 /* Any tier badge inside an unlocked panel becomes "Unlocked" in lime */
 body[data-tier="FREE"]    #tp-free .tpanel-badge,
@@ -819,9 +858,9 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
 <!-- Tier selector tabs — 3 only -->
 <div id="tier-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
   <button class="ttab active" onclick="showTier('free')"    data-t="free">FREE</button>
-  <button class="ttab"        onclick="showTier('starter')" data-t="starter">STARTER · $19</button>
-  <button class="ttab"        onclick="showTier('core')"    data-t="core">CORE · $49</button>
-  <button class="ttab"        onclick="showTier('pro')"     data-t="pro">PRO · $99</button>
+  <button class="ttab"        onclick="showTier('starter')" data-t="starter">STARTER · $29</button>
+  <button class="ttab"        onclick="showTier('core')"    data-t="core">CORE · $59</button>
+  <button class="ttab"        onclick="showTier('pro')"     data-t="pro">PRO · $149</button>
   <button class="ttab"        onclick="showTier('elite')"   data-t="elite">ELITE · $299</button>
 </div>
 
@@ -832,10 +871,10 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
       <div class="tpanel-name">FREE</div>
       <div class="tpanel-price" style="color:var(--dimgray)">$0</div>
     </div>
-    <div class="tpanel-badge" style="background:rgba(124,252,0,.1);color:var(--lime);border-color:rgba(124,252,0,.3)">Follow + DM</div>
+    <div class="tpanel-badge" style="background:rgba(124,252,0,.1);color:var(--lime);border-color:rgba(124,252,0,.3)">🔓 MEMBER</div>
   </div>
   <!-- 1-2-3 steps inside FREE tier -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-bottom:14px">
+  <div id="free-steps" style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-bottom:14px">
     <div style="background:var(--black2);border:1px solid var(--olive);border-radius:8px 0 0 8px;padding:14px;text-align:center">
       <div style="font-size:24px;font-weight:900;color:var(--lime);margin-bottom:4px">1</div>
       <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:3px">FOLLOW</div>
@@ -856,7 +895,7 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
     <div class="tpi">📐 All 6 system principles</div>
     <div class="tpi">📊 Chart visual style + system overview</div>
   </div>
-  <a href="https://instagram.com/big.engin3" target="_blank" style="display:block;width:100%;padding:11px;background:var(--lime);color:#060807;font-weight:900;font-size:13px;letter-spacing:2px;text-decoration:none;border-radius:8px;text-align:center;margin-bottom:8px" onmouseover="this.style.background='var(--lime2)'" onmouseout="this.style.background='var(--lime)'">@BiG.ENGiN3 — DM SAUCE</a>
+  <a id="free-ig-btn" href="https://instagram.com/big.engin3" target="_blank" style="display:block;width:100%;padding:11px;background:var(--lime);color:#060807;font-weight:900;font-size:13px;letter-spacing:2px;text-decoration:none;border-radius:8px;text-align:center;margin-bottom:8px" onmouseover="this.style.background='var(--lime2)'" onmouseout="this.style.background='var(--lime)'">@BiG.ENGiN3 — DM SAUCE</a>
   <button class="tpanel-btn" style="background:none;border:1px solid var(--line2);color:var(--dimgray);font-size:11px" onclick="openModal('FREE')">ALREADY HAVE A CODE</button>
 </div>
 
@@ -865,7 +904,10 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
   <div class="tpanel-head">
     <div>
       <div class="tpanel-name">STARTER</div>
-      <div class="tpanel-price" style="color:var(--olive2)">$19/mo</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tpanel-price" style="color:var(--olive2)">$29/mo</div>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(106,133,56,.15);color:var(--olive2);border:1px solid var(--olive);letter-spacing:1px">20% MEMBER DISCOUNT</span>
+      </div>
     </div>
     <div class="tpanel-badge" style="background:rgba(106,133,56,.1);color:var(--olive2);border-color:var(--olive)">Locked</div>
   </div>
@@ -876,6 +918,7 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
     <div class="tpi">🕐 Session phases 1 + 2</div>
     <div class="tpi">✅ Displacement confirmation rules</div>
   </div>
+  <div class="upgrade-hint">⚡ MEMBER UPGRADE — $23/mo <span style="color:var(--gray);text-decoration:line-through">$29</span></div>
   <div class="tpanel-note">Foundation layer. Start here.</div>
   <button class="tpanel-btn" onclick="openModal('STARTER')">UNLOCK STARTER</button>
 </div>
@@ -885,7 +928,10 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
   <div class="tpanel-head">
     <div>
       <div class="tpanel-name">CORE</div>
-      <div class="tpanel-price" style="color:var(--gold)">$49/mo</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tpanel-price" style="color:var(--gold)">$59/mo</div>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(212,175,55,.15);color:var(--gold2);border:1px solid rgba(212,175,55,.4);letter-spacing:1px">20% MEMBER DISCOUNT</span>
+      </div>
     </div>
     <div class="tpanel-badge" style="background:rgba(212,175,55,.1);color:var(--gold);border-color:rgba(212,175,55,.4)">Locked</div>
   </div>
@@ -895,7 +941,9 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
     <div class="tpi">⏱ Money rhythm — TRAP → EXECUTE</div>
     <div class="tpi">⚡ Regime engine — BUY CORE / SELL RESET</div>
     <div class="tpi">✔ Live 6-step entry checklist</div>
+    <div class="tpi">📊 ENGiN3 VWAP standalone indicator (MT5)</div>
   </div>
+  <div class="upgrade-hint">⚡ MEMBER UPGRADE — $47/mo <span style="color:var(--gray);text-decoration:line-through">$59</span></div>
   <div class="tpanel-note">The timing and direction structure. The edge lives here.</div>
   <button class="tpanel-btn" onclick="openModal('CORE')">UNLOCK CORE</button>
 </div>
@@ -905,7 +953,10 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
   <div class="tpanel-head">
     <div>
       <div class="tpanel-name">PRO</div>
-      <div class="tpanel-price" style="color:var(--orange)">$99/mo</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tpanel-price" style="color:var(--orange)">$149/mo</div>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(224,136,48,.15);color:var(--orange2);border:1px solid rgba(224,136,48,.4);letter-spacing:1px">20% MEMBER DISCOUNT</span>
+      </div>
     </div>
     <div class="tpanel-badge" style="background:rgba(224,136,48,.1);color:var(--orange);border-color:rgba(224,136,48,.4)">Locked</div>
   </div>
@@ -916,7 +967,7 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
     <div class="tpi">⚖ Polarity engine — conviction formula</div>
     <div class="tpi">📰 News reaction framework</div>
   </div>
-  <div class="tpanel-note">Conviction layer. Score every setup before entry.</div>
+  <div class="upgrade-hint">⚡ MEMBER UPGRADE — $119/mo <span style="color:var(--gray);text-decoration:line-through">$149</span></div>
   <button class="tpanel-btn" onclick="openModal('PRO')">UNLOCK PRO</button>
 </div>
 
@@ -925,7 +976,10 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
   <div class="tpanel-head">
     <div>
       <div class="tpanel-name" style="color:var(--lime)">ELITE</div>
-      <div class="tpanel-price" style="color:var(--lime)">$299/mo</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tpanel-price" style="color:var(--lime)">$299/mo</div>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(124,252,0,.1);color:var(--lime2);border:1px solid rgba(124,252,0,.3);letter-spacing:1px">20% MEMBER DISCOUNT</span>
+      </div>
     </div>
     <div class="tpanel-badge" style="background:rgba(124,252,0,.1);color:var(--lime);border-color:rgba(124,252,0,.3)">Locked</div>
   </div>
@@ -935,7 +989,9 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before{
     <div class="tpi">📋 15M reassess + sizing framework</div>
     <div class="tpi">🧠 Direct mentorship with @BiG.ENGiN3</div>
     <div class="tpi">📹 Private trade breakdowns</div>
+    <div class="tpi">⚙️ ENGiN3 full indicator suite (MT5)</div>
   </div>
+  <div class="upgrade-hint">⚡ MEMBER UPGRADE — $239/mo <span style="color:var(--gray);text-decoration:line-through">$299</span></div>
   <div class="tpanel-note" style="border-color:rgba(124,252,0,.2);color:var(--lime)">Everything. Nothing held back.</div>
   <button class="tpanel-btn" style="background:var(--lime)" onclick="openModal('ELITE')">UNLOCK ELITE</button>
 </div>
@@ -1232,8 +1288,13 @@ if(sessionStorage.getItem('e3')==='1'){
 
 // ── ACCESS CODE MODAL ────────────────────────────────────────
 let pendingTier='';
+// Tier hierarchy for upgrade checks
+const TIER_RANK={'FREE':1,'STARTER':2,'CORE':3,'PRO':4,'ELITE':5};
+
 function openModal(tierName){
-  if(document.body.classList.contains('unlocked'))return;
+  // Only block if this exact tier or lower is already unlocked
+  const current=document.body.getAttribute('data-tier');
+  if(current && TIER_RANK[current]>=TIER_RANK[tierName||'FREE']) return;
   pendingTier=tierName;
   document.getElementById('modal-tier-name').textContent=tierName;
   document.getElementById('modal-input').value='';
@@ -1264,9 +1325,13 @@ function tryModalLogin(){
     if(box) box.classList.add('unlocked-state');
     setTimeout(()=>{
       closeModal();
-      closeGate(true);
-      sessionStorage.setItem('e3tier',tier);
-      document.body.setAttribute('data-tier',tier);
+      // upgrade tier if new code is higher
+      const current=document.body.getAttribute('data-tier');
+      if(!current || TIER_RANK[tier]>=(TIER_RANK[current]||0)){
+        closeGate(true);
+        sessionStorage.setItem('e3tier',tier);
+        document.body.setAttribute('data-tier',tier);
+      }
       if(inputEl){inputEl.style.display='';inputEl.value='';}
       if(btn) btn.style.display='';
       if(errEl) errEl.style.display='';
