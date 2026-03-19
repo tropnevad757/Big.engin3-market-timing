@@ -23,16 +23,30 @@
 html,body{background:var(--black);color:var(--dimgray);font:14px/1.6 'Arial Narrow',Arial,sans-serif;background-image:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(85,107,47,.06) 0%,transparent 60%);}
 a{color:var(--gold);text-decoration:none}
 
-#gate{position:fixed;inset:0;z-index:999;background:var(--black);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:opacity .4s,visibility .4s;}
+#gate{position:fixed;inset:0;z-index:999;background:#050604;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;transition:opacity .4s,visibility .4s;overflow:hidden;}
 #gate.gone{opacity:0;visibility:hidden;pointer-events:none}
-.g-logo{font-size:56px;font-weight:900;letter-spacing:8px;color:var(--lime);margin-bottom:6px}
-.g-logo span{color:var(--gold)}
-.g-sub{font-size:10px;letter-spacing:5px;color:var(--gray);margin-bottom:32px}
-.g-btn{width:260px;padding:12px;border:2px solid var(--gold);border-radius:8px;cursor:pointer;background:var(--lime);color:#070809;font-weight:900;font-size:14px;letter-spacing:3px;transition:background .15s,transform .15s;font-family:inherit;}
-.g-ig-btn{display:block;width:260px;padding:12px 10px;border:2px solid var(--lime);border-radius:8px;cursor:pointer;background:var(--gold);color:#060807;font-weight:900;font-size:13px;letter-spacing:2px;text-decoration:none;text-align:center;transition:background .15s,transform .15s;font-family:inherit;margin-bottom:10px;}
-.g-ig-btn:hover{background:var(--gold2);transform:translateY(-1px)}
-.g-btn:hover{background:var(--lime2);transform:translateY(-1px)}
-.g-err{font-size:9px;color:var(--orange);letter-spacing:2px;height:14px}
+/* candlestick canvas background */
+#gate-canvas{position:absolute;inset:0;opacity:.85;pointer-events:none}
+/* gate content sits above canvas */
+.g-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;}
+.g-logo{font-size:clamp(48px,13vw,88px);font-weight:900;letter-spacing:8px;line-height:1.1;margin-bottom:18px;white-space:nowrap;display:flex;align-items:baseline;gap:0}
+/* B i G = lime · E N = gold · G i N 3 = lime */
+.gc{color:var(--lime)}            /* B, G in BiG */
+.gi{color:var(--lime);font-style:normal}  /* i in BiG — lime */
+.gg{color:var(--gold)}            /* E, N in ENGiN3 */
+.gl{color:var(--lime)}            /* G in ENGiN3 */
+.gig{color:var(--lime);font-style:normal} /* i in ENGiN3 — lime */
+.g3{color:var(--lime)}            /* 3 in ENGiN3 */
+/* spacer between BiG and ENGiN3 */
+.g-space{display:inline-block;width:.55em}
+.g-sub{font-size:11px;letter-spacing:6px;color:var(--gray);margin-bottom:14px;font-weight:400;text-align:center}
+.g-tagline{font-size:10px;letter-spacing:2px;color:var(--dimgray);margin-bottom:16px;text-align:center;line-height:2;max-width:360px}
+.g-tagline em{color:var(--gold);font-style:normal;letter-spacing:1px}
+.g-tagline span{color:var(--lime);font-style:normal}
+.g-divider{width:48px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:0 auto 32px}
+.g-btn{width:min(300px,68vw);padding:15px;border:2px solid var(--gold);border-radius:10px;cursor:pointer;background:var(--lime);color:#060807;font-weight:900;font-size:14px;letter-spacing:5px;transition:background .15s,transform .15s;font-family:inherit;}
+.g-btn:hover{background:var(--lime2);transform:translateY(-2px)}
+.g-err{font-size:9px;color:var(--orange);letter-spacing:2px;height:14px;margin-top:10px}
 
 nav{position:sticky;top:0;z-index:100;background:rgba(7,8,9,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--olive);display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:52px;}
 .nav-logo{font-size:22px;font-weight:900;letter-spacing:4px;color:var(--lime)}
@@ -306,6 +320,21 @@ body[data-tier="ELITE"] #tp-pro .tier-locked-content { display: block; }
 /* ELITE unlocks for ELITE */
 body[data-tier="ELITE"] #tp-elite .tier-locked-content { display: block; }
 
+/* Hide placeholders when tier is unlocked */
+body[data-tier="STARTER"] #tp-starter .tier-locked-placeholder,
+body[data-tier="CORE"]    #tp-starter .tier-locked-placeholder,
+body[data-tier="PRO"]     #tp-starter .tier-locked-placeholder,
+body[data-tier="ELITE"]   #tp-starter .tier-locked-placeholder { display: none; }
+
+body[data-tier="CORE"]  #tp-core .tier-locked-placeholder,
+body[data-tier="PRO"]   #tp-core .tier-locked-placeholder,
+body[data-tier="ELITE"] #tp-core .tier-locked-placeholder { display: none; }
+
+body[data-tier="PRO"]   #tp-pro .tier-locked-placeholder,
+body[data-tier="ELITE"] #tp-pro .tier-locked-placeholder { display: none; }
+
+body[data-tier="ELITE"] #tp-elite .tier-locked-placeholder { display: none; }
+
 /* ── CLICKABLE CHART LIGHTBOX ── */
 .chart-clickable { cursor: zoom-in; transition: opacity .15s; }
 .chart-clickable:hover { opacity: .88; }
@@ -411,21 +440,19 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
 </head>
 <body>
 
-<style>
-.g-logo .ll{color:var(--lime)}
-.g-logo .lg{color:var(--gold)}
-.g-logo .li-lime{color:var(--lime);position:relative;display:inline-block}
-.g-logo .li-lime::after{content:'';position:absolute;width:6px;height:6px;border-radius:50%;background:var(--gold);top:4px;left:50%;transform:translateX(-50%)}
-</style>
 <div id="gate">
-  <div class="g-logo">
-    <span class="ll">B</span><span class="li-lime">ı</span><span class="ll">G</span>
-    <span> </span>
-    <span class="lg">E</span><span class="lg">N</span><span class="ll">G</span><span class="li-lime">ı</span><span class="lg">N</span><span class="ll">3</span>
+  <canvas id="gate-canvas"></canvas>
+  <div class="g-content">
+    <div class="g-logo">
+      <span class="gc">B</span><span class="gi">i</span><span class="gc">G</span><span class="g-space"></span><span class="gg">E</span><span class="gg">N</span><span class="gl">G</span><span class="gig">i</span><span class="gg">N</span><span class="g3">3</span>
+    </div>
+    <div class="g-tagline">
+      Structure built off <em>Bitcoin</em> · but works in <span>futures, forex, equities &amp; more</span>
+    </div>
+    <div class="g-divider"></div>
+    <button class="g-btn" onclick="closeGate(false)">ENTER</button>
+    <div class="g-err" id="gerr"></div>
   </div>
-  <div class="g-sub">MARKET TIMING SYSTEM</div>
-  <button class="g-btn" onclick="closeGate(false)" style="margin-top:8px">ENTER</button>
-  <div class="g-err" id="gerr"></div>
 </div>
 
 <div id="code-modal">
@@ -492,13 +519,15 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
   </div>
 </div>
 
+
+
 <section class="hero">
   <div class="hero-card">
-    <div class="kicker">BTC MARKET TIMING SYSTEM</div>
-    <div class="h1">Bitcoin timing<br>with <span class="e3">structure.</span></div>
+    <div class="kicker">MARKET TIMING WITH STRUCTURE</div>
+    <div class="h1">Built on <span class="e3">Bitcoin.</span><br>Works in <span style="color:var(--white)">every market.</span></div>
     <p class="sub">Every trade starts with a reason.</p>
     <p style="font-size:18px;font-weight:900;color:var(--lime);letter-spacing:1px;margin-bottom:6px;text-align:center">Not guesswork.</p>
-    <p style="font-size:11px;color:var(--gray);letter-spacing:1px;margin-bottom:20px;text-align:center">Built on BTC · Runs on any liquid market</p>
+
     <div class="tag-row">
       <span class="tag">5M Entry</span>
       <span class="tag">15M Context</span>
@@ -527,6 +556,9 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
     <div class="preview-badge">TRAP-ANCHORED VWAP · <span>BTC 5M</span></div>
   </div>
 </section>
+
+
+<div class="div"></div>
 
 
 <div id="tier-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
@@ -601,7 +633,8 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
 </div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray)">CHARTS UNLOCK WITH ACCESS CODE</div>
 </div>
-  <div class="lesson-section">
+  <div class="tier-locked-content">
+<div class="lesson-section">
   <div class="lesson-label">📹 VIDEO LESSON</div>
   <div class="video-wrap">
     <iframe src="https://www.youtube.com/embed/-XnXS9_ETbQ?rel=0" title="VWAP Trading Strategy Ultimate Guide" allowfullscreen loading="lazy"></iframe>
@@ -642,12 +675,12 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
   <button class="trade-save-btn" onclick="saveTrade(this, 1)">SAVE TRADE 1</button>
 </div>
 </div>
+</div>
 <div class="tier-locked-placeholder" style="margin-top:12px;padding:22px 18px;border:1px solid var(--line);border-radius:10px;text-align:center;background:var(--panel)">
   <div style="font-size:22px;margin-bottom:8px">🔒</div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray);font-weight:700">UNLOCK WITH ACCESS CODE TO VIEW CHARTS, VIDEOS & LESSONS</div>
 </div>
   <div class="upgrade-hint">⚡ MEMBER UPGRADE — $23/mo <span style="color:var(--gray);text-decoration:line-through">$29</span></div>
-  <div class="tpanel-note">Foundation layer. Start here.</div>
   <button class="tpanel-btn" onclick="openModal('STARTER')">UNLOCK STARTER</button>
 </div>
 
@@ -681,7 +714,8 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
 </div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray)">CHARTS UNLOCK WITH ACCESS CODE</div>
 </div>
-  <div class="lesson-section">
+  <div class="tier-locked-content">
+<div class="lesson-section">
   <div class="lesson-label">📹 VIDEO LESSON</div>
   <div class="video-wrap">
     <iframe src="https://www.youtube.com/embed/bzjJcamFx1s?rel=0" title="How to Use Anchored VWAP" allowfullscreen loading="lazy"></iframe>
@@ -728,12 +762,12 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
   <button class="trade-save-btn" onclick="saveTrade(this, 2)">SAVE TRADE 2</button>
 </div>
 </div>
+</div>
 <div class="tier-locked-placeholder" style="margin-top:12px;padding:22px 18px;border:1px solid var(--line);border-radius:10px;text-align:center;background:var(--panel)">
   <div style="font-size:22px;margin-bottom:8px">🔒</div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray);font-weight:700">UNLOCK WITH ACCESS CODE TO VIEW CHARTS, VIDEOS & LESSONS</div>
 </div>
   <div class="upgrade-hint">⚡ MEMBER UPGRADE — $47/mo <span style="color:var(--gray);text-decoration:line-through">$59</span></div>
-  <div class="tpanel-note">The timing and direction structure. The edge lives here.</div>
   <button class="tpanel-btn" onclick="openModal('CORE')">UNLOCK CORE</button>
 </div>
 
@@ -766,7 +800,8 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
 </div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray)">CHARTS UNLOCK WITH ACCESS CODE</div>
 </div>
-  <div class="lesson-section">
+  <div class="tier-locked-content">
+<div class="lesson-section">
   <div class="lesson-label">📹 VIDEO LESSON</div>
   <div class="video-wrap">
     <iframe src="https://www.youtube.com/embed/-uo20dxdNUE?rel=0" title="Setting Up Risk Reward VWAP and Fibonacci" allowfullscreen loading="lazy"></iframe>
@@ -808,12 +843,12 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
   <button class="trade-save-btn" onclick="saveTrade(this, 3)">SAVE TRADE 3</button>
 </div>
 </div>
+</div>
 <div class="tier-locked-placeholder" style="margin-top:12px;padding:22px 18px;border:1px solid var(--line);border-radius:10px;text-align:center;background:var(--panel)">
   <div style="font-size:22px;margin-bottom:8px">🔒</div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray);font-weight:700">UNLOCK WITH ACCESS CODE TO VIEW CHARTS, VIDEOS & LESSONS</div>
 </div>
   <div class="upgrade-hint">⚡ MEMBER UPGRADE — $119/mo <span style="color:var(--gray);text-decoration:line-through">$149</span></div>
-  <div class="tpanel-note">Conviction layer. Score every setup before entry.</div>
   <button class="tpanel-btn" onclick="openModal('PRO')">UNLOCK PRO</button>
 </div>
 
@@ -847,7 +882,8 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
 </div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray)">CHARTS UNLOCK WITH ACCESS CODE</div>
 </div>
-  <div class="trade-template">
+  <div class="tier-locked-content">
+<div class="trade-template">
   <div class="trade-template-title">📋 TRADE 4 TEMPLATE</div>
   <div class="trade-field"><label>WHAT PRICE DID</label><textarea placeholder="Describe price action — sweep, displacement, close..."></textarea></div>
   <div class="trade-field"><label>WHAT VWAP SHOWED</label><textarea placeholder="Above/below VWAP, near a band, mean reversion setup..."></textarea></div>
@@ -856,12 +892,12 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
   <button class="trade-save-btn" onclick="saveTrade(this, 4)">SAVE TRADE 4</button>
 </div>
 </div>
+</div>
 <div class="tier-locked-placeholder" style="margin-top:12px;padding:22px 18px;border:1px solid var(--line);border-radius:10px;text-align:center;background:var(--panel)">
   <div style="font-size:22px;margin-bottom:8px">🔒</div>
   <div style="font-size:10px;letter-spacing:2px;color:var(--gray);font-weight:700">UNLOCK WITH ACCESS CODE TO VIEW CHARTS, VIDEOS & LESSONS</div>
 </div>
   <div class="upgrade-hint">⚡ MEMBER UPGRADE — $239/mo <span style="color:var(--gray);text-decoration:line-through">$299</span></div>
-  <div class="tpanel-note" style="border-color:rgba(124,252,0,.2);color:var(--lime)">Everything. Nothing held back.</div>
   <button class="tpanel-btn" style="background:var(--lime)" onclick="openModal('ELITE')">UNLOCK ELITE</button>
 </div>
 
@@ -1139,13 +1175,13 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
     <a href="tel:7702559341" class="cc ph">
       <div class="cc-icon">📞</div><div class="cc-type">PHONE / TEXT</div><div class="cc-val">770.255.9341</div>
     </a>
-    <a href="mailto:tropnevad757@gmail.com" class="cc em">
+    <a href="/cdn-cgi/l/email-protection#6e1a1c011e000b180f0a595b592e09030f0702400d0103" class="cc em">
       <div class="cc-icon">✉</div><div class="cc-type">EMAIL</div><div class="cc-val">tropnevad757</div>
     </a>
   </div>
   <div class="cta-btns">
     <a href="https://instagram.com/big.engin3" target="_blank" class="btn-lime">APPLY ON INSTAGRAM</a>
-    <a href="mailto:tropnevad757@gmail.com" class="btn-ghost">SEND EMAIL</a>
+    <a href="/cdn-cgi/l/email-protection#97e3e5f8e7f9f2e1f6f3a0a2a0d7f0faf6fefbb9f4f8fa" class="btn-ghost">SEND EMAIL</a>
   </div>
 </section>
 
@@ -1162,7 +1198,7 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
   </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 const CODES={'05230523':'FREE','04120412':'STARTER','03010301':'CORE','02900290':'PRO','01890189':'ELITE'};
 const factors={sw:true,dp:true};
 const TIER_RANK={'FREE':1,'STARTER':2,'CORE':3,'PRO':4,'ELITE':5};
@@ -1398,6 +1434,191 @@ document.addEventListener('DOMContentLoaded', function(){
     img.addEventListener('click', function(){ openLightbox(img.src); });
   });
 });
+</script>
+
+<script>
+// ── GATE CANDLESTICK BACKGROUND ───────────────────────────────────────
+(function(){
+  const cv = document.getElementById('gate-canvas');
+  if(!cv) return;
+  const ctx = cv.getContext('2d');
+  let W, H, candles=[], frame=0, priceHistory=[];
+
+  const LIME   = '#7CFC00';
+  const RED    = '#e0404a';
+  const GOLD   = '#d4af37';
+  const GRID   = 'rgba(255,255,255,0.04)';
+  const VWAP   = 'rgba(212,175,55,0.55)';
+  const SIGMA  = 'rgba(124,252,0,0.12)';
+
+  function resize(){
+    W = cv.width  = window.innerWidth;
+    H = cv.height = window.innerHeight;
+    buildChart();
+  }
+
+  function buildChart(){
+    candles = [];
+    priceHistory = [];
+
+    const CW   = Math.max(8, Math.floor(W / 55));
+    const GAP  = Math.max(2, Math.floor(CW * 0.3));
+    const STEP = CW + GAP;
+    const cols = Math.ceil(W / STEP) + 2;
+
+    // generate realistic price walk
+    let price = H * 0.52;
+    const volatility = H * 0.022;
+    for(let i = 0; i < cols; i++){
+      const trend = Math.sin(i * 0.18) * volatility * 0.6;
+      const o = price;
+      const move = (Math.random() - 0.48) * volatility + trend * 0.3;
+      const c = Math.max(H*0.15, Math.min(H*0.82, o + move));
+      const hi = Math.min(o, c) - Math.abs(move) * (0.3 + Math.random() * 0.9);
+      const lo = Math.max(o, c) + Math.abs(move) * (0.2 + Math.random() * 0.7);
+      const vol = 0.3 + Math.random() * 0.7;
+      candles.push({ x: i * STEP, cw: CW, o, c, hi, lo, vol, bull: c <= o });
+      priceHistory.push((H - (o + c) / 2) / H); // normalised
+      price = c;
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, W, H);
+    frame++;
+
+    const STEP = candles.length > 1 ? candles[1].x - candles[0].x : 12;
+
+    // ── grid ──────────────────────────────────────────────────────────
+    ctx.strokeStyle = GRID;
+    ctx.lineWidth = 1;
+    for(let gy = 0; gy < H; gy += H / 8){
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+    }
+    for(let gx = 0; gx < W; gx += STEP * 6){
+      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H * 0.88); ctx.stroke();
+    }
+
+    // ── subtle price labels on right edge ─────────────────────────────
+    if(W > 400){
+      ctx.font = '9px "Arial Narrow",Arial,sans-serif';
+      ctx.fillStyle = 'rgba(107,125,98,0.5)';
+      ctx.textAlign = 'right';
+      const levels = [0.25, 0.38, 0.5, 0.618, 0.75];
+      const prices = [98420, 96100, 94350, 92800, 91200];
+      levels.forEach((l, idx)=>{
+        const y = H * (0.15 + l * 0.67);
+        ctx.fillText(prices[idx].toLocaleString(), W - 6, y + 3);
+      });
+      ctx.textAlign = 'left';
+    }
+
+    // ── VWAP band ─────────────────────────────────────────────────────
+    const vwapOffset = Math.sin(frame * 0.004) * H * 0.03;
+    const vwapY = H * 0.48 + vwapOffset;
+    const band  = H * 0.055 + Math.sin(frame * 0.003) * H * 0.01;
+
+    // sigma band fill
+    ctx.fillStyle = SIGMA;
+    ctx.beginPath();
+    ctx.rect(0, vwapY - band * 2.2, W, band * 4.4);
+    ctx.fill();
+
+    // VWAP line
+    ctx.strokeStyle = VWAP;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([10, 8]);
+    ctx.beginPath();
+    ctx.moveTo(0, vwapY);
+    ctx.lineTo(W, vwapY);
+    ctx.stroke();
+
+    // +1σ / -1σ dashes
+    ctx.strokeStyle = 'rgba(212,175,55,0.22)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 14]);
+    [-band, band].forEach(off=>{
+      ctx.beginPath();
+      ctx.moveTo(0, vwapY + off);
+      ctx.lineTo(W, vwapY + off);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // VWAP label
+    if(W > 300){
+      ctx.font = 'bold 8px "Arial Narrow",Arial,sans-serif';
+      ctx.fillStyle = 'rgba(212,175,55,0.6)';
+      ctx.fillText('VWAP', 8, vwapY - 5);
+    }
+
+    // ── volume bars ───────────────────────────────────────────────────
+    const volH = H * 0.08;
+    candles.forEach(c=>{
+      const alpha = 0.18 + c.vol * 0.14;
+      ctx.fillStyle = c.bull
+        ? `rgba(124,252,0,${alpha})`
+        : `rgba(224,64,74,${alpha})`;
+      const bh = volH * c.vol;
+      ctx.fillRect(c.x, H - bh, c.cw, bh);
+    });
+
+    // ── candles ───────────────────────────────────────────────────────
+    candles.forEach((c, i)=>{
+      // gentle float animation — very slow, subtle
+      const drift = Math.sin(frame * 0.007 + i * 0.4) * 1.8;
+      const oy = c.o + drift;
+      const cy = c.c + drift;
+      const hiy = c.hi + drift;
+      const loy = c.lo + drift;
+
+      const alpha = 0.55 + Math.sin(frame * 0.009 + i) * 0.12;
+      const col   = c.bull ? LIME : RED;
+
+      // wick
+      ctx.strokeStyle = c.bull
+        ? `rgba(124,252,0,${alpha * 0.7})`
+        : `rgba(224,64,74,${alpha * 0.7})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(c.x + c.cw / 2, hiy);
+      ctx.lineTo(c.x + c.cw / 2, loy);
+      ctx.stroke();
+
+      // body
+      const bodyTop = Math.min(oy, cy);
+      const bodyH   = Math.max(2, Math.abs(oy - cy));
+      ctx.fillStyle = c.bull
+        ? `rgba(124,252,0,${alpha * 0.55})`
+        : `rgba(224,64,74,${alpha * 0.55})`;
+      ctx.fillRect(c.x, bodyTop, c.cw, bodyH);
+
+      // body border
+      ctx.strokeStyle = c.bull
+        ? `rgba(124,252,0,${alpha * 0.85})`
+        : `rgba(224,64,74,${alpha * 0.85})`;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(c.x + 0.4, bodyTop + 0.4, c.cw - 0.8, bodyH - 0.8);
+    });
+
+    // ── session zone label ────────────────────────────────────────────
+    if(W > 400){
+      ctx.font = '8px "Arial Narrow",Arial,sans-serif';
+      ctx.fillStyle = 'rgba(107,125,98,0.45)';
+      ctx.fillText('NYC SESSION', W * 0.62, H * 0.92);
+      ctx.fillStyle = 'rgba(107,125,98,0.3)';
+      ctx.fillText('PRE-MARKET', W * 0.08, H * 0.92);
+    }
+
+    if(document.getElementById('gate') && !document.getElementById('gate').classList.contains('gone')){
+      requestAnimationFrame(draw);
+    }
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+})();
 </script>
 
 </body>
