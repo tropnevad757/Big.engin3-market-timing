@@ -1300,7 +1300,7 @@ function tick(){
   const et=new Date(now.getTime()+(dst?-4:-5)*3600000);
   document.getElementById('et-t').textContent=et.toISOString().split('T')[1].substring(0,8);
   document.getElementById('utc-t').textContent=now.toUTCString().split(' ')[4];
-  const sign=getRegimeSign(et.getUTCHours()*60+et.getUTCMinutes()%720);
+  const sign=getRegimeSign((et.getUTCHours()*60+et.getUTCMinutes())%720);
   const dot=document.getElementById('sdot'),lbl=document.getElementById('slbl');
   if(sign==='-'){
     dot.style.background='var(--lime)';lbl.textContent='−';lbl.style.color='var(--lime)';
