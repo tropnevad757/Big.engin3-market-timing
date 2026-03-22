@@ -14,11 +14,11 @@ body{overflow-x:hidden}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#08081e}::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 14px #f0a03055)}50%{filter:drop-shadow(0 0 30px #f0a030aa)}}
 input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 #loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .5s}
-#loader img{width:180px;height:180px;object-fit:contain;margin-bottom:22px;animation:pulse 2s ease-in-out infinite,glow 3s ease-in-out infinite}
+#loader img{width:170px;height:170px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
 #spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
 #loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
 </style>
@@ -159,8 +159,8 @@ const CORR_L = { primary:"PRIMARY", confirm:"CONFIRM", inverse:"INVERSE", safe:"
 
 const PLANS = [
   { id:"free",    name:"FREE",    price:0,   color:"#555",
-    perks:["Zone Clock — Live ET","6 System Principles","Chart Visual Overview"],
-    locked:["Zone Times","Sound Alerts","Timezone Selector","All Instruments","VWAP Bands","Checklist","Backtesting"] },
+    perks:["Zone Clock — FREE, Always Live","Zone labels Z1–Z12","BUY CORE / SELL RESET arcs","ET Reference Clock"],
+    locked:["Sound Alerts","Timezone Selector","All Instruments","VWAP Bands","Bias Checklist","Backtesting"] },
   { id:"starter", name:"STARTER", price:null,color:"#88aaff",
     perks:["VWAP Anchor + Accumulation","Recalibration Phase","Sigma Target Levels","Zone Clock Access"],
     locked:["Action Phases","Regime Engine","Currency Meter","Full Checklist","Backtesting"] },
@@ -472,7 +472,7 @@ function App() {
   const prevRef = useRef([]);
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
 
-  const can = f => plan==="elite"||( plan==="pro"&&f!=="backtest_full"&&f!=="sub_pocket")||( plan==="free"&&["clock"].includes(f));
+  const can = f => plan==="elite"||( plan==="pro"&&f!=="backtest_full"&&f!=="sub_pocket")||( plan==="free"&&["clock","news"].includes(f));
   const gate = (f,cb) => { if(can(f))cb(); else setSubOpen(true); };
 
   useEffect(()=>{
@@ -684,7 +684,7 @@ function App() {
 
       {/* Zone confidence table — NO times shown */}
       <div style={card()}>
-        <div style={lbl("#555",{marginBottom:12})}>ZONE CONFIDENCE · TIMES HIDDEN</div>
+        <div style={lbl("#555",{marginBottom:12})}>ACTIVE ZONES</div>
         {[...zones].sort((a,b)=>parseInt(a.label.replace("Z",""))-parseInt(b.label.replace("Z",""))).map(z=>{
           const col=z.type==="buy"?G:z.type==="sell"?R:D, on=liveIds.includes(z.id), sub=on&&isInSubWindow(z,et);
           const stars=z.starRating||3;
@@ -698,9 +698,7 @@ function App() {
                   {on&&<span style={{fontSize:7,color:col}}>● LIVE</span>}
                   {sub&&<span style={{fontSize:7,color:"#fff"}}>★ POCKET</span>}
                 </div>
-                <div style={{fontSize:9,color:"#555",marginTop:2,...mono}}>
-                  {tz!=="America/New_York"&&can("tz")?convertTime(z,tz)+" "+selTZ.abbr:"Member times hidden"}
-                </div>
+
               </div>
               <div style={{display:"flex",gap:2}}>
                 {Array.from({length:5}).map((_,i)=><div key={i} style={{width:6,height:6,borderRadius:1,background:i<stars?col:"#1a1a1a"}}/>)}
