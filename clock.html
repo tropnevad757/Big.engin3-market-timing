@@ -694,7 +694,7 @@ function App() {
       </div>
 
       {/* Zone confidence table — NO times shown */}
-      <div style={card()}>
+      <div style={{...card(),display:"none"}}>
         <div style={lbl("#555",{marginBottom:12})}>ACTIVE ZONES</div>
         {[...zones].sort((a,b)=>parseInt(a.label.replace("Z",""))-parseInt(b.label.replace("Z",""))).map(z=>{
           const col=z.type==="buy"?G:z.type==="sell"?R:D, on=liveIds.includes(z.id), sub=on&&isInSubWindow(z,et);
@@ -718,6 +718,63 @@ function App() {
           );
         })}
       </div>
+
+      {/* VWAP information section integrated into clock */}
+      {(() => {
+        const activeAnchors = hotTraps || [];
+        function getZoneLabelForAnchor(t){
+          const anchorMins = t.h*60 + t.m;
+          for(const z of zones){
+            let start = z.h1*60 + z.m1;
+            let end = z.h2*60 + z.m2;
+            if(end <= start) end += 1440;
+            let aMins = anchorMins;
+            if(aMins < start) aMins += 1440;
+            if(aMins >= start && aMins < end){ return z.label; }
+          }
+          return t.label;
+        }
+        return (
+          <div>
+            {activeAnchors.length>0 && (
+              <div style={{background:`${A}0d`,border:`1px solid ${A}44`,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:A,boxShadow:`0 0 8px ${A}`,flexShrink:0}}/>
+                <div style={{fontSize:10,color:A,fontWeight:700,...mono}}>
+                  {activeAnchors.length} anchor{activeAnchors.length>1?"s":""} active: {activeAnchors.map(t=>getZoneLabelForAnchor(t)).join(" · ")}
+                </div>
+              </div>
+            )}
+            {activeAnchors.map(t=>{
+              const pct = t.pctThrough ?? t.pct ?? 0;
+              const str = Math.max(0, Math.min(100, Math.round(100 - pct)));
+              const strCol = str>=70?G:(str>=40?A:R);
+              const zoneLabel = getZoneLabelForAnchor(t);
+              return (
+                <div key={t.id} style={{background:`${strCol}0a`,border:`2px solid ${strCol}55`,borderRadius:14,padding:"14px 16px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div>
+                      <div style={{fontSize:8,letterSpacing:2,color:strCol,fontWeight:700,marginBottom:3}}>● VWAP ANCHOR</div>
+                      <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{zoneLabel}</div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:28,fontWeight:900,color:strCol,lineHeight:1}}>{str}%</div>
+                      <div style={{fontSize:8,color:"#555",letterSpacing:1}}>STRENGTH</div>
+                    </div>
+                  </div>
+                  <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${str}%`,background:strCol,borderRadius:3,boxShadow:`0 0 6px ${strCol}88`,transition:"width 1s"}}/>
+                  </div>
+                </div>
+              );
+            })}
+            {activeAnchors.length===0 && (
+              <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 16px",marginBottom:12,textAlign:"center"}}>
+                <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE VWAP ANCHOR RIGHT NOW</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
@@ -1458,7 +1515,13 @@ function App() {
 
   // ── NAV ──
   const planColor=plan==="elite"?A:plan==="pro"?G:"#333";
-  const NAV=[{id:"clock",icon:"⏱",l:"CLOCK"},{id:"signals",icon:"📡",l:"SIGNALS"},{id:"vwap",icon:"〰",l:"VWAP"},{id:"news",icon:"📰",l:"NEWS"},{id:"backtest",icon:"📊",l:"BACKTEST"},{id:"account",icon:"👤",l:"PLAN"}];
+  // Remove VWAP and PLAN tabs as requested
+  const NAV=[
+    {id:"clock",icon:"⏱",l:"CLOCK"},
+    {id:"signals",icon:"📡",l:"SIGNALS"},
+    {id:"news",icon:"📰",l:"NEWS"},
+    {id:"backtest",icon:"📊",l:"BACKTEST"}
+  ];
 
   return(
     <div style={{minHeight:"100vh",maxWidth:480,margin:"0 auto",background:`linear-gradient(180deg,${BG} 0%,#090920 100%)`,fontFamily:"'Orbitron',monospace",color:"#fff",paddingBottom:72}}>
@@ -1483,10 +1546,10 @@ function App() {
       <div style={{animation:"fadeUp .3s ease"}}>
         {tab==="clock"    && <ClockTab/>}
         {tab==="signals"  && <SignalsTab/>}
-        {tab==="vwap"     && <VwapTab/>}
+        {/* VWAP tab removed */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {tab==="account"  && <AccountTab/>}
+        {/* Account tab removed */}
       </div>
 
       {/* NAV */}
