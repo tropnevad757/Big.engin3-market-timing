@@ -820,10 +820,11 @@ function App() {
           const bt = BACKTEST[liveZone.id] || {best:"?",worst:"?",wins:0};
           const win = bt.wins || 0;
           const zoneBias = liveZone.type==="buy"?"BUY":"SELL";
-          return `${bt.best} / ${bt.worst} — ${win}% ${zoneBias} win rate`;
+          const conf = win>=75?"ELITE":win>=65?"HIGH CONFIDENCE":win>=55?"MODERATE":"LOW";
+          return `${bt.best} / ${bt.worst} — ${win}% ${zoneBias} (${conf})`;
         })(),
         passes: null,
-        note: "Best day aligns with zone bias; worst day shows the weakest performance. Win rate reflects historical performance in this zone.",
+        note: "Best day aligns with zone bias; worst day shows the weakest performance. Confidence level is based on historical zone win rate.",
         color: liveZone?(liveZone.type==="buy"?G:R):"#444",
       },
       {
