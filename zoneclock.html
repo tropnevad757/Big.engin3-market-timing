@@ -17,7 +17,7 @@ body{overflow-x:hidden}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 14px #f0a03055)}50%{filter:drop-shadow(0 0 30px #f0a030aa)}}
 input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
-#loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .5s}
+#loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .6s ease}
 #loader img{width:170px;height:170px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
 #spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
 #loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
@@ -227,7 +227,6 @@ function convertTime(z,localTZ) {
   } catch { return "–"; }
 }
 
-// VWAP helpers — anchored from trap times
 function getTrapAnchorStatus(et) {
   const nowMins = et.h24*60+et.m;
   return TRAP_TIMES.map(t => {
@@ -341,6 +340,8 @@ function MiniBar({months}) {
 
 // ─── VWAP BAND CARD — Band 2 only, clear trade signals ───────────────────────
 function VWAPBandCard({trap, et, price}) {
+  const ZONE_LABELS = {t1:"Z1",t2:"Z4",t3:"Z6",t4:"Z7",t5:"Z10",t6:"Z12",t7:"Z1",t8:"Z4"};
+  const displayLabel = ZONE_LABELS[trap.id]||trap.label;
   const nowMins    = et.h24*60+et.m;
   const anchorMins = trap.h*60+trap.m;
   const elapsed    = ((nowMins - anchorMins)+1440)%1440;
@@ -360,15 +361,8 @@ function VWAPBandCard({trap, et, price}) {
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div>
-          <div style={{fontSize:8,letterSpacing:2,color:active?A:"#444",fontWeight:700}}>{trap.label} ANCHOR {active?"● ACTIVE":""}</div>
-          <div style={{fontSize:10,color:"#777",marginTop:2,...mono}}>
-            {elapsed<60?`${elapsed}m since anchor`:elapsed<180?`${Math.floor(elapsed/60)}h ${elapsed%60}m since`:`${Math.floor(elapsed/60)}h ago`}
-          </div>
+          <div style={{fontSize:8,letterSpacing:2,color:active?A:"#444",fontWeight:700}}>{displayLabel} ANCHOR {active?"● ACTIVE":""}</div>
         </div>
-        {active&&<div style={{textAlign:"center"}}>
-          <div style={{fontSize:22,fontWeight:900,color:A,lineHeight:1}}>{Math.round(100-pct)}%</div>
-          <div style={{fontSize:7,color:"#555",letterSpacing:1}}>STRENGTH</div>
-        </div>}
       </div>
 
       {/* Visual: 3 rows — UB2 (top), VWAP (mid), LB2 (bottom) */}
@@ -401,7 +395,7 @@ function VWAPBandCard({trap, et, price}) {
           <div>
             <div style={{fontSize:9,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:2}}>VWAP — FAIR VALUE</div>
             <div style={{fontSize:9,color:"#888",...mono}}>Target when price is at either band</div>
-            <div style={{fontSize:8,color:"#555",...mono,marginTop:2}}>Anchor: {trap.label} ET</div>
+            <div style={{fontSize:8,color:"#555",...mono,marginTop:2}}>Anchor zone: {displayLabel}</div>
           </div>
           <div style={{fontSize:16,fontWeight:900,color:A,...mono,textAlign:"right"}}>
             {vwapLine}
@@ -430,9 +424,6 @@ function VWAPBandCard({trap, et, price}) {
         <div>
           <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden"}}>
             <div style={{height:"100%",width:`${100-pct}%`,background:`${A}88`,borderRadius:2,transition:"width 1s"}}/>
-          </div>
-          <div style={{fontSize:7,color:"#444",...mono,marginTop:4,textAlign:"center",letterSpacing:1}}>
-            ANCHOR STRENGTH · FADES OVER 3 HOURS
           </div>
         </div>
       )}
@@ -529,18 +520,9 @@ function App() {
     { id:"reuters",    label:"Reuters Markets",  color:"#ff6b35",
       url:"https://feeds.reuters.com/reuters/businessNews",
       fallback:"https://feeds.reuters.com/reuters/topNews" },
-    { id:"investing",  label:"Investing.com",    color:"#f0a030",
-      url:"https://www.investing.com/rss/news.rss",
-      fallback:"https://www.investing.com/rss/news_25.rss" },
-    { id:"marketwatch",label:"MarketWatch",      color:"#00aaff",
-      url:"https://feeds.content.dowjones.io/public/rss/mw_topstories",
-      fallback:"https://www.marketwatch.com/rss/topstories" },
-    { id:"bitcoinmag", label:"Bitcoin Magazine", color:"#ff9500",
-      url:"https://bitcoinmagazine.com/feed",
-      fallback:"https://bitcoinmagazine.com/.rss/full/" },
     { id:"nasdaq",     label:"Nasdaq News",      color:"#00ff88",
-      url:"https://www.nasdaq.com/feed/rssoutbound?category=Cryptocurrencies",
-      fallback:"https://www.nasdaq.com/feed/rssoutbound?category=Markets" },
+      url:"https://www.nasdaq.com/feed/rssoutbound?category=Markets",
+      fallback:"https://www.nasdaq.com/feed/rssoutbound?category=Cryptocurrencies" },
   ];
 
   function parseRSSXML(xml, feed){
@@ -680,32 +662,6 @@ function App() {
             <span style={{fontSize:9,color:i.c,fontWeight:700,letterSpacing:.8}}>{i.l}</span>
           </div>
         ))}
-      </div>
-
-      {/* Zone confidence table — NO times shown */}
-      <div style={card()}>
-        <div style={lbl("#555",{marginBottom:12})}>ACTIVE ZONES</div>
-        {[...zones].sort((a,b)=>parseInt(a.label.replace("Z",""))-parseInt(b.label.replace("Z",""))).map(z=>{
-          const col=z.type==="buy"?G:z.type==="sell"?R:D, on=liveIds.includes(z.id), sub=on&&isInSubWindow(z,et);
-          const stars=z.starRating||3;
-          return(
-            <div key={z.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-              <div style={{width:4,height:36,borderRadius:2,background:col,flexShrink:0,opacity:on?1:.3}}/>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:12,fontWeight:900,color:on?col:"#555"}}>{z.label}</span>
-                  <span style={{fontSize:10,color:on?col:"#333",letterSpacing:1}}>{z.type.toUpperCase()}</span>
-                  {on&&<span style={{fontSize:7,color:col}}>● LIVE</span>}
-                  {sub&&<span style={{fontSize:7,color:"#fff"}}>★ POCKET</span>}
-                </div>
-
-              </div>
-              <div style={{display:"flex",gap:2}}>
-                {Array.from({length:5}).map((_,i)=><div key={i} style={{width:6,height:6,borderRadius:1,background:i<stars?col:"#1a1a1a"}}/>)}
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       {/* Sound */}
@@ -936,24 +892,20 @@ function App() {
               const pct   = t.pct||0;
               const str   = Math.round(100-pct);
               const strCol= str>=70?G:str>=40?A:R;
+              // Find matching zone label by anchor id
+              const zoneLabels = {t1:"Z1",t2:"Z4",t3:"Z6",t4:"Z7",t5:"Z10",t6:"Z12",t7:"Z1",t8:"Z4"};
+              const zLabel = zoneLabels[t.id]||t.label;
               return(
                 <div key={t.id} style={{background:`${strCol}0a`,border:`2px solid ${strCol}55`,borderRadius:14,padding:"14px 16px",marginBottom:8}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                     <div>
                       <div style={{fontSize:8,letterSpacing:2,color:strCol,fontWeight:700,marginBottom:3}}>● ACTIVE VWAP ANCHOR</div>
-                      <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{t.label}</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:28,fontWeight:900,color:strCol,lineHeight:1}}>{str}%</div>
-                      <div style={{fontSize:8,color:"#555",letterSpacing:1}}>STRENGTH</div>
+                      <div style={{fontSize:22,fontWeight:900,color:"#fff",...mono}}>{zLabel}</div>
                     </div>
                   </div>
                   {/* Strength bar */}
                   <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
                     <div style={{height:"100%",width:`${str}%`,background:strCol,borderRadius:3,boxShadow:`0 0 6px ${strCol}88`,transition:"width 1s"}}/>
-                  </div>
-                  <div style={{fontSize:9,color:"#555",...mono,marginTop:6}}>
-                    {t.elapsed<60?`${t.elapsed} min since anchor`:`${Math.floor(t.elapsed/60)}h ${t.elapsed%60}m since anchor`} · Fades over 3 hours
                   </div>
                 </div>
               );
@@ -961,8 +913,8 @@ function App() {
           </div>
         ):(
           <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 16px",marginBottom:12,textAlign:"center"}}>
-            <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE ANCHOR RIGHT NOW</div>
-            <div style={{fontSize:8,color:"#2a2a2a",marginTop:4,...mono}}>Anchors activate at: 1:30 · 4:30 · 7:30 · 10:30 ET (AM + PM)</div>
+            <div style={{fontSize:9,color:"#333",...mono}}>NO ACTIVE ANCHOR RIGHT NOW</div>
+            <div style={{fontSize:8,color:"#222",marginTop:4,...mono}}>Anchors activate at zone transitions · AM + PM</div>
           </div>
         )}
 
@@ -1044,7 +996,7 @@ function App() {
           filtered.length===0?(
             <div style={{textAlign:"center",padding:"28px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12}}>
               <div style={{fontSize:11,color:"#333",fontFamily:"'Share Tech Mono',monospace",marginBottom:6}}>NO ACTIVE ANCHORS</div>
-              <div style={{fontSize:9,color:"#222",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>Anchors activate at 1:30 · 4:30 · 7:30 · 10:30 ET<br/>and expire after 3 hours. Expired anchors are removed.</div>
+              <div style={{fontSize:9,color:"#222",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>No active anchors. Check back at zone transitions.</div>
             </div>
           ):filtered.map(t=><VWAPBandCard key={t.id} trap={t} et={et} price={vwapPrice}/>)
         )}
@@ -1224,11 +1176,10 @@ function App() {
     const CC = {LABOR:"#00aaff", MACRO:"#88aaff", INFLATION:"#ff3355", CRYPTO:A, FED:"#aa88ff"};
 
     const LINKS = [
-      { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
-      { label:"Myfxbook News",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
+      { label:"Reuters",            color:"#ff6b35",  url:"https://www.reuters.com/markets/",                        desc:"Global markets news" },
+      { label:"Nasdaq News",        color:"#00ff88",  url:"https://www.nasdaq.com/news-and-insights",                desc:"Nasdaq market news & analysis" },
       { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
       { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
-      { label:"Investing.com",      color:"#ff9500",  url:"https://www.investing.com/news/latest-news",              desc:"Latest financial news" },
     ];
 
     function fmtDate(s){
@@ -1377,7 +1328,7 @@ function App() {
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:9,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Bloomberg, Myfxbook, and Trading Economics don't provide RSS — open them directly below.</div>
+              <div style={{fontSize:9,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Myfxbook and Trading Economics don't provide RSS — open them directly below.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
@@ -1412,7 +1363,7 @@ function App() {
 
   // ── NAV ──
   const planColor=plan==="elite"?A:plan==="pro"?G:"#333";
-  const NAV=[{id:"clock",icon:"⏱",l:"CLOCK"},{id:"signals",icon:"📡",l:"SIGNALS"},{id:"vwap",icon:"〰",l:"VWAP"},{id:"news",icon:"📰",l:"NEWS"},{id:"backtest",icon:"📊",l:"BACKTEST"},{id:"account",icon:"👤",l:"PLAN"}];
+  const NAV=[{id:"clock",icon:"⏱",l:"CLOCK"},{id:"signals",icon:"📡",l:"SIGNALS"},{id:"vwap",icon:"〰",l:"VWAP"},{id:"news",icon:"📰",l:"NEWS"},{id:"backtest",icon:"📊",l:"BACKTEST"}];
 
   return(
     <div style={{minHeight:"100vh",maxWidth:480,margin:"0 auto",background:`linear-gradient(180deg,${BG} 0%,#090920 100%)`,fontFamily:"'Orbitron',monospace",color:"#fff",paddingBottom:72}}>
@@ -1429,7 +1380,6 @@ function App() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {liveZ.length>0&&<div style={{width:7,height:7,borderRadius:"50%",background:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,boxShadow:`0 0 8px ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}`}}/>}
-          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:8,fontWeight:700,letterSpacing:1}}>{plan.toUpperCase()}</div>
         </div>
       </div>
 
@@ -1440,7 +1390,6 @@ function App() {
         {tab==="vwap"     && <VwapTab/>}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {tab==="account"  && <AccountTab/>}
       </div>
 
       {/* NAV */}
@@ -1456,8 +1405,11 @@ function App() {
   );
 }
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-const l=document.getElementById('loader');
-if(l){l.style.opacity='0';setTimeout(()=>l.style.display='none',500)}
+// Hide loader only after first paint — use requestAnimationFrame for smooth fade
+requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  const l=document.getElementById('loader');
+  if(l){l.style.opacity='0';setTimeout(()=>{l.style.display='none';},600);}
+}));
 </script>
 </body>
 </html>
