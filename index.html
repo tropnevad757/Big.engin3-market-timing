@@ -23,7 +23,7 @@
 html,body{background:var(--black);color:var(--dimgray);font:14px/1.6 'Arial Narrow',Arial,sans-serif;background-image:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(85,107,47,.06) 0%,transparent 60%);}
 a{color:var(--gold);text-decoration:none}
 
-#gate{position:fixed;inset:0;z-index:999;background:#050604;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;transition:opacity .5s ease,visibility .5s ease;overflow:hidden;}
+#gate{position:fixed;inset:0;z-index:999;background:#050604;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;transition:opacity .4s,visibility .4s;overflow:hidden;}
 #gate.gone{opacity:0;visibility:hidden;pointer-events:none}
 /* candlestick canvas background */
 #gate-canvas{position:absolute;inset:0;opacity:.7;pointer-events:none}#gate::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 30%,rgba(6,8,7,0.7) 100%);pointer-events:none;z-index:1}
@@ -494,7 +494,7 @@ body[data-tier="ELITE"]   .tpanel .tpanel-badge::before
     </div>
     <button id="lock-btn" onclick="doLock()">LOCK</button>
     <a id="course-btn" href="course.html">COURSE</a>
-    <a id="clock-btn" href="bigengin3.html" style="background:rgba(212,175,55,.07);color:var(--gold);border:1px solid rgba(212,175,55,.35);border-radius:999px;padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:2px;text-decoration:none;transition:background .15s">CLOCK</a>
+    <a id="clock-btn" href="clock.html" style="background:rgba(212,175,55,.07);color:var(--gold);border:1px solid rgba(212,175,55,.35);border-radius:999px;padding:6px 14px;font-size:11px;font-weight:700;letter-spacing:2px;text-decoration:none;transition:background .15s">CLOCK</a>
   </div>
 </nav>
 
@@ -1227,15 +1227,10 @@ function doLock(){
   document.getElementById('gate').classList.remove('gone');
 }
 if(sessionStorage.getItem('e3')==='1'){
-  // Already unlocked — hide gate after first paint for smooth entry
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    closeGate(true);
-    const t=sessionStorage.getItem('e3tier');
-    if(t) document.body.setAttribute('data-tier',t);
-  }));
-} else {
-  // Fresh visit — start canvas animation only while gate is visible
-  }
+  closeGate(true);
+  const t=sessionStorage.getItem('e3tier');
+  if(t) document.body.setAttribute('data-tier',t);
+}
 
 let pendingTier='';
 function openModal(tierName){
@@ -1302,9 +1297,13 @@ function showTier(t){
 }
 
 function getRegimeSign(em12){
-  const _s=[30,270,390,450,630],_e=[90,390,450,630,750],_r=['-','-','+','-','+'];
-  for(let i=0;i<_s.length;i++){if(em12>=_s[i]&&em12<_e[i])return _r[i];}
-  if(em12>=90&&em12<270)return '+';
+  const inRange=(s,e)=>em12>=s&&em12<e;
+  if(inRange(30,90)) return '-';
+  if(inRange(270,390)) return '-';
+  if(inRange(390,450)) return '+';
+  if(inRange(450,630)) return '-';
+  if(inRange(630,750)) return '+';
+  if(inRange(90,270)) return '+';
   return '-';
 }
 function tick(){
