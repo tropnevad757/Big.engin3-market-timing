@@ -18,9 +18,7 @@ body{overflow-x:hidden}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 14px #f0a03055)}50%{filter:drop-shadow(0 0 30px #f0a030aa)}}
 input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 #loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .5s}
-/* Hide heavy loader image and spinner to improve load speed */
-#loader img{display:none!important}
-#spinner{display:none!important}
+#spinner{display:none!important} /* Hide spinner under the logo */
 #loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
 </style>
 </head>
@@ -1115,11 +1113,18 @@ function App() {
             <text x={32} y={32} textAnchor="middle" dominantBaseline="central" fill={zCol} fontSize="11" fontWeight="900" fontFamily="'Orbitron',monospace">{data.wins}%</text>
           </svg>
         </div>
-        {can("sub_pocket")&&<div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
-          <div style={lbl(A,{marginBottom:6})}>PRIME POCKET</div>
-          <div style={{fontSize:10,color:"#888",...mono,lineHeight:1.8}}>{(zone&&zone.pocket&&zone.pocket.note)}</div>
-          <div style={{fontSize:9,color:"#666",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
-        </div>}
+        {/* Backtest bias card: show best & worst day information instead of prime pocket.
+            This card is always shown and does not rely on subscription. */}
+        <div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
+          <div style={lbl(A,{marginBottom:6})}>BEST & WORST DAY BIAS</div>
+          <div style={{fontSize:10,color:"#888",...mono,lineHeight:1.8}}>
+            {zone && zone.type === "buy"
+              ? <>The best day to go long is <strong style={{color:G}}>{data.best}</strong>. The worst day is <strong style={{color:R}}>{data.worst}</strong>. Align your bias by trading with the zone on the best day and exercise caution on the worst day.</>
+              : zone && zone.type === "sell"
+              ? <>The best day to go short is <strong style={{color:R}}>{data.best}</strong>. The worst day is <strong style={{color:G}}>{data.worst}</strong>. Align your bias by trading with the zone on the best day and exercise caution on the worst day.</>
+              : null}
+          </div>
+        </div>
         <div style={card()}>
           <div style={lbl("#555",{marginBottom:8})}>ADD NOTE · {(zone&&zone.label)}</div>
           <div style={{display:"flex",gap:8}}>
