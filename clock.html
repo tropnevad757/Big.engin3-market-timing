@@ -156,23 +156,7 @@ const CATS = [
 const CORR_C = { primary:A, confirm:G, inverse:R, safe:"#88aaff", risk:"#aa88ff", other:"#666" };
 const CORR_L = { primary:"PRIMARY", confirm:"CONFIRM", inverse:"INVERSE", safe:"SAFE HAVEN", risk:"RISK-ON", other:"OTHER" };
 
-const PLANS = [
-  { id:"free",    name:"FREE",    price:0,   color:"#555",
-    perks:["Zone Clock — FREE, Always Live","Zone labels Z1–Z12","BUY CORE / SELL RESET arcs","ET Reference Clock"],
-    locked:["Sound Alerts","Timezone Selector","All Instruments","VWAP Bands","Bias Checklist","Backtesting"] },
-  { id:"starter", name:"STARTER", price:null,color:"#88aaff",
-    perks:["VWAP Anchor + Accumulation","Recalibration Phase","Sigma Target Levels","Zone Clock Access"],
-    locked:["Action Phases","Regime Engine","Currency Meter","Full Checklist","Backtesting"] },
-  { id:"core",    name:"CORE",    price:29,  color:G,
-    perks:["Expansion + Distribution","Money Rhythm","TRAP → EXECUTE Cadence","Zone Clock — Full Access","All Timezones","Sound Alerts","All Instruments","VWAP Bands"],
-    locked:["Regime Engine","Currency Meter","Full 6-Step Checklist","Backtesting"] },
-  { id:"pro",     name:"PRO",     price:59,  color:A,
-    perks:["Everything in CORE","Recalibration · Continuation","BUY CORE vs SELL RESET Logic","Currency Meter + Polarity","6-Step Entry Checklist","Zone Backtesting"],
-    locked:["Full Execution Ruleset","Win Rate Estimator","Trade Tracker","AeroGrid Tool"] },
-  { id:"elite",   name:"ELITE",   price:149, color:"#ff9500",
-    perks:["Everything in PRO","Full Execution Ruleset","Stop · Trail · Exit · Sizing","Live Win Rate Estimator","Trade Tracker","AeroGrid Tool (Elite Only)","Priority Support"],
-    locked:[] },
-];
+// Removed unused PLANS constant for optimization
 
 // Win rates from ENGiN3 system historical data (BTC)
 // System peak: 88% when all 6 conditions met (prime window + regime + news + sweep + displacement)
@@ -670,7 +654,9 @@ function App() {
       ):(
         <div style={card({textAlign:"center",padding:"12px 16px"})}>
           <div style={lbl("#333",{marginBottom:4})}>NO ACTIVE ZONE</div>
-          
+          {nextZ&&<div style={{fontSize:10,color:"#444",marginTop:4,...mono}}>
+            Next: <span style={{color:nextZ.type==="buy"?G:R,fontWeight:700}}>{nextZ.type==="buy"?"▲ BUY":"▼ SELL"}</span> in {nextZ.mins}m
+          </div>}
         </div>
       )}
 
@@ -788,17 +774,10 @@ function App() {
             color: liveZone ? (liveZone.type==="buy"?G:liveZone.type==="sell"?R:D) : "#444",
           },
           {
-            label:"BEST / WORST DAY",
-            value: (()=>{
-              if(!liveZone || !bt[liveZone.id]) return "Waiting for zone";
-              const d = bt[liveZone.id];
-              return `BEST ${d.best} · WORST ${d.worst}`;
-            })(),
-            passes: liveZone && bt[liveZone.id] ? true : null,
-            note: "Use the active zone’s backtested best day and avoid its weakest day when possible.",
-            color: liveZone && bt[liveZone.id]
-              ? (liveZone.type==="buy" ? G : R)
-              : "#666",
+            label:"PRIME POCKET",
+            value: inSub ? "★ ACTIVE" : "Not yet",
+            passes: inSub,
+            note: "Highest-probability window inside the zone. Wait for pocket when possible.",
           },
           {
             label:"CORRELATION ALIGNMENT",
@@ -972,17 +951,10 @@ function App() {
         color: liveZone?(liveZone.type==="buy"?G:R):"#444",
       },
       {
-        label: "BEST / WORST DAY",
-        value: (()=>{
-          if(!liveZone || !bt[liveZone.id]) return "Waiting for zone";
-          const d = bt[liveZone.id];
-          return `BEST ${d.best} · WORST ${d.worst}`;
-        })(),
-        passes: liveZone && bt[liveZone.id] ? true : null,
-        note: "Use the active zone’s backtested best day and avoid its weakest day when possible.",
-        color: liveZone && bt[liveZone.id]
-          ? (liveZone.type==="buy" ? G : R)
-          : "#666",
+        label: "PRIME POCKET",
+        value: inSub ? "★ ACTIVE" : "Not yet",
+        passes: inSub,
+        note: "Highest-probability window inside the zone. Wait for pocket when possible.",
       },
       {
         label: "CORRELATION ALIGNMENT",
@@ -1684,10 +1656,10 @@ function App() {
       <div style={{animation:"fadeUp .3s ease"}}>
         {tab==="clock"    && <ClockTab/>}
         {tab==="signals"  && <SignalsTab/>}
-        
+        {/* VWAP tab removed */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        
+        {/* Account tab removed */}
       </div>
 
       {/* NAV */}
