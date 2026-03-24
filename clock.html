@@ -517,9 +517,8 @@ function App() {
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
-  // Active zone strength: stronger live weighting so the score reacts more to current conditions.
-  // 45% = backtested zone win rate, 55% = live checklist/confluence score.
-  // Prime pocket adds a bonus, and correlation can add or subtract a small amount.
+  // Active zone strength now blends historical zone win rate with the live checklist score.
+  // 60% = backtested zone win rate, 40% = current confluence score, with a small prime-pocket bonus.
   const activeZoneStrength = (()=>{
     const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
     if(!zone) return 0;
@@ -690,6 +689,7 @@ function App() {
         </div>
       )}
 
+
       {/* Clock */}
       <div style={{display:"flex",justifyContent:"center",margin:"8px 0 12px"}}>
         <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
@@ -772,6 +772,51 @@ function App() {
         })}
       </div>
       )}
+
+
+        {/* Summary score */}
+        <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
+              <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
+                {greenCount}/4 checks · Peak 88% win rate when all conditions met
+                {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
+              </div>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checks.length}</div>
+              <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Checklist */}
+        {checks.map((c,i)=>{
+          const {icon, color} = chk(c.passes);
+          const labelColor = c.passes===true?G:c.passes===false?R:"#555";
+          return(
+            <div key={i} style={{
+              display:"flex",gap:12,alignItems:"flex-start",
+              padding:"11px 14px",marginBottom:7,
+              background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
+              border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
+              borderRadius:11,
+            }}>
+              {/* Icon */}
+              <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                  <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
+                  <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
+                </div>
+                <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
+              </div>
+            </div>
+          );
+        })}
+
+
 
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
@@ -914,48 +959,6 @@ function App() {
             <div style={{fontSize:9,color:"#444",...mono,lineHeight:1.7}}>No directional edge. Avoid entries. Wait for next active zone.</div>
           </div>
         )}
-
-        {/* Summary score */}
-        <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
-              <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
-                {greenCount}/4 checks · Peak 88% win rate when all conditions met
-                {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
-              </div>
-            </div>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checks.length}</div>
-              <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Checklist */}
-        {checks.map((c,i)=>{
-          const {icon, color} = chk(c.passes);
-          const labelColor = c.passes===true?G:c.passes===false?R:"#555";
-          return(
-            <div key={i} style={{
-              display:"flex",gap:12,alignItems:"flex-start",
-              padding:"11px 14px",marginBottom:7,
-              background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
-              border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
-              borderRadius:11,
-            }}>
-              {/* Icon */}
-              <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                  <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
-                  <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
-                </div>
-                <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
-              </div>
-            </div>
-          );
-        })}
 
         {/* Instruments toggle section */}
         <div style={card({marginTop:8})}>
