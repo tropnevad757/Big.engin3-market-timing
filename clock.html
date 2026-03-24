@@ -34,6 +34,47 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
 <script type="text/babel">
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+const toAngle = (h,m) => ((h%12)*60+m)*0.5;
+const polar   = (cx,cy,r,d) => ({ x:cx+r*Math.cos(((d-90)*Math.PI)/180), y:cy+r*Math.sin(((d-90)*Math.PI)/180) });
+const arc     = (cx,cy,r,a1,a2) => { const p1=polar(cx,cy,r,a1),p2=polar(cx,cy,r,a2),d=((a2-a1)%360+360)%360; return `M${p1.x} ${p1.y}A${r} ${r} 0 ${d>180?1:0} 1 ${p2.x} ${p2.y}`; };
+
+function getTZ(tz) {
+  try {
+    const p=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"numeric",minute:"numeric",second:"numeric",hour12:false}).formatToParts(new Date());
+    const g=t=>parseInt((p.find(x=>x.type===t)||{value:0}).value|| 0);
+    const h24=g("hour")%24; return {h:h24%12,m:g("minute"),s:g("second"),h24};
+  } catch { const d=new Date(); return {h:d.getHours()%12,m:d.getMinutes(),s:d.getSeconds(),h24:d.getHours()}; }
+}
+
+function fmt(h24,m,s) {
+  const hh=h24%12||12, mm=String(m).padStart(2,"0"), ss=s!=null?":"+String(s).padStart(2,"0"):"";
+  return hh+":"+mm+ss+" "+(h24>=12?"PM":"AM");
+}
+
+function isInZone(z,h,m) {
+  const toM=(hh,mm)=>(hh%12)*60+mm, cur=toM(h,m), a=toM(z.h1,z.m1), b=toM(z.h2,z.m2);
+  return a<b?(cur>=a&&cur<b):(cur>=a||cur<b);
+}
+
+function isInSubWindow(z,et) {
+  if(!z.subStart||!z.subEnd) return false;
+  const toM=t=>t.h*60+t.m, cur=et.h24*60+et.m;
+  return cur>=toM(z.subStart)&&cur<toM(z.subEnd);
+}
+
+function minsUntil(z,h,m) {
+  const toM=(hh,mm)=>(hh%12)*60+mm; return ((toM(z.h1,z.m1)-toM(h,m))+720)%720;
+}
+
+function convertTime(z,localTZ) {
+  try {
+    const et=getTZ("America/New_York"),lc=getTZ(localTZ),off=(lc.h24*60+lc.m)-(et.h24*60+et.m);
+    const cvt=(h,mn)=>{ const t=(((h%12)*60+mn+off)%(24*60)+24*60)%(24*60); return fmt(Math.floor(t/60),t%60); };
+    return cvt(z.h1,z.m1)+" – "+cvt(z.h2,z.m2);
+  } catch { return "–"; }
+}
+
 const { useState, useEffect, useRef, useCallback } = React;
 
 // ─── COLORS ───────────────────────────────────────────────────────────────────
@@ -482,10 +523,18 @@ function App() {
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
   // Active zone strength — simple: zone win rate + confluence + prime pocket bonus
+  // Today's short day name for best/worst day check
+  const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
+
   const activeZoneStrength = (()=>{
     const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
     if(!zone) return 0;
+    const wr  = (BACKTEST[zone.id] && BACKTEST[zone.id].wins) || 65;
+    const btd = BACKTEST[zone.id] || {};
     let str = Math.round(wr*0.45 + confScore*0.55);
+    // Best/worst day bonus — adds real edge from historical data
+    if(btd.best  && TODAYday === btd.best)  str += 7;
+    if(btd.worst && TODAYday === btd.worst) str -= 9;
     if(inSub) str = Math.min(100, str + 8);
     return Math.max(0, Math.min(100, str));
   })();
@@ -511,11 +560,26 @@ function App() {
       label:"CONFLUENCE SCORE",
       passes: confScore>=75?true:confScore>=50?null:false,
     },
+    {
+      label:"BEST / WORST DAY",
+      passes: (()=>{
+        if(!appLiveZone) return null;
+        const btd = BACKTEST[appLiveZone.id]||{};
+        if(btd.best  && TODAYday === btd.best)  return true;
+        if(btd.worst && TODAYday === btd.worst) return false;
+        return null;
+      })(),
+      value: (()=>{
+        if(!appLiveZone) return "—";
+        const btd = BACKTEST[appLiveZone.id]||{best:"?",worst:"?"};
+        return `${TODAYday} · Best:${btd.best} Worst:${btd.worst}`;
+      })(),
+    },
   ];
   const appGreenCount  = appChecks.filter(c=>c.passes===true).length;
   const appRedCount    = appChecks.filter(c=>c.passes===false).length;
-  const appReadyColor  = appGreenCount>=3?G:appGreenCount>=2?A:R;
-  const appReadyLabel  = appGreenCount>=3?"TAKE TRADE":appGreenCount>=2?"WATCH":"WAIT";
+  const appReadyColor  = appGreenCount>=4?G:appGreenCount>=3?A:R;
+  const appReadyLabel  = appGreenCount>=4?"TAKE TRADE":appGreenCount>=3?"WATCH":"WAIT";
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
   const flipZone = (zid,note="") => {
@@ -704,7 +768,7 @@ function App() {
                 <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`,transition:"width 1s"}}/>
               </div>
               <div style={{fontSize:11,color:"#888",letterSpacing:1,marginTop:6,...mono}}>
-                zone win rate · confluence · correlation{inSub ? " · ★ prime pocket" : ""}
+                zone win rate · confluence · correlation · best/worst day{inSub ? " · ★ prime pocket" : ""}
               </div>
             </div>
           );
@@ -754,19 +818,19 @@ function App() {
             <div>
               <div style={lbl(appReadyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
               <div style={{fontSize:12,color:"#aaa",...mono,lineHeight:1.8}}>
-                {appGreenCount}/3 checks · Peak 88% when all conditions met
+                {appGreenCount}/4 checks · Peak 88% when all conditions met
                 {appRedCount>0?` · ${appRedCount} counter-signal${appRedCount>1?"s":""}`:""}.
               </div>
             </div>
             <div style={{textAlign:"center"}}>
-              <div style={{fontSize:30,fontWeight:900,color:appReadyColor,lineHeight:1}}>{appGreenCount}/3</div>
+              <div style={{fontSize:30,fontWeight:900,color:appReadyColor,lineHeight:1}}>{appGreenCount}/4</div>
               <div style={{fontSize:10,fontWeight:900,color:appReadyColor,letterSpacing:1.5}}>{appReadyLabel}</div>
             </div>
           </div>
         </div>
 
         {/* Mini checklist dots */}
-        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
           {appChecks.map((c,i)=>{
             const col = c.passes===true?G:c.passes===false?R:"#2a2a2a";
             const icon = c.passes===true?"✓":c.passes===false?"✗":"○";
@@ -775,36 +839,11 @@ function App() {
                 background:`${col}10`,border:`1px solid ${col}33`}}>
                 <span style={{fontSize:10,color:col,fontWeight:900}}>{icon}</span>
                 <span style={{fontSize:11,color:col,fontWeight:700,letterSpacing:.5}}>{c.label}</span>
+                {c.value&&<span style={{fontSize:10,color:col,opacity:.7,...mono}}>{c.value}</span>}
               </div>
             );
           })}
         </div>
-
-        {/* Best / Worst Day — info card below checklist */}
-        {(()=>{
-          if(!appLiveZone) return null;
-          const bt = BACKTEST[appLiveZone.id]||{best:"?",worst:"?",wins:0};
-          const zCol = appLiveZone.type==="buy"?G:R;
-          return(
-            <div style={card({border:`1px solid ${zCol}33`,background:`${zCol}06`,marginBottom:14})}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div>
-                  <div style={{fontSize:10,letterSpacing:1.5,color:"#888",fontWeight:700,marginBottom:4}}>📅 BEST / WORST DAY</div>
-                  <div style={{fontSize:12,...mono,color:"#aaa"}}>
-                    Best: <span style={{color:G,fontWeight:700}}>{bt.best}</span>
-                    {" · "}
-                    Worst: <span style={{color:R,fontWeight:700}}>{bt.worst}</span>
-                  </div>
-                  <div style={{fontSize:11,color:"#999",...mono,marginTop:3}}>Historical bias — not scored in 4/4</div>
-                </div>
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:22,fontWeight:900,color:zCol,lineHeight:1}}>{bt.wins||"?"}%</div>
-                  <div style={{fontSize:10,color:"#999",letterSpacing:1}}>{appLiveZone.type.toUpperCase()} WIN</div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
 
 
