@@ -526,21 +526,12 @@ function App() {
 
   // ── News fetch functions (App level — survives re-renders) ──────────────────
   const NEWS_FEEDS = [
-    { id:"reuters",    label:"Reuters Markets",  color:"#ff6b35",
+    { id:"reuters", label:"Reuters Markets", color:"#ff6b35",
       url:"https://feeds.reuters.com/reuters/businessNews",
       fallback:"https://feeds.reuters.com/reuters/topNews" },
-    { id:"investing",  label:"Investing.com",    color:"#f0a030",
-      url:"https://www.investing.com/rss/news.rss",
-      fallback:"https://www.investing.com/rss/news_25.rss" },
-    { id:"marketwatch",label:"MarketWatch",      color:"#00aaff",
-      url:"https://feeds.content.dowjones.io/public/rss/mw_topstories",
-      fallback:"https://www.marketwatch.com/rss/topstories" },
-    { id:"bitcoinmag", label:"Bitcoin Magazine", color:"#ff9500",
-      url:"https://bitcoinmagazine.com/feed",
-      fallback:"https://bitcoinmagazine.com/.rss/full/" },
-    { id:"nasdaq",     label:"Nasdaq News",      color:"#00ff88",
-      url:"https://www.nasdaq.com/feed/rssoutbound?category=Cryptocurrencies",
-      fallback:"https://www.nasdaq.com/feed/rssoutbound?category=Markets" },
+    { id:"nasdaq",  label:"Nasdaq News", color:"#00ff88",
+      url:"https://www.nasdaq.com/feed/rssoutbound?category=Markets",
+      fallback:"https://www.nasdaq.com/feed/rssoutbound?category=Cryptocurrencies" },
   ];
 
   function parseRSSXML(xml, feed){
@@ -665,6 +656,115 @@ function App() {
         </div>
       )}
 
+      {/* Bias checklist on clock tab */}
+      {(() => {
+        const liveZone  = liveZ[0]||null;
+        const effectiveZone = liveZ.find(z=>z.type!=="dead")||null;
+        const zType = effectiveZone?effectiveZone.type:null;
+        const checks = [
+          {
+            label: "ZONE ACTIVE",
+            value: liveZone?liveZone.label+` (${liveZone.type.toUpperCase()})` : "None",
+            passes: liveZone!==null,
+            note: "A zone must be active before taking any entry.",
+            color: liveZone?(liveZone.type==="buy"?G:R):"#444",
+          },
+          {
+            label: "PRIME POCKET",
+            value: inSub ? "★ ACTIVE" : "Not yet",
+            passes: inSub,
+            note: "Highest-probability window inside the active zone.",
+            color: "#fff",
+          },
+          {
+            label: "CORRELATION ALIGNMENT",
+            value: (()=>{
+              if(!zType) return "Waiting for zone";
+              const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
+              const conf= cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="CONFIRM");
+              const invOk = inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
+              const cfOk  = conf.every(i=>zType==="buy"?i.bias==="bull":i.bias==="bear");
+              return invOk&&cfOk?"ALIGNED":"CHECK INVERSES";
+            })(),
+            passes: (()=>{
+              if(!zType) return null;
+              const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
+              return inv.length===0?null:inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
+            })(),
+            note: "Inverse instruments should oppose your trade direction.",
+          },
+          {
+            label: "CONFLUENCE SCORE",
+            value: confScore+" / 100 — "+confLabel,
+            passes: confScore>=75?true:confScore>=50?null:false,
+            note: "Score based on zone + prime pocket + correlation + VWAP alignment.",
+          },
+        ];
+        const greenCount = checks.filter(c=>c.passes===true).length;
+        const redCount   = checks.filter(c=>c.passes===false).length;
+        const readyColor = greenCount>=4?G:greenCount>=3?A:R;
+        const readyLabel = greenCount>=4?"TAKE TRADE":greenCount>=3?"WATCH":"WAIT";
+        const bestWorst = liveZone ? (BACKTEST[liveZone.id] || {best:"?",worst:"?",wins:0}) : null;
+        function chk(passes){
+          if(passes===null) return {icon:"○", color:"#444"};
+          return passes ? {icon:"✓", color:G} : {icon:"✗", color:R};
+        }
+        return (
+          <>
+            <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
+                  <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
+                    {greenCount}/{checks.length} checks · Peak 88% win rate when all conditions met
+                    {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
+                  </div>
+                </div>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checks.length}</div>
+                  <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
+                </div>
+              </div>
+            </div>
+
+            {checks.map((c,i)=>{
+              const {icon, color} = chk(c.passes);
+              const labelColor = c.passes===true?G:c.passes===false?R:"#555";
+              return(
+                <div key={i} style={{
+                  display:"flex",gap:12,alignItems:"flex-start",
+                  padding:"11px 14px",marginBottom:7,
+                  background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
+                  border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
+                  borderRadius:11,
+                }}>
+                  <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                      <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
+                      <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
+                    </div>
+                    <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {bestWorst && (
+              <div style={card({background:`${liveZone.type==="buy"?G:R}08`,border:`1px solid ${liveZone.type==="buy"?G:R}22`,marginBottom:12})}>
+                <div style={lbl(liveZone.type==="buy"?G:R,{marginBottom:6})}>BEST &amp; WORST DAY</div>
+                <div style={{fontSize:10,color:"#888",...mono,lineHeight:1.8}}>
+                  Best: <span style={{color:G,fontWeight:900}}>{bestWorst.best}</span> · Worst: <span style={{color:R,fontWeight:900}}>{bestWorst.worst}</span>
+                </div>
+                <div style={{fontSize:9,color:bestWorst.wins>=75?G:bestWorst.wins>=65?A:R,marginTop:6,...mono}}>
+                  {bestWorst.wins}% {liveZone.type==="buy"?"BUY":"SELL"} zone win rate · {bestWorst.wins>=75?"ELITE WINDOW":bestWorst.wins>=65?"HIGH CONFIDENCE":bestWorst.wins>=55?"MODERATE":"LOW — USE FILTER"}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
+
       {/* Clock */}
       <div style={{display:"flex",justifyContent:"center",margin:"8px 0 12px"}}>
         <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
@@ -684,19 +784,17 @@ function App() {
 
       {/* Active VWAP and Active Zone cards */}
       {(() => {
-        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        // Determine strength using the active VWAP anchor if available; fallback to 0 when none
-        const t = (hotTraps && hotTraps.length > 0) ? hotTraps[0] : null;
-        const pct = t ? (t.pctThrough || 0) : 100;
-        const str = Math.max(0, Math.min(100, 100 - pct));
-        const col = str >= 70 ? G : str >= 40 ? A : R;
-        if (zone) {
+        if (hotTraps && hotTraps.length > 0) {
+          const t = hotTraps[0];
+          const pct = t.pctThrough || 0;
+          const str = Math.max(0, Math.min(100, 100 - pct));
+          const col = str >= 70 ? G : str >= 40 ? A : R;
           return (
             <div style={card({marginBottom:12,background:`${col}0a`,border:`2px solid ${col}55`})}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <div>
-                  <div style={{fontSize:8,letterSpacing:2,color:col,fontWeight:700,marginBottom:3}}>● ACTIVE ZONE</div>
-                  <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{zone.label}</div>
+                  <div style={{fontSize:8,letterSpacing:2,color:col,fontWeight:700,marginBottom:3}}>● ACTIVE VWAP</div>
+                  <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{t.label}</div>
                 </div>
                 <div style={{textAlign:"center"}}>
                   <div style={{fontSize:28,fontWeight:900,color:col,lineHeight:1}}>{str}%</div>
@@ -709,117 +807,26 @@ function App() {
             </div>
           );
         } else {
-          // When no active zone, show a simple inactive card
           return (
             <div style={card({marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"})}>
-              <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE ZONE</div>
+              <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE VWAP</div>
             </div>
           );
         }
       })()}
 
-      {/* Active Zone watchlist removed; zone label moved into active bar */}
-
-      {/* Bias checklist inserted under active zone bar */}
-      {(() => {
-        const liveZone = liveZ[0] || null;
-        const effectiveZone = liveZ.find(z => z.type !== "dead") || null;
-        const zType = effectiveZone ? effectiveZone.type : null;
-        // Determine correlation alignment details
-        const inv = cats.flatMap(c => c.items).filter(i => i.active && CORR_L[i.corr] === "INVERSE");
-        const conf = cats.flatMap(c => c.items).filter(i => i.active && CORR_L[i.corr] === "CONFIRM");
-        const corrValue = (!zType || zType === "dead") ? "Waiting for zone" :
-          (() => {
-            const invOk = inv.every(i => zType === "buy" ? i.bias === "bear" : i.bias === "bull");
-            const cfOk = conf.every(i => zType === "buy" ? i.bias === "bull" : i.bias === "bear");
-            return invOk && cfOk ? "ALIGNED" : "CHECK INVERSES";
-          })();
-        const corrPass = (!zType || zType === "dead") ? null : (() => {
-          return inv.length === 0 ? null : inv.every(i => zType === "buy" ? i.bias === "bear" : i.bias === "bull");
-        })();
-        // Determine prime pocket pass
-        const primeValue = liveZone ? (inSub ? ((liveZone.pocket && liveZone.pocket.label) || "IN POCKET") : "NONE") : "N/A";
-        const primePass = liveZone ? inSub : null;
-        // Confluence pass based on confScore
-        const confPass = confScore >= 75 ? true : confScore >= 50 ? null : false;
-        const checklist = [
-          {
-            label: "ZONE ACTIVE",
-            value: liveZone ? `${liveZone.label} (${liveZone.type.toUpperCase()})` : "None",
-            passes: liveZone !== null,
-            note: "A zone must be active before taking any entry.",
-            color: liveZone ? (liveZone.type === "buy" ? G : R) : "#444",
-          },
-          {
-            label: "CORRELATION ALIGNMENT",
-            value: corrValue,
-            passes: corrPass,
-            note: "Inverse instruments (DXY, VIX) should move opposite to your trade direction.",
-          },
-          {
-            label: "PRIME POCKET",
-            value: primeValue,
-            passes: primePass,
-            note: "The prime pocket is the sub‑zone within the active zone. Entries within this window offer higher edge and precision.",
-            color: liveZone ? (liveZone.type === "buy" ? G : R) : "#444",
-          },
-          {
-            label: "CONFLUENCE SCORE",
-            value: `${confScore} / 100 — ${confLabel}`,
-            passes: confPass,
-            note: "Score based on zone + prime pocket + correlation + VWAP alignment. System peak: 88% when all 6 execution conditions confirmed.",
-          },
-        ];
-        function chk(pass) {
-          if (pass === null) return { icon: "○", color: "#444" };
-          return pass ? { icon: "✓", color: G } : { icon: "✗", color: R };
-        }
-        return (
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:8,letterSpacing:2,color:"#555",fontWeight:700,marginBottom:8}}>BIAS CHECKLIST</div>
-            {checklist.map((c, i) => {
-              const { icon, color } = chk(c.passes);
-              const labelColor = c.passes === true ? G : c.passes === false ? R : "#555";
-              const valColor = c.color || color;
-              return (
-                <div key={i} style={{
-                  display:"flex",gap:12,alignItems:"flex-start",
-                  padding:"9px 12px",
-                  marginBottom:6,
-                  background: c.passes === true ? `${G}08` : c.passes === false ? `${R}08` : "rgba(255,255,255,0.03)",
-                  border:`1px solid ${c.passes === true ? G+"33" : c.passes === false ? R+"33" : "rgba(255,255,255,0.06)"}`,
-                  borderRadius:10
-                }}>
-                  <div style={{fontSize:14,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
-                  <div style={{flex:1}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                      <div style={{fontSize:8,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
-                      <div style={{fontSize:9,fontWeight:900,color:valColor,...mono}}>{c.value}</div>
-                    </div>
-                    <div style={{fontSize:7,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
-                  </div>
-                </div>
-              );
-            })}
-            {/* Best & Worst Day info */}
-            {(() => {
-              if(!liveZone) return null;
-              const bt = BACKTEST[liveZone.id] || {best:"?", worst:"?", wins:0};
-              const win = bt.wins || 0;
-              const zoneBias = liveZone.type === "buy" ? "BUY" : "SELL";
-              const conf = win >= 75 ? "ELITE" : win >= 65 ? "HIGH CONFIDENCE" : win >= 55 ? "MODERATE" : "LOW";
-              const zcol = liveZone.type === "buy" ? G : R;
-              return (
-                <div style={{marginTop:8,padding:"9px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10}}>
-                  <div style={{fontSize:8,letterSpacing:2,color:"#555",fontWeight:700,marginBottom:4}}>BEST &amp; WORST DAY</div>
-                  <div style={{fontSize:9,fontWeight:900,color:zcol,...mono,marginBottom:2}}>{bt.best} / {bt.worst} — {win}% {zoneBias} ({conf})</div>
-                  <div style={{fontSize:7,color:"#444",...mono,lineHeight:1.6}}>Best day aligns with zone bias; worst day shows weakest historical performance.</div>
-                </div>
-              );
-            })()}
+      {/* Active Zone watchlist: show only current active zone (no times) */}
+      {liveZ && liveZ.length>0 && (
+        <div style={card({marginBottom:12})}>
+          <div style={lbl("#555",{marginBottom:8})}>ACTIVE ZONE</div>
+          <div style={{fontSize:14,fontWeight:900,color:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:"#888",...mono}}>
+            {liveZ[0].label}
           </div>
-        );
-      })()}
+          <div style={{fontSize:9,color:"#444",marginTop:4,...mono}}>
+            {liveZ[0].type==="buy"?"BUY":"SELL"}
+          </div>
+        </div>
+      )}
 
       {/* Zone confidence table hidden */}
       {false && (
@@ -915,14 +922,14 @@ function App() {
         color: liveZone?(liveZone.type==="buy"?G:R):"#444",
       },
       {
-        label: "PRIME POCKET",
-        value: (() => {
-          // Show pocket label if we're inside the sub-zone window; otherwise show none
+        label: "BEST / WORST DAY",
+        value: (()=>{
           if(!liveZone) return "N/A";
-          return inSub ? ((liveZone.pocket && liveZone.pocket.label) || "IN POCKET") : "NONE";
+          const bt = BACKTEST[liveZone.id] || {best:"?",worst:"?"};
+          return bt.best + " / " + bt.worst;
         })(),
-        passes: liveZone ? inSub : null,
-        note: "The prime pocket is the sub‑zone within the active zone. Entries within this window offer higher edge and precision.",
+        passes: null,
+        note: "Backtested best day aligns with zone bias; worst day to avoid.",
         color: liveZone?(liveZone.type==="buy"?G:R):"#444",
       },
       {
@@ -989,47 +996,13 @@ function App() {
           </div>
         )}
 
-        {/* Summary score */}
-        <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
-              <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
-                {greenCount}/4 checks · Peak 88% win rate when all conditions met
-                {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
-              </div>
-            </div>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checks.length}</div>
-              <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
-            </div>
+        {/* Bias checklist moved to Clock tab */}
+        <div style={card({border:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.03)",marginBottom:12})}>
+          <div style={lbl("#555",{marginBottom:6})}>CLOCK CHECKLIST MOVED</div>
+          <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.7}}>
+            Zone Active · Prime Pocket · Correlation Alignment · Confluence Score now live on the CLOCK tab.
           </div>
         </div>
-
-        {/* Checklist */}
-        {checks.map((c,i)=>{
-          const {icon, color} = chk(c.passes);
-          const labelColor = c.passes===true?G:c.passes===false?R:"#555";
-          return(
-            <div key={i} style={{
-              display:"flex",gap:12,alignItems:"flex-start",
-              padding:"11px 14px",marginBottom:7,
-              background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
-              border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
-              borderRadius:11,
-            }}>
-              {/* Icon */}
-              <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                  <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
-                  <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
-                </div>
-                <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
-              </div>
-            </div>
-          );
-        })}
 
         {/* Instruments toggle section */}
         <div style={card({marginTop:8})}>
@@ -1340,41 +1313,29 @@ function App() {
     // This means news persists through clock ticks and never resets.
 
     const ECON = [
-      {d:"2026-03-21",t:"08:30",l:"Jobless Claims",             imp:"high", cat:"LABOR",     btc:"Weak jobs = dovish Fed = BTC bullish. Watch for surprise miss."},
-      {d:"2026-03-24",t:"09:45",l:"Flash Manufacturing PMI",  imp:"med",  cat:"MACRO",     btc:"Low PMI = slower growth = Fed dovish = risk-on for crypto."},
-      {d:"2026-03-24",t:"09:45",l:"Flash Services PMI",       imp:"med",  cat:"MACRO",     btc:"Services health — biggest sector. Weak = risk-off pressure."},
-      {d:"2026-03-25",t:"10:00",l:"Consumer Confidence",      imp:"med",  cat:"MACRO",     btc:"Consumer mood. Miss = potential short-term dip in risk assets."},
-      {d:"2026-03-26",t:"08:30",l:"Durable Goods Orders",     imp:"high", cat:"MACRO",     btc:"Big-ticket spending. Miss = BTC often pops on dovish hope."},
-      {d:"2026-03-27",t:"08:30",l:"PCE Price Index",          imp:"high", cat:"INFLATION", btc:"Fed's preferred inflation gauge — hotter = rate hike fears = BTC sell."},
-      {d:"2026-03-27",t:"10:00",l:"UMich Consumer Sentiment", imp:"med",  cat:"MACRO",     btc:"Expectations data. Affects risk appetite going into weekend."},
-      {d:"2026-03-28",t:"00:00",l:"Month-End Rebalancing",    imp:"high", cat:"CRYPTO",    btc:"Funds rebalance end of month. Expect elevated BTC volatility and potential liquidity grab."},
-      {d:"2026-03-31",t:"00:00",l:"Quarter-End Close Q1",     imp:"high", cat:"CRYPTO",    btc:"Largest quarterly close of 2026. Historically a major BTC pivot point."},
-      {d:"2026-04-01",t:"08:30",l:"ISM Manufacturing PMI",    imp:"high", cat:"MACRO",     btc:"Monthly factory index. Biggest macro mover for risk assets on the 1st."},
-      {d:"2026-04-02",t:"08:15",l:"ADP Employment Report",    imp:"med",  cat:"LABOR",     btc:"Private payrolls preview. Sets tone 2 days before NFP."},
-      {d:"2026-04-04",t:"08:30",l:"Non-Farm Payrolls NFP",    imp:"high", cat:"LABOR",     btc:"Biggest monthly macro event. Strong jobs = hawkish Fed = BTC pressure."},
-      {d:"2026-04-04",t:"08:30",l:"Unemployment Rate",        imp:"high", cat:"LABOR",     btc:"Rising unemployment = Fed pivot expectations = BTC rally potential."},
-      {d:"2026-04-10",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"Most important monthly print. Hotter CPI = rate hike risk = BTC dump."},
-      {d:"2026-04-11",t:"08:30",l:"PPI Producer Prices",      imp:"med",  cat:"INFLATION", btc:"Leads CPI by 1-2 months. Early inflation signal."},
-      {d:"2026-04-15",t:"08:30",l:"Retail Sales",             imp:"high", cat:"MACRO",     btc:"Consumer spending strength. Strong = risk-on = BTC upside."},
-      {d:"2026-04-17",t:"08:30",l:"Jobless Claims",           imp:"med",  cat:"LABOR",     btc:"Weekly labor check. Part of ongoing Fed data watch."},
-      {d:"2026-04-30",t:"08:30",l:"GDP Q1 Advance Estimate",  imp:"high", cat:"MACRO",     btc:"First GDP read. Below 0 = recession fear = BTC volatile."},
-      {d:"2026-05-06",t:"14:00",l:"FOMC Rate Decision",       imp:"high", cat:"FED",       btc:"Single biggest BTC catalyst. Rate cut = BTC rocket. Hike = dump."},
-      {d:"2026-05-06",t:"14:30",l:"Powell Press Conference",  imp:"high", cat:"FED",       btc:"Fed chair words move BTC 3-8% in minutes. Watch tone on future cuts."},
-      {d:"2026-05-12",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"May CPI — watch if inflation trend confirms Fed pivot narrative."},
-      {d:"2026-05-22",t:"14:00",l:"FOMC Minutes Release",     imp:"high", cat:"FED",       btc:"Detailed meeting notes. Markets read for rate path clues."},
-      {d:"2026-06-10",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"Q2 inflation check. Key for summer Fed decision."},
-      {d:"2026-06-17",t:"14:00",l:"FOMC Rate Decision",       imp:"high", cat:"FED",       btc:"Mid-year Fed decision — likely largest BTC mover of Q2."},
+      {d:"2026-03-24",t:"09:45",l:"Flash Manufacturing PMI",  imp:"med",  cat:"MACRO",     btc:"Growth pulse. Weak PMI often supports dovish bets and can help BTC."},
+      {d:"2026-03-24",t:"09:45",l:"Flash Services PMI",       imp:"med",  cat:"MACRO",     btc:"Services is the larger part of the economy. Big miss can hit risk sentiment."},
+      {d:"2026-03-24",t:"10:00",l:"Richmond Fed Manufacturing Index", imp:"low", cat:"MACRO", btc:"Lower-tier regional data. Usually a secondary mover unless it sharply misses."},
+      {d:"2026-03-24",t:"13:00",l:"2-Year Note Auction",      imp:"low",  cat:"FED",       btc:"Treasury demand can move yields. Strong demand may calm rate fears."},
+      {d:"2026-03-24",t:"16:30",l:"API Crude Oil Stock Change",imp:"none", cat:"MACRO",     btc:"Usually not a BTC mover, but can affect risk tone through energy and inflation."},
+      {d:"2026-03-25",t:"07:00",l:"MBA Mortgage Applications", imp:"none", cat:"MACRO",     btc:"Very low direct BTC impact. Mostly background macro color."},
+      {d:"2026-03-25",t:"08:30",l:"Durable Goods Orders",     imp:"high", cat:"MACRO",     btc:"Big-ticket demand. Weak print can fuel dovish expectations and short-covering in BTC."},
+      {d:"2026-03-25",t:"10:30",l:"Crude Oil Inventories",    imp:"low",  cat:"MACRO",     btc:"Indirect impact through inflation and broader risk appetite."},
+      {d:"2026-03-25",t:"13:00",l:"5-Year Note Auction",      imp:"low",  cat:"FED",       btc:"Bond demand can influence yields and short-term dollar pressure."},
+      {d:"2026-03-26",t:"08:30",l:"Jobless Claims",           imp:"med",  cat:"LABOR",     btc:"Labor softness can increase Fed-cut hopes and help BTC bounce."},
+      {d:"2026-03-26",t:"08:30",l:"GDP Final",                imp:"med",  cat:"MACRO",     btc:"Final growth revision. Usually less explosive than advance GDP, but still relevant."},
+      {d:"2026-03-26",t:"10:00",l:"Pending Home Sales",       imp:"low",  cat:"MACRO",     btc:"Housing data is secondary unless it sharply surprises."},
+      {d:"2026-03-27",t:"08:30",l:"PCE Price Index",          imp:"high", cat:"INFLATION", btc:"Fed's inflation gauge. Hotter PCE can hit BTC fast through yields and dollar strength."},
+      {d:"2026-03-27",t:"10:00",l:"UMich Consumer Sentiment", imp:"med",  cat:"MACRO",     btc:"Risk-appetite data heading into the weekend. Inflation expectations matter most."},
     ];
 
-    const IC = {high:"#ff3355", med:"#f0a030"};
+    const IC = {high:"#ff3355", med:"#f0a030", low:"#88aaff", none:"#666"};
     const CC = {LABOR:"#00aaff", MACRO:"#88aaff", INFLATION:"#ff3355", CRYPTO:A, FED:"#aa88ff"};
 
     const LINKS = [
-      { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
-      { label:"Myfxbook News",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
-      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
-      { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
-      { label:"Investing.com",      color:"#ff9500",  url:"https://www.investing.com/news/latest-news",              desc:"Latest financial news" },
+      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar", desc:"FX calendar with all impacts" },
+      { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",            desc:"Global calendar and macro releases" },
+      { label:"Reuters Markets",    color:"#ff6b35",  url:"https://www.reuters.com/markets/",                 desc:"Direct markets page if RSS is delayed" },
     ];
 
     function fmtDate(s){
@@ -1386,8 +1347,15 @@ function App() {
       }catch{ return ""; }
     }
 
+    const nowET = getTZ("America/New_York");
+    const nowMins = nowET.h24*60 + nowET.m;
     const todayStr = new Date().toISOString().slice(0,10);
-    const upcoming = ECON.filter(e=>e.d>=todayStr);
+    const upcoming = ECON.filter(e=>{
+      if(e.d < todayStr) return false;
+      if(e.d > todayStr) return true;
+      const [hh,mm] = e.t.split(":").map(Number);
+      return (hh*60 + mm) >= nowMins;
+    });
 
     return (
       <div style={{padding:14}}>
