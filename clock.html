@@ -371,7 +371,22 @@ function VWAPBandCard({trap, et, price}) {
         </div>}
       </div>
 
-      {/* Best / worst day info removed from VWAPBandCard. This info is displayed in the Clock tab instead. */}
+      {/* Best / worst day info moved out of bias checklist */}
+      {(() => {
+        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
+        if (zone) {
+          const bt = BACKTEST[zone.id] || {best:"?",worst:"?",wins:0};
+          const win = bt.wins || 0;
+          const zoneBias = zone.type==="buy" ? "BUY" : zone.type==="sell" ? "SELL" : "";
+          const col = zone.type==="buy" ? G : zone.type==="sell" ? R : D;
+          return (
+            <div style={{fontSize:8,letterSpacing:1.5,color:col,fontWeight:700,marginBottom:6,textAlign:"center"}}>
+              {bt.best} / {bt.worst} — {win}% {zoneBias} win rate
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Visual: 3 rows — UB2 (top), VWAP (mid), LB2 (bottom) */}
       <div style={{borderRadius:10,overflow:"hidden",marginBottom:12,border:"1px solid rgba(255,255,255,0.07)"}}>
@@ -728,23 +743,6 @@ function App() {
             </div>
           );
         }
-      })()}
-
-      {/* Best & Worst Day info */}
-      {(() => {
-        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        if (zone) {
-          const bt = BACKTEST[zone.id] || {best:"?",worst:"?",wins:0};
-          const win = bt.wins || 0;
-          const zoneBias = zone.type==="buy" ? "BUY" : zone.type==="sell" ? "SELL" : "";
-          const col = zone.type==="buy" ? G : zone.type==="sell" ? R : D;
-          return (
-            <div style={{fontSize:8,letterSpacing:1.5,color:col,fontWeight:700,marginBottom:6,textAlign:"center"}}>
-              {bt.best} / {bt.worst} — {win}% {zoneBias} win rate
-            </div>
-          );
-        }
-        return null;
       })()}
 
       {/* Bias checklist moved from SignalsTab */}
