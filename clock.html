@@ -481,6 +481,14 @@ function App() {
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
+  // Determine the current live zone win rate (wr).  If there is no active
+  // zone or it is a dead zone, default to 0.  This helper reads the
+  // BACKTEST dataset based on the active zone id.
+  const wr = (() => {
+    const zone = liveZ.find(z => z.type !== "dead") || liveZ[0] || null;
+    return zone && BACKTEST[zone.id] ? BACKTEST[zone.id].wins : 0;
+  })();
+
   // Active zone strength — simple: zone win rate + confluence + prime pocket bonus
   const activeZoneStrength = (()=>{
     const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
@@ -703,9 +711,7 @@ function App() {
               <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
                 <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`,transition:"width 1s"}}/>
               </div>
-              <div style={{fontSize:11,color:"#888",letterSpacing:1,marginTop:6,...mono}}>
-                zone win rate · confluence · correlation{inSub ? " · ★ prime pocket" : ""}
-              </div>
+              {/* Removed polarity engine descriptor to simplify the active zone bar */}
             </div>
           );
         } else {
