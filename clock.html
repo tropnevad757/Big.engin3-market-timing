@@ -371,6 +371,23 @@ function VWAPBandCard({trap, et, price}) {
         </div>}
       </div>
 
+      {/* Best / worst day info moved out of bias checklist */}
+      {(() => {
+        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
+        if (zone) {
+          const bt = BACKTEST[zone.id] || {best:"?",worst:"?",wins:0};
+          const win = bt.wins || 0;
+          const zoneBias = zone.type==="buy" ? "BUY" : zone.type==="sell" ? "SELL" : "";
+          const col = zone.type==="buy" ? G : zone.type==="sell" ? R : D;
+          return (
+            <div style={{fontSize:8,letterSpacing:1.5,color:col,fontWeight:700,marginBottom:6,textAlign:"center"}}>
+              {bt.best} / {bt.worst} — {win}% {zoneBias} win rate
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* Visual: 3 rows — UB2 (top), VWAP (mid), LB2 (bottom) */}
       <div style={{borderRadius:10,overflow:"hidden",marginBottom:12,border:"1px solid rgba(255,255,255,0.07)"}}>
 
@@ -728,6 +745,94 @@ function App() {
         }
       })()}
 
+      {/* Bias checklist moved from SignalsTab */}
+      {(() => {
+        const liveZone  = liveZ[0] || null;
+        const effectiveZone = liveZ.find(z=>z.type!=="dead") || null;
+        const zType     = effectiveZone ? effectiveZone.type : null;
+        // Build checklist items excluding Best/Worst Day
+        const checksB = [
+          {
+            label: "ZONE ACTIVE",
+            value: liveZone ? liveZone.label + ` (${liveZone.type.toUpperCase()})` : "None",
+            passes: liveZone !== null,
+            note: "A zone must be active before taking any entry.",
+            color: liveZone ? (liveZone.type==="buy" ? G : R) : "#444",
+          },
+          {
+            label: "CORRELATION ALIGNMENT",
+            value: (() => {
+              if(!zType) return "Waiting for zone";
+              const inv = cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="INVERSE");
+              const conf= cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="CONFIRM");
+              const invOk = inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
+              const cfOk  = conf.every(i=>zType==="buy"?i.bias==="bull":i.bias==="bear");
+              return invOk && cfOk ? "ALIGNED" : "CHECK INVERSES";
+            })(),
+            passes: (() => {
+              if(!zType) return null;
+              const inv = cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="INVERSE");
+              return inv.length===0 ? null : inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
+            })(),
+            note: "Inverse instruments (DXY, VIX) should move opposite to your trade direction.",
+          },
+          {
+            label: "CONFLUENCE SCORE",
+            value: confScore + " / 100 — " + confLabel,
+            passes: confScore >= 75 ? true : confScore >= 50 ? null : false,
+            note: "Score based on zone + prime pocket + correlation + VWAP alignment. System peak: 88% when all 6 execution conditions confirmed.",
+          },
+        ];
+        const greenCount = checksB.filter(c=>c.passes===true).length;
+        const redCount   = checksB.filter(c=>c.passes===false).length;
+        const readyColor = greenCount>=3?G:greenCount>=2?A:R;
+        const readyLabel = greenCount>=3?"TAKE TRADE":greenCount>=2?"WATCH":"WAIT";
+        return (
+          <>
+          {/* Summary score */}
+          <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
+                <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
+                  {greenCount}/{checksB.length} checks · Peak 88% win rate when all conditions met
+                  {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
+                </div>
+              </div>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checksB.length}</div>
+                <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
+              </div>
+            </div>
+          </div>
+          {/* Checklist */}
+          {checksB.map((c,i)=>{
+            const {icon, color} = chk(c.passes);
+            const labelColor = c.passes===true?G:c.passes===false?R:"#555";
+            return(
+              <div key={i} style={{
+                display:"flex",gap:12,alignItems:"flex-start",
+                padding:"11px 14px",marginBottom:7,
+                background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
+                border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
+                borderRadius:11,
+              }}>
+                {/* Icon */}
+                <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                    <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
+                    <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
+                  </div>
+                  <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
+                </div>
+              </div>
+            );
+          })}
+          </>
+        );
+      })()}
+
       {/* Active Zone watchlist removed; zone label moved into active bar */}
 
       {/* Zone confidence table hidden */}
@@ -823,19 +928,7 @@ function App() {
         note: "A zone must be active before taking any entry.",
         color: liveZone?(liveZone.type==="buy"?G:R):"#444",
       },
-      {
-        label: "BEST / WORST DAY",
-        value: (()=>{
-          if(!liveZone) return "N/A";
-          const bt = BACKTEST[liveZone.id] || {best:"?",worst:"?",wins:0};
-          const win = bt.wins || 0;
-          const zoneBias = liveZone.type==="buy"?"BUY":"SELL";
-          return `${bt.best} / ${bt.worst} — ${win}% ${zoneBias} win rate`;
-        })(),
-        passes: null,
-        note: "Best day aligns with zone bias; worst day shows the weakest performance. Win rate reflects historical performance in this zone.",
-        color: liveZone?(liveZone.type==="buy"?G:R):"#444",
-      },
+      // Removed BEST / WORST DAY entry. This information is now displayed above the active zone bar in the clock tab.
       {
         label: "CORRELATION ALIGNMENT",
         value: (()=>{
@@ -900,7 +993,8 @@ function App() {
           </div>
         )}
 
-        {/* Summary score */}
+        {/* Summary score removed from Signals tab */}
+        {false && (
         <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
@@ -916,9 +1010,10 @@ function App() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* Checklist */}
-        {checks.map((c,i)=>{
+        {/* Checklist removed from Signals tab */}
+        {false && checks.map((c,i)=>{
           const {icon, color} = chk(c.passes);
           const labelColor = c.passes===true?G:c.passes===false?R:"#555";
           return(
