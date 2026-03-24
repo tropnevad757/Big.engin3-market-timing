@@ -154,11 +154,11 @@ const CATS = [
   ]},
 ];
 
-const CORR_C = { primary:A, confirm:G, inverse:R, safe:"#88aaff", risk:"#aa88ff", other:"#666" };
+const CORR_C = { primary:A, confirm:G, inverse:R, safe:"#88aaff", risk:"#aa88ff", other:"#aaa" };
 const CORR_L = { primary:"PRIMARY", confirm:"CONFIRM", inverse:"INVERSE", safe:"SAFE HAVEN", risk:"RISK-ON", other:"OTHER" };
 
 const PLANS = [
-  { id:"free",    name:"FREE",    price:0,   color:"#555",
+  { id:"free",    name:"FREE",    price:0,   color:"#999",
     perks:["Zone Clock — FREE, Always Live","Zone labels Z1–Z12","BUY CORE / SELL RESET arcs","ET Reference Clock"],
     locked:["Sound Alerts","Timezone Selector","All Instruments","VWAP Bands","Bias Checklist","Backtesting"] },
   { id:"starter", name:"STARTER", price:null,color:"#88aaff",
@@ -185,47 +185,6 @@ const BACKTEST = {
   z5:{wins:82,avgPts:15.5,best:"Wed",worst:"Fri",months:[80,84,81,85,80,83,79,85,81,82,84,82],peak:88},
   z6:{wins:79,avgPts:14.2,best:"Thu",worst:"Mon",months:[77,81,78,82,77,80,77,82,78,79,81,79],peak:88},
 };
-
-// ─── UTILITIES ────────────────────────────────────────────────────────────────
-const toAngle = (h,m) => ((h%12)*60+m)*0.5;
-const polar   = (cx,cy,r,d) => ({ x:cx+r*Math.cos(((d-90)*Math.PI)/180), y:cy+r*Math.sin(((d-90)*Math.PI)/180) });
-const arc     = (cx,cy,r,a1,a2) => { const p1=polar(cx,cy,r,a1),p2=polar(cx,cy,r,a2),d=((a2-a1)%360+360)%360; return `M${p1.x} ${p1.y}A${r} ${r} 0 ${d>180?1:0} 1 ${p2.x} ${p2.y}`; };
-
-function getTZ(tz) {
-  try {
-    const p=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"numeric",minute:"numeric",second:"numeric",hour12:false}).formatToParts(new Date());
-    const g=t=>parseInt((p.find(x=>x.type===t)||{value:0}).value|| 0);
-    const h24=g("hour")%24; return {h:h24%12,m:g("minute"),s:g("second"),h24};
-  } catch { const d=new Date(); return {h:d.getHours()%12,m:d.getMinutes(),s:d.getSeconds(),h24:d.getHours()}; }
-}
-
-function fmt(h24,m,s) {
-  const hh=h24%12||12, mm=String(m).padStart(2,"0"), ss=s!=null?`:${String(s).padStart(2,"0")}`:"";
-  return `${hh}:${mm}${ss} ${h24>=12?"PM":"AM"}`;
-}
-
-function isInZone(z,h,m) {
-  const toM=(hh,mm)=>(hh%12)*60+mm, cur=toM(h,m), a=toM(z.h1,z.m1), b=toM(z.h2,z.m2);
-  return a<b?(cur>=a&&cur<b):(cur>=a||cur<b);
-}
-
-function isInSubWindow(z,et) {
-  if(!z.subStart||!z.subEnd) return false;
-  const toM=t=>t.h*60+t.m, cur=et.h24*60+et.m;
-  return cur>=toM(z.subStart)&&cur<toM(z.subEnd);
-}
-
-function minsUntil(z,h,m) {
-  const toM=(hh,mm)=>(hh%12)*60+mm; return ((toM(z.h1,z.m1)-toM(h,m))+720)%720;
-}
-
-function convertTime(z,localTZ) {
-  try {
-    const et=getTZ("America/New_York"),lc=getTZ(localTZ),off=(lc.h24*60+lc.m)-(et.h24*60+et.m);
-    const cvt=(h,mn)=>{ const t=(((h%12)*60+mn+off)%(24*60)+24*60)%(24*60); return fmt(Math.floor(t/60),t%60); };
-    return `${cvt(z.h1,z.m1)} – ${cvt(z.h2,z.m2)}`;
-  } catch { return "–"; }
-}
 
 // VWAP helpers — anchored from trap times
 function getTrapAnchorStatus(et) {
@@ -307,12 +266,12 @@ function ClockFace({size=272, zones, et, hideTimes=true}) {
           {/* Sub-window inner arc */}
           {sub && <path d={arc(cx,cy,SR,toAngle(z.subStart.h,z.subStart.m),toAngle(z.subEnd.h%12,z.subEnd.m))} fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" opacity=".55" filter="url(#fg3)"/>}
           {/* Zone label on arc - only label, not times */}
-          {(()=>{ const mid=((a1+a2)/2+(a1>a2?180:0))%360; const lp=polar(cx,cy,ZR,mid); return <text key={z.id+"l"} x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="central" fill={on?c:"#444"} fontSize={size*.042} fontFamily="'Orbitron',monospace" fontWeight="900">{z.label}</text>; })()}
+          {(()=>{ const mid=((a1+a2)/2+(a1>a2?180:0))%360; const lp=polar(cx,cy,ZR,mid); return <text key={z.id+"l"} x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="central" fill={on?c:"#888"} fontSize={size*.042} fontFamily="'Orbitron',monospace" fontWeight="900">{z.label}</text>; })()}
         </g>);
       })}
 
       {/* Ticks */}
-      {Array.from({length:60}).map((_,i)=>{const big=i%5===0,a=i*6,p1=polar(cx,cy,TR-(big?size*.024:size*.011),a),p2=polar(cx,cy,TR,a);return <line key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={big?"#666":"#222"} strokeWidth={big?1.5:.7}/>;  })}
+      {Array.from({length:60}).map((_,i)=>{const big=i%5===0,a=i*6,p1=polar(cx,cy,TR-(big?size*.024:size*.011),a),p2=polar(cx,cy,TR,a);return <line key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={big?"#aaa":"#222"} strokeWidth={big?1.5:.7}/>;  })}
 
       {/* Numbers */}
       {[12,1,2,3,4,5,6,7,8,9,10,11].map((n,i)=>{const p=polar(cx,cy,NR,i*30);return <text key={n} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fill="#999" fontSize={size*.052} fontFamily="'Orbitron',monospace" fontWeight="700">{n}</text>;})}
@@ -332,9 +291,9 @@ function MiniBar({months}) {
   const MO=["J","F","M","A","M","J","J","A","S","O","N","D"];
   return <div style={{display:"flex",alignItems:"flex-end",gap:2,height:68}}>
     {months.map((v,i)=>{const c=v>=75?G:v>=60?A:R; return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-      <div style={{fontSize:6,color:"#444"}}>{v}</div>
+      <div style={{fontSize:11,color:"#aaa"}}>{v}</div>
       <div style={{width:"100%",height:`${(v/100)*50}px`,background:`${c}cc`,borderRadius:"2px 2px 0 0",boxShadow:`0 0 4px ${c}44`,minHeight:3}}/>
-      <div style={{fontSize:6,color:"#333"}}>{MO[i]}</div>
+      <div style={{fontSize:11,color:"#ccc"}}>{MO[i]}</div>
     </div>;})}
   </div>;
 }
@@ -360,33 +319,16 @@ function VWAPBandCard({trap, et, price}) {
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div>
-          <div style={{fontSize:8,letterSpacing:2,color:active?A:"#444",fontWeight:700}}>{trap.label} ANCHOR {active?"● ACTIVE":""}</div>
-          <div style={{fontSize:10,color:"#777",marginTop:2,...mono}}>
+          <div style={{fontSize:11,letterSpacing:2,color:active?A:"#888",fontWeight:700}}>{trap.label} ANCHOR {active?"● ACTIVE":""}</div>
+          <div style={{fontSize:10,color:"#bbb",marginTop:2,...mono}}>
             {elapsed<60?`${elapsed}m since anchor`:elapsed<180?`${Math.floor(elapsed/60)}h ${elapsed%60}m since`:`${Math.floor(elapsed/60)}h ago`}
           </div>
         </div>
         {active&&<div style={{textAlign:"center"}}>
           <div style={{fontSize:22,fontWeight:900,color:A,lineHeight:1}}>{Math.round(100-pct)}%</div>
-          <div style={{fontSize:7,color:"#555",letterSpacing:1}}>STRENGTH</div>
+          <div style={{fontSize:10,color:"#999",letterSpacing:1}}>STRENGTH</div>
         </div>}
       </div>
-
-      {/* Best / worst day info moved out of bias checklist */}
-      {(() => {
-        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        if (zone) {
-          const bt = BACKTEST[zone.id] || {best:"?",worst:"?",wins:0};
-          const win = bt.wins || 0;
-          const zoneBias = zone.type==="buy" ? "BUY" : zone.type==="sell" ? "SELL" : "";
-          const col = zone.type==="buy" ? G : zone.type==="sell" ? R : D;
-          return (
-            <div style={{fontSize:8,letterSpacing:1.5,color:col,fontWeight:700,marginBottom:6,textAlign:"center"}}>
-              {bt.best} / {bt.worst} — {win}% {zoneBias} win rate
-            </div>
-          );
-        }
-        return null;
-      })()}
 
       {/* Visual: 3 rows — UB2 (top), VWAP (mid), LB2 (bottom) */}
       <div style={{borderRadius:10,overflow:"hidden",marginBottom:12,border:"1px solid rgba(255,255,255,0.07)"}}>
@@ -399,9 +341,9 @@ function VWAPBandCard({trap, et, price}) {
           display:"flex",justifyContent:"space-between",alignItems:"center"
         }}>
           <div>
-            <div style={{fontSize:9,letterSpacing:1.5,color:R,fontWeight:700,marginBottom:2}}>UB2 — UPPER BAND</div>
-            <div style={{fontSize:9,color:"#888",...mono}}>Touch here → <span style={{color:R,fontWeight:700}}>LOOK FOR SELLS</span></div>
-            <div style={{fontSize:8,color:"#555",...mono,marginTop:2}}>Signal: price reverses back toward VWAP</div>
+            <div style={{fontSize:12,letterSpacing:1.5,color:R,fontWeight:700,marginBottom:2}}>UB2 — UPPER BAND</div>
+            <div style={{fontSize:12,color:"#888",...mono}}>Touch here → <span style={{color:R,fontWeight:700}}>LOOK FOR SELLS</span></div>
+            <div style={{fontSize:11,color:"#999",...mono,marginTop:2}}>Signal: price reverses back toward VWAP</div>
           </div>
           <div style={{fontSize:16,fontWeight:900,color:R,...mono,textAlign:"right"}}>
             {ub2}
@@ -416,9 +358,9 @@ function VWAPBandCard({trap, et, price}) {
           display:"flex",justifyContent:"space-between",alignItems:"center"
         }}>
           <div>
-            <div style={{fontSize:9,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:2}}>VWAP — FAIR VALUE</div>
-            <div style={{fontSize:9,color:"#888",...mono}}>Target when price is at either band</div>
-            <div style={{fontSize:8,color:"#555",...mono,marginTop:2}}>Anchor: {trap.label} ET</div>
+            <div style={{fontSize:12,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:2}}>VWAP — FAIR VALUE</div>
+            <div style={{fontSize:12,color:"#888",...mono}}>Target when price is at either band</div>
+            <div style={{fontSize:11,color:"#999",...mono,marginTop:2}}>Anchor: {trap.label} ET</div>
           </div>
           <div style={{fontSize:16,fontWeight:900,color:A,...mono,textAlign:"right"}}>
             {vwapLine}
@@ -432,9 +374,9 @@ function VWAPBandCard({trap, et, price}) {
           display:"flex",justifyContent:"space-between",alignItems:"center"
         }}>
           <div>
-            <div style={{fontSize:9,letterSpacing:1.5,color:G,fontWeight:700,marginBottom:2}}>LB2 — LOWER BAND</div>
-            <div style={{fontSize:9,color:"#888",...mono}}>Touch here → <span style={{color:G,fontWeight:700}}>LOOK FOR BUYS</span></div>
-            <div style={{fontSize:8,color:"#555",...mono,marginTop:2}}>Signal: price reverses back toward VWAP</div>
+            <div style={{fontSize:12,letterSpacing:1.5,color:G,fontWeight:700,marginBottom:2}}>LB2 — LOWER BAND</div>
+            <div style={{fontSize:12,color:"#888",...mono}}>Touch here → <span style={{color:G,fontWeight:700}}>LOOK FOR BUYS</span></div>
+            <div style={{fontSize:11,color:"#999",...mono,marginTop:2}}>Signal: price reverses back toward VWAP</div>
           </div>
           <div style={{fontSize:16,fontWeight:900,color:G,...mono,textAlign:"right"}}>
             {lb2}
@@ -448,7 +390,7 @@ function VWAPBandCard({trap, et, price}) {
           <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden"}}>
             <div style={{height:"100%",width:`${100-pct}%`,background:`${A}88`,borderRadius:2,transition:"width 1s"}}/>
           </div>
-          <div style={{fontSize:7,color:"#444",...mono,marginTop:4,textAlign:"center",letterSpacing:1}}>
+          <div style={{fontSize:10,color:"#888",...mono,marginTop:4,textAlign:"center",letterSpacing:1}}>
             ANCHOR STRENGTH · FADES OVER 3 HOURS
           </div>
         </div>
@@ -502,6 +444,8 @@ function App() {
         if(prevRef.current.some(id=>!now.includes(id))&&!now.length) zoneEnd();
       }
       prevRef.current=now; setLiveIds(now);
+      // Expire breaking anchor after 15 min
+      setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
     },1000);
     return()=>clearInterval(t);
   },[zones,soundOn,plan,tz]);
@@ -518,31 +462,60 @@ function App() {
   const trapStatus = getTrapAnchorStatus(et);
   const hotTraps   = trapStatus.filter(t=>t.active);
 
+
+
+
   // Confluence score
   const confScore = (()=>{
     let s=0;
     const nonDeadLive=liveZ.filter(z=>z.type!=="dead");
-    if(nonDeadLive.length) s+=30;
-    if(inSub) s+=25;
+    if(nonDeadLive.length) s+=25;
+    if(inSub) s+=20;
     if(overall!=="NEUTRAL"&&nonDeadLive.length){
       const aligned=(overall==="BULLISH"&&(nonDeadLive[0]&&nonDeadLive[0].type)==="buy")||(overall==="BEARISH"&&(nonDeadLive[0]&&nonDeadLive[0].type)==="sell");
-      if(aligned) s+=25; else s-=10;
+      if(aligned) s+=20; else s-=10;
     }
-    if(hotTraps.length) s+=20;
+    if(hotTraps.length) s+=15;
     return Math.min(100,Math.max(0,s));
   })();
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
-  // Active zone strength now blends historical zone win rate with the live checklist score.
-  // 60% = backtested zone win rate, 40% = current confluence score, with a small prime-pocket bonus.
+  // Active zone strength — simple: zone win rate + confluence + prime pocket bonus
   const activeZoneStrength = (()=>{
     const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
     if(!zone) return 0;
-    const zoneWin = (BACKTEST[zone.id] && BACKTEST[zone.id].wins) ? BACKTEST[zone.id].wins : 0;
-    const pocketBonus = inSub ? 5 : 0;
-    return Math.max(0, Math.min(100, Math.round(zoneWin*0.6 + confScore*0.4 + pocketBonus)));
+    let str = Math.round(wr*0.45 + confScore*0.55);
+    if(inSub) str = Math.min(100, str + 8);
+    return Math.max(0, Math.min(100, str));
   })();
+
+  // ── APP-LEVEL CHECKLIST (used in both ClockTab summary and SignalsTab) ───────
+  const appLiveZone = liveZ[0] || null;
+  const appZType    = appLiveZone && appLiveZone.type !== "dead" ? appLiveZone.type : null;
+  const appChecks = [
+    {
+      label:"ZONE ACTIVE",
+      passes: appLiveZone !== null,
+      color: appLiveZone?(appLiveZone.type==="buy"?G:R):"#888",
+    },
+    {
+      label:"CORRELATION ALIGNMENT",
+      passes: (()=>{
+        if(!appZType) return null;
+        const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
+        return inv.length===0?null:inv.every(i=>appZType==="buy"?i.bias==="bear":i.bias==="bull");
+      })(),
+    },
+    {
+      label:"CONFLUENCE SCORE",
+      passes: confScore>=75?true:confScore>=50?null:false,
+    },
+  ];
+  const appGreenCount  = appChecks.filter(c=>c.passes===true).length;
+  const appRedCount    = appChecks.filter(c=>c.passes===false).length;
+  const appReadyColor  = appGreenCount>=3?G:appGreenCount>=2?A:R;
+  const appReadyLabel  = appGreenCount>=3?"TAKE TRADE":appGreenCount>=2?"WATCH":"WAIT";
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
   const flipZone = (zid,note="") => {
@@ -648,7 +621,7 @@ function App() {
   }, [newsSrc]);
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
-  const lbl = (col="#555",ex={}) => ({fontSize:9,letterSpacing:2.5,color:col,fontWeight:700,...ex});
+  const lbl = (col="#999",ex={}) => ({fontSize:12,letterSpacing:2.5,color:col,fontWeight:700,...ex});
   const mono = {fontFamily:"'Share Tech Mono',monospace"};
 
   // ── CLOCK ──
@@ -658,11 +631,11 @@ function App() {
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px"})}>
         <div>
           <div style={lbl()}>TIMEZONE</div>
-          <div style={{fontSize:9,color:"#666",marginTop:1}}>{selTZ.label}</div>
+          <div style={{fontSize:12,color:"#aaa",marginTop:1}}>{selTZ.label}</div>
           <div style={{fontSize:20,fontWeight:900,color:A,marginTop:1,...mono}}>{fmt(loc.h24,loc.m,loc.s)}</div>
-          {tz!=="America/New_York"&&<div style={{fontSize:8,color:"#333",marginTop:2,...mono}}>ET: {fmt(et.h24,et.m)}</div>}
+          {tz!=="America/New_York"&&<div style={{fontSize:11,color:"#bbb",marginTop:2,...mono}}>ET: {fmt(et.h24,et.m)}</div>}
         </div>
-        <button onClick={()=>gate("tz",()=>setTzOpen(true))} style={{background:can("tz")?`${A}18`:"#ffffff05",border:`1px solid ${can("tz")?A:"#222"}`,color:can("tz")?A:"#333",borderRadius:10,padding:"8px 12px",fontSize:8,fontWeight:700,cursor:"pointer",letterSpacing:1}}>
+        <button onClick={()=>gate("tz",()=>setTzOpen(true))} style={{background:can("tz")?`${A}18`:"#ffffff05",border:`1px solid ${can("tz")?A:"#222"}`,color:can("tz")?A:"#bbb",borderRadius:10,padding:"8px 12px",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:1}}>
           {can("tz")?"CHANGE TZ":"🔒 PRO"}
         </button>
       </div>
@@ -670,7 +643,7 @@ function App() {
       {/* Active zone */}
       {liveZ.length>0?(
         <div style={card({border:`1px solid ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}55`,background:`${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}0a`,padding:"16px"})}>
-          {inSub&&<div style={{fontSize:8,letterSpacing:2,color:"#fff",fontWeight:700,marginBottom:6,background:"rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",display:"inline-block"}}>★ PRIME POCKET ACTIVE</div>}
+          {inSub&&<div style={{fontSize:11,letterSpacing:2,color:"#fff",fontWeight:700,marginBottom:6,background:"rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",display:"inline-block"}}>★ PRIME POCKET ACTIVE</div>}
           <div style={{fontSize:30,fontWeight:900,color:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,letterSpacing:2,marginBottom:4}}>
             {liveZ[0].type==="buy"?"▲  BUY CORE":liveZ[0].type==="sell"?"▼  SELL RESET":"◆  DEAD ZONE"}
           </div>
@@ -681,16 +654,17 @@ function App() {
              overall==="BEARISH"&&liveZ[0].type==="buy"?"⚠ Counter-bias — reduce size":
              "◆ Neutral bias — zone only"}
           </div>
-          {can("sub_pocket")&&inSub&&<div style={{fontSize:9,color:"#fff",...mono,opacity:.7}}>★ {(liveZ[0].pocket&&liveZ[0].pocket.label)}</div>}
+          {can("sub_pocket")&&inSub&&<div style={{fontSize:12,color:"#fff",...mono,opacity:.7}}>★ {(liveZ[0].pocket&&liveZ[0].pocket.label)}</div>}
         </div>
       ):(
         <div style={card({textAlign:"center",padding:"12px 16px"})}>
-          <div style={lbl("#333",{marginBottom:4})}>NO ACTIVE ZONE</div>
-          {nextZ&&<div style={{fontSize:10,color:"#444",marginTop:4,...mono}}>
+          <div style={lbl("#bbb",{marginBottom:4})}>NO ACTIVE ZONE</div>
+          {nextZ&&<div style={{fontSize:10,color:"#888",marginTop:4,...mono}}>
             Next: <span style={{color:nextZ.type==="buy"?G:R,fontWeight:700}}>{nextZ.type==="buy"?"▲ BUY":"▼ SELL"}</span>
           </div>}
         </div>
       )}
+
 
       {/* Clock */}
       <div style={{display:"flex",justifyContent:"center",margin:"8px 0 12px"}}>
@@ -704,133 +678,43 @@ function App() {
         {[{c:G,l:"BUY CORE"},{c:R,l:"SELL RESET"},{c:"#fff",l:"★ PRIME POCKET"}].map(i=>(
           <div key={i.l} style={{display:"flex",alignItems:"center",gap:5,background:`${i.c}0e`,border:`1px solid ${i.c}22`,borderRadius:16,padding:"4px 10px"}}>
             <div style={{width:i.c==="#fff"?2:14,height:i.c==="#fff"?10:3,borderRadius:i.c==="#fff"?1:2,background:i.c,boxShadow:`0 0 5px ${i.c}88`}}/>
-            <span style={{fontSize:9,color:i.c,fontWeight:700,letterSpacing:.8}}>{i.l}</span>
+            <span style={{fontSize:12,color:i.c,fontWeight:700,letterSpacing:.8}}>{i.l}</span>
           </div>
         ))}
       </div>
-
-      {/* Active VWAP and Active Zone cards */}
-      {(() => {
+      {/* Active Zone card */}
+      {(()=>{
         const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        const str = activeZoneStrength;
-        const col = str >= 70 ? G : str >= 40 ? A : R;
+        const str  = activeZoneStrength;
+        const col  = str >= 70 ? G : str >= 40 ? A : R;
         if (zone) {
           return (
             <div style={card({marginBottom:12,background:`${col}0a`,border:`2px solid ${col}55`})}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <div>
-                  <div style={{fontSize:8,letterSpacing:2,color:col,fontWeight:700,marginBottom:3}}>● ACTIVE ZONE</div>
-                  <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{zone.label}</div>
+                  <div style={{fontSize:11,letterSpacing:2,color:col,fontWeight:700,marginBottom:3}}>● ACTIVE ZONE</div>
+                  <div style={{fontSize:20,fontWeight:900,color:"#fff",...mono}}>{zone.label}</div>
                 </div>
                 <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:28,fontWeight:900,color:col,lineHeight:1}}>{str}%</div>
-                  <div style={{fontSize:8,color:"#555",letterSpacing:1}}>STRENGTH</div>
+                  <div style={{fontSize:30,fontWeight:900,color:col,lineHeight:1}}>{str}%</div>
+                  <div style={{fontSize:11,color:"#888",letterSpacing:1}}>STRENGTH</div>
                 </div>
               </div>
               <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`}}/>
+                <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`,transition:"width 1s"}}/>
               </div>
-              <div style={{fontSize:7,color:"#555",letterSpacing:1,marginTop:6,...mono}}>
-                60% zone win rate · 40% live checklist {inSub ? "· prime pocket bonus" : ""}
+              <div style={{fontSize:11,color:"#888",letterSpacing:1,marginTop:6,...mono}}>
+                zone win rate · confluence · correlation{inSub ? " · ★ prime pocket" : ""}
               </div>
             </div>
           );
         } else {
-          // When no active zone, show a simple inactive card
           return (
             <div style={card({marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"})}>
-              <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE ZONE</div>
+              <div style={{fontSize:11,color:"#555",letterSpacing:2,...mono}}>NO ACTIVE ZONE</div>
             </div>
           );
         }
-      })()}
-
-      {/* Bias checklist moved from SignalsTab */}
-      {(() => {
-        const liveZone  = liveZ[0] || null;
-        const effectiveZone = liveZ.find(z=>z.type!=="dead") || null;
-        const zType     = effectiveZone ? effectiveZone.type : null;
-        // Build checklist items excluding Best/Worst Day
-        const checksB = [
-          {
-            label: "ZONE ACTIVE",
-            value: liveZone ? liveZone.label + ` (${liveZone.type.toUpperCase()})` : "None",
-            passes: liveZone !== null,
-            note: "A zone must be active before taking any entry.",
-            color: liveZone ? (liveZone.type==="buy" ? G : R) : "#444",
-          },
-          {
-            label: "CORRELATION ALIGNMENT",
-            value: (() => {
-              if(!zType) return "Waiting for zone";
-              const inv = cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="INVERSE");
-              const conf= cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="CONFIRM");
-              const invOk = inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-              const cfOk  = conf.every(i=>zType==="buy"?i.bias==="bull":i.bias==="bear");
-              return invOk && cfOk ? "ALIGNED" : "CHECK INVERSES";
-            })(),
-            passes: (() => {
-              if(!zType) return null;
-              const inv = cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="INVERSE");
-              return inv.length===0 ? null : inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-            })(),
-            note: "Inverse instruments (DXY, VIX) should move opposite to your trade direction.",
-          },
-          {
-            label: "CONFLUENCE SCORE",
-            value: confScore + " / 100 — " + confLabel,
-            passes: confScore >= 75 ? true : confScore >= 50 ? null : false,
-            note: "Score based on zone + prime pocket + correlation + VWAP alignment. System peak: 88% when all 6 execution conditions confirmed.",
-          },
-        ];
-        const greenCount = checksB.filter(c=>c.passes===true).length;
-        const redCount   = checksB.filter(c=>c.passes===false).length;
-        const readyColor = greenCount>=3?G:greenCount>=2?A:R;
-        const readyLabel = greenCount>=3?"TAKE TRADE":greenCount>=2?"WATCH":"WAIT";
-        return (
-          <>
-          {/* Summary score */}
-          <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div>
-                <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
-                <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
-                  {greenCount}/{checksB.length} checks · Peak 88% win rate when all conditions met
-                  {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
-                </div>
-              </div>
-              <div style={{textAlign:"center"}}>
-                <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checksB.length}</div>
-                <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
-              </div>
-            </div>
-          </div>
-          {/* Checklist */}
-          {checksB.map((c,i)=>{
-            const {icon, color} = chk(c.passes);
-            const labelColor = c.passes===true?G:c.passes===false?R:"#555";
-            return(
-              <div key={i} style={{
-                display:"flex",gap:12,alignItems:"flex-start",
-                padding:"11px 14px",marginBottom:7,
-                background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
-                border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
-                borderRadius:11,
-              }}>
-                {/* Icon */}
-                <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                    <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
-                    <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
-                  </div>
-                  <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
-                </div>
-              </div>
-            );
-          })}
-          </>
-        );
       })()}
 
       {/* Active Zone watchlist removed; zone label moved into active bar */}
@@ -838,7 +722,7 @@ function App() {
       {/* Zone confidence table hidden */}
       {false && (
         <div style={card()}>
-        <div style={lbl("#555",{marginBottom:12})}>ACTIVE ZONES</div>
+        <div style={lbl("#999",{marginBottom:12})}>ACTIVE ZONES</div>
         {[...zones].sort((a,b)=>parseInt(a.label.replace("Z",""))-parseInt(b.label.replace("Z",""))).map(z=>{
           const col=z.type==="buy"?G:z.type==="sell"?R:D, on=liveIds.includes(z.id), sub=on&&isInSubWindow(z,et);
           const stars=z.starRating||3;
@@ -847,10 +731,10 @@ function App() {
               <div style={{width:4,height:36,borderRadius:2,background:col,flexShrink:0,opacity:on?1:.3}}/>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:12,fontWeight:900,color:on?col:"#555"}}>{z.label}</span>
-                  <span style={{fontSize:10,color:on?col:"#333",letterSpacing:1}}>{z.type.toUpperCase()}</span>
-                  {on&&<span style={{fontSize:7,color:col}}>● LIVE</span>}
-                  {sub&&<span style={{fontSize:7,color:"#fff"}}>★ POCKET</span>}
+                  <span style={{fontSize:12,fontWeight:900,color:on?col:"#999"}}>{z.label}</span>
+                  <span style={{fontSize:10,color:on?col:"#bbb",letterSpacing:1}}>{z.type.toUpperCase()}</span>
+                  {on&&<span style={{fontSize:10,color:col}}>● LIVE</span>}
+                  {sub&&<span style={{fontSize:10,color:"#fff"}}>★ POCKET</span>}
                 </div>
 
               </div>
@@ -863,10 +747,71 @@ function App() {
       </div>
       )}
 
+
+        {/* Summary score */}
+        <div style={card({border:`1px solid ${appReadyColor}44`,background:`${appReadyColor}09`,marginBottom:12})}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={lbl(appReadyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
+              <div style={{fontSize:12,color:"#aaa",...mono,lineHeight:1.8}}>
+                {appGreenCount}/3 checks · Peak 88% when all conditions met
+                {appRedCount>0?` · ${appRedCount} counter-signal${appRedCount>1?"s":""}`:""}.
+              </div>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:30,fontWeight:900,color:appReadyColor,lineHeight:1}}>{appGreenCount}/3</div>
+              <div style={{fontSize:10,fontWeight:900,color:appReadyColor,letterSpacing:1.5}}>{appReadyLabel}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mini checklist dots */}
+        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+          {appChecks.map((c,i)=>{
+            const col = c.passes===true?G:c.passes===false?R:"#2a2a2a";
+            const icon = c.passes===true?"✓":c.passes===false?"✗":"○";
+            return(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:10,
+                background:`${col}10`,border:`1px solid ${col}33`}}>
+                <span style={{fontSize:10,color:col,fontWeight:900}}>{icon}</span>
+                <span style={{fontSize:11,color:col,fontWeight:700,letterSpacing:.5}}>{c.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Best / Worst Day — info card below checklist */}
+        {(()=>{
+          if(!appLiveZone) return null;
+          const bt = BACKTEST[appLiveZone.id]||{best:"?",worst:"?",wins:0};
+          const zCol = appLiveZone.type==="buy"?G:R;
+          return(
+            <div style={card({border:`1px solid ${zCol}33`,background:`${zCol}06`,marginBottom:14})}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:10,letterSpacing:1.5,color:"#888",fontWeight:700,marginBottom:4}}>📅 BEST / WORST DAY</div>
+                  <div style={{fontSize:12,...mono,color:"#aaa"}}>
+                    Best: <span style={{color:G,fontWeight:700}}>{bt.best}</span>
+                    {" · "}
+                    Worst: <span style={{color:R,fontWeight:700}}>{bt.worst}</span>
+                  </div>
+                  <div style={{fontSize:11,color:"#999",...mono,marginTop:3}}>Historical bias — not scored in 4/4</div>
+                </div>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:900,color:zCol,lineHeight:1}}>{bt.wins||"?"}%</div>
+                  <div style={{fontSize:10,color:"#999",letterSpacing:1}}>{appLiveZone.type.toUpperCase()} WIN</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+
+
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
-        <div><div style={{fontSize:11,fontWeight:700,color:soundOn&&can("sound")?"#ddd":"#444"}}>🔔 Sound Alerts</div>
-        <div style={{fontSize:8,color:"#444",marginTop:2}}>{can("sound")?"Zone open &amp; close chimes":"PRO feature"}</div></div>
+        <div><div style={{fontSize:11,fontWeight:700,color:soundOn&&can("sound")?"#ddd":"#888"}}>🔔 Sound Alerts</div>
+        <div style={{fontSize:11,color:"#888",marginTop:2}}>{can("sound")?"Zone open &amp; close chimes":"PRO feature"}</div></div>
         <div onClick={()=>gate("sound",()=>setSoundOn(v=>!v))} style={{width:44,height:24,borderRadius:12,cursor:"pointer",position:"relative",background:soundOn&&can("sound")?G:"#1a1a1a",border:`1px solid ${soundOn&&can("sound")?G:"#2a2a2a"}`,transition:"background .3s"}}>
           <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:soundOn&&can("sound")?23:3,transition:"left .25s"}}/>
         </div>
@@ -893,14 +838,14 @@ function App() {
 
     // Cycle: bull → bear → neutral → bull
     const cycle = v => v==="bull"?"bear":v==="bear"?"neutral":"bull";
-    const dxyCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#666";
-    const vixCol = vixDir==="bear"?G:vixDir==="bull"?R:"#666";
+    const dxyCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#aaa";
+    const vixCol = vixDir==="bear"?G:vixDir==="bull"?R:"#aaa";
 
     // What DXY/VIX direction tells us about BTC direction
     const dxyBtcSignal = dxyDir==="bear"?"▲ BTC BULLISH":dxyDir==="bull"?"▼ BTC BEARISH":"◆ NEUTRAL";
     const vixBtcSignal = vixDir==="bear"?"▲ BTC BULLISH":vixDir==="bull"?"▼ BTC BEARISH":"◆ NEUTRAL";
-    const dxyBtcCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#666";
-    const vixBtcCol = vixDir==="bear"?G:vixDir==="bull"?R:"#666";
+    const dxyBtcCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#aaa";
+    const vixBtcCol = vixDir==="bear"?G:vixDir==="bull"?R:"#aaa";
 
     // Overall bias counts
     const actives  = cats.flatMap(c=>c.items).filter(i=>i.active);
@@ -909,7 +854,7 @@ function App() {
     const overall  = nBull>nBear?"bull":nBear>nBull?"bear":"neutral";
 
     function chk(passes){
-      if(passes===null) return {icon:"○", color:"#444"};
+      if(passes===null) return {icon:"○", color:"#888"};
       return passes ? {icon:"✓", color:G} : {icon:"✗", color:R};
     }
 
@@ -926,9 +871,8 @@ function App() {
         value: liveZone?liveZone.label+` (${liveZone.type.toUpperCase()})` : "None",
         passes: liveZone!==null,
         note: "A zone must be active before taking any entry.",
-        color: liveZone?(liveZone.type==="buy"?G:R):"#444",
+        color: liveZone?(liveZone.type==="buy"?G:R):"#888",
       },
-      // Removed BEST / WORST DAY entry. This information is now displayed above the active zone bar in the clock tab.
       {
         label: "CORRELATION ALIGNMENT",
         value: (()=>{
@@ -956,8 +900,8 @@ function App() {
 
     const greenCount = checks.filter(c=>c.passes===true).length;
     const redCount   = checks.filter(c=>c.passes===false).length;
-    const readyColor = greenCount>=4?G:greenCount>=3?A:R;
-    const readyLabel = greenCount>=4?"TAKE TRADE":greenCount>=3?"WATCH":"WAIT";
+    const readyColor = greenCount>=3?G:greenCount>=2?A:R;
+    const readyLabel = greenCount>=3?"TAKE TRADE":greenCount>=2?"WATCH":"WAIT";
 
     return(
       <div style={{padding:14}}>
@@ -965,7 +909,7 @@ function App() {
         {/* ── DXY LEADS BITCOIN ── */}
         <div style={card({border:`1px solid ${dxyCol}44`,background:`${dxyCol}07`,marginBottom:12})}>
           <div style={lbl(dxyCol,{marginBottom:8})}>DXY LEADS BITCOIN</div>
-          <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.7,marginBottom:10}}>
+          <div style={{fontSize:12,color:"#aaa",...mono,lineHeight:1.7,marginBottom:10}}>
             Dollar Index moves <span style={{color:A,fontWeight:700}}>before BTC</span> — the strongest and most reliable inverse signal.
           </div>
           <button onClick={()=>setDxyDir(cycle(dxyDir))} style={{
@@ -977,7 +921,7 @@ function App() {
           </button>
           <div style={{padding:"12px 16px",borderRadius:10,textAlign:"center",background:`${dxyBtcCol}12`,border:`1px solid ${dxyBtcCol}44`}}>
             <div style={{fontSize:14,fontWeight:900,color:dxyBtcCol,letterSpacing:2,marginBottom:4}}>{dxyBtcSignal}</div>
-            <div style={{fontSize:8,color:"#555",...mono,lineHeight:1.7}}>
+            <div style={{fontSize:11,color:"#999",...mono,lineHeight:1.7}}>
               {dxyDir==="bear"?"Dollar falling = institutions buying risk = BTC pumps":
                dxyDir==="bull"?"Dollar rising = risk-off selling = BTC dumps":
                "Set DXY direction above to get the BTC signal"}
@@ -988,78 +932,34 @@ function App() {
         {/* Dead zone notice */}
         {liveZone&&liveZone.type==="dead"&&(
           <div style={{background:"rgba(51,51,68,0.3)",border:"1px solid #444466",borderRadius:12,padding:"12px 14px",marginBottom:12,textAlign:"center"}}>
-            <div style={{fontSize:12,fontWeight:700,color:"#666",marginBottom:4}}>◆ {liveZone.label} — DEAD ZONE</div>
-            <div style={{fontSize:9,color:"#444",...mono,lineHeight:1.7}}>No directional edge. Avoid entries. Wait for next active zone.</div>
+            <div style={{fontSize:12,fontWeight:700,color:"#aaa",marginBottom:4}}>◆ {liveZone.label} — DEAD ZONE</div>
+            <div style={{fontSize:12,color:"#888",...mono,lineHeight:1.7}}>No directional edge. Avoid entries. Wait for next active zone.</div>
           </div>
         )}
-
-        {/* Summary score removed from Signals tab */}
-        {false && (
-        <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
-              <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
-                {greenCount}/4 checks · Peak 88% win rate when all conditions met
-                {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
-              </div>
-            </div>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checks.length}</div>
-              <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
-            </div>
-          </div>
-        </div>
-        )}
-
-        {/* Checklist removed from Signals tab */}
-        {false && checks.map((c,i)=>{
-          const {icon, color} = chk(c.passes);
-          const labelColor = c.passes===true?G:c.passes===false?R:"#555";
-          return(
-            <div key={i} style={{
-              display:"flex",gap:12,alignItems:"flex-start",
-              padding:"11px 14px",marginBottom:7,
-              background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
-              border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
-              borderRadius:11,
-            }}>
-              {/* Icon */}
-              <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                  <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
-                  <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
-                </div>
-                <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
-              </div>
-            </div>
-          );
-        })}
 
         {/* Instruments toggle section */}
         <div style={card({marginTop:8})}>
-          <div style={lbl("#555",{marginBottom:10})}>ACTIVE INSTRUMENTS · TAP TO TOGGLE</div>
+          <div style={lbl("#999",{marginBottom:10})}>ACTIVE INSTRUMENTS · TAP TO TOGGLE</div>
           <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
             {cats.map(c=>(
               <button key={c.id} onClick={()=>setSigCat(c.id)} style={{
                 padding:"5px 10px",borderRadius:14,flexShrink:0,
                 background:sigCat===c.id?"rgba(255,255,255,0.1)":"transparent",
                 border:`1px solid ${sigCat===c.id?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.05)"}`,
-                color:sigCat===c.id?"#fff":"#555",
-                fontSize:8,fontWeight:700,cursor:"pointer",letterSpacing:.5,whiteSpace:"nowrap"
+                color:sigCat===c.id?"#fff":"#999",
+                fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:.5,whiteSpace:"nowrap"
               }}>{c.icon} {c.label}</button>
             ))}
           </div>
           {(cats.find(c=>c.id===sigCat)||cats[0]).items.map(item=>{
-            const bc = item.bias==="bull"?G:item.bias==="bear"?R:"#555";
+            const bc = item.bias==="bull"?G:item.bias==="bear"?R:"#999";
             return(
               <div key={item.id} onClick={()=>updateItem((cats.find(c=>c.id===sigCat)||cats[0]).id,item.id,{active:!item.active})}
                 style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",opacity:item.active?1:.35}}>
-                <div style={{width:10,height:10,borderRadius:"50%",flexShrink:0,background:item.active?bc:"#222",border:`2px solid ${item.active?bc:"#333"}`}}/>
-                <div style={{flex:1,fontSize:11,fontWeight:700,color:item.active?"#ddd":"#444"}}>{item.name}</div>
-                <div style={{fontSize:8,color:"#444",...mono}}>{item.desc}</div>
-                <div style={{fontSize:8,fontWeight:700,color:bc,padding:"3px 9px",borderRadius:12,background:`${bc}14`,border:`1px solid ${bc}33`}}>
+                <div style={{width:10,height:10,borderRadius:"50%",flexShrink:0,background:item.active?bc:"#222",border:`2px solid ${item.active?bc:"#bbb"}`}}/>
+                <div style={{flex:1,fontSize:11,fontWeight:700,color:item.active?"#ddd":"#888"}}>{item.name}</div>
+                <div style={{fontSize:11,color:"#888",...mono}}>{item.desc}</div>
+                <div style={{fontSize:11,fontWeight:700,color:bc,padding:"3px 9px",borderRadius:12,background:`${bc}14`,border:`1px solid ${bc}33`}}>
                   {item.bias==="bull"?"▲ BULL":item.bias==="bear"?"▼ BEAR":"◆ NEU"}
                 </div>
               </div>
@@ -1092,19 +992,19 @@ function App() {
                 <div key={t.id} style={{background:`${strCol}0a`,border:`2px solid ${strCol}55`,borderRadius:14,padding:"14px 16px",marginBottom:8}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                     <div>
-                      <div style={{fontSize:8,letterSpacing:2,color:strCol,fontWeight:700,marginBottom:3}}>● ACTIVE VWAP ANCHOR</div>
+                      <div style={{fontSize:11,letterSpacing:2,color:strCol,fontWeight:700,marginBottom:3}}>● ACTIVE VWAP ANCHOR</div>
                       <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{t.label}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:28,fontWeight:900,color:strCol,lineHeight:1}}>{str}%</div>
-                      <div style={{fontSize:8,color:"#555",letterSpacing:1}}>STRENGTH</div>
+                      <div style={{fontSize:11,color:"#999",letterSpacing:1}}>STRENGTH</div>
                     </div>
                   </div>
                   {/* Strength bar */}
                   <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
                     <div style={{height:"100%",width:`${str}%`,background:strCol,borderRadius:3,boxShadow:`0 0 6px ${strCol}88`,transition:"width 1s"}}/>
                   </div>
-                  <div style={{fontSize:9,color:"#555",...mono,marginTop:6}}>
+                  <div style={{fontSize:12,color:"#999",...mono,marginTop:6}}>
                     {t.elapsed<60?`${t.elapsed} min since anchor`:`${Math.floor(t.elapsed/60)}h ${t.elapsed%60}m since anchor`} · Fades over 3 hours
                   </div>
                 </div>
@@ -1113,8 +1013,8 @@ function App() {
           </div>
         ):(
           <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 16px",marginBottom:12,textAlign:"center"}}>
-            <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE ANCHOR RIGHT NOW</div>
-            <div style={{fontSize:8,color:"#2a2a2a",marginTop:4,...mono}}>Anchors activate at: 1:30 · 4:30 · 7:30 · 10:30 ET (AM + PM)</div>
+            <div style={{fontSize:12,color:"#bbb",letterSpacing:2,...mono}}>NO ACTIVE ANCHOR RIGHT NOW</div>
+            <div style={{fontSize:11,color:"#2a2a2a",marginTop:4,...mono}}>Anchors activate at: 1:30 · 4:30 · 7:30 · 10:30 ET (AM + PM)</div>
           </div>
         )}
 
@@ -1138,14 +1038,14 @@ function App() {
                 <div style={{width:3,minHeight:36,background:row.color,flexShrink:0,borderRadius:2,marginTop:2}}/>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:row.color,marginBottom:3}}>{row.title}</div>
-                  <div style={{fontSize:9,color:"#777",...mono,lineHeight:1.7}}>{row.body}</div>
+                  <div style={{fontSize:12,color:"#bbb",...mono,lineHeight:1.7}}>{row.body}</div>
                 </div>
               </div>
             ))}
           </div>
           <div style={{marginTop:10,padding:"8px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8}}>
-            <div style={{fontSize:9,color:A,fontWeight:700,marginBottom:4}}>BEST USE CASE</div>
-            <div style={{fontSize:9,color:"#777",...mono,lineHeight:1.7}}>
+            <div style={{fontSize:12,color:A,fontWeight:700,marginBottom:4}}>BEST USE CASE</div>
+            <div style={{fontSize:12,color:"#bbb",...mono,lineHeight:1.7}}>
               Zone fires + VWAP confirms direction + price near Band 2 or 3 = your highest confluence entry. Use bands as targets and as stops reference.
             </div>
           </div>
@@ -1153,7 +1053,7 @@ function App() {
 
         {/* ── PRICE INPUT ── */}
         <div style={card({padding:"14px 16px"})}>
-          <div style={lbl("#666",{marginBottom:10})}>ENTER CURRENT PRICE TO SEE BANDS</div>
+          <div style={lbl("#aaa",{marginBottom:10})}>ENTER CURRENT PRICE TO SEE BANDS</div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div style={{position:"relative",flex:1}}>
               <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:A,fontSize:14,fontWeight:900,...mono}}>$</span>
@@ -1165,7 +1065,7 @@ function App() {
               {cats.flatMap(c=>c.items).map(i=><option key={i.id} value={i.id} style={{background:"#0d0d22"}}>{i.id}</option>)}
             </select>
           </div>
-          {hasPrice&&<div style={{fontSize:9,color:A,marginTop:8,...mono}}>
+          {hasPrice&&<div style={{fontSize:12,color:A,marginTop:8,...mono}}>
             {vwapInst} @ ${price.toLocaleString()} · ±2σ and ±3σ — anchored to trap candle · mean reversion + value break modes
           </div>}
         </div>
@@ -1173,7 +1073,7 @@ function App() {
         {/* ── SESSION ── */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           {[["ALL","All Sessions"],["AM","AM Only"],["PM","PM Only"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setVwapPeriod(v)} style={{flex:1,padding:"9px 0",borderRadius:10,background:vwapPeriod===v?`${A}22`:"transparent",border:`1px solid ${vwapPeriod===v?A:"#1e1e2e"}`,color:vwapPeriod===v?A:"#444",fontSize:9,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>{l}</button>
+            <button key={v} onClick={()=>setVwapPeriod(v)} style={{flex:1,padding:"9px 0",borderRadius:10,background:vwapPeriod===v?`${A}22`:"transparent",border:`1px solid ${vwapPeriod===v?A:"#1e1e2e"}`,color:vwapPeriod===v?A:"#888",fontSize:12,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>{l}</button>
           ))}
         </div>
 
@@ -1195,8 +1095,8 @@ function App() {
         ):(
           filtered.length===0?(
             <div style={{textAlign:"center",padding:"28px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12}}>
-              <div style={{fontSize:11,color:"#333",fontFamily:"'Share Tech Mono',monospace",marginBottom:6}}>NO ACTIVE ANCHORS</div>
-              <div style={{fontSize:9,color:"#222",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>Anchors activate at 1:30 · 4:30 · 7:30 · 10:30 ET<br/>and expire after 3 hours. Expired anchors are removed.</div>
+              <div style={{fontSize:11,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",marginBottom:6}}>NO ACTIVE ANCHORS</div>
+              <div style={{fontSize:12,color:"#222",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>Anchors activate at 1:30 · 4:30 · 7:30 · 10:30 ET<br/>and expire after 3 hours. Expired anchors are removed.</div>
             </div>
           ):filtered.map(t=><VWAPBandCard key={t.id} trap={t} et={et} price={vwapPrice}/>)
         )}
@@ -1213,7 +1113,7 @@ function App() {
       <div style={{padding:32,textAlign:"center"}}>
         <div style={{fontSize:44,marginBottom:14}}>📊</div>
         <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:8,letterSpacing:2}}>ELITE FEATURE</div>
-        <div style={{fontSize:10,color:"#555",...mono,lineHeight:1.9,marginBottom:20}}>Full 12-month backtesting.<br/>Avg points · flip logs · sub-window win rates.</div>
+        <div style={{fontSize:10,color:"#999",...mono,lineHeight:1.9,marginBottom:20}}>Full 12-month backtesting.<br/>Avg points · flip logs · sub-window win rates.</div>
         <button onClick={()=>setSubOpen(true)} style={{background:`${A}1a`,border:`1px solid ${A}`,color:A,borderRadius:12,padding:"12px 26px",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:2}}>UPGRADE TO ELITE →</button>
       </div>
     );
@@ -1221,30 +1121,30 @@ function App() {
     return(
       <div style={{padding:14}}>
         <div style={{background:"rgba(240,160,48,0.07)",border:"1px solid rgba(240,160,48,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-          <div style={{fontSize:9,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ REFERENCE DATA — NOT INDEPENDENTLY BACKTESTED</div>
-          <div style={{fontSize:9,color:"#777",...mono,lineHeight:1.7}}>Win rates are simulated zone reference data. Real results vary by instrument, session, and market regime. Track your own trades.</div>
+          <div style={{fontSize:12,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ REFERENCE DATA — NOT INDEPENDENTLY BACKTESTED</div>
+          <div style={{fontSize:12,color:"#bbb",...mono,lineHeight:1.7}}>Win rates are simulated zone reference data. Real results vary by instrument, session, and market regime. Track your own trades.</div>
         </div>
-        <div style={lbl("#555",{marginBottom:12})}>ZONE WIN RATE REFERENCE</div>
+        <div style={lbl("#999",{marginBottom:12})}>ZONE WIN RATE REFERENCE</div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-          {[...zones].sort((a,b)=>parseInt(a.label.replace("Z",""))-parseInt(b.label.replace("Z",""))).map(z=>{const c=z.type==="buy"?G:z.type==="sell"?R:D; return <button key={z.id} onClick={()=>setBtZone(z.id)} style={{padding:"6px 14px",borderRadius:18,background:btZone===z.id?`${c}20`:"transparent",border:`1px solid ${btZone===z.id?c:"#1e1e1e"}`,color:btZone===z.id?c:"#3a3a3a",fontSize:9,fontWeight:700,cursor:"pointer"}}>{z.label} {z.type==="buy"?"▲":"▼"}</button>;})}
+          {[...zones].sort((a,b)=>parseInt(a.label.replace("Z",""))-parseInt(b.label.replace("Z",""))).map(z=>{const c=z.type==="buy"?G:z.type==="sell"?R:D; return <button key={z.id} onClick={()=>setBtZone(z.id)} style={{padding:"6px 14px",borderRadius:18,background:btZone===z.id?`${c}20`:"transparent",border:`1px solid ${btZone===z.id?c:"#1e1e1e"}`,color:btZone===z.id?c:"#3a3a3a",fontSize:12,fontWeight:700,cursor:"pointer"}}>{z.label} {z.type==="buy"?"▲":"▼"}</button>;})}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:12}}>
           {[{l:"WIN RATE",v:`${data.wins}%`,c:data.wins>=75?G:data.wins>=60?A:R},{l:"AVG POINTS",v:`+${data.avgPts}`,c:A},{l:"BEST DAY",v:data.best,c:G},{l:"WORST DAY",v:data.worst,c:R}].map(i=>(
             <div key={i.l} style={card({textAlign:"center",padding:"13px 10px",marginBottom:0})}>
-              <div style={lbl("#444",{marginBottom:6})}>{i.l}</div>
+              <div style={lbl("#888",{marginBottom:6})}>{i.l}</div>
               <div style={{fontSize:22,fontWeight:900,color:i.c}}>{i.v}</div>
             </div>
           ))}
         </div>
         <div style={card({marginBottom:10})}>
-          <div style={lbl("#444",{marginBottom:10})}>12-MONTH WIN RATE</div>
+          <div style={lbl("#888",{marginBottom:10})}>12-MONTH WIN RATE</div>
           <MiniBar months={data.months}/>
         </div>
         <div style={card({border:`1px solid ${zCol}33`,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10})}>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:zCol}}>{(zone&&zone.type)==="buy"?"▲ BUY":"▼ SELL"} · {(zone&&zone.label)}</div>
-            {can("sub_pocket")&&<div style={{fontSize:8,color:"#666",marginTop:3,...mono}}>★ {(zone&&zone.pocket&&zone.pocket.label)}</div>}
-            <div style={{fontSize:9,color:data.wins>=75?G:data.wins>=65?A:R,marginTop:6}}>
+            {can("sub_pocket")&&<div style={{fontSize:11,color:"#aaa",marginTop:3,...mono}}>★ {(zone&&zone.pocket&&zone.pocket.label)}</div>}
+            <div style={{fontSize:12,color:data.wins>=75?G:data.wins>=65?A:R,marginTop:6}}>
               {data.wins>=75?"✓ ELITE WINDOW":data.wins>=65?"✓ HIGH CONFIDENCE":data.wins>=55?"◆ MODERATE":"⚠ LOW — USE FILTER"}
             </div>
           </div>
@@ -1257,20 +1157,20 @@ function App() {
         {can("sub_pocket")&&<div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
           <div style={lbl(A,{marginBottom:6})}>PRIME POCKET</div>
           <div style={{fontSize:10,color:"#888",...mono,lineHeight:1.8}}>{(zone&&zone.pocket&&zone.pocket.note)}</div>
-          <div style={{fontSize:9,color:"#666",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
+          <div style={{fontSize:12,color:"#aaa",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
         </div>}
         <div style={card()}>
-          <div style={lbl("#555",{marginBottom:8})}>ADD NOTE · {(zone&&zone.label)}</div>
+          <div style={lbl("#999",{marginBottom:8})}>ADD NOTE · {(zone&&zone.label)}</div>
           <div style={{display:"flex",gap:8}}>
             <input value={btNote} onChange={e=>setBtNote(e.target.value)} placeholder="e.g. Zone sold 3 days in a row..." style={{flex:1,background:"rgba(255,255,255,0.05)",border:`1px solid rgba(255,255,255,0.08)`,borderRadius:8,padding:"8px 11px",color:"#ddd",...mono,fontSize:10}}/>
-            <button onClick={()=>{if(btNote.trim()){setBT(p=>({...p,[btZone]:{...p[btZone],flipHistory:[...(p[btZone].flipHistory||[]),{date:new Date().toLocaleDateString(),note:btNote.trim()}]}}));setBtNote("");}}} style={{padding:"8px 14px",borderRadius:8,background:`${A}1a`,border:`1px solid ${A}`,color:A,fontSize:9,fontWeight:700,cursor:"pointer"}}>ADD</button>
+            <button onClick={()=>{if(btNote.trim()){setBT(p=>({...p,[btZone]:{...p[btZone],flipHistory:[...(p[btZone].flipHistory||[]),{date:new Date().toLocaleDateString(),note:btNote.trim()}]}}));setBtNote("");}}} style={{padding:"8px 14px",borderRadius:8,background:`${A}1a`,border:`1px solid ${A}`,color:A,fontSize:12,fontWeight:700,cursor:"pointer"}}>ADD</button>
           </div>
         </div>
         {(data.flipHistory&&data.flipHistory.length)>0&&<div style={card()}>
-          <div style={lbl("#555",{marginBottom:8})}>FLIP LOG</div>
+          <div style={lbl("#999",{marginBottom:8})}>FLIP LOG</div>
           {data.flipHistory.map((f,i)=><div key={i} style={{display:"flex",gap:10,padding:"7px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-            <span style={{fontSize:8,color:A,...mono,flexShrink:0}}>{f.date}</span>
-            <span style={{fontSize:8,color:"#777",...mono}}>{f.note}</span>
+            <span style={{fontSize:11,color:A,...mono,flexShrink:0}}>{f.date}</span>
+            <span style={{fontSize:11,color:"#bbb",...mono}}>{f.note}</span>
           </div>)}
         </div>}
       </div>
@@ -1280,22 +1180,22 @@ function App() {
   // ── ACCOUNT ──
   const AccountTab = ()=>(
     <div style={{padding:14}}>
-      <div style={lbl("#555",{marginBottom:14})}>SUBSCRIPTION PLANS</div>
+      <div style={lbl("#999",{marginBottom:14})}>SUBSCRIPTION PLANS</div>
       {PLANS.map(p=>{const active=plan===p.id; return(
         <div key={p.id} style={card({border:active?`2px solid ${p.color}`:"1px solid rgba(255,255,255,0.07)",background:active?`${p.color}08`:"rgba(255,255,255,0.02)",marginBottom:14})}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
               <div style={{fontSize:18,fontWeight:900,color:p.color,letterSpacing:3}}>{p.name}</div>
-              <div style={{fontSize:25,fontWeight:900,color:"#fff",marginTop:3}}>{p.price===0?"FREE":`$${p.price}`}{p.price>0&&<span style={{fontSize:10,color:"#444",fontWeight:400}}>/mo</span>}</div>
+              <div style={{fontSize:25,fontWeight:900,color:"#fff",marginTop:3}}>{p.price===0?"FREE":`$${p.price}`}{p.price>0&&<span style={{fontSize:10,color:"#888",fontWeight:400}}>/mo</span>}</div>
             </div>
-            {active?<div style={{padding:"6px 14px",borderRadius:20,background:`${p.color}18`,border:`1px solid ${p.color}`,color:p.color,fontSize:8,fontWeight:700,letterSpacing:2}}>✓ ACTIVE</div>
-            :<button onClick={()=>setPlan(p.id)} style={{padding:"9px 16px",borderRadius:10,background:`${p.color}18`,border:`1px solid ${p.color}`,color:p.color,fontSize:9,fontWeight:700,cursor:"pointer",letterSpacing:1}}>{p.price>((PLANS.find(x=>x.id===plan)||{price:0}).price|| 0)?"UPGRADE":"SELECT"}</button>}
+            {active?<div style={{padding:"6px 14px",borderRadius:20,background:`${p.color}18`,border:`1px solid ${p.color}`,color:p.color,fontSize:11,fontWeight:700,letterSpacing:2}}>✓ ACTIVE</div>
+            :<button onClick={()=>setPlan(p.id)} style={{padding:"9px 16px",borderRadius:10,background:`${p.color}18`,border:`1px solid ${p.color}`,color:p.color,fontSize:12,fontWeight:700,cursor:"pointer",letterSpacing:1}}>{p.price>((PLANS.find(x=>x.id===plan)||{price:0}).price|| 0)?"UPGRADE":"SELECT"}</button>}
           </div>
           {p.perks.map((f,i)=><div key={i} style={{fontSize:10,color:"#aaa",marginBottom:5,display:"flex",gap:8,...mono}}><span style={{color:p.color}}>✓</span>{f}</div>)}
           {p.locked.length>0&&<><div style={{height:1,background:"rgba(255,255,255,0.05)",margin:"10px 0"}}/>{p.locked.map((f,i)=><div key={i} style={{fontSize:10,color:"#2a2a2a",marginBottom:5,display:"flex",gap:8,...mono}}><span>🔒</span>{f}</div>)}</>}
         </div>
       );})}
-      <div style={{textAlign:"center",fontSize:8,color:"#2a2a2a",...mono}}>Demo — tap SELECT to preview any plan</div>
+      <div style={{textAlign:"center",fontSize:11,color:"#2a2a2a",...mono}}>Demo — tap SELECT to preview any plan</div>
     </div>
   );
 
@@ -1303,7 +1203,7 @@ function App() {
   const TZModal=()=>(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:400,display:"flex",alignItems:"flex-end"}} onClick={()=>setTzOpen(false)}>
       <div style={{width:"100%",maxWidth:480,margin:"0 auto",background:"#0b0b1e",borderRadius:"18px 18px 0 0",border:"1px solid rgba(255,255,255,0.08)",maxHeight:"65vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{textAlign:"center",padding:"16px 0 12px",fontSize:9,letterSpacing:3,color:"#444",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>SELECT TIMEZONE</div>
+        <div style={{textAlign:"center",padding:"16px 0 12px",fontSize:12,letterSpacing:3,color:"#888",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>SELECT TIMEZONE</div>
         {TZ_LIST.map(t=><button key={t.tz} onClick={()=>{setTZ(t.tz);setTzOpen(false);}} style={{display:"block",width:"100%",padding:"14px 22px",background:tz===t.tz?`${A}0e`:"none",border:"none",borderBottom:"1px solid rgba(255,255,255,0.04)",color:tz===t.tz?A:"#888",fontSize:11,fontWeight:tz===t.tz?700:400,cursor:"pointer",textAlign:"left",letterSpacing:1}}>
           {t.label}{tz===t.tz&&<span style={{float:"right",color:A}}>✓</span>}
         </button>)}
@@ -1320,19 +1220,19 @@ function App() {
         <div style={{background:"#0d0d22",borderRadius:20,padding:24,border:`1px solid ${A}44`,maxWidth:340,width:"100%"}} onClick={e=>e.stopPropagation()}>
           {isLog?(<>
             <div style={{fontSize:12,fontWeight:900,color:A,marginBottom:14,letterSpacing:2}}>FLIP LOG · {zone.label}</div>
-            {flips.length===0?<div style={{fontSize:10,color:"#444",...mono}}>No logs yet.</div>:flips.map((f,i)=><div key={i} style={{padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-              <div style={{fontSize:9,color:A,...mono}}>{f.date}</div>
+            {flips.length===0?<div style={{fontSize:10,color:"#888",...mono}}>No logs yet.</div>:flips.map((f,i)=><div key={i} style={{padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+              <div style={{fontSize:12,color:A,...mono}}>{f.date}</div>
               <div style={{fontSize:10,color:"#888",...mono,marginTop:2}}>{f.note}</div>
             </div>)}
           </>):(<>
             <div style={{fontSize:12,fontWeight:900,color:A,marginBottom:6,letterSpacing:2}}>FLIP {zone.label}?</div>
-            <div style={{fontSize:10,color:"#666",...mono,lineHeight:1.9,marginBottom:14}}>
+            <div style={{fontSize:10,color:"#aaa",...mono,lineHeight:1.9,marginBottom:14}}>
               <span style={{color:col,fontWeight:700}}>{zone.type.toUpperCase()}</span> → <span style={{color:zone.type==="buy"?R:G,fontWeight:700}}>{zone.type==="buy"?"SELL":"BUY"}</span><br/>Log your tell sign:
             </div>
             <textarea value={tellNote} onChange={e=>setTellNote(e.target.value)} placeholder="e.g. Sold 3 days in a row during BUY zone..." style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 12px",color:"#ddd",...mono,fontSize:10,resize:"none",height:68,marginBottom:14}}/>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{flipZone(zid,tellNote||"Tell sign flip");setTellOpen(null);setTellNote("");}} style={{flex:1,padding:"11px",borderRadius:10,background:`${A}1a`,border:`1px solid ${A}`,color:A,fontSize:10,fontWeight:700,cursor:"pointer",letterSpacing:1.5}}>⚡ FLIP & LOG</button>
-              <button onClick={()=>setTellOpen(null)} style={{flex:1,padding:"11px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",color:"#555",fontSize:10,fontWeight:700,cursor:"pointer"}}>CANCEL</button>
+              <button onClick={()=>setTellOpen(null)} style={{flex:1,padding:"11px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",color:"#999",fontSize:10,fontWeight:700,cursor:"pointer"}}>CANCEL</button>
             </div>
           </>)}
         </div>
@@ -1404,7 +1304,7 @@ function App() {
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
               border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
-              color:newsView===v.id?A:"#444",fontSize:9,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>
+              color:newsView===v.id?A:"#888",fontSize:12,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>
               {v.l}
             </button>
           ))}
@@ -1420,8 +1320,8 @@ function App() {
                   padding:"6px 12px",borderRadius:14,flexShrink:0,
                   background:newsSrc===f.id?`${f.color}22`:"transparent",
                   border:`1px solid ${newsSrc===f.id?f.color:"#1e1e2e"}`,
-                  color:newsSrc===f.id?f.color:"#444",
-                  fontSize:8,fontWeight:700,cursor:"pointer",letterSpacing:.5,whiteSpace:"nowrap"
+                  color:newsSrc===f.id?f.color:"#888",
+                  fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:.5,whiteSpace:"nowrap"
                 }}>{f.label}</button>
               ))}
             </div>
@@ -1429,27 +1329,27 @@ function App() {
             <button onClick={()=>{ newsLoadedFor.current=""; fetchNews(newsSrc); }} style={{
               width:"100%",padding:"9px",borderRadius:10,marginBottom:12,
               background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",
-              color:"#777",fontSize:8,fontWeight:700,cursor:"pointer",letterSpacing:1
+              color:"#bbb",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:1
             }}>↻ REFRESH</button>
 
             {newsLoading&&(
               <div style={{textAlign:"center",padding:"32px 0"}}>
                 <div style={{width:28,height:28,border:"2px solid #1a1a2e",borderTop:`2px solid ${A}`,borderRadius:"50%",margin:"0 auto 12px",animation:"spin .8s linear infinite"}}/>
-                <div style={{fontSize:9,color:"#444",fontFamily:"'Share Tech Mono',monospace"}}>Loading headlines...</div>
+                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Loading headlines...</div>
               </div>
             )}
 
             {!newsLoading&&newsError&&(
               <div style={{padding:"14px 16px",background:"rgba(255,51,85,0.07)",border:"1px solid rgba(255,51,85,0.25)",borderRadius:12,marginBottom:12}}>
                 <div style={{fontSize:10,color:"#ff7788",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>{newsError}</div>
-                <div style={{fontSize:9,color:"#444",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>
+                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>
                   Try switching source or use the SOURCES tab to open sites directly.
                 </div>
               </div>
             )}
 
             {!newsLoading&&!newsError&&newsArticles.length===0&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#333",fontFamily:"'Share Tech Mono',monospace",fontSize:10}}>
+              <div style={{textAlign:"center",padding:"24px",color:"#bbb",fontFamily:"'Share Tech Mono',monospace",fontSize:10}}>
                 No articles loaded — tap REFRESH
               </div>
             )}
@@ -1465,12 +1365,12 @@ function App() {
                 <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:art.color}}/>
                 <div style={{paddingLeft:12}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8}}>
-                    <span style={{fontSize:8,color:art.color,fontWeight:700,letterSpacing:1,flexShrink:0}}>{art.source}</span>
-                    <span style={{fontSize:8,color:"#333",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(art.pub)}</span>
+                    <span style={{fontSize:11,color:art.color,fontWeight:700,letterSpacing:1,flexShrink:0}}>{art.source}</span>
+                    <span style={{fontSize:11,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(art.pub)}</span>
                   </div>
                   <div style={{fontSize:12,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:art.desc?5:0}}>{art.title}</div>
-                  {art.desc&&<div style={{fontSize:9,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{art.desc.slice(0,160)}{art.desc.length>160?"...":""}</div>}
-                  <div style={{fontSize:7,color:"#2a2a2a",marginTop:5,letterSpacing:1}}>TAP TO READ ↗</div>
+                  {art.desc&&<div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{art.desc.slice(0,160)}{art.desc.length>160?"...":""}</div>}
+                  <div style={{fontSize:10,color:"#2a2a2a",marginTop:5,letterSpacing:1}}>TAP TO READ ↗</div>
                 </div>
               </div>
             ))}
@@ -1481,7 +1381,7 @@ function App() {
         {newsView==="calendar"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-              <div style={{fontSize:9,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>
+              <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>
                 Events from today forward. Tap any event to see how it moves BTC.
               </div>
             </div>
@@ -1502,20 +1402,20 @@ function App() {
                     <div style={{flex:1}}>
                       <div style={{fontSize:12,fontWeight:700,color:isToday?"#fff":"#ccc",lineHeight:1.3,marginBottom:5}}>{ev.l}</div>
                       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                        <span style={{fontSize:8,color:impCol,background:`${impCol}18`,borderRadius:7,padding:"2px 8px",letterSpacing:.5}}>{ev.imp.toUpperCase()} IMPACT</span>
-                        <span style={{fontSize:8,color:catCol,background:`${catCol}18`,borderRadius:7,padding:"2px 8px",letterSpacing:.5}}>{ev.cat}</span>
-                        {!isOpen&&<span style={{fontSize:7,color:"#333",padding:"2px 0",letterSpacing:.5}}>▼ BTC IMPACT</span>}
+                        <span style={{fontSize:11,color:impCol,background:`${impCol}18`,borderRadius:7,padding:"2px 8px",letterSpacing:.5}}>{ev.imp.toUpperCase()} IMPACT</span>
+                        <span style={{fontSize:11,color:catCol,background:`${catCol}18`,borderRadius:7,padding:"2px 8px",letterSpacing:.5}}>{ev.cat}</span>
+                        {!isOpen&&<span style={{fontSize:10,color:"#bbb",padding:"2px 0",letterSpacing:.5}}>▼ BTC IMPACT</span>}
                       </div>
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontSize:12,fontWeight:900,color:isToday?A:"#777",fontFamily:"'Share Tech Mono',monospace"}}>{ev.t} ET</div>
-                      <div style={{fontSize:9,color:isToday?A:"#444",marginTop:2,letterSpacing:1}}>{daysOut<=0?"TODAY":daysOut===1?"TOMORROW":"in "+daysOut+"d"}</div>
-                      <div style={{fontSize:7,color:"#2a2a2a",marginTop:1}}>{dateStr}</div>
+                      <div style={{fontSize:12,fontWeight:900,color:isToday?A:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{ev.t} ET</div>
+                      <div style={{fontSize:12,color:isToday?A:"#888",marginTop:2,letterSpacing:1}}>{daysOut<=0?"TODAY":daysOut===1?"TOMORROW":"in "+daysOut+"d"}</div>
+                      <div style={{fontSize:10,color:"#2a2a2a",marginTop:1}}>{dateStr}</div>
                     </div>
                   </div>
                   {isOpen&&(
                     <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.07)"}}>
-                      <div style={{fontSize:9,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:5}}>₿ BTC IMPACT</div>
+                      <div style={{fontSize:12,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:5}}>₿ BTC IMPACT</div>
                       <div style={{fontSize:10,color:"#aaa",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.85}}>{ev.btc}</div>
                     </div>
                   )}
@@ -1529,7 +1429,7 @@ function App() {
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:9,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Bloomberg, Myfxbook, and Trading Economics don't provide RSS — open them directly below.</div>
+              <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Bloomberg, Myfxbook, and Trading Economics don't provide RSS — open them directly below.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
@@ -1537,7 +1437,7 @@ function App() {
                 <div style={{width:4,height:44,borderRadius:2,background:lnk.color,flexShrink:0,boxShadow:`0 0 8px ${lnk.color}55`}}/>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#ddd",marginBottom:3}}>{lnk.label}</div>
-                  <div style={{fontSize:9,color:"#555",fontFamily:"'Share Tech Mono',monospace"}}>{lnk.desc}</div>
+                  <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace"}}>{lnk.desc}</div>
                 </div>
                 <div style={{fontSize:18,color:lnk.color,opacity:.6}}>↗</div>
               </div>
@@ -1555,15 +1455,15 @@ function App() {
       <div style={{background:"#0d0d22",borderRadius:20,padding:28,border:`1px solid ${A}44`,maxWidth:340,width:"100%",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:36,marginBottom:12}}>⚡</div>
         <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:8,letterSpacing:2}}>UPGRADE REQUIRED</div>
-        <div style={{fontSize:10,color:"#555",...mono,lineHeight:1.9,marginBottom:20}}>This feature requires PRO or ELITE.<br/>Unlock all instruments, VWAP bands,<br/>sound alerts, flip system & backtesting.</div>
+        <div style={{fontSize:10,color:"#999",...mono,lineHeight:1.9,marginBottom:20}}>This feature requires PRO or ELITE.<br/>Unlock all instruments, VWAP bands,<br/>sound alerts, flip system & backtesting.</div>
         <button onClick={()=>{setSubOpen(false);setTab("account");}} style={{width:"100%",padding:"13px",borderRadius:12,background:`${A}1a`,border:`1px solid ${A}`,color:A,fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:2,marginBottom:10}}>VIEW PLANS →</button>
-        <button onClick={()=>setSubOpen(false)} style={{background:"none",border:"none",color:"#333",fontSize:8,cursor:"pointer",letterSpacing:1}}>CLOSE</button>
+        <button onClick={()=>setSubOpen(false)} style={{background:"none",border:"none",color:"#bbb",fontSize:11,cursor:"pointer",letterSpacing:1}}>CLOSE</button>
       </div>
     </div>
   );
 
   // ── NAV ──
-  const planColor=plan==="elite"?A:plan==="pro"?G:"#333";
+  const planColor=plan==="elite"?A:plan==="pro"?G:"#bbb";
   // Navigation tabs: remove VWAP and Plan tabs per user request
   const NAV=[
     {id:"clock",icon:"⏱",l:"CLOCK"},
@@ -1582,12 +1482,12 @@ function App() {
           <img src="data:image/png;base64,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" style={{width:34,height:34,borderRadius:"50%",flexShrink:0}} alt="BiG ENGiN3"/>
           <div>
             <div style={{fontSize:13,fontWeight:900,letterSpacing:2,background:`linear-gradient(90deg,${A},#ff6600)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>BiG ENGiN3</div>
-            <div style={{fontSize:6,letterSpacing:3,color:"#222",marginTop:1}}>ZONE CLOCK PRO</div>
+            <div style={{fontSize:11,letterSpacing:3,color:"#888",marginTop:1}}>ZONE CLOCK PRO</div>
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {liveZ.length>0&&<div style={{width:7,height:7,borderRadius:"50%",background:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,boxShadow:`0 0 8px ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}`}}/>}
-          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:8,fontWeight:700,letterSpacing:1}}>{plan.toUpperCase()}</div>
+          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:11,fontWeight:700,letterSpacing:1}}>{plan.toUpperCase()}</div>
         </div>
       </div>
 
@@ -1603,7 +1503,7 @@ function App() {
 
       {/* NAV */}
       <nav style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#07071c",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",zIndex:200}}>
-        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,padding:"9px 2px 7px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?A:"#2a2a2a",fontSize:6,fontWeight:700,letterSpacing:.4,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s"}}>
+        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,padding:"9px 2px 7px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?A:"#666",fontSize:11,fontWeight:700,letterSpacing:.4,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s"}}>
           <span style={{fontSize:15}}>{n.icon}</span>{n.l}
         </button>)}
       </nav>
