@@ -517,14 +517,29 @@ function App() {
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
-  // Active zone strength now blends historical zone win rate with the live checklist score.
-  // 60% = backtested zone win rate, 40% = current confluence score, with a small prime-pocket bonus.
+  // Active zone strength: stronger live weighting so the score reacts more to current conditions.
+  // 45% = backtested zone win rate, 55% = live checklist/confluence score.
+  // Prime pocket adds a bonus, and correlation can add or subtract a small amount.
   const activeZoneStrength = (()=>{
     const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
     if(!zone) return 0;
+
     const zoneWin = (BACKTEST[zone.id] && BACKTEST[zone.id].wins) ? BACKTEST[zone.id].wins : 0;
-    const pocketBonus = inSub ? 5 : 0;
-    return Math.max(0, Math.min(100, Math.round(zoneWin*0.6 + confScore*0.4 + pocketBonus)));
+    const base = zoneWin*0.45 + confScore*0.55;
+
+    const zType = zone.type;
+    const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
+    const conf = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="CONFIRM");
+
+    const invOk = inv.length ? inv.every(i=>zType==="buy" ? i.bias==="bear" : i.bias==="bull") : null;
+    const confOk = conf.length ? conf.every(i=>zType==="buy" ? i.bias==="bull" : i.bias==="bear") : null;
+
+    const pocketBonus = inSub ? 8 : 0;
+    const corrBonus =
+      invOk===true && confOk===true ? 5 :
+      invOk===false || confOk===false ? -8 : 0;
+
+    return Math.max(0, Math.min(100, Math.round(base + pocketBonus + corrBonus)));
   })();
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
@@ -714,7 +729,7 @@ function App() {
                 <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`}}/>
               </div>
               <div style={{fontSize:7,color:"#555",letterSpacing:1,marginTop:6,...mono}}>
-                60% zone win rate · 40% live checklist {inSub ? "· prime pocket bonus" : ""}
+                45% zone win rate · 55% live checklist · correlation adjusts score {inSub ? "· prime pocket bonus" : ""}
               </div>
             </div>
           );
