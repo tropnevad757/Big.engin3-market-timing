@@ -186,6 +186,63 @@ const BACKTEST = {
   z6:{wins:79,avgPts:14.2,best:"Thu",worst:"Mon",months:[77,81,78,82,77,80,77,82,78,79,81,79],peak:88},
 };
 
+// ─── TIME POLARITY ENGINE ─────────────────────────────────────────────────────
+// Each entry marks when polarity CHANGES. Active until next entry.
+// Sequence repeats every 12 hours (AM and PM mirror each other).
+const TIME_POLARITY_SEQ = [
+  { h:0,  m:0,  pol:1  },  // 12:00 AM = +
+  { h:1,  m:0,  pol:-1 },  // 1:00 AM  = -
+  { h:1,  m:30, pol:1  },  // 1:30 AM  = + (Z1 zone opens — up)
+  { h:2,  m:0,  pol:1  },  // 2:00 AM  = +
+  { h:3,  m:0,  pol:-1 },  // 3:00 AM  = -
+  { h:4,  m:0,  pol:1  },  // 4:00 AM  = +
+  { h:4,  m:30, pol:-1 },  // 4:30 AM  = - (Z4 trap)
+  { h:5,  m:0,  pol:1  },  // 5:00 AM  = +
+  { h:6,  m:0,  pol:-1 },  // 6:00 AM  = -
+  { h:6,  m:30, pol:1  },  // 6:30 AM  = + (Z6)
+  { h:7,  m:0,  pol:-1 },  // 7:00 AM  = -
+  { h:7,  m:30, pol:1  },  // 7:30 AM  = + (Z7 — NY Kill Zone)
+  { h:8,  m:0,  pol:-1 },  // 8:00 AM  = -
+  { h:9,  m:0,  pol:1  },  // 9:00 AM  = +
+  { h:10, m:0,  pol:-1 },  // 10:00 AM = -
+  { h:10, m:30, pol:1  },  // 10:30 AM = + (Z10)
+  { h:11, m:0,  pol:-1 },  // 11:00 AM = -
+  { h:12, m:0,  pol:1  },  // 12:00 PM = +
+  { h:12, m:30, pol:-1 },  // 12:30 PM = - (Z12 trap)
+  { h:13, m:0,  pol:1  },  // 1:00 PM  = +
+  { h:13, m:30, pol:-1 },  // 1:30 PM  = - (Z1 PM)
+  { h:14, m:0,  pol:1  },  // 2:00 PM  = +
+  { h:15, m:0,  pol:-1 },  // 3:00 PM  = -
+  { h:16, m:0,  pol:1  },  // 4:00 PM  = +
+  { h:16, m:30, pol:-1 },  // 4:30 PM  = - (Z4 PM)
+  { h:17, m:0,  pol:1  },  // 5:00 PM  = +
+  { h:18, m:0,  pol:-1 },  // 6:00 PM  = -
+  { h:18, m:30, pol:1  },  // 6:30 PM  = + (Z6 PM)
+  { h:19, m:0,  pol:-1 },  // 7:00 PM  = -
+  { h:19, m:30, pol:1  },  // 7:30 PM  = + (Z7 PM)
+  { h:20, m:0,  pol:-1 },  // 8:00 PM  = -
+  { h:21, m:0,  pol:1  },  // 9:00 PM  = +
+  { h:22, m:0,  pol:-1 },  // 10:00 PM = -
+  { h:22, m:30, pol:1  },  // 10:30 PM = + (Z10 PM)
+  { h:23, m:0,  pol:-1 },  // 11:00 PM = -
+];
+
+// Session context — which countries/regions are active by ET hour
+const SESSION_CONTEXT = [
+  { h24start:0,  h24end:4,  id:"tokyo",   label:"Tokyo / Asia",   currencies:["JPY","AUD","NZD","KRW"], expected:"JPY, AUD flows — Asia session" },
+  { h24start:4,  h24end:8,  id:"london",  label:"London Open",    currencies:["EUR","GBP","CHF","SEK"], expected:"EUR/GBP heavy — European open" },
+  { h24start:8,  h24end:12, id:"ny_open", label:"NY Open",        currencies:["USD","CAD","MXN"],       expected:"US macro dominant — NFP/CPI zone" },
+  { h24start:12, h24end:16, id:"ny_mid",  label:"NY Mid-session", currencies:["USD","EUR"],             expected:"US data follow-through + London close" },
+  { h24start:16, h24end:20, id:"asia_eve",label:"Asia Eve",       currencies:["JPY","AUD"],             expected:"Bank resets — NY close overlap" },
+  { h24start:20, h24end:24, id:"tokyo2",  label:"Late Tokyo",     currencies:["JPY","CNY","KRW"],       expected:"Japan / Korea early flow" },
+];
+
+// US interest rate reference — rates ABOVE US = bearish USD = bullish risk
+// rates BELOW US = bullish USD = bearish risk (simplified)
+const RATE_TABLE = {
+  US:4.50, NZ:5.50, AU:4.35, GB:5.25, CA:5.00, EU:3.65, CH:1.50, JP:0.10, CN:3.10,
+};
+
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
 const toAngle = (h,m) => ((h%12)*60+m)*0.5;
 const polar   = (cx,cy,r,d) => ({ x:cx+r*Math.cos(((d-90)*Math.PI)/180), y:cy+r*Math.sin(((d-90)*Math.PI)/180) });
@@ -218,6 +275,180 @@ function isInSubWindow(z,et) {
 function minsUntil(z,h,m) {
   const toM=(hh,mm)=>(hh%12)*60+mm; return ((toM(z.h1,z.m1)-toM(h,m))+720)%720;
 }
+
+// ─── POLARITY ENGINE HELPERS ──────────────────────────────────────────────────
+// Returns +1 (up) or -1 (down) for any ET h24:m
+function getPolarityAt(h24, m) {
+  const nowMins = h24 * 60 + m;
+  // Find last entry whose time <= nowMins
+  let best = TIME_POLARITY_SEQ[0];
+  for (const entry of TIME_POLARITY_SEQ) {
+    const entryMins = entry.h * 60 + entry.m;
+    if (entryMins <= nowMins) best = entry;
+  }
+  return best.pol; // +1 or -1
+}
+
+// Returns the active session context object
+function getActiveSession(h24) {
+  return SESSION_CONTEXT.find(s =>
+    s.h24start <= h24 && h24 < s.h24end
+  ) || SESSION_CONTEXT[0];
+}
+
+// Returns rate bias relative to US: +1 = rates higher than US (bearish USD), -1 = lower (bullish USD)
+function getSessionRateBias(session) {
+  const usdRate = RATE_TABLE.US;
+  const map = { tokyo:"JP", tokyo2:"JP", london:"GB", asia_eve:"AU", ny_open:"US", ny_mid:"US" };
+  const country = map[session.id] || "US";
+  const countryRate = RATE_TABLE[country] || usdRate;
+  if (country === "US") return 0;
+  return countryRate > usdRate ? 1 : -1; // +1 = higher rates, risk-on
+}
+
+// Classify a news article's polarity from title + description text
+function classifyNewsPolarity(title, desc) {
+  const text = ((title || "") + " " + (desc || "")).toLowerCase();
+  const bullishKw = [
+    "rate cut","cut rate","cuts rate","rate drop","dovish","stimulus","quantitative easing",
+    "beat","beats","strong","surge","surges","rally","rallies","bullish","boost","boosts",
+    "growth","gdp beat","jobs beat","non-farm beat","cpi low","inflation low","pivot","soft landing",
+    "record high","all-time high","upgrade","upgrades","breakout","buy signal","oversold",
+    "risk on","inflow","inflows","positive","rise","rises","recovery","rebounds",
+  ];
+  const bearishKw = [
+    "rate hike","hike rate","hikes rate","rate rise","hawkish","tightening","tapering",
+    "miss","misses","weak","weakens","drop","drops","fall","falls","crash","crashes",
+    "bearish","decline","declines","recession","default","crisis","layoffs","layoff",
+    "gdp miss","jobs miss","cpi hot","inflation hot","hot inflation","stagflation",
+    "risk off","outflow","outflows","negative","warning","downgrade","downgrades","sell-off",
+    "all-time low","record low","breakdown","oversold","sell signal",
+  ];
+  const bCount = bullishKw.filter(k => text.includes(k)).length;
+  const rCount = bearishKw.filter(k => text.includes(k)).length;
+  if (bCount > rCount) return 1;
+  if (rCount > bCount) return -1;
+  return 0;
+}
+
+// Classify news impact (high = breaking / major data, med = normal, low = noise)
+function classifyNewsImpact(title) {
+  const t = (title || "").toLowerCase();
+  const highKw = ["breaking","urgent","flash","alert","emergency","crisis","fomc","fed decision",
+    "nfp","non-farm","cpi","inflation report","rate decision","gdp","powell","recession"];
+  const lowKw  = ["analysis","opinion","column","review","preview","outlook","weekly"];
+  if (highKw.some(k => t.includes(k))) return "high";
+  if (lowKw.some(k => t.includes(k)))  return "low";
+  return "med";
+}
+
+// Detect the country/session associated with a news item
+function classifyNewsSession(title, desc) {
+  const t = ((title || "") + " " + (desc || "")).toLowerCase();
+  if (t.match(/japan|nikkei|boj|jpy|yen|tokyo/)) return "JP";
+  if (t.match(/europe|ecb|eur|euro|frankfurt|lagarde|berlin/)) return "EU";
+  if (t.match(/uk|britain|boe|gbp|pound|sterling|london/)) return "GB";
+  if (t.match(/australia|rba|aud|aussie|sydney/)) return "AU";
+  if (t.match(/canada|boc|cad|loonie|ottawa/)) return "CA";
+  if (t.match(/china|pboc|yuan|cny|beijing|shanghai/)) return "CN";
+  if (t.match(/korea|krw|seoul|bok/)) return "KR";
+  if (t.match(/fed|fomc|powell|yellen|usd|dollar|america|u\.s\.\.|washington/)) return "US";
+  return "OTHER";
+}
+
+// Detect breaking news (for 15-min anchor)
+function isBreakingNews(title) {
+  const t = (title || "").toLowerCase();
+  return t.includes("breaking") || t.includes("urgent") || t.includes("flash:") ||
+         t.includes("alert:") || t.includes("just in");
+}
+
+// THE MAIN POLARITY ENGINE
+// Returns { basePol, finalPol, totalFlips, classifiedNews, polarLabel, polarColor,
+//           sessionCtx, rateBias, aligned, score, breakingItem }
+function runPolarityEngine(et, liveZone, newsArticles, cats, breakingAnchor) {
+  // 1. Base time polarity (or override from breaking anchor)
+  const basePol = getPolarityAt(et.h24, et.m);
+  const anchorActive = breakingAnchor && Date.now() < breakingAnchor.expiresAt;
+  const workingBase  = anchorActive ? breakingAnchor.polarity : basePol;
+
+  // 2. Classify all news items (last 20, only polar)
+  const classified = (newsArticles || []).slice(0, 20).map(a => ({
+    ...a,
+    pol:    classifyNewsPolarity(a.title, a.desc),
+    sess:   classifyNewsSession(a.title, a.desc),
+    impact: classifyNewsImpact(a.title),
+  })).filter(a => a.pol !== 0);
+
+  // 3. FLIP LOGIC: each news item is a toggle of the current state
+  // Odd total flips = opposite of base; even total = same as base
+  const totalFlips   = classified.length;
+  const finalPol     = totalFlips % 2 === 0 ? workingBase : -workingBase;
+  const polarLabel   = finalPol === 1 ? "POSITIVE / UP" : "NEGATIVE / DOWN";
+  const polarColor   = finalPol === 1 ? G : R;
+
+  // 4. Zone polarity
+  const zPol = !liveZone ? 0 : liveZone.type === "buy" ? 1 : liveZone.type === "sell" ? -1 : 0;
+
+  // 5. Alignment check
+  const aligned  = zPol !== 0 && finalPol === zPol;
+  const conflict = zPol !== 0 && finalPol !== zPol;
+
+  // 6. Session + rate bias
+  const sessionCtx = getActiveSession(et.h24);
+  const rateBias   = getSessionRateBias(sessionCtx);
+
+  // 7. News confirmation of final polarity
+  const newsConfirm  = classified.filter(n => n.pol === finalPol).length;
+  const newsConflict = classified.filter(n => n.pol !== finalPol).length;
+
+  // 8. Correlation alignment (inverse instruments)
+  const allActive = (cats || []).flatMap(c => c.items.filter(i => i.active));
+  const inv = allActive.filter(i => CORR_L[i.corr] === "INVERSE");
+  const invAligned = (!liveZone || inv.length === 0) ? null :
+    inv.every(i => liveZone.type === "buy" ? i.bias === "bear" : i.bias === "bull");
+
+  // 9. SCORE ASSEMBLY
+  // Component weights add to max ~100
+  const zoneWin = liveZone && BACKTEST[liveZone.id] ? BACKTEST[liveZone.id].wins : 50;
+  let score = zoneWin * 0.30; // 30% from zone historical win rate
+
+  // Time polarity alignment
+  if (aligned)  score += 22;
+  else if (conflict) score -= 12;
+
+  // News flip result vs zone
+  score += Math.min(18, newsConfirm * 6);
+  score -= Math.min(12, newsConflict * 6);
+
+  // Rate bias: session rates vs USD
+  if (rateBias !== 0 && zPol !== 0) {
+    if (rateBias === zPol) score += 5;
+    else score -= 4;
+  }
+
+  // Correlation
+  if (invAligned === true)  score += 8;
+  else if (invAligned === false) score -= 8;
+
+  // Breaking anchor active = confidence in signal
+  if (anchorActive) score += 5;
+
+  // Find breaking news item in current feed
+  const breakingItem = (newsArticles || []).find(a => isBreakingNews(a.title));
+
+  return {
+    basePol, finalPol, totalFlips, classified,
+    polarLabel, polarColor, aligned, conflict, zPol,
+    sessionCtx, rateBias,
+    newsConfirm, newsConflict,
+    invAligned,
+    score: Math.max(0, Math.min(100, Math.round(score))),
+    anchorActive,
+    breakingItem,
+  };
+}
+
 
 function convertTime(z,localTZ) {
   try {
@@ -371,8 +602,6 @@ function VWAPBandCard({trap, et, price}) {
         </div>}
       </div>
 
-      {/* Removed best/worst day info from this card. It is displayed in the Clock tab. */}
-
       {/* Visual: 3 rows — UB2 (top), VWAP (mid), LB2 (bottom) */}
       <div style={{borderRadius:10,overflow:"hidden",marginBottom:12,border:"1px solid rgba(255,255,255,0.07)"}}>
 
@@ -471,6 +700,7 @@ function App() {
   const [newsSrc,      setNewsSrc]      = useState("reuters");
   const [newsView,     setNewsView]     = useState("news");
   const [newsExpanded, setNewsExpanded] = useState(null);
+  const [breakingAnchor, setBreakingAnchor] = useState(null); // { title, polarity, expiresAt }
   const prevRef = useRef([]);
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
 
@@ -487,6 +717,8 @@ function App() {
         if(prevRef.current.some(id=>!now.includes(id))&&!now.length) zoneEnd();
       }
       prevRef.current=now; setLiveIds(now);
+      // Expire breaking anchor after 15 min
+      setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
     },1000);
     return()=>clearInterval(t);
   },[zones,soundOn,plan,tz]);
@@ -503,31 +735,87 @@ function App() {
   const trapStatus = getTrapAnchorStatus(et);
   const hotTraps   = trapStatus.filter(t=>t.active);
 
-  // Confluence score
+  // ── POLARITY ENGINE (runs every render, uses current state) ─────────────────
+  const activeZoneForEngine = liveZ.find(z=>z.type!=="dead")||liveZ[0]||null;
+  const polarityEngine = runPolarityEngine(et, activeZoneForEngine, newsArticles, cats, breakingAnchor);
+
+  // Breaking news detection — auto-anchor on new feed load
+  useEffect(()=>{
+    if(!newsArticles.length) return;
+    const found = newsArticles.find(a => isBreakingNews(a.title));
+    if(found && (!breakingAnchor || breakingAnchor.title !== found.title)){
+      const pol = classifyNewsPolarity(found.title, found.desc||"");
+      if(pol !== 0){
+        setBreakingAnchor({ title: found.title, polarity: pol, expiresAt: Date.now() + 15*60*1000 });
+      }
+    }
+  }, [newsArticles]);
+
+  // Confluence score — now incorporates polarity engine alignment
   const confScore = (()=>{
     let s=0;
     const nonDeadLive=liveZ.filter(z=>z.type!=="dead");
-    if(nonDeadLive.length) s+=30;
-    if(inSub) s+=25;
+    if(nonDeadLive.length) s+=25;
+    if(inSub) s+=20;
     if(overall!=="NEUTRAL"&&nonDeadLive.length){
       const aligned=(overall==="BULLISH"&&(nonDeadLive[0]&&nonDeadLive[0].type)==="buy")||(overall==="BEARISH"&&(nonDeadLive[0]&&nonDeadLive[0].type)==="sell");
-      if(aligned) s+=25; else s-=10;
+      if(aligned) s+=20; else s-=10;
     }
-    if(hotTraps.length) s+=20;
+    if(hotTraps.length) s+=15;
+    // Polarity engine contributes directly to confluence
+    if(polarityEngine.aligned) s+=20;
+    else if(polarityEngine.conflict) s-=10;
     return Math.min(100,Math.max(0,s));
   })();
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
-  // Active zone strength now blends historical zone win rate with the live checklist score.
-  // 60% = backtested zone win rate, 40% = current confluence score, with a small prime-pocket bonus.
+  // Active zone strength — now driven by the full polarity engine score
+  // Engine already blends: zone win rate + time polarity + news flips + session + correlations
   const activeZoneStrength = (()=>{
     const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
     if(!zone) return 0;
-    const zoneWin = (BACKTEST[zone.id] && BACKTEST[zone.id].wins) ? BACKTEST[zone.id].wins : 0;
-    const pocketBonus = inSub ? 5 : 0;
-    return Math.max(0, Math.min(100, Math.round(zoneWin*0.6 + confScore*0.4 + pocketBonus)));
+    // Start from polarity engine score
+    let str = polarityEngine.score;
+    // Add prime pocket bonus on top
+    if(inSub) str += 8;
+    return Math.max(0, Math.min(100, Math.round(str)));
   })();
+
+  // ── APP-LEVEL CHECKLIST (used in both ClockTab summary and SignalsTab) ───────
+  const appLiveZone = liveZ[0] || null;
+  const appZType    = appLiveZone && appLiveZone.type !== "dead" ? appLiveZone.type : null;
+  const appChecks = [
+    {
+      label:"ZONE ACTIVE",
+      passes: appLiveZone !== null,
+      color: appLiveZone?(appLiveZone.type==="buy"?G:R):"#444",
+    },
+    {
+      label:"BEST / WORST DAY",
+      passes: null,
+    },
+    {
+      label:"CORRELATION ALIGNMENT",
+      passes: (()=>{
+        if(!appZType) return null;
+        const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
+        return inv.length===0?null:inv.every(i=>appZType==="buy"?i.bias==="bear":i.bias==="bull");
+      })(),
+    },
+    {
+      label:"CONFLUENCE SCORE",
+      passes: confScore>=75?true:confScore>=50?null:false,
+    },
+    {
+      label:"TIME POLARITY",
+      passes: polarityEngine.aligned?true:polarityEngine.conflict?false:null,
+    },
+  ];
+  const appGreenCount  = appChecks.filter(c=>c.passes===true).length;
+  const appRedCount    = appChecks.filter(c=>c.passes===false).length;
+  const appReadyColor  = appGreenCount>=5?G:appGreenCount>=3?A:R;
+  const appReadyLabel  = appGreenCount>=5?"TAKE TRADE":appGreenCount>=3?"WATCH":"WAIT";
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
   const flipZone = (zid,note="") => {
@@ -677,6 +965,7 @@ function App() {
         </div>
       )}
 
+
       {/* Clock */}
       <div style={{display:"flex",justifyContent:"center",margin:"8px 0 12px"}}>
         <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
@@ -694,144 +983,162 @@ function App() {
         ))}
       </div>
 
-      {/* Best / worst day info moved out of bias checklist */}
+      {/* ── POLARITY ENGINE CARD + ACTIVE ZONE ── */}
       {(() => {
         const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        if (zone) {
-          const bt = BACKTEST[zone.id] || {best:"?",worst:"?",wins:0};
-          const win = bt.wins || 0;
-          const zoneBias = zone.type==="buy" ? "BUY" : zone.type==="sell" ? "SELL" : "";
-          const col = zone.type==="buy" ? G : zone.type==="sell" ? R : D;
-          return (
-            <div style={{fontSize:8,letterSpacing:1.5,color:col,fontWeight:700,marginBottom:6,textAlign:"center"}}>
-              {bt.best} / {bt.worst} — {win}% {zoneBias} win rate
-            </div>
-          );
-        }
-        return null;
-      })()}
+        const str  = activeZoneStrength;
+        const col  = str >= 70 ? G : str >= 40 ? A : R;
+        const pe   = polarityEngine;
+        const baseLbl  = pe.basePol === 1 ? "UP ▲" : "DOWN ▼";
+        const baseCol  = pe.basePol === 1 ? G : R;
+        const flipLbl  = pe.totalFlips === 0 ? "No news flips" :
+                         pe.totalFlips === 1 ? "1 news flip" :
+                         `${pe.totalFlips} news flips`;
+        const sessCtx  = pe.sessionCtx;
+        const rateLbl  = pe.rateBias === 0 ? "USD (neutral)" : pe.rateBias === 1 ? "Non-USD higher ▲" : "USD dominant ▼";
+        const rateCol  = pe.rateBias === 0 ? "#555" : pe.rateBias === 1 ? G : R;
+        const anchorMinsLeft = breakingAnchor ? Math.max(0, Math.round((breakingAnchor.expiresAt - Date.now()) / 60000)) : 0;
 
-      {/* Active VWAP and Active Zone cards */}
-      {(() => {
-        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        const str = activeZoneStrength;
-        const col = str >= 70 ? G : str >= 40 ? A : R;
-        if (zone) {
-          return (
-            <div style={card({marginBottom:12,background:`${col}0a`,border:`2px solid ${col}55`})}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div>
-                  <div style={{fontSize:8,letterSpacing:2,color:col,fontWeight:700,marginBottom:3}}>● ACTIVE ZONE</div>
-                  <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{zone.label}</div>
-                </div>
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:28,fontWeight:900,color:col,lineHeight:1}}>{str}%</div>
-                  <div style={{fontSize:8,color:"#555",letterSpacing:1}}>STRENGTH</div>
-                </div>
-              </div>
-              <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`}}/>
-              </div>
-              <div style={{fontSize:7,color:"#555",letterSpacing:1,marginTop:6,...mono}}>
-                60% zone win rate · 40% live checklist {inSub ? "· prime pocket bonus" : ""}
-              </div>
-            </div>
-          );
-        } else {
-          // When no active zone, show a simple inactive card
-          return (
-            <div style={card({marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"})}>
-              <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE ZONE</div>
-            </div>
-          );
-        }
-      })()}
-
-      {/* Bias checklist moved from SignalsTab */}
-      {(() => {
-        const liveZone  = liveZ[0] || null;
-        const effectiveZone = liveZ.find(z=>z.type!=="dead") || null;
-        const zType     = effectiveZone ? effectiveZone.type : null;
-        // Build checklist items excluding Best/Worst Day
-        const checksB = [
-          {
-            label: "ZONE ACTIVE",
-            value: liveZone ? liveZone.label + ` (${liveZone.type.toUpperCase()})` : "None",
-            passes: liveZone !== null,
-            note: "A zone must be active before taking any entry.",
-            color: liveZone ? (liveZone.type==="buy" ? G : R) : "#444",
-          },
-          {
-            label: "CORRELATION ALIGNMENT",
-            value: (() => {
-              if(!zType) return "Waiting for zone";
-              const inv = cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="INVERSE");
-              const conf= cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="CONFIRM");
-              const invOk = inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-              const cfOk  = conf.every(i=>zType==="buy"?i.bias==="bull":i.bias==="bear");
-              return invOk && cfOk ? "ALIGNED" : "CHECK INVERSES";
-            })(),
-            passes: (() => {
-              if(!zType) return null;
-              const inv = cats.flatMap(c=>c.items).filter(i=>i.active && CORR_L[i.corr]==="INVERSE");
-              return inv.length===0 ? null : inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-            })(),
-            note: "Inverse instruments (DXY, VIX) should move opposite to your trade direction.",
-          },
-          {
-            label: "CONFLUENCE SCORE",
-            value: confScore + " / 100 — " + confLabel,
-            passes: confScore >= 75 ? true : confScore >= 50 ? null : false,
-            note: "Score based on zone + prime pocket + correlation + VWAP alignment. System peak: 88% when all 6 execution conditions confirmed.",
-          },
-        ];
-        const greenCount = checksB.filter(c=>c.passes===true).length;
-        const redCount   = checksB.filter(c=>c.passes===false).length;
-        const readyColor = greenCount>=3?G:greenCount>=2?A:R;
-        const readyLabel = greenCount>=3?"TAKE TRADE":greenCount>=2?"WATCH":"WAIT";
         return (
-          <>
-          {/* Summary score */}
-          <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div>
-                <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
-                <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
-                  {greenCount}/{checksB.length} checks · Peak 88% win rate when all conditions met
-                  {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
-                </div>
-              </div>
-              <div style={{textAlign:"center"}}>
-                <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checksB.length}</div>
-                <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
-              </div>
-            </div>
-          </div>
-          {/* Checklist */}
-          {checksB.map((c,i)=>{
-            const {icon, color} = chk(c.passes);
-            const labelColor = c.passes===true?G:c.passes===false?R:"#555";
-            return(
-              <div key={i} style={{
-                display:"flex",gap:12,alignItems:"flex-start",
-                padding:"11px 14px",marginBottom:7,
-                background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
-                border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
-                borderRadius:11,
+          <div style={{marginBottom:12}}>
+
+            {/* Breaking news anchor banner */}
+            {pe.anchorActive && breakingAnchor && (
+              <div style={{
+                background:"rgba(255,51,85,0.12)",border:`1px solid ${R}55`,
+                borderRadius:10,padding:"9px 14px",marginBottom:8,
+                display:"flex",alignItems:"center",gap:10
               }}>
-                {/* Icon */}
-                <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
+                <div style={{width:8,height:8,borderRadius:"50%",background:R,boxShadow:`0 0 8px ${R}`,flexShrink:0,animation:"pulse 1.5s ease-in-out infinite"}}/>
                 <div style={{flex:1}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                    <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
-                    <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
-                  </div>
-                  <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
+                  <div style={{fontSize:8,letterSpacing:1.5,color:R,fontWeight:700,marginBottom:2}}>⚡ BREAKING — POLARITY ANCHORED</div>
+                  <div style={{fontSize:8,color:"#888",...mono,lineHeight:1.6}}>{(breakingAnchor.title||"").slice(0,80)}{(breakingAnchor.title||"").length>80?"...":""}</div>
+                </div>
+                <div style={{textAlign:"center",flexShrink:0}}>
+                  <div style={{fontSize:13,fontWeight:900,color:R,...mono}}>{anchorMinsLeft}m</div>
+                  <div style={{fontSize:7,color:"#555"}}>LEFT</div>
                 </div>
               </div>
-            );
-          })}
-          </>
+            )}
+
+            {/* Main polarity engine card */}
+            <div style={card({border:`1px solid ${pe.polarColor}44`,background:`${pe.polarColor}07`,padding:"14px 16px",marginBottom:8})}>
+              {/* Header row */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                <div>
+                  <div style={{fontSize:8,letterSpacing:2,color:"#444",fontWeight:700,marginBottom:4}}>⏱ TIME POLARITY ENGINE</div>
+                  <div style={{fontSize:16,fontWeight:900,color:pe.polarColor,letterSpacing:2,lineHeight:1.2}}>
+                    {pe.polarColor === G ? "▲" : "▼"} {pe.polarLabel}
+                  </div>
+                  {pe.anchorActive && <div style={{fontSize:8,color:R,marginTop:3,...mono}}>⚡ BREAKING OVERRIDE ACTIVE</div>}
+                </div>
+                {zone && (
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontSize:28,fontWeight:900,color:col,lineHeight:1}}>{str}%</div>
+                    <div style={{fontSize:7,color:"#555",letterSpacing:1}}>STRENGTH</div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3-column detail row */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:12}}>
+                {/* Base polarity */}
+                <div style={{background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginBottom:3}}>BASE TIME</div>
+                  <div style={{fontSize:12,fontWeight:900,color:baseCol,...mono}}>{baseLbl}</div>
+                </div>
+                {/* News flips */}
+                <div style={{background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginBottom:3}}>FLIPS</div>
+                  <div style={{fontSize:12,fontWeight:900,color:pe.totalFlips>0?A:"#555",...mono}}>{flipLbl}</div>
+                </div>
+                {/* Session */}
+                <div style={{background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginBottom:3}}>SESSION</div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#aaa",...mono}}>{sessCtx.id.toUpperCase()}</div>
+                </div>
+              </div>
+
+              {/* Flip detail — show classified news items */}
+              {pe.classified.length > 0 && (
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:7,letterSpacing:1.5,color:"#444",fontWeight:700,marginBottom:5}}>NEWS POLARITY INPUTS ({pe.classified.length})</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {pe.classified.slice(0,6).map((n,i)=>(
+                      <div key={i} style={{
+                        fontSize:7,padding:"3px 8px",borderRadius:8,
+                        background:n.pol===1?`${G}18`:`${R}18`,
+                        border:`1px solid ${n.pol===1?G:R}33`,
+                        color:n.pol===1?G:R,...mono,
+                      }}>
+                        {n.pol===1?"▲":"▼"} {n.sess} · {(n.title||"").slice(0,28)}{(n.title||"").length>28?"...":""}
+                      </div>
+                    ))}
+                    {pe.classified.length > 6 && (
+                      <div style={{fontSize:7,color:"#444",...mono,padding:"3px 6px"}}>+{pe.classified.length-6} more</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Rate + corr row */}
+              <div style={{display:"flex",gap:6,marginBottom:12}}>
+                <div style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"7px 10px"}}>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginBottom:2}}>SESSION RATE BIAS</div>
+                  <div style={{fontSize:9,fontWeight:700,color:rateCol,...mono}}>{rateLbl}</div>
+                </div>
+                <div style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"7px 10px"}}>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginBottom:2}}>CORR ALIGNMENT</div>
+                  <div style={{fontSize:9,fontWeight:700,
+                    color:pe.invAligned===true?G:pe.invAligned===false?R:"#555",...mono}}>
+                    {pe.invAligned===true?"✓ ALIGNED":pe.invAligned===false?"✗ CONFLICT":"NO DATA"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Alignment verdict */}
+              {zone && (
+                <div style={{
+                  padding:"10px 14px",borderRadius:9,textAlign:"center",
+                  background: pe.aligned ? `${G}0e` : pe.conflict ? `${R}0e` : "rgba(255,255,255,0.03)",
+                  border:`1px solid ${pe.aligned?G:pe.conflict?R:"rgba(255,255,255,0.07)"}44`
+                }}>
+                  <div style={{fontSize:11,fontWeight:900,
+                    color:pe.aligned?G:pe.conflict?R:"#555",letterSpacing:1.5}}>
+                    {pe.aligned ? "✓ TIME + ZONE ALIGNED — FULL EDGE" :
+                     pe.conflict ? "⚠ TIME POLARITY vs ZONE CONFLICT" :
+                     "◆ NO ACTIVE ZONE"}
+                  </div>
+                  {pe.conflict && (
+                    <div style={{fontSize:8,color:"#666",...mono,marginTop:4,lineHeight:1.6}}>
+                      Time polarity is {pe.basePol===1?"UP":"DOWN"} but zone is {zone.type.toUpperCase()} — reduce size
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Strength bar */}
+              {zone && (
+                <div style={{marginTop:10}}>
+                  <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`,transition:"width 1s"}}/>
+                  </div>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginTop:5,...mono}}>
+                    zone win% + time polarity + news flips + session + correlations
+                    {inSub?" · ★ prime pocket bonus":""}
+                    {pe.anchorActive?" · ⚡ breaking anchor":""}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* No zone fallback */}
+            {!zone && (
+              <div style={card({background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"})}>
+                <div style={{fontSize:9,color:"#333",letterSpacing:2,...mono}}>NO ACTIVE ZONE · POLARITY: {pe.polarLabel}</div>
+              </div>
+            )}
+          </div>
         );
       })()}
 
@@ -864,6 +1171,41 @@ function App() {
         })}
       </div>
       )}
+
+
+        {/* Summary score */}
+        <div style={card({border:`1px solid ${appReadyColor}44`,background:`${appReadyColor}09`,marginBottom:12})}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={lbl(appReadyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
+              <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
+                {appGreenCount}/5 checks · Peak 88% when all conditions met
+                {appRedCount>0?` · ${appRedCount} counter-signal${appRedCount>1?"s":""}`:""}.
+              </div>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:30,fontWeight:900,color:appReadyColor,lineHeight:1}}>{appGreenCount}/{appChecks.length}</div>
+              <div style={{fontSize:10,fontWeight:900,color:appReadyColor,letterSpacing:1.5}}>{appReadyLabel}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mini checklist dots */}
+        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+          {appChecks.map((c,i)=>{
+            const col = c.passes===true?G:c.passes===false?R:"#2a2a2a";
+            const icon = c.passes===true?"✓":c.passes===false?"✗":"○";
+            return(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:10,
+                background:`${col}10`,border:`1px solid ${col}33`}}>
+                <span style={{fontSize:10,color:col,fontWeight:900}}>{icon}</span>
+                <span style={{fontSize:8,color:col,fontWeight:700,letterSpacing:.5}}>{c.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+
 
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
@@ -930,7 +1272,19 @@ function App() {
         note: "A zone must be active before taking any entry.",
         color: liveZone?(liveZone.type==="buy"?G:R):"#444",
       },
-      // Removed BEST / WORST DAY entry. This information is now displayed above the active zone bar in the clock tab.
+      {
+        label: "BEST / WORST DAY",
+        value: (()=>{
+          if(!liveZone) return "N/A";
+          const bt = BACKTEST[liveZone.id] || {best:"?",worst:"?",wins:0};
+          const win = bt.wins || 0;
+          const zoneBias = liveZone.type==="buy"?"BUY":"SELL";
+          return `${bt.best} / ${bt.worst} — ${win}% ${zoneBias} win rate`;
+        })(),
+        passes: null,
+        note: "Best day aligns with zone bias; worst day shows the weakest performance. Win rate reflects historical performance in this zone.",
+        color: liveZone?(liveZone.type==="buy"?G:R):"#444",
+      },
       {
         label: "CORRELATION ALIGNMENT",
         value: (()=>{
@@ -954,6 +1308,19 @@ function App() {
         passes: confScore>=75?true:confScore>=50?null:false,
         note: "Score based on zone + prime pocket + correlation + VWAP alignment. System peak: 88% when all 6 execution conditions confirmed.",
       },
+      {
+        label: "TIME POLARITY",
+        value: (()=>{
+          const pe = polarityEngine;
+          const flips = pe.totalFlips;
+          const dir = pe.polarColor === G ? "▲ UP" : "▼ DOWN";
+          const base = pe.basePol === 1 ? "▲" : "▼";
+          return `${dir} · base ${base} · ${flips} flip${flips!==1?"s":""}`;
+        })(),
+        passes: polarityEngine.aligned ? true : polarityEngine.conflict ? false : null,
+        note: "Time polarity sequence: alternating up/down at each key hour. News events flip the polarity (odd flips = opposite; even = same as base). Aligned = full edge.",
+        color: polarityEngine.polarColor,
+      },
     ];
 
     const greenCount = checks.filter(c=>c.passes===true).length;
@@ -963,6 +1330,86 @@ function App() {
 
     return(
       <div style={{padding:14}}>
+
+        {/* ── TIME POLARITY ENGINE SUMMARY ── */}
+        {(()=>{
+          const pe = polarityEngine;
+          const anchorMinsLeft = breakingAnchor ? Math.max(0, Math.round((breakingAnchor.expiresAt - Date.now()) / 60000)) : 0;
+          const bLbl = pe.basePol===1?"▲ BASE: UP":"▼ BASE: DOWN";
+          const bCol = pe.basePol===1?G:R;
+          const odd  = pe.totalFlips%2===1;
+          return(
+            <div style={card({border:`1px solid ${pe.polarColor}44`,background:`${pe.polarColor}06`,marginBottom:12})}>
+              <div style={lbl(pe.polarColor,{marginBottom:8})}>⏱ TIME POLARITY ENGINE</div>
+
+              {/* Breaking override */}
+              {pe.anchorActive && (
+                <div style={{background:`${R}12`,border:`1px solid ${R}44`,borderRadius:8,padding:"8px 12px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:R,flexShrink:0}}/>
+                  <div style={{flex:1,fontSize:8,color:R,...mono}}>⚡ BREAKING OVERRIDE — {anchorMinsLeft}m remaining</div>
+                  <button onClick={()=>setBreakingAnchor(null)} style={{background:"none",border:`1px solid ${R}44`,color:R,borderRadius:6,padding:"3px 8px",fontSize:7,cursor:"pointer"}}>CLEAR</button>
+                </div>
+              )}
+
+              {/* Polarity flow row */}
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+                <div style={{padding:"5px 10px",borderRadius:8,background:`${bCol}18`,border:`1px solid ${bCol}33`,color:bCol,fontSize:9,fontWeight:700,...mono}}>{bLbl}</div>
+                {pe.classified.slice(0,4).map((n,i)=>(
+                  <React.Fragment key={i}>
+                    <div style={{color:"#444",fontSize:10}}>→</div>
+                    <div style={{padding:"4px 8px",borderRadius:8,
+                      background:n.pol===1?`${G}14`:`${R}14`,
+                      border:`1px solid ${n.pol===1?G:R}33`,
+                      color:n.pol===1?G:R,fontSize:8,...mono}}>
+                      {n.pol===1?"▲":"▼"}{n.sess}
+                    </div>
+                  </React.Fragment>
+                ))}
+                {pe.classified.length>4&&<div style={{color:"#444",fontSize:8,...mono}}>+{pe.classified.length-4}</div>}
+                <div style={{color:"#444",fontSize:10}}>→</div>
+                <div style={{padding:"5px 12px",borderRadius:8,background:`${pe.polarColor}22`,border:`1px solid ${pe.polarColor}55`,color:pe.polarColor,fontSize:10,fontWeight:900,...mono}}>
+                  {pe.polarColor===G?"▲ UP":"▼ DOWN"}
+                </div>
+              </div>
+
+              {/* Flip explanation */}
+              <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.9,marginBottom:10}}>
+                <span style={{color:"#888"}}>Logic: </span>
+                base {pe.basePol===1?"UP":"DOWN"} · {pe.totalFlips} news flip{pe.totalFlips!==1?"s":""} ({odd?"odd = opposite":"even = same as base"}) → final polarity <span style={{color:pe.polarColor,fontWeight:700}}>{pe.polarColor===G?"UP":"DOWN"}</span>
+              </div>
+
+              {/* Session context */}
+              <div style={{display:"flex",gap:6,marginBottom:10}}>
+                <div style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"7px 10px"}}>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginBottom:2}}>ACTIVE SESSION</div>
+                  <div style={{fontSize:9,fontWeight:700,color:"#bbb",...mono}}>{pe.sessionCtx.label}</div>
+                  <div style={{fontSize:7,color:"#444",...mono,marginTop:2}}>{pe.sessionCtx.expected}</div>
+                </div>
+                <div style={{flex:1,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"7px 10px"}}>
+                  <div style={{fontSize:7,color:"#444",letterSpacing:1,marginBottom:2}}>RATE BIAS</div>
+                  <div style={{fontSize:9,fontWeight:700,color:pe.rateBias===1?G:pe.rateBias===-1?R:"#555",...mono}}>
+                    {pe.rateBias===1?"Non-USD higher ▲":pe.rateBias===-1?"USD dominant ▼":"Neutral"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Manual breaking anchor button */}
+              <div style={{marginBottom:4}}>
+                <div style={{fontSize:7,color:"#333",letterSpacing:1,marginBottom:6}}>MANUAL BREAKING ANCHOR</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>setBreakingAnchor({title:"MANUAL BULL ANCHOR",polarity:1,expiresAt:Date.now()+15*60*1000})}
+                    style={{flex:1,padding:"8px 0",borderRadius:8,background:`${G}14`,border:`1px solid ${G}44`,color:G,fontSize:8,fontWeight:700,cursor:"pointer"}}>
+                    ▲ ANCHOR BULL 15m
+                  </button>
+                  <button onClick={()=>setBreakingAnchor({title:"MANUAL BEAR ANCHOR",polarity:-1,expiresAt:Date.now()+15*60*1000})}
+                    style={{flex:1,padding:"8px 0",borderRadius:8,background:`${R}14`,border:`1px solid ${R}44`,color:R,fontSize:8,fontWeight:700,cursor:"pointer"}}>
+                    ▼ ANCHOR BEAR 15m
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── DXY LEADS BITCOIN ── */}
         <div style={card({border:`1px solid ${dxyCol}44`,background:`${dxyCol}07`,marginBottom:12})}>
@@ -994,50 +1441,6 @@ function App() {
             <div style={{fontSize:9,color:"#444",...mono,lineHeight:1.7}}>No directional edge. Avoid entries. Wait for next active zone.</div>
           </div>
         )}
-
-        {/* Summary score removed from Signals tab */}
-        {false && (
-        <div style={card({border:`1px solid ${readyColor}44`,background:`${readyColor}09`,marginBottom:12})}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={lbl(readyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
-              <div style={{fontSize:9,color:"#666",...mono,lineHeight:1.8}}>
-                {greenCount}/4 checks · Peak 88% win rate when all conditions met
-                {redCount>0?` · ${redCount} counter-signal${redCount>1?"s":""}`:""}.
-              </div>
-            </div>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:30,fontWeight:900,color:readyColor,lineHeight:1}}>{greenCount}/{checks.length}</div>
-              <div style={{fontSize:10,fontWeight:900,color:readyColor,letterSpacing:1.5}}>{readyLabel}</div>
-            </div>
-          </div>
-        </div>
-        )}
-
-        {/* Checklist removed from Signals tab */}
-        {false && checks.map((c,i)=>{
-          const {icon, color} = chk(c.passes);
-          const labelColor = c.passes===true?G:c.passes===false?R:"#555";
-          return(
-            <div key={i} style={{
-              display:"flex",gap:12,alignItems:"flex-start",
-              padding:"11px 14px",marginBottom:7,
-              background: c.passes===true?"rgba(0,255,136,0.04)":c.passes===false?"rgba(255,51,85,0.04)":"rgba(255,255,255,0.03)",
-              border:`1px solid ${c.passes===true?G+"33":c.passes===false?R+"33":"rgba(255,255,255,0.06)"}`,
-              borderRadius:11,
-            }}>
-              {/* Icon */}
-              <div style={{fontSize:16,fontWeight:900,color,flexShrink:0,width:22,textAlign:"center",lineHeight:1.4}}>{icon}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                  <div style={{fontSize:9,letterSpacing:1.5,color:labelColor,fontWeight:700}}>{c.label}</div>
-                  <div style={{fontSize:10,fontWeight:900,color:c.color||color,...mono}}>{c.value}</div>
-                </div>
-                <div style={{fontSize:8,color:"#444",...mono,lineHeight:1.6}}>{c.note}</div>
-              </div>
-            </div>
-          );
-        })}
 
         {/* Instruments toggle section */}
         <div style={card({marginTop:8})}>
