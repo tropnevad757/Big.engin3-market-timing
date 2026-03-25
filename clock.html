@@ -211,7 +211,7 @@ const PLANS = [
   { id:"pro",     name:"PRO",     price:59,  color:A,
     perks:["Everything in CORE","Recalibration · Continuation","BUY CORE vs SELL RESET Logic","Currency Meter + Polarity","6-Step Entry Checklist","Zone Backtesting"],
     locked:["Full Execution Ruleset","Win Rate Estimator","Trade Tracker","AeroGrid Tool"] },
-  { id:"elite",   name:"ELITE",   price:149, color:"#ff9500",
+  { id:"elite",   name:"₿",   price:149, color:"#ff9500",
     perks:["Everything in PRO","Full Execution Ruleset","Stop · Trail · Exit · Sizing","Live Win Rate Estimator","Trade Tracker","AeroGrid Tool (Elite Only)","Priority Support"],
     locked:[] },
 ];
@@ -466,8 +466,8 @@ function App() {
   const [newsArticles, setNewsArticles] = useState([]);
   const [newsLoading,  setNewsLoading]  = useState(false);
   const [newsError,    setNewsError]    = useState("");
-  const [newsSrc,      setNewsSrc]      = useState("reuters");
-  const [newsView,     setNewsView]     = useState("news");
+  const [newsSrc,      setNewsSrc]      = useState("combo");
+  const [newsView,     setNewsView]     = useState("mixed");
   const [newsExpanded, setNewsExpanded] = useState(null);
   // Breaking news anchor — polarity override for high-impact events
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
@@ -597,16 +597,22 @@ function App() {
 
   // ── News fetch functions (App level — survives re-renders) ──────────────────
   const NEWS_FEEDS = [
-    { id:"reuters",    label:"Google News: Reuters Markets",  color:"#ff6b35",
-      url:"https://news.google.com/rss/search?q=site:reuters.com+markets+OR+stocks+OR+fed+OR+rates+OR+inflation+OR+bitcoin&hl=en-US&gl=US&ceid=US:en",
-      fallback:"https://news.google.com/rss/search?q=site:reuters.com+markets&hl=en-US&gl=US&ceid=US:en" },
-    { id:"bloomberg",  label:"Google News: Bloomberg Markets", color:"#00ff88",
-      url:"https://news.google.com/rss/search?q=site:bloomberg.com/markets+OR+site:bloomberg.com+markets+OR+fed+OR+rates+OR+inflation+OR+bitcoin&hl=en-US&gl=US&ceid=US:en",
-      fallback:"https://news.google.com/rss/search?q=site:bloomberg.com/markets&hl=en-US&gl=US&ceid=US:en" },
-    { id:"nasdaq",     label:"Nasdaq News",      color:"#00aaff",
-      url:"https://www.nasdaq.com/feed/rssoutbound?category=Markets",
-      fallback:"https://www.nasdaq.com/feed/rssoutbound?category=Cryptocurrencies" },
-  ];
+  { id:"combo", label:"Markets Combined", color:"#ffb347",
+    urls:[
+      "https://news.google.com/rss/search?q=Reuters%20Markets&hl=en-US&gl=US&ceid=US:en",
+      "https://news.google.com/rss/search?q=Bloomberg%20Markets&hl=en-US&gl=US&ceid=US:en"
+    ]
+  },
+  { id:"reuters", label:"Reuters Markets", color:"#ff6b35",
+    urls:["https://news.google.com/rss/search?q=Reuters%20Markets&hl=en-US&gl=US&ceid=US:en"]
+  },
+  { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
+    urls:["https://news.google.com/rss/search?q=Bloomberg%20Markets&hl=en-US&gl=US&ceid=US:en"]
+  },
+  { id:"nasdaq", label:"Nasdaq", color:"#00aaff",
+    urls:["https://www.nasdaq.com/feed/rssoutbound?category=Markets"]
+  }
+];
 
   // ── Economic calendar live news feeds (Google News RSS — same method as Feedly/FeedLab) ──
   // Google News RSS works cross-origin and mirrors what feedly/feedlab pull
@@ -719,11 +725,20 @@ function App() {
 
   // Load eco news when viewing the EVENTS tab, refresh every 5 min
   useEffect(()=>{
-    if(newsView==="events") {
+    if(newsView==="events" || newsView==="mixed") {
       ecoLoadedRef.current = false;
       fetchEcoNews();
     }
   }, [newsView]);
+
+  useEffect(()=>{
+    if(newsView==="news" || newsView==="mixed") {
+      if(newsLoadedFor.current !== newsSrc){
+        newsLoadedFor.current = newsSrc;
+        fetchNews(newsSrc);
+      }
+    }
+  }, [newsView, newsSrc, fetchNews]);
 
 
   function parseRSSXML(xml, feed){
@@ -750,47 +765,68 @@ function App() {
 
   const fetchNewsRef = useRef(false);
   const fetchNews = useCallback((feedId)=>{
-    const feed = NEWS_FEEDS.find(f=>f.id===feedId);
+    const feed = NEWS_FEEDS.find(f=>f.id===feedId) || NEWS_FEEDS[0];
     if(!feed) return;
-    if(fetchNewsRef.current) return; // prevent double-fire
+    if(fetchNewsRef.current) return;
     fetchNewsRef.current = true;
     setNewsLoading(true); setNewsError(""); setNewsArticles([]);
 
     function done(arts){ setNewsArticles(arts); setNewsLoading(false); fetchNewsRef.current=false; }
     function fail(msg){ setNewsError(msg); setNewsLoading(false); fetchNewsRef.current=false; }
 
-    function tryProxy(url, onFail){
-      const proxy = "https://api.allorigins.win/raw?url="+encodeURIComponent(url);
-      fetch(proxy,{cache:"no-cache"})
-        .then(r=>{ if(!r.ok) throw new Error(r.status); return r.text(); })
-        .then(xml=>{
-          const parsed = parseRSSXML(xml, feed);
-          if(parsed && parsed.length>0){ done(parsed); }
-          else { onFail(); }
-        })
-        .catch(()=>onFail());
+    function parseOne(xmlText, label){
+      try{
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xmlText, "text/xml");
+        const items = Array.from(doc.querySelectorAll("item, entry")).slice(0, 20);
+        return items.map((el, idx)=>{
+          const g = tag => (el.querySelector(tag)||{textContent:""}).textContent.trim();
+          const linkEl = el.querySelector("link[href]");
+          const link = linkEl ? linkEl.getAttribute("href") : g("link");
+          return {
+            id: `${label}-${idx}-${g("title")}`,
+            title: g("title"),
+            link: link || "",
+            pub: g("pubDate") || g("published") || g("updated") || "",
+            desc: (g("description") || g("summary") || "").replace(/<[^>]+>/g,"").trim(),
+            feedLabel: label
+          };
+        }).filter(x=>x.title);
+      }catch(e){ return []; }
     }
 
-    function tryFallback(){ feed.fallback ? tryProxy(feed.fallback, ()=>fail("Feed unavailable. Try another source.")) : fail("Feed unavailable. Try another source."); }
+    function fetchXml(url){
+      const proxy = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      return fetch(proxy,{cache:"no-cache"}).then(r=>{
+        if(!r.ok) throw new Error(String(r.status));
+        return r.text();
+      });
+    }
 
-    // Try rss2json first (most reliable when online)
-    const api = "https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(feed.url)+"&api_key=public&count=20";
-    fetch(api,{cache:"no-cache"})
-      .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(data=>{
-        if(data.status==="ok" && data.items && data.items.length>0){
-          const arts = data.items.map(item=>({
-            title:  (item.title||"").trim(),
-            link:   item.link||item.guid||"",
-            pub:    item.pubDate||"",
-            desc:   (item.description||item.content||"")
-                      .replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200),
-            color:  feed.color, source: feed.label,
-          })).filter(a=>a.title && a.title.length>3);
-          if(arts.length>0){ done(arts); } else { tryProxy(feed.url, tryFallback); }
-        } else { tryProxy(feed.url, tryFallback); }
-      })
-      .catch(()=>tryProxy(feed.url, tryFallback));
+    const urls = feed.urls || (feed.url ? [feed.url] : []);
+    if(!urls.length){ fail("Feed unavailable."); return; }
+
+    Promise.all(urls.map(async (url)=>{
+      let label = feed.label;
+      if(/Reuters/i.test(url)) label = "Reuters Markets";
+      if(/Bloomberg/i.test(url)) label = "Bloomberg Markets";
+      const xml = await fetchXml(url);
+      return parseOne(xml, label);
+    }))
+    .then(groups=>{
+      let arts = groups.flat();
+      const seen = new Set();
+      arts = arts.filter(a=>{
+        const key = (a.title || "").toLowerCase();
+        if(!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+      if(arts.length) done(arts.slice(0,30));
+      else fail("No recent market news found.");
+    })
+    .catch(()=>fail("Feed unavailable. Try another source."));
   }, []);
 
   // Auto-load news once on mount and when source changes
@@ -1269,9 +1305,9 @@ function App() {
     if(!can("backtest_full")&&plan!=="pro") return(
       <div style={{padding:32,textAlign:"center"}}>
         <div style={{fontSize:44,marginBottom:14}}>📊</div>
-        <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:8,letterSpacing:2}}>ELITE FEATURE</div>
+        <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:8,letterSpacing:2}}>₿ FEATURE</div>
         <div style={{fontSize:10,color:"#999",...mono,lineHeight:1.9,marginBottom:20}}>Full 12-month backtesting.<br/>Avg points · flip logs · sub-window win rates.</div>
-        <button onClick={()=>setSubOpen(true)} style={{background:`${A}1a`,border:`1px solid ${A}`,color:A,borderRadius:12,padding:"12px 26px",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:2}}>UPGRADE TO ELITE →</button>
+        <button onClick={()=>setSubOpen(true)} style={{background:`${A}1a`,border:`1px solid ${A}`,color:A,borderRadius:12,padding:"12px 26px",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:2}}>UPGRADE TO ₿ →</button>
       </div>
     );
     const data=bt[btZone], zone=zones.find(z=>z.id===btZone), zCol=(zone&&zone.type)==="buy"?G:(zone&&zone.type)==="sell"?R:D;
@@ -1302,7 +1338,7 @@ function App() {
             <div style={{fontSize:13,fontWeight:700,color:zCol}}>{(zone&&zone.type)==="buy"?"▲ BUY":"▼ SELL"} · {(zone&&zone.label)}</div>
             {can("sub_pocket")&&<div style={{fontSize:11,color:"#aaa",marginTop:3,...mono}}>★ {(zone&&zone.pocket&&zone.pocket.label)}</div>}
             <div style={{fontSize:12,color:data.wins>=75?G:data.wins>=65?A:R,marginTop:6}}>
-              {data.wins>=75?"✓ ELITE WINDOW":data.wins>=65?"✓ HIGH CONFIDENCE":data.wins>=55?"◆ MODERATE":"⚠ LOW — USE FILTER"}
+              {data.wins>=75?"✓ ₿ WINDOW":data.wins>=65?"✓ HIGH CONFIDENCE":data.wins>=55?"◆ MODERATE":"⚠ LOW — USE FILTER"}
             </div>
           </div>
           <svg width={64} height={64}>
@@ -1434,9 +1470,10 @@ function App() {
 
     const LINKS = [
       { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
-      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar events" },
+      { label:"",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
+      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
       { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
-      { label:"Reuters Markets",    color:"#ff6b35",  url:"https://news.google.com/rss/search?q=site:reuters.com+markets&hl=en-US&gl=US&ceid=US:en", desc:"Google News feed for Reuters markets" },
+      { label:"Investing.com",      color:"#ff9500",  url:"https://www.investing.com/news/latest-news",              desc:"Latest financial news" },
     ];
 
     function fmtDate(s){
@@ -1456,7 +1493,7 @@ function App() {
 
         {/* Toggle */}
         <div style={{display:"flex",gap:6,marginBottom:14}}>
-          {[{id:"news",l:"📰 NEWS"},{id:"events",l:"⚡ EVENTS"},{id:"calendar",l:"📅 CALENDAR"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
+          {[{id:"mixed",l:"🧠 FEED"},{id:"news",l:"📰 NEWS"},{id:"events",l:"⚡ EVENTS"},{id:"calendar",l:"📅 CALENDAR"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
               border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
@@ -1490,15 +1527,6 @@ function App() {
         {/* ── LIVE ECO NEWS / EVENTS ── */}
         {newsView==="events"&&(
           <div>
-            <div style={{display:"flex",gap:6,marginBottom:12}}>
-              <button onClick={()=>window.open('https://www.myfxbook.com/forex-economic-calendar','_blank','noopener,noreferrer')} style={{flex:1,padding:"9px 0",borderRadius:10,background:"rgba(136,170,255,0.12)",border:"1px solid rgba(136,170,255,0.35)",color:"#88aaff",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                MYFXBOOK CALENDAR ↗
-              </button>
-              <button onClick={()=>window.open('https://tradingeconomics.com/calendar','_blank','noopener,noreferrer')} style={{flex:1,padding:"9px 0",borderRadius:10,background:"rgba(240,160,48,0.12)",border:"1px solid rgba(240,160,48,0.35)",color:A,fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                TRADINGECONOMICS ↗
-              </button>
-            </div>
-
             {/* Star filter */}
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
               <div style={{fontSize:11,color:"#888",...mono,flexShrink:0}}>MIN IMPACT:</div>
@@ -1526,7 +1554,7 @@ function App() {
               </button>
             </div>
 
-            {ecoLoading&&<div style={{textAlign:"center",padding:"24px",color:"#555",...mono,fontSize:12}}>⏳ Loading event feed…</div>}
+            {ecoLoading&&<div style={{textAlign:"center",padding:"24px",color:"#555",...mono,fontSize:12}}>⏳ Loading live economic news…</div>}
 
             {/* Live eco news cards */}
             {!ecoLoading&&(ecoArticles.filter(a=>a.stars>=ecoStarFilter||(ecoStarFilter===0))).map((art,i)=>{
@@ -1562,13 +1590,102 @@ function App() {
             })}
             {!ecoLoading&&ecoArticles.filter(a=>a.stars>=(ecoStarFilter||1)).length===0&&(
               <div style={{textAlign:"center",padding:"24px",color:"#555",...mono,fontSize:12}}>
-                No {ecoStarFilter>0?"★".repeat(ecoStarFilter)+"+":""} events found. Try lower filter, refresh, or open the calendar source buttons above.
+                No {ecoStarFilter>0?"★".repeat(ecoStarFilter)+"+":""} events found. Try lower filter or refresh.
               </div>
             )}
           </div>
         )}
 
         {/* ── LIVE NEWS ── */}
+        
+        {/* ── MIXED FEED (events + breaking news together) ── */}
+        {newsView==="mixed"&&(
+          <>
+            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
+              <div style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>LIVE FEED</div>
+              <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:10,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
+            </div>
+
+            {(ecoLoading || newsLoading)&&(
+              <div style={{textAlign:"center",padding:"24px",color:"#555",fontFamily:"'Share Tech Mono',monospace",fontSize:12}}>Refreshing feed...</div>
+            )}
+
+            {(()=>{
+              const mixed = [
+                ...ecoArticles.map(a=>({
+                  kind:"event",
+                  title:a.title,
+                  link:a.link,
+                  pub:a.pub,
+                  desc:a.desc,
+                  color:a.stars===3?"#ff3355":a.stars===2?"#f0a030":"#88aaff",
+                  source:(a.source||"Event"),
+                  stars:a.stars||0,
+                  bullish:!!a.bullish,
+                  bearish:!!a.bearish
+                })),
+                ...newsArticles.map(a=>({
+                  kind:"news",
+                  title:a.title,
+                  link:a.link,
+                  pub:a.pub,
+                  desc:a.desc,
+                  color:a.color||"#888",
+                  source:a.feedLabel||a.source||"News",
+                  stars:0,
+                  bullish:false,
+                  bearish:false
+                }))
+              ].filter(x=>x.title);
+
+              mixed.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+              const rows = mixed.slice(0, 40);
+
+              if(!rows.length && !ecoLoading && !newsLoading){
+                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:12}}>No feed items yet — tap refresh.</div>;
+              }
+
+              return rows.map((item,i)=>(
+                <div key={i}
+                  onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
+                  style={{
+                    background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
+                    borderRadius:12,padding:"12px 14px",marginBottom:8,
+                    cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
+                  }}>
+                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color}}/>
+                  <div style={{paddingLeft:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        <span style={{fontSize:11,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"📰 NEWS"}</span>
+                        <span style={{fontSize:11,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                        {item.stars>0 && <span style={{fontSize:11,color:item.color}}>{"★".repeat(item.stars)}</span>}
+                      </div>
+                      <span style={{fontSize:11,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
+                    </div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
+                    {item.desc&&<div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
+                      {item.link&&<span style={{fontSize:10,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
+                      {item.kind==="event" && (item.bullish || item.bearish) && (
+                        <button
+                          onClick={(e)=>{e.stopPropagation(); setBreakingAnchor({title:item.title,polarity:item.bearish?-1:1,expiresAt:Date.now()+15*60*1000,stars:item.stars||3});}}
+                          style={{fontSize:10,padding:"2px 8px",borderRadius:6,
+                            background:item.bearish?`${R}18`:`${G}18`,
+                            border:`1px solid ${item.bearish?R:G}44`,
+                            color:item.bearish?R:G,cursor:"pointer",fontWeight:700}}>
+                          ⚡ ANCHOR {item.bearish?"BEAR":"BULL"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ));
+            })()}
+          </>
+        )}
+
+
         {newsView==="news"&&(
           <>
             {/* Source selector */}
@@ -1601,7 +1718,7 @@ function App() {
               <div style={{padding:"14px 16px",background:"rgba(255,51,85,0.07)",border:"1px solid rgba(255,51,85,0.25)",borderRadius:12,marginBottom:12}}>
                 <div style={{fontSize:10,color:"#ff7788",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>{newsError}</div>
                 <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>
-                  Try switching source or refresh. Reuters and Bloomberg now use Google News RSS queries.
+                  Try switching source or use the SOURCES tab to open sites directly.
                 </div>
               </div>
             )}
@@ -1687,7 +1804,7 @@ function App() {
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>News tab uses Google News RSS for Reuters and Bloomberg-style market headlines. Calendar sources stay below for direct event access.</div>
+              <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Google-powered Reuters/Bloomberg market searches on-page. Calendar links remain below for Myfxbook and Trading Economics.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
@@ -1713,7 +1830,7 @@ function App() {
       <div style={{background:"#0d0d22",borderRadius:20,padding:28,border:`1px solid ${A}44`,maxWidth:340,width:"100%",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:36,marginBottom:12}}>⚡</div>
         <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:8,letterSpacing:2}}>UPGRADE REQUIRED</div>
-        <div style={{fontSize:10,color:"#999",...mono,lineHeight:1.9,marginBottom:20}}>This feature requires PRO or ELITE.<br/>Unlock all instruments, VWAP bands,<br/>sound alerts, flip system & backtesting.</div>
+        <div style={{fontSize:10,color:"#999",...mono,lineHeight:1.9,marginBottom:20}}>This feature requires PRO or ₿.<br/>Unlock all instruments, VWAP bands,<br/>sound alerts, flip system & backtesting.</div>
         <button onClick={()=>{setSubOpen(false);setTab("account");}} style={{width:"100%",padding:"13px",borderRadius:12,background:`${A}1a`,border:`1px solid ${A}`,color:A,fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:2,marginBottom:10}}>VIEW PLANS →</button>
         <button onClick={()=>setSubOpen(false)} style={{background:"none",border:"none",color:"#bbb",fontSize:11,cursor:"pointer",letterSpacing:1}}>CLOSE</button>
       </div>
@@ -1745,7 +1862,7 @@ function App() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {liveZ.length>0&&<div style={{width:7,height:7,borderRadius:"50%",background:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,boxShadow:`0 0 8px ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}`}}/>}
-          <div style={{padding:"5px 12px",borderRadius:18,background:`${A}12`,border:`1px solid ${A}33`,color:A,fontSize:14,fontWeight:700,letterSpacing:1}}>₿</div>
+          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:11,fontWeight:700,letterSpacing:1}}>{plan.toUpperCase()}</div>
         </div>
       </div>
 
