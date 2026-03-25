@@ -127,19 +127,15 @@ const BASE_ZONES = [
 
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
 const CATS = [
-  { id:"crypto", label:"CRYPTO", icon:"₿", items:[
-    { id:"BTC",  name:"BTC / USD",  desc:"Bitcoin",        bias:"bull",   active:true,  corr:"primary" },
-    { id:"ETH",  name:"ETH / USD",  desc:"Ethereum",       bias:"bull",   active:true,  corr:"primary" },
-    { id:"SOL",  name:"SOL / USD",  desc:"Solana",         bias:"bull",   active:false, corr:"confirm" },
-    { id:"XRP",  name:"XRP / USD",  desc:"Ripple",         bias:"bull",   active:false, corr:"confirm" },
-    { id:"BNB",  name:"BNB / USD",  desc:"Binance Coin",   bias:"bull",   active:false, corr:"confirm" },
-    { id:"ADA",  name:"ADA / USD",  desc:"Cardano",        bias:"bull",   active:false, corr:"confirm" },
-    { id:"AVAX", name:"AVAX / USD", desc:"Avalanche",      bias:"bull",   active:false, corr:"risk"    },
-    { id:"LINK", name:"LINK / USD", desc:"Chainlink",      bias:"bull",   active:false, corr:"risk"    },
-    { id:"DOT",  name:"DOT / USD",  desc:"Polkadot",       bias:"bull",   active:false, corr:"risk"    },
-    { id:"DOGE", name:"DOGE / USD", desc:"Dogecoin",       bias:"neutral",active:false, corr:"risk"    },
-    { id:"ARB",  name:"ARB / USD",  desc:"Arbitrum",       bias:"bull",   active:false, corr:"risk"    },
-    { id:"SUI",  name:"SUI / USD",  desc:"Sui Network",    bias:"bull",   active:false, corr:"risk"    },
+  { id:"futures", label:"FUTURES", icon:"📈", items:[
+    { id:"ES",   name:"ES / SPX",   desc:"S&P 500 Futures",    bias:"bull",   active:true,  corr:"primary" },
+    { id:"NQ",   name:"NQ / NDX",   desc:"Nasdaq 100 Futures", bias:"bull",   active:true,  corr:"primary" },
+    { id:"YM",   name:"YM / DOW",   desc:"Dow Jones Futures",  bias:"bull",   active:true,  corr:"confirm" },
+    { id:"RTY",  name:"RTY / IWM",  desc:"Russell 2000",       bias:"bull",   active:false, corr:"confirm" },
+    { id:"VIX",  name:"VIX",        desc:"Volatility Index",   bias:"bear",   active:true,  corr:"inverse" },
+    { id:"GC",   name:"GC / Gold",  desc:"Gold Futures",       bias:"neutral",active:false, corr:"safe"    },
+    { id:"CL",   name:"CL / Oil",   desc:"Crude Oil",          bias:"neutral",active:false, corr:"confirm" },
+    { id:"ZN",   name:"ZN / 10Y",   desc:"10-Year T-Note",     bias:"bull",   active:false, corr:"inverse" },
   ]},
   { id:"forex", label:"FOREX", icon:"💱", items:[
     { id:"DXY",    name:"DXY",      desc:"Dollar Index",   bias:"bear", active:true,  corr:"inverse" },
@@ -153,19 +149,22 @@ const CATS = [
     { id:"NZDUSD", name:"NZD/USD",  desc:"Kiwi",           bias:"bull", active:false, corr:"confirm" },
     { id:"XAUUSD", name:"XAU/USD",  desc:"Gold vs Dollar", bias:"neutral",active:false,corr:"safe"   },
   ]},
-  { id:"futures", label:"FUTURES", icon:"📈", items:[
-    { id:"ES",   name:"ES / SPX",   desc:"S&P 500 Futures",    bias:"bull",   active:true,  corr:"primary" },
-    { id:"NQ",   name:"NQ / NDX",   desc:"Nasdaq 100 Futures", bias:"bull",   active:true,  corr:"primary" },
-    { id:"YM",   name:"YM / DOW",   desc:"Dow Jones Futures",  bias:"bull",   active:true,  corr:"confirm" },
-    { id:"RTY",  name:"RTY / IWM",  desc:"Russell 2000",       bias:"bull",   active:false, corr:"confirm" },
-    { id:"VIX",  name:"VIX",        desc:"Volatility Index",   bias:"bear",   active:true,  corr:"inverse" },
-    { id:"GC",   name:"GC / Gold",  desc:"Gold Futures",       bias:"neutral",active:false, corr:"safe"    },
-    { id:"SI",   name:"SI / Silver",desc:"Silver Futures",     bias:"neutral",active:false, corr:"safe"    },
-    { id:"CL",   name:"CL / Oil",   desc:"Crude Oil",          bias:"neutral",active:false, corr:"confirm" },
-    { id:"ZN",   name:"ZN / 10Y",   desc:"10-Year T-Note",     bias:"bull",   active:false, corr:"inverse" },
-    { id:"ZB",   name:"ZB / 30Y",   desc:"30-Year T-Bond",     bias:"bull",   active:false, corr:"inverse" },
-  ]},
-
+  { id:"crypto", label:"CRYPTO", icon:"₿", items:[
+    { id:"BTC",  name:"BTC / USD",  desc:"Bitcoin",        bias:"bull",   active:true,  corr:"primary" },
+    { id:"ETH",  name:"ETH / USD",  desc:"Ethereum",       bias:"bull",   active:true,  corr:"primary" },
+    { id:"SOL",  name:"SOL / USD",  desc:"Solana",         bias:"bull",   active:false, corr:"confirm" },
+    { id:"XRP",  name:"XRP / USD",  desc:"Ripple",         bias:"bull",   active:false, corr:"confirm" },
+    { id:"BNB",  name:"BNB / USD",  desc:"Binance Coin",   bias:"bull",   active:false, corr:"confirm" },
+    { id:"ADA",  name:"ADA / USD",  desc:"Cardano",        bias:"bull",   active:false, corr:"confirm" },
+    { id:"AVAX", name:"AVAX / USD", desc:"Avalanche",      bias:"bull",   active:false, corr:"risk"    },
+    { id:"LINK", name:"LINK / USD", desc:"Chainlink",      bias:"bull",   active:false, corr:"risk"    },
+    { id:"DOT",  name:"DOT / USD",  desc:"Polkadot",       bias:"bull",   active:false, corr:"risk"    },
+    { id:"DOGE", name:"DOGE / USD", desc:"Dogecoin",       bias:"neutral",active:false, corr:"risk"    },
+    { id:"ARB",  name:"ARB / USD",  desc:"Arbitrum",       bias:"bull",   active:false, corr:"risk"    },
+    { id:"SUI",  name:"SUI / USD",  desc:"Sui Network",    bias:"bull",   active:false, corr:"risk"    },
+    { id:"TON",  name:"TON / USD",  desc:"Toncoin",        bias:"bull",   active:false, corr:"risk"    },
+    { id:"SHIB", name:"SHIB / USD", desc:"Shiba Inu",      bias:"neutral",active:false, corr:"risk"    },
+  ]}
 ];
 
 const CORR_C = { primary:A, confirm:G, inverse:R, safe:"#88aaff", risk:"#aa88ff", other:"#aaa" };
@@ -569,23 +568,41 @@ function App() {
   };
 
   // ── News fetch functions (App level — survives re-renders) ──────────────────
+  // ── FEED: Google News RSS — same method Feedly/FeedLab uses for Reuters & Bloomberg ──
+  // Each query surfaces real Reuters/Bloomberg market articles via Google's aggregator
   const NEWS_FEEDS = [
-  { id:"combo", label:"Markets Combined", color:"#ffb347",
-    urls:[
-      "https://news.google.com/rss/search?q=Reuters%20Markets&hl=en-US&gl=US&ceid=US:en",
-      "https://news.google.com/rss/search?q=Bloomberg%20Markets&hl=en-US&gl=US&ceid=US:en"
-    ]
-  },
-  { id:"reuters", label:"Reuters Markets", color:"#ff6b35",
-    urls:["https://news.google.com/rss/search?q=Reuters%20Markets&hl=en-US&gl=US&ceid=US:en"]
-  },
-  { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
-    urls:["https://news.google.com/rss/search?q=Bloomberg%20Markets&hl=en-US&gl=US&ceid=US:en"]
-  },
-  { id:"nasdaq", label:"Nasdaq", color:"#00aaff",
-    urls:["https://www.nasdaq.com/feed/rssoutbound?category=Markets"]
-  }
-];
+    { id:"combo", label:"Markets Feed", color:"#ffb347",
+      // Combined: Reuters + Bloomberg market headlines merged and deduped
+      urls:[
+        "https://news.google.com/rss/search?q=site:reuters.com+markets+OR+finance+OR+stocks+OR+crypto&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=site:bloomberg.com+markets+OR+finance+OR+crypto+OR+rates&hl=en-US&gl=US&ceid=US:en"
+      ]
+    },
+    { id:"reuters", label:"Reuters Markets", color:"#ff6b35",
+      // Mirrors Reuters Markets channel via Google News (same as Feedly reuters/businessNews)
+      urls:[
+        "https://news.google.com/rss/search?q=site:reuters.com+%22markets%22+OR+%22stocks%22+OR+%22crypto%22+OR+%22bitcoin%22+OR+%22federal+reserve%22&hl=en-US&gl=US&ceid=US:en"
+      ]
+    },
+    { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
+      // Mirrors Bloomberg Markets channel via Google News (same as Feedly bloomberg markets)
+      urls:[
+        "https://news.google.com/rss/search?q=site:bloomberg.com+%22markets%22+OR+%22bitcoin%22+OR+%22crypto%22+OR+%22fed%22+OR+%22rates%22&hl=en-US&gl=US&ceid=US:en"
+      ]
+    },
+    { id:"crypto", label:"Crypto Markets", color:"#00ff88",
+      // Bitcoin/crypto specific from Reuters + Bloomberg + CoinDesk
+      urls:[
+        "https://news.google.com/rss/search?q=%22bitcoin%22+OR+%22crypto%22+OR+%22ethereum%22+site:reuters.com+OR+site:bloomberg.com+OR+site:coindesk.com&hl=en-US&gl=US&ceid=US:en"
+      ]
+    },
+    { id:"macro", label:"Macro / Fed", color:"#aa88ff",
+      // Fed, rates, CPI, NFP via Reuters + Bloomberg
+      urls:[
+        "https://news.google.com/rss/search?q=%22federal+reserve%22+OR+%22interest+rate%22+OR+%22inflation%22+OR+%22CPI%22+OR+%22NFP%22+site:reuters.com+OR+site:bloomberg.com&hl=en-US&gl=US&ceid=US:en"
+      ]
+    },
+  ];
 
   // ── Economic calendar live news feeds (Google News RSS — same method as Feedly/FeedLab) ──
   // Google News RSS works cross-origin and mirrors what feedly/feedlab pull
@@ -747,57 +764,85 @@ function App() {
     function done(arts){ setNewsArticles(arts); setNewsLoading(false); fetchNewsRef.current=false; }
     function fail(msg){ setNewsError(msg); setNewsLoading(false); fetchNewsRef.current=false; }
 
-    function parseOne(xmlText, label){
+    function cleanTitle(t){ return (t||"").trim().replace(/\s*[-|]\s*(Reuters|Bloomberg|CNBC|WSJ|FT|MarketWatch).*$/i,""); }
+
+    // Parse raw XML (allorigins fallback)
+    function parseXml(xmlText, label){
       try{
         const parser = new DOMParser();
         const doc = parser.parseFromString(xmlText, "text/xml");
         const items = Array.from(doc.querySelectorAll("item, entry")).slice(0, 20);
-        return items.map((el, idx)=>{
+        return items.map((el,idx)=>{
           const g = tag => (el.querySelector(tag)||{textContent:""}).textContent.trim();
           const linkEl = el.querySelector("link[href]");
           const link = linkEl ? linkEl.getAttribute("href") : g("link");
           return {
-            id: `${label}-${idx}-${g("title")}`,
-            title: g("title"),
-            link: link || "",
-            pub: g("pubDate") || g("published") || g("updated") || "",
-            desc: (g("description") || g("summary") || "").replace(/<[^>]+>/g,"").trim(),
-            feedLabel: label
+            title: cleanTitle(g("title")),
+            link: link||"",
+            pub: g("pubDate")||g("published")||g("updated")||"",
+            desc: (g("description")||g("summary")||"").replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").trim().slice(0,200),
+            feedLabel: label,
           };
-        }).filter(x=>x.title);
+        }).filter(x=>x.title && x.title.length>4);
       }catch(e){ return []; }
     }
 
-    function fetchXml(url){
-      const proxy = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
-      return fetch(proxy,{cache:"no-cache"}).then(r=>{
-        if(!r.ok) throw new Error(String(r.status));
-        return r.text();
-      });
+    // Parse rss2json response (primary — same as eco feeds)
+    function parseJson(data, label){
+      if(data.status!=="ok"||!data.items||!data.items.length) return [];
+      return data.items.map(item=>({
+        title: cleanTitle(item.title||""),
+        link: item.link||item.guid||"",
+        pub: item.pubDate||"",
+        desc: (item.description||item.content||"").replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").trim().slice(0,200),
+        feedLabel: label,
+      })).filter(x=>x.title && x.title.length>4);
     }
 
     const urls = feed.urls || (feed.url ? [feed.url] : []);
     if(!urls.length){ fail("Feed unavailable."); return; }
 
+    // Fetch each URL: try rss2json first (more reliable for Google News), then allorigins raw XML
     Promise.all(urls.map(async (url)=>{
       let label = feed.label;
-      if(/Reuters/i.test(url)) label = "Reuters Markets";
-      if(/Bloomberg/i.test(url)) label = "Bloomberg Markets";
-      const xml = await fetchXml(url);
-      return parseOne(xml, label);
+      if(/reuters/i.test(url)) label = "Reuters Markets";
+      if(/bloomberg/i.test(url)) label = "Bloomberg Markets";
+      if(/coindesk/i.test(url)) label = "CoinDesk";
+
+      // Primary: rss2json — works reliably for Google News RSS (feedly method)
+      try {
+        const api = "https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(url)+"&api_key=public&count=20";
+        const r = await fetch(api,{cache:"no-cache"});
+        if(r.ok){
+          const data = await r.json();
+          const arts = parseJson(data, label);
+          if(arts.length) return arts;
+        }
+      } catch(e){}
+
+      // Fallback: allorigins raw XML proxy
+      try {
+        const proxy = "https://api.allorigins.win/raw?url="+encodeURIComponent(url);
+        const r = await fetch(proxy,{cache:"no-cache"});
+        if(r.ok){
+          const xml = await r.text();
+          return parseXml(xml, label);
+        }
+      } catch(e){}
+
+      return [];
     }))
     .then(groups=>{
       let arts = groups.flat();
       const seen = new Set();
       arts = arts.filter(a=>{
-        const key = (a.title || "").toLowerCase();
-        if(!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
+        const key = (a.title||"").toLowerCase().slice(0,50);
+        if(!key||seen.has(key)) return false;
+        seen.add(key); return true;
       });
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
       if(arts.length) done(arts.slice(0,30));
-      else fail("No recent market news found.");
+      else fail("No recent market news found. Try refreshing.");
     })
     .catch(()=>fail("Feed unavailable. Try another source."));
   }, []);
@@ -831,47 +876,47 @@ function App() {
         </button>
       </div>
 
-      {/* Active zone */}
-      {liveZ.length>0?(
-        <div style={card({border:`1px solid ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}55`,background:`${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}0a`,padding:"16px"})}>
-          {inSub&&<div style={{fontSize:11,letterSpacing:2,color:"#fff",fontWeight:700,marginBottom:6,background:"rgba(255,255,255,0.1)",borderRadius:6,padding:"4px 10px",display:"inline-block"}}>★ PRIME POCKET ACTIVE</div>}
-          <div style={{fontSize:30,fontWeight:900,color:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,letterSpacing:2,marginBottom:4}}>
-            {liveZ[0].type==="buy"?"▲  BUY CORE":liveZ[0].type==="sell"?"▼  SELL RESET":"◆  DEAD ZONE"}
-          </div>
-          <div style={{fontSize:10,color:ovCol,...mono,marginBottom:4}}>
-            {overall==="BULLISH"&&liveZ[0].type==="buy"?"✓ Bias confirmed — FULL EDGE":
-             overall==="BEARISH"&&liveZ[0].type==="sell"?"✓ Bias confirmed — FULL EDGE":
-             overall==="BULLISH"&&liveZ[0].type==="sell"?"⚠ Counter-bias — reduce size":
-             overall==="BEARISH"&&liveZ[0].type==="buy"?"⚠ Counter-bias — reduce size":
-             "◆ Neutral bias — zone only"}
-          </div>
-          {can("sub_pocket")&&inSub&&<div style={{fontSize:12,color:"#fff",...mono,opacity:.7}}>★ {(liveZ[0].pocket&&liveZ[0].pocket.label)}</div>}
-        </div>
-      ):(
-        <div style={card({textAlign:"center",padding:"12px 16px"})}>
-          <div style={lbl("#bbb",{marginBottom:4})}>NO ACTIVE ZONE</div>
-          {nextZ&&<div style={{fontSize:10,color:"#888",marginTop:4,...mono}}>
-            Next: <span style={{color:nextZ.type==="buy"?G:R,fontWeight:700}}>{nextZ.type==="buy"?"▲ BUY":"▼ SELL"}</span>
-          </div>}
-        </div>
-      )}
-
-
-      {/* Active Zone strength bar — above clock for at-a-glance */}
+      {/* ── Combined Zone + Strength card (single card, no duplicate) ── */}
       {(()=>{
-        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        const str  = activeZoneStrength;
-        const col  = str >= 70 ? G : str >= 40 ? A : R;
-        if(!zone) return null;
-        return (
-          <div style={{marginBottom:8,padding:"10px 14px",borderRadius:12,background:`${col}0a`,border:`1px solid ${col}44`,display:"flex",alignItems:"center",gap:12}}>
-            <div style={{flex:1}}>
+        if(!liveZ.length) return(
+          <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.03)",padding:"14px 16px",textAlign:"center"}}>
+            <div style={{fontSize:12,color:"#555",letterSpacing:2,...mono}}>NO ACTIVE ZONE</div>
+            {nextZ&&<div style={{fontSize:10,color:"#888",marginTop:4,...mono}}>
+              Next: <span style={{color:nextZ.type==="buy"?G:R,fontWeight:700}}>{nextZ.type==="buy"?"▲ BUY":"▼ SELL"}</span>
+            </div>}
+          </div>
+        );
+        const z   = liveZ[0];
+        const col = z.type==="buy"?G:z.type==="sell"?R:D;
+        const str = activeZoneStrength;
+        const sc  = str>=70?G:str>=40?A:R;
+        const bz  = liveZ.find(lz=>lz.type!=="dead")||z;
+        return(
+          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${col}55`,background:`${col}0a`,padding:"16px 16px 12px"}}>
+            {inSub&&<div style={{fontSize:11,letterSpacing:2,color:"#fff",fontWeight:700,marginBottom:8,background:"rgba(255,255,255,0.1)",borderRadius:6,padding:"3px 10px",display:"inline-block"}}>★ PRIME POCKET ACTIVE</div>}
+            {/* Big zone direction label */}
+            <div style={{fontSize:30,fontWeight:900,color:col,letterSpacing:2,marginBottom:3,...mono}}>
+              {z.type==="buy"?"▲  BUY CORE":z.type==="sell"?"▼  SELL RESET":"◆  DEAD ZONE"}
+            </div>
+            {/* Bias line */}
+            <div style={{fontSize:11,color:ovCol,...mono,marginBottom:can("sub_pocket")&&inSub?4:10}}>
+              {overall==="BULLISH"&&z.type==="buy"?"✓ Bias confirmed — FULL EDGE":
+               overall==="BEARISH"&&z.type==="sell"?"✓ Bias confirmed — FULL EDGE":
+               overall==="BULLISH"&&z.type==="sell"?"⚠ Counter-bias — reduce size":
+               overall==="BEARISH"&&z.type==="buy"?"⚠ Counter-bias — reduce size":
+               "◆ Neutral bias — zone only"}
+            </div>
+            {can("sub_pocket")&&inSub&&<div style={{fontSize:11,color:"#fff",...mono,opacity:.7,marginBottom:10}}>★ {(z.pocket&&z.pocket.label)}</div>}
+            {/* Strength bar — inline, no second card */}
+            <div style={{borderTop:"1px solid rgba(255,255,255,0.09)",paddingTop:9}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <div style={{fontSize:10,letterSpacing:1.5,color:col,fontWeight:700}}>● {zone.label} · {zone.type==="buy"?"▲ BUY CORE":"▼ SELL RESET"}{inSub?" · ★ PRIME":""}</div>
-                <div style={{fontSize:18,fontWeight:900,color:col,...mono}}>{str}%</div>
+                <div style={{fontSize:10,letterSpacing:1.5,color:sc,fontWeight:700,...mono}}>
+                  ● {bz.label} · STRENGTH
+                </div>
+                <div style={{fontSize:18,fontWeight:900,color:sc,...mono}}>{str}%</div>
               </div>
-              <div style={{height:5,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`,transition:"width 1s"}}/>
+              <div style={{height:6,background:"rgba(255,255,255,0.07)",borderRadius:3,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${str}%`,background:sc,borderRadius:3,boxShadow:`0 0 8px ${sc}88`,transition:"width 1s"}}/>
               </div>
             </div>
           </div>
@@ -886,7 +931,7 @@ function App() {
       </div>
 
       {/* Orange dot legend */}
-      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:12,flexWrap:"wrap"}}>
         {[{c:G,l:"BUY CORE"},{c:R,l:"SELL RESET"},{c:"#fff",l:"★ PRIME POCKET"}].map(i=>(
           <div key={i.l} style={{display:"flex",alignItems:"center",gap:5,background:`${i.c}0e`,border:`1px solid ${i.c}22`,borderRadius:16,padding:"4px 10px"}}>
             <div style={{width:i.c==="#fff"?2:14,height:i.c==="#fff"?10:3,borderRadius:i.c==="#fff"?1:2,background:i.c,boxShadow:`0 0 5px ${i.c}88`}}/>
@@ -894,41 +939,6 @@ function App() {
           </div>
         ))}
       </div>
-      {/* Active Zone card — full detail below clock */}
-      {(()=>{
-        const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
-        const str  = activeZoneStrength;
-        const col  = str >= 70 ? G : str >= 40 ? A : R;
-        if (zone) {
-          return (
-            <div style={card({marginBottom:12,background:`${col}0a`,border:`2px solid ${col}55`})}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div>
-                  <div style={{fontSize:11,letterSpacing:2,color:col,fontWeight:700,marginBottom:3}}>● ACTIVE ZONE</div>
-                  <div style={{fontSize:20,fontWeight:900,color:"#fff",...mono}}>{zone.label}</div>
-                </div>
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:30,fontWeight:900,color:col,lineHeight:1}}>{str}%</div>
-                  <div style={{fontSize:11,color:"#888",letterSpacing:1}}>STRENGTH</div>
-                </div>
-              </div>
-              <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`,transition:"width 1s"}}/>
-              </div>
-              <div style={{fontSize:11,color:"#888",letterSpacing:1,marginTop:6,...mono}}>
-                zone win rate · confluence · correlation · best/worst day{inSub ? " · ★ prime pocket" : ""}
-              </div>
-            </div>
-          );
-        } else {
-          return (
-            <div style={card({marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"})}>
-              <div style={{fontSize:11,color:"#555",letterSpacing:2,...mono}}>NO ACTIVE ZONE</div>
-            </div>
-          );
-        }
-      })()}
-
       {/* Active Zone watchlist removed; zone label moved into active bar */}
 
       {/* Zone confidence table hidden */}
@@ -1480,7 +1490,7 @@ function App() {
     }
 
     const todayStr = new Date().toISOString().slice(0,10);
-    const upcoming = ECON.filter(e=>e.d>=todayStr);
+    const upcoming = (()=>{ const sameDay = ECON.filter(e=>e.d===todayStr); return sameDay.length ? sameDay : ECON.filter(e=>e.d>=todayStr); })();
 
     return (
       <div style={{padding:14}}>
@@ -1519,7 +1529,7 @@ function App() {
         )}
 
         {/* ── LIVE ECO NEWS / EVENTS ── */}
-        {/* old events section removed */}{false&&(
+        {newsView==="events"&&(
           <div>
             {/* Star filter */}
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
@@ -1680,7 +1690,7 @@ function App() {
         )}
 
 
-        {/* old news section removed */}{false&&(
+        {newsView==="news"&&(
           <>
             {/* Source selector */}
             <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
@@ -1749,40 +1759,52 @@ function App() {
         {/* ── ECONOMIC EVENTS ── */}
         {newsView==="calendar"&&(
           <>
-            {/* Today's events highlighted at top */}
+            {/* TODAY'S EVENTS — pinned to top, expanded */}
             {(()=>{
-              const todayEvs = upcoming.filter(e=>{
-                const d=new Date(e.d+"T12:00:00");
-                return Math.round((d-new Date())/(1000*60*60*24))<=0 && Math.round((d-new Date())/(1000*60*60*24))>-1;
+              const todayEvs = ECON.filter(e=>{
+                const d = new Date(e.d+"T12:00:00");
+                const diff = Math.round((d - new Date())/(1000*60*60*24));
+                return diff <= 0 && diff > -1;
               });
-              if(!todayEvs.length) return null;
+              if(!todayEvs.length) return(
+                <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:12,textAlign:"center"}}>
+                  <div style={{fontSize:11,color:"#555",...mono,letterSpacing:1}}>No scheduled events today</div>
+                </div>
+              );
               return(
-                <div style={{marginBottom:14}}>
+                <div style={{marginBottom:16}}>
                   <div style={{fontSize:11,letterSpacing:2,color:A,fontWeight:700,marginBottom:8}}>📅 TODAY'S EVENTS</div>
-                  {todayEvs.map((ev,i)=>(
-                    <div key={"t"+i} style={{background:`rgba(240,160,48,0.09)`,border:`1px solid ${A}55`,borderRadius:12,padding:"12px 14px",marginBottom:8,position:"relative",overflow:"hidden"}}>
-                      <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:A}}/>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:900,color:"#fff",lineHeight:1.3,marginBottom:4}}>{ev.l}</div>
-                          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                            <span style={{fontSize:11,color:IC[ev.imp]||"#888",background:`${IC[ev.imp]||"#888"}18`,borderRadius:7,padding:"2px 8px"}}>{ev.imp.toUpperCase()} IMPACT</span>
-                            <span style={{fontSize:11,color:CC[ev.cat]||"#888",background:`${CC[ev.cat]||"#888"}18`,borderRadius:7,padding:"2px 8px"}}>{ev.cat}</span>
+                  {todayEvs.map((ev,i)=>{
+                    const impCol=IC[ev.imp]||"#888", catCol=CC[ev.cat]||"#888";
+                    return(
+                      <div key={"today"+i} style={{background:`${impCol}0c`,border:`1px solid ${impCol}55`,borderRadius:12,padding:"13px 14px",marginBottom:8,position:"relative",overflow:"hidden"}}>
+                        <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:impCol}}/>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13,fontWeight:900,color:"#fff",lineHeight:1.3,marginBottom:5}}>{ev.l}</div>
+                            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+                              <span style={{fontSize:11,color:impCol,background:`${impCol}22`,borderRadius:7,padding:"2px 8px",fontWeight:700}}>{ev.imp.toUpperCase()} IMPACT</span>
+                              <span style={{fontSize:11,color:catCol,background:`${catCol}18`,borderRadius:7,padding:"2px 8px"}}>{ev.cat}</span>
+                            </div>
+                            <div style={{fontSize:11,color:"#aaa",...mono,lineHeight:1.8,borderTop:"1px solid rgba(255,255,255,0.07)",paddingTop:7}}>
+                              <div style={{fontSize:11,color:A,fontWeight:700,letterSpacing:1,marginBottom:4}}>₿ BTC IMPACT</div>
+                              {ev.btc}
+                            </div>
                           </div>
-                          <div style={{fontSize:11,color:"#aaa",marginTop:5,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>{ev.btc}</div>
-                        </div>
-                        <div style={{textAlign:"right",flexShrink:0}}>
-                          <div style={{fontSize:14,fontWeight:900,color:A,fontFamily:"'Share Tech Mono',monospace"}}>{ev.t} ET</div>
-                          <div style={{fontSize:12,color:A,fontWeight:700,marginTop:2}}>TODAY</div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:13,fontWeight:900,color:A,...mono}}>{ev.t} ET</div>
+                            <div style={{fontSize:11,color:A,fontWeight:700,marginTop:2,letterSpacing:1}}>TODAY</div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()}
-            <div style={{fontSize:11,letterSpacing:2,color:"#555",fontWeight:700,marginBottom:8}}>UPCOMING EVENTS</div>
-            {upcoming.filter(e=>Math.round((new Date(e.d+"T12:00:00")-new Date())/(1000*60*60*24))>0).map((ev,i)=>{
+            {/* UPCOMING EVENTS */}
+            <div style={{fontSize:11,letterSpacing:2,color:"#444",fontWeight:700,marginBottom:8}}>UPCOMING</div>
+            {ECON.filter(e=>Math.round((new Date(e.d+"T12:00:00")-new Date())/(1000*60*60*24))>0).map((ev,i)=>{
               const impCol=IC[ev.imp]||"#888", catCol=CC[ev.cat]||"#888";
               const evDate=new Date(ev.d+"T12:00:00");
               const daysOut=Math.round((evDate-new Date())/(1000*60*60*24));
@@ -1884,7 +1906,7 @@ function App() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {liveZ.length>0&&<div style={{width:7,height:7,borderRadius:"50%",background:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,boxShadow:`0 0 8px ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}`}}/>}
-          <div style={{padding:"5px 14px",borderRadius:18,background:"rgba(255,149,0,0.12)",border:"1px solid rgba(255,149,0,0.4)",color:"#ff9500",fontSize:16,fontWeight:900,letterSpacing:1}}>₿</div>
+          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:11,fontWeight:700,letterSpacing:1}}>{plan==="elite"?"₿":"₿"}</div>
         </div>
       </div>
 
