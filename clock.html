@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>BiG ENGiN3 · Zone Clock Pro</title>
+<title>BiG ENGiN3 · Zone Clock</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -437,7 +437,7 @@ function App() {
   const [newsLoading,  setNewsLoading]  = useState(false);
   const [newsError,    setNewsError]    = useState("");
   const [newsSrc,      setNewsSrc]      = useState("combo");
-  const [newsView,     setNewsView]     = useState("feed");
+  const [newsView,     setNewsView]     = useState("mixed");
   const [newsExpanded, setNewsExpanded] = useState(null);
   // Breaking news anchor — polarity override for high-impact events
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
@@ -498,11 +498,6 @@ function App() {
   })();
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
-  const wr = (() => {
-    const zone = liveZ.find(z => z.type !== "dead") || liveZ[0] || null;
-    return zone && BACKTEST[zone.id] ? BACKTEST[zone.id].wins : 0;
-  })();
-
 
   // Active zone strength — simple: zone win rate + confluence + prime pocket bonus
   // Today's short day name for best/worst day check
@@ -572,22 +567,22 @@ function App() {
 
   // ── News fetch functions (App level — survives re-renders) ──────────────────
   const NEWS_FEEDS = [
-    { id:"reuters",    label:"Reuters Markets",  color:"#ff6b35",
-      url:"https://feeds.reuters.com/reuters/businessNews",
-      fallback:"https://feeds.reuters.com/reuters/topNews" },
-    { id:"investing",  label:"Investing.com",    color:"#f0a030",
-      url:"https://www.investing.com/rss/news.rss",
-      fallback:"https://www.investing.com/rss/news_25.rss" },
-    { id:"marketwatch",label:"MarketWatch",      color:"#00aaff",
-      url:"https://feeds.content.dowjones.io/public/rss/mw_topstories",
-      fallback:"https://www.marketwatch.com/rss/topstories" },
-    { id:"bitcoinmag", label:"Bitcoin Magazine", color:"#ff9500",
-      url:"https://bitcoinmagazine.com/feed",
-      fallback:"https://bitcoinmagazine.com/.rss/full/" },
-    { id:"nasdaq",     label:"Nasdaq News",      color:"#00ff88",
-      url:"https://www.nasdaq.com/feed/rssoutbound?category=Cryptocurrencies",
-      fallback:"https://www.nasdaq.com/feed/rssoutbound?category=Markets" },
-  ];
+  { id:"combo", label:"Markets Combined", color:"#ffb347",
+    urls:[
+      "https://news.google.com/rss/search?q=Reuters%20Markets&hl=en-US&gl=US&ceid=US:en",
+      "https://news.google.com/rss/search?q=Bloomberg%20Markets&hl=en-US&gl=US&ceid=US:en"
+    ]
+  },
+  { id:"reuters", label:"Reuters Markets", color:"#ff6b35",
+    urls:["https://news.google.com/rss/search?q=Reuters%20Markets&hl=en-US&gl=US&ceid=US:en"]
+  },
+  { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
+    urls:["https://news.google.com/rss/search?q=Bloomberg%20Markets&hl=en-US&gl=US&ceid=US:en"]
+  },
+  { id:"nasdaq", label:"Nasdaq", color:"#00aaff",
+    urls:["https://www.nasdaq.com/feed/rssoutbound?category=Markets"]
+  }
+];
 
   // ── Economic calendar live news feeds (Google News RSS — same method as Feedly/FeedLab) ──
   // Google News RSS works cross-origin and mirrors what feedly/feedlab pull
@@ -700,11 +695,20 @@ function App() {
 
   // Load eco news when viewing the EVENTS tab, refresh every 5 min
   useEffect(()=>{
-    if(newsView==="events") {
+    if(newsView==="events" || newsView==="mixed") {
       ecoLoadedRef.current = false;
       fetchEcoNews();
     }
   }, [newsView]);
+
+  useEffect(()=>{
+    if(newsView==="news" || newsView==="mixed") {
+      if(newsLoadedFor.current !== newsSrc){
+        newsLoadedFor.current = newsSrc;
+        fetchNews(newsSrc);
+      }
+    }
+  }, [newsView, newsSrc, fetchNews]);
 
 
   function parseRSSXML(xml, feed){
@@ -731,47 +735,68 @@ function App() {
 
   const fetchNewsRef = useRef(false);
   const fetchNews = useCallback((feedId)=>{
-    const feed = NEWS_FEEDS.find(f=>f.id===feedId);
+    const feed = NEWS_FEEDS.find(f=>f.id===feedId) || NEWS_FEEDS[0];
     if(!feed) return;
-    if(fetchNewsRef.current) return; // prevent double-fire
+    if(fetchNewsRef.current) return;
     fetchNewsRef.current = true;
     setNewsLoading(true); setNewsError(""); setNewsArticles([]);
 
     function done(arts){ setNewsArticles(arts); setNewsLoading(false); fetchNewsRef.current=false; }
     function fail(msg){ setNewsError(msg); setNewsLoading(false); fetchNewsRef.current=false; }
 
-    function tryProxy(url, onFail){
-      const proxy = "https://api.allorigins.win/raw?url="+encodeURIComponent(url);
-      fetch(proxy,{cache:"no-cache"})
-        .then(r=>{ if(!r.ok) throw new Error(r.status); return r.text(); })
-        .then(xml=>{
-          const parsed = parseRSSXML(xml, feed);
-          if(parsed && parsed.length>0){ done(parsed); }
-          else { onFail(); }
-        })
-        .catch(()=>onFail());
+    function parseOne(xmlText, label){
+      try{
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xmlText, "text/xml");
+        const items = Array.from(doc.querySelectorAll("item, entry")).slice(0, 20);
+        return items.map((el, idx)=>{
+          const g = tag => (el.querySelector(tag)||{textContent:""}).textContent.trim();
+          const linkEl = el.querySelector("link[href]");
+          const link = linkEl ? linkEl.getAttribute("href") : g("link");
+          return {
+            id: `${label}-${idx}-${g("title")}`,
+            title: g("title"),
+            link: link || "",
+            pub: g("pubDate") || g("published") || g("updated") || "",
+            desc: (g("description") || g("summary") || "").replace(/<[^>]+>/g,"").trim(),
+            feedLabel: label
+          };
+        }).filter(x=>x.title);
+      }catch(e){ return []; }
     }
 
-    function tryFallback(){ feed.fallback ? tryProxy(feed.fallback, ()=>fail("Feed unavailable. Try another source.")) : fail("Feed unavailable. Try another source."); }
+    function fetchXml(url){
+      const proxy = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      return fetch(proxy,{cache:"no-cache"}).then(r=>{
+        if(!r.ok) throw new Error(String(r.status));
+        return r.text();
+      });
+    }
 
-    // Try rss2json first (most reliable when online)
-    const api = "https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(feed.url)+"&api_key=public&count=20";
-    fetch(api,{cache:"no-cache"})
-      .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-      .then(data=>{
-        if(data.status==="ok" && data.items && data.items.length>0){
-          const arts = data.items.map(item=>({
-            title:  (item.title||"").trim(),
-            link:   item.link||item.guid||"",
-            pub:    item.pubDate||"",
-            desc:   (item.description||item.content||"")
-                      .replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200),
-            color:  feed.color, source: feed.label,
-          })).filter(a=>a.title && a.title.length>3);
-          if(arts.length>0){ done(arts); } else { tryProxy(feed.url, tryFallback); }
-        } else { tryProxy(feed.url, tryFallback); }
-      })
-      .catch(()=>tryProxy(feed.url, tryFallback));
+    const urls = feed.urls || (feed.url ? [feed.url] : []);
+    if(!urls.length){ fail("Feed unavailable."); return; }
+
+    Promise.all(urls.map(async (url)=>{
+      let label = feed.label;
+      if(/Reuters/i.test(url)) label = "Reuters Markets";
+      if(/Bloomberg/i.test(url)) label = "Bloomberg Markets";
+      const xml = await fetchXml(url);
+      return parseOne(xml, label);
+    }))
+    .then(groups=>{
+      let arts = groups.flat();
+      const seen = new Set();
+      arts = arts.filter(a=>{
+        const key = (a.title || "").toLowerCase();
+        if(!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+      if(arts.length) done(arts.slice(0,30));
+      else fail("No recent market news found.");
+    })
+    .catch(()=>fail("Feed unavailable. Try another source."));
   }, []);
 
   // Auto-load news once on mount and when source changes
@@ -829,7 +854,7 @@ function App() {
       )}
 
 
-/* Active Zone card */}
+      {/* Active Zone card */}
       {(()=>{
         const zone = (liveZ && liveZ.length > 0) ? liveZ[0] : null;
         const str  = activeZoneStrength;
@@ -850,9 +875,7 @@ function App() {
               <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
                 <div style={{height:"100%",width:`${str}%`,background:col,borderRadius:3,boxShadow:`0 0 6px ${col}88`,transition:"width 1s"}}/>
               </div>
-              <div style={{fontSize:11,color:"#888",letterSpacing:1,marginTop:6,...mono}}>
-                zone win rate · confluence · correlation · best/worst day{inSub ? " · ★ prime pocket" : ""}
-              </div>
+              {/* Active Zone percent kept; descriptor removed */}
             </div>
           );
         } else {
@@ -863,6 +886,7 @@ function App() {
           );
         }
       })()}
+
 
       {/* Clock */}
       <div style={{display:"flex",justifyContent:"center",margin:"8px 0 12px"}}>
@@ -880,8 +904,6 @@ function App() {
           </div>
         ))}
       </div>
-      {
-
       {/* Active Zone watchlist removed; zone label moved into active bar */}
 
       {/* Zone confidence table hidden */}
@@ -1381,93 +1403,395 @@ function App() {
   };
 
   // ─── NEWS TAB ─────────────────────────────────────────────────────────────────
-  
   const NewsTab = ()=>{
-    const sourceButtons = NEWS_FEEDS || [];
-    const calLinks = [
-      {label:"Myfxbook Calendar", url:"https://www.myfxbook.com/forex-economic-calendar"},
-      {label:"TradingEconomics Calendar", url:"https://tradingeconomics.com/calendar"}
+    // Uses App-level state: newsArticles, newsLoading, newsError, newsSrc, newsView, newsExpanded
+    // This means news persists through clock ticks and never resets.
+
+    const ECON = [
+      {d:"2026-03-21",t:"08:30",l:"Jobless Claims",             imp:"high", cat:"LABOR",     btc:"Weak jobs = dovish Fed = BTC bullish. Watch for surprise miss."},
+      {d:"2026-03-24",t:"09:45",l:"Flash Manufacturing PMI",  imp:"med",  cat:"MACRO",     btc:"Low PMI = slower growth = Fed dovish = risk-on for crypto."},
+      {d:"2026-03-24",t:"09:45",l:"Flash Services PMI",       imp:"med",  cat:"MACRO",     btc:"Services health — biggest sector. Weak = risk-off pressure."},
+      {d:"2026-03-25",t:"10:00",l:"Consumer Confidence",      imp:"med",  cat:"MACRO",     btc:"Consumer mood. Miss = potential short-term dip in risk assets."},
+      {d:"2026-03-26",t:"08:30",l:"Durable Goods Orders",     imp:"high", cat:"MACRO",     btc:"Big-ticket spending. Miss = BTC often pops on dovish hope."},
+      {d:"2026-03-27",t:"08:30",l:"PCE Price Index",          imp:"high", cat:"INFLATION", btc:"Fed's preferred inflation gauge — hotter = rate hike fears = BTC sell."},
+      {d:"2026-03-27",t:"10:00",l:"UMich Consumer Sentiment", imp:"med",  cat:"MACRO",     btc:"Expectations data. Affects risk appetite going into weekend."},
+      {d:"2026-03-28",t:"00:00",l:"Month-End Rebalancing",    imp:"high", cat:"CRYPTO",    btc:"Funds rebalance end of month. Expect elevated BTC volatility and potential liquidity grab."},
+      {d:"2026-03-31",t:"00:00",l:"Quarter-End Close Q1",     imp:"high", cat:"CRYPTO",    btc:"Largest quarterly close of 2026. Historically a major BTC pivot point."},
+      {d:"2026-04-01",t:"08:30",l:"ISM Manufacturing PMI",    imp:"high", cat:"MACRO",     btc:"Monthly factory index. Biggest macro mover for risk assets on the 1st."},
+      {d:"2026-04-02",t:"08:15",l:"ADP Employment Report",    imp:"med",  cat:"LABOR",     btc:"Private payrolls preview. Sets tone 2 days before NFP."},
+      {d:"2026-04-04",t:"08:30",l:"Non-Farm Payrolls NFP",    imp:"high", cat:"LABOR",     btc:"Biggest monthly macro event. Strong jobs = hawkish Fed = BTC pressure."},
+      {d:"2026-04-04",t:"08:30",l:"Unemployment Rate",        imp:"high", cat:"LABOR",     btc:"Rising unemployment = Fed pivot expectations = BTC rally potential."},
+      {d:"2026-04-10",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"Most important monthly print. Hotter CPI = rate hike risk = BTC dump."},
+      {d:"2026-04-11",t:"08:30",l:"PPI Producer Prices",      imp:"med",  cat:"INFLATION", btc:"Leads CPI by 1-2 months. Early inflation signal."},
+      {d:"2026-04-15",t:"08:30",l:"Retail Sales",             imp:"high", cat:"MACRO",     btc:"Consumer spending strength. Strong = risk-on = BTC upside."},
+      {d:"2026-04-17",t:"08:30",l:"Jobless Claims",           imp:"med",  cat:"LABOR",     btc:"Weekly labor check. Part of ongoing Fed data watch."},
+      {d:"2026-04-30",t:"08:30",l:"GDP Q1 Advance Estimate",  imp:"high", cat:"MACRO",     btc:"First GDP read. Below 0 = recession fear = BTC volatile."},
+      {d:"2026-05-06",t:"14:00",l:"FOMC Rate Decision",       imp:"high", cat:"FED",       btc:"Single biggest BTC catalyst. Rate cut = BTC rocket. Hike = dump."},
+      {d:"2026-05-06",t:"14:30",l:"Powell Press Conference",  imp:"high", cat:"FED",       btc:"Fed chair words move BTC 3-8% in minutes. Watch tone on future cuts."},
+      {d:"2026-05-12",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"May CPI — watch if inflation trend confirms Fed pivot narrative."},
+      {d:"2026-05-22",t:"14:00",l:"FOMC Minutes Release",     imp:"high", cat:"FED",       btc:"Detailed meeting notes. Markets read for rate path clues."},
+      {d:"2026-06-10",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"Q2 inflation check. Key for summer Fed decision."},
+      {d:"2026-06-17",t:"14:00",l:"FOMC Rate Decision",       imp:"high", cat:"FED",       btc:"Mid-year Fed decision — likely largest BTC mover of Q2."},
     ];
-    return(
+
+    const IC = {high:"#ff3355", med:"#f0a030"};
+    const CC = {LABOR:"#00aaff", MACRO:"#88aaff", INFLATION:"#ff3355", CRYPTO:A, FED:"#aa88ff"};
+
+    const LINKS = [
+      { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
+      { label:"",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
+      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
+      { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
+      { label:"Investing.com",      color:"#ff9500",  url:"https://www.investing.com/news/latest-news",              desc:"Latest financial news" },
+    ];
+
+    function fmtDate(s){
+      if(!s) return "";
+      try{
+        const d=new Date(s);
+        if(isNaN(d.getTime())) return "";
+        return d.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" · "+d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
+      }catch{ return ""; }
+    }
+
+    const todayStr = new Date().toISOString().slice(0,10);
+    const upcoming = (()=>{ const sameDay = ECON.filter(e=>e.d===todayStr); return sameDay.length ? sameDay : ECON.filter(e=>e.d>=todayStr); })();
+
+    return (
       <div style={{padding:14}}>
-        <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-          {[{id:"feed",l:"FEED"},{id:"calendar",l:"CALENDAR"},{id:"sources",l:"SOURCES"}].map(v=>(
-            <button key={v.id} onClick={()=>setNewsView(v.id)} style={{
-              padding:"7px 12px",borderRadius:14,cursor:"pointer",
-              background:newsView===v.id?"rgba(255,255,255,0.1)":"transparent",
-              border:`1px solid ${newsView===v.id?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.06)"}`,
-              color:newsView===v.id?"#fff":"#888",fontSize:11,fontWeight:700,letterSpacing:1
-            }}>{v.l}</button>
+
+        {/* Toggle */}
+        <div style={{display:"flex",gap:6,marginBottom:14}}>
+          {[{id:"mixed",l:"FEED"},{id:"calendar",l:"CALENDAR"},{id:"links",l:"SOURCES"}].map(v=>(
+            <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
+              background:newsView===v.id?`${A}22`:"transparent",
+              border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
+              color:newsView===v.id?A:"#888",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>
+              {v.l}
+            </button>
           ))}
-          <button onClick={()=>fetchNews(newsSrc)} style={{
-            marginLeft:"auto",padding:"7px 12px",borderRadius:14,cursor:"pointer",
-            background:"rgba(240,160,48,0.10)",border:"1px solid rgba(240,160,48,0.35)",color:"#f0a030",fontSize:11,fontWeight:700
-          }}>REFRESH</button>
         </div>
 
-        {newsView==="feed" && (
-          <div style={{display:"grid",gap:8}}>
-            {newsLoading && <div style={card({textAlign:"center"})}>Loading feed…</div>}
-            {!newsLoading && newsArticles && newsArticles.length===0 && <div style={card({textAlign:"center"})}>No feed items.</div>}
-            {!newsLoading && (newsArticles||[]).map((a,i)=>(
-              <a key={a.id||i} href={a.link||"#"} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
-                <div style={card({marginBottom:0})}>
-                  <div style={{fontSize:9,color:"#f0a030",letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
-                    {(a.feedLabel||a.source||"MARKETS").toUpperCase()}
-                  </div>
-                  <div style={{fontSize:13,color:"#fff",fontWeight:700,marginBottom:4}}>{a.title}</div>
-                  <div style={{fontSize:10,color:"#888"}}>{a.pub||a.pubDate||""}</div>
-                </div>
-              </a>
-            ))}
+        {/* ── BREAKING ANCHOR BANNER (shown on all views) ── */}
+        {breakingAnchor&&(
+          <div style={{background:`${breakingAnchor.polarity===1?G:R}12`,border:`1px solid ${breakingAnchor.polarity===1?G:R}55`,borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:9,height:9,borderRadius:"50%",background:breakingAnchor.polarity===1?G:R,flexShrink:0,boxShadow:`0 0 8px ${breakingAnchor.polarity===1?G:R}`}}/>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:breakingAnchor.polarity===1?G:R,fontWeight:700,letterSpacing:1}}>
+                ⚡ {breakingAnchor.polarity===1?"BULL":"BEAR"} ANCHOR ACTIVE
+                {breakingAnchor.auto&&<span style={{fontSize:10,color:"#888",marginLeft:6,fontWeight:400}}>auto-detected</span>}
+                {"★".repeat(breakingAnchor.stars||1)}
+              </div>
+              <div style={{fontSize:10,color:"#aaa",...mono,marginTop:2,lineHeight:1.5}}>{(breakingAnchor.title||"").slice(0,70)}{(breakingAnchor.title||"").length>70?"...":""}</div>
+            </div>
+            <div style={{textAlign:"center",flexShrink:0}}>
+              <div style={{fontSize:14,fontWeight:900,color:breakingAnchor.polarity===1?G:R,...mono}}>
+                {Math.max(0,Math.round((breakingAnchor.expiresAt-Date.now())/60000))}m
+              </div>
+              <button onClick={()=>setBreakingAnchor(null)} style={{fontSize:10,color:"#555",background:"none",border:"1px solid #333",borderRadius:6,padding:"2px 7px",cursor:"pointer",marginTop:2}}>CLEAR</button>
+            </div>
           </div>
         )}
 
-        {newsView==="calendar" && (
+        {/* ── LIVE ECO NEWS / EVENTS ── */}
+        {newsView==="events"&&(
           <div>
-            <div style={card({marginBottom:10,background:"rgba(255,255,255,0.03)"})}>
-              <div style={{fontSize:11,color:"#fff",fontWeight:700,marginBottom:6}}>Most recent events for today</div>
-              <div style={{fontSize:10,color:"#888",lineHeight:1.7}}>
-                Calendar view for today’s most recent economic events.
-              </div>
+            {/* Star filter */}
+            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
+              <div style={{fontSize:11,color:"#888",...mono,flexShrink:0}}>MIN IMPACT:</div>
+              {[{v:0,l:"ALL"},{v:1,l:"★"},{v:2,l:"★★"},{v:3,l:"★★★"}].map(({v,l})=>(
+                <button key={v} onClick={()=>setEcoStarFilter(v)} style={{
+                  padding:"5px 10px",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",
+                  background:ecoStarFilter===v?`${A}22`:"transparent",
+                  border:`1px solid ${ecoStarFilter===v?A:"#1e1e2e"}`,
+                  color:ecoStarFilter===v?A:"#666"}}>
+                  {l}
+                </button>
+              ))}
+              <button onClick={()=>{ecoLoadedRef.current=false; fetchEcoNews();}} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:10,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻</button>
             </div>
-            <div style={{display:"grid",gap:8}}>
-              {calLinks.map((s,idx)=>(
-                <a key={idx} href={s.url} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
-                  <div style={card({marginBottom:0})}>
-                    <div style={{fontSize:12,color:"#fff",fontWeight:700}}>{s.label}</div>
+
+            {/* Manual anchor buttons */}
+            <div style={{display:"flex",gap:6,marginBottom:12}}>
+              <button onClick={()=>setBreakingAnchor({title:"MANUAL BULL ANCHOR",polarity:1,expiresAt:Date.now()+15*60*1000,stars:3})}
+                style={{flex:1,padding:"9px 0",borderRadius:10,background:`${G}14`,border:`1px solid ${G}44`,color:G,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                ▲ ANCHOR BULL 15m
+              </button>
+              <button onClick={()=>setBreakingAnchor({title:"MANUAL BEAR ANCHOR",polarity:-1,expiresAt:Date.now()+15*60*1000,stars:3})}
+                style={{flex:1,padding:"9px 0",borderRadius:10,background:`${R}14`,border:`1px solid ${R}44`,color:R,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                ▼ ANCHOR BEAR 15m
+              </button>
+            </div>
+
+            {ecoLoading&&<div style={{textAlign:"center",padding:"24px",color:"#555",...mono,fontSize:12}}>⏳ Loading live economic news…</div>}
+
+            {/* Live eco news cards */}
+            {!ecoLoading&&(ecoArticles.filter(a=>a.stars>=ecoStarFilter||(ecoStarFilter===0))).map((art,i)=>{
+              const sc = art.stars===3?R:art.stars===2?A:"#88aaff";
+              const dir = art.bearish?"▼ BEAR":art.bullish?"▲ BULL":"◆";
+              const dirCol = art.bearish?R:art.bullish?G:"#888";
+              return(
+                <div key={i} style={{background:`${sc}08`,border:`1px solid ${sc}33`,borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                    <div style={{flexShrink:0,textAlign:"center"}}>
+                      <div style={{fontSize:14,color:sc,fontWeight:900}}>{"★".repeat(art.stars)}</div>
+                      <div style={{fontSize:11,color:dirCol,fontWeight:700,...mono,marginTop:2}}>{dir}</div>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#ddd",lineHeight:1.4,marginBottom:4}}>{art.title}</div>
+                      {art.desc&&<div style={{fontSize:11,color:"#888",...mono,lineHeight:1.6,marginBottom:6}}>{art.desc.slice(0,120)}</div>}
+                      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                        <span style={{fontSize:10,color:art.color||"#888",...mono}}>{art.source}</span>
+                        {art.pub&&<span style={{fontSize:10,color:"#555",...mono}}>{new Date(art.pub).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}</span>}
+                        {art.link&&<a href={art.link} target="_blank" rel="noopener" style={{fontSize:10,color:A,...mono,textDecoration:"none"}}>↗ Read</a>}
+                        <button onClick={()=>setBreakingAnchor({title:art.title,polarity:art.bearish?-1:1,expiresAt:Date.now()+15*60*1000,stars:art.stars})}
+                          style={{fontSize:10,padding:"2px 8px",borderRadius:6,
+                            background:art.bearish?`${R}18`:`${G}18`,
+                            border:`1px solid ${art.bearish?R:G}44`,
+                            color:art.bearish?R:G,cursor:"pointer",fontWeight:700}}>
+                          ⚡ ANCHOR {art.bearish?"BEAR":"BULL"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </a>
+                </div>
+              );
+            })}
+            {!ecoLoading&&ecoArticles.filter(a=>a.stars>=(ecoStarFilter||1)).length===0&&(
+              <div style={{textAlign:"center",padding:"24px",color:"#555",...mono,fontSize:12}}>
+                No {ecoStarFilter>0?"★".repeat(ecoStarFilter)+"+":""} events found. Try lower filter or refresh.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── LIVE NEWS ── */}
+        
+        {/* ── MIXED FEED (events + breaking news together) ── */}
+        {newsView==="mixed"&&(
+          <>
+            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
+              <div style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>LIVE FEED</div>
+              <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:10,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
+            </div>
+
+            {(ecoLoading || newsLoading)&&(
+              <div style={{textAlign:"center",padding:"24px",color:"#555",fontFamily:"'Share Tech Mono',monospace",fontSize:12}}>Refreshing feed...</div>
+            )}
+
+            {(()=>{
+              const mixed = [
+                ...ecoArticles.map(a=>({
+                  kind:"event",
+                  title:a.title,
+                  link:a.link,
+                  pub:a.pub,
+                  desc:a.desc,
+                  color:a.stars===3?"#ff3355":a.stars===2?"#f0a030":"#88aaff",
+                  source:(a.source||"Event"),
+                  stars:a.stars||0,
+                  bullish:!!a.bullish,
+                  bearish:!!a.bearish
+                })),
+                ...newsArticles.map(a=>({
+                  kind:"news",
+                  title:a.title,
+                  link:a.link,
+                  pub:a.pub,
+                  desc:a.desc,
+                  color:a.color||"#888",
+                  source:a.feedLabel||a.source||"News",
+                  stars:0,
+                  bullish:false,
+                  bearish:false
+                }))
+              ].filter(x=>x.title);
+
+              mixed.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+              const rows = mixed.slice(0, 40);
+
+              if(!rows.length && !ecoLoading && !newsLoading){
+                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:12}}>No feed items yet — tap refresh.</div>;
+              }
+
+              return rows.map((item,i)=>(
+                <div key={i}
+                  onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
+                  style={{
+                    background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
+                    borderRadius:12,padding:"12px 14px",marginBottom:8,
+                    cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
+                  }}>
+                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color}}/>
+                  <div style={{paddingLeft:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        <span style={{fontSize:11,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"📰 NEWS"}</span>
+                        <span style={{fontSize:11,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                        {item.stars>0 && <span style={{fontSize:11,color:item.color}}>{"★".repeat(item.stars)}</span>}
+                      </div>
+                      <span style={{fontSize:11,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
+                    </div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
+                    {item.desc&&<div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
+                      {item.link&&<span style={{fontSize:10,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
+                      {item.kind==="event" && (item.bullish || item.bearish) && (
+                        <button
+                          onClick={(e)=>{e.stopPropagation(); setBreakingAnchor({title:item.title,polarity:item.bearish?-1:1,expiresAt:Date.now()+15*60*1000,stars:item.stars||3});}}
+                          style={{fontSize:10,padding:"2px 8px",borderRadius:6,
+                            background:item.bearish?`${R}18`:`${G}18`,
+                            border:`1px solid ${item.bearish?R:G}44`,
+                            color:item.bearish?R:G,cursor:"pointer",fontWeight:700}}>
+                          ⚡ ANCHOR {item.bearish?"BEAR":"BULL"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ));
+            })()}
+          </>
+        )}
+
+
+        {newsView==="news"&&(
+          <>
+            {/* Source selector */}
+            <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
+              {NEWS_FEEDS.map(f=>(
+                <button key={f.id} onClick={()=>setNewsSrc(f.id)} style={{
+                  padding:"6px 12px",borderRadius:14,flexShrink:0,
+                  background:newsSrc===f.id?`${f.color}22`:"transparent",
+                  border:`1px solid ${newsSrc===f.id?f.color:"#1e1e2e"}`,
+                  color:newsSrc===f.id?f.color:"#888",
+                  fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:.5,whiteSpace:"nowrap"
+                }}>{f.label}</button>
               ))}
             </div>
-          </div>
+
+            <button onClick={()=>{ newsLoadedFor.current=""; fetchNews(newsSrc); }} style={{
+              width:"100%",padding:"9px",borderRadius:10,marginBottom:12,
+              background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",
+              color:"#bbb",fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:1
+            }}>↻ REFRESH</button>
+
+            {newsLoading&&(
+              <div style={{textAlign:"center",padding:"32px 0"}}>
+                <div style={{width:28,height:28,border:"2px solid #1a1a2e",borderTop:`2px solid ${A}`,borderRadius:"50%",margin:"0 auto 12px",animation:"spin .8s linear infinite"}}/>
+                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Loading headlines...</div>
+              </div>
+            )}
+
+            {!newsLoading&&newsError&&(
+              <div style={{padding:"14px 16px",background:"rgba(255,51,85,0.07)",border:"1px solid rgba(255,51,85,0.25)",borderRadius:12,marginBottom:12}}>
+                <div style={{fontSize:10,color:"#ff7788",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>{newsError}</div>
+                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>
+                  Try switching source or use the SOURCES tab to open sites directly.
+                </div>
+              </div>
+            )}
+
+            {!newsLoading&&!newsError&&newsArticles.length===0&&(
+              <div style={{textAlign:"center",padding:"24px",color:"#bbb",fontFamily:"'Share Tech Mono',monospace",fontSize:10}}>
+                No articles loaded — tap REFRESH
+              </div>
+            )}
+
+            {newsArticles.map((art,i)=>(
+              <div key={i}
+                onClick={()=>{ if(art.link) window.open(art.link,"_blank","noopener,noreferrer"); }}
+                style={{
+                  background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
+                  borderRadius:12,padding:"12px 14px",marginBottom:8,
+                  cursor:"pointer",position:"relative",overflow:"hidden"
+                }}>
+                <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:art.color}}/>
+                <div style={{paddingLeft:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8}}>
+                    <span style={{fontSize:11,color:art.color,fontWeight:700,letterSpacing:1,flexShrink:0}}>{art.source}</span>
+                    <span style={{fontSize:11,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(art.pub)}</span>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:art.desc?5:0}}>{art.title}</div>
+                  {art.desc&&<div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{art.desc.slice(0,160)}{art.desc.length>160?"...":""}</div>}
+                  <div style={{fontSize:10,color:"#2a2a2a",marginTop:5,letterSpacing:1}}>TAP TO READ ↗</div>
+                </div>
+              </div>
+            ))}
+          </>
         )}
 
-        {newsView==="sources" && (
-          <div style={{display:"grid",gap:8}}>
-            {sourceButtons.map((s,idx)=>(
-              <button key={idx} onClick={()=>{setNewsSrc(s.id); fetchNews(s.id);}} style={{
-                textAlign:"left",padding:"14px 16px",borderRadius:14,cursor:"pointer",
-                background:newsSrc===s.id?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.03)",
-                border:`1px solid ${newsSrc===s.id?"rgba(255,255,255,0.18)":"rgba(255,255,255,0.06)"}`,
-                color:"#fff",fontSize:12,fontWeight:700
-              }}>
-                {s.label}
-              </button>
-            ))}
-            {calLinks.map((s,idx)=>(
-              <a key={"cal"+idx} href={s.url} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
-                <div style={card({marginBottom:0})}>
-                  <div style={{fontSize:12,color:"#fff",fontWeight:700}}>{s.label}</div>
+        {/* ── ECONOMIC EVENTS ── */}
+        {newsView==="calendar"&&(
+          <>
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
+              <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>
+                Most recent events for today. Tap any event to see how it moves BTC.
+              </div>
+            </div>
+            {upcoming.map((ev,i)=>{
+              const impCol=IC[ev.imp]||"#888", catCol=CC[ev.cat]||"#888";
+              const evDate=new Date(ev.d+"T12:00:00");
+              const daysOut=Math.round((evDate-new Date())/(1000*60*60*24));
+              const isToday=daysOut<=0&&daysOut>-1;
+              const dateStr=evDate.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+              const isOpen=newsExpanded===i;
+              return(
+                <div key={i} onClick={()=>setNewsExpanded(isOpen?null:i)}
+                  style={{background:isOpen?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.025)",
+                    border:`1px solid ${isOpen?impCol+"66":isToday?impCol+"44":"rgba(255,255,255,0.07)"}`,
+                    borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer",position:"relative",overflow:"hidden"}}>
+                  {isToday&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:impCol}}/>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:isToday?"#fff":"#ccc",lineHeight:1.3,marginBottom:5}}>{ev.l}</div>
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                        <span style={{fontSize:11,color:impCol,background:`${impCol}18`,borderRadius:7,padding:"2px 8px",letterSpacing:.5}}>{ev.imp.toUpperCase()} IMPACT</span>
+                        <span style={{fontSize:11,color:catCol,background:`${catCol}18`,borderRadius:7,padding:"2px 8px",letterSpacing:.5}}>{ev.cat}</span>
+                        {!isOpen&&<span style={{fontSize:10,color:"#bbb",padding:"2px 0",letterSpacing:.5}}>▼ BTC IMPACT</span>}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontSize:12,fontWeight:900,color:isToday?A:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{ev.t} ET</div>
+                      <div style={{fontSize:12,color:isToday?A:"#888",marginTop:2,letterSpacing:1}}>{daysOut<=0?"TODAY":daysOut===1?"TOMORROW":"in "+daysOut+"d"}</div>
+                      <div style={{fontSize:10,color:"#2a2a2a",marginTop:1}}>{dateStr}</div>
+                    </div>
+                  </div>
+                  {isOpen&&(
+                    <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.07)"}}>
+                      <div style={{fontSize:12,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:5}}>₿ BTC IMPACT</div>
+                      <div style={{fontSize:10,color:"#aaa",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.85}}>{ev.btc}</div>
+                    </div>
+                  )}
                 </div>
-              </a>
-            ))}
-          </div>
+              );
+            })}
+          </>
         )}
+
+        {/* ── SOURCES ── */}
+        {newsView==="links"&&(
+          <>
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+              <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Google-powered Reuters/Bloomberg market searches on-page. Calendar links remain below for Myfxbook and Trading Economics.</div>
+            </div>
+            {LINKS.map((lnk,i)=>(
+              <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
+                style={{display:"flex",alignItems:"center",gap:14,background:"rgba(255,255,255,0.03)",border:`1px solid ${lnk.color}33`,borderRadius:12,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
+                <div style={{width:4,height:44,borderRadius:2,background:lnk.color,flexShrink:0,boxShadow:`0 0 8px ${lnk.color}55`}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#ddd",marginBottom:3}}>{lnk.label}</div>
+                  <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace"}}>{lnk.desc}</div>
+                </div>
+                <div style={{fontSize:18,color:lnk.color,opacity:.6}}>↗</div>
+              </div>
+            ))}
+          </>
+        )}
+
       </div>
     );
   };
-
   // ─── END NEWS TAB ─────────────────────────────────────────────────────────────
 
   const SubModal=()=>(
@@ -1507,7 +1831,7 @@ function App() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {liveZ.length>0&&<div style={{width:7,height:7,borderRadius:"50%",background:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,boxShadow:`0 0 8px ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}`}}/>}
-          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:11,fontWeight:700,letterSpacing:1}}>{plan.toUpperCase()}</div>
+          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:11,fontWeight:700,letterSpacing:1}}>{plan==="elite"?"₿":plan.toUpperCase()}</div>
         </div>
       </div>
 
