@@ -578,22 +578,23 @@ function App() {
   // ── Feed definitions ──────────────────────────────────────────────────────────
   // ── LIVE FEED: Google News RSS — mirrors Feedly/FeedLab Reuters & Bloomberg channels ──
   // Uses topic-based queries (more stable than site: queries with rss2json)
-  // ── FEED: Reuters Markets + Bloomberg Markets only — same as Feedly ────────────
+  // ── FEED: Reuters Markets + Bloomberg Markets via Google News RSS ────────────
+  // Exact same method Feedly/FeedLab uses — Google News search for the channel name
   const NEWS_FEEDS = [
     { id:"combo", label:"R + B", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=source:reuters.com+%22markets%22+OR+%22bitcoin%22+OR+%22stocks%22+OR+%22rates%22&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=source:bloomberg.com+%22markets%22+OR+%22bitcoin%22+OR+%22rates%22+OR+%22crypto%22&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Reuters+Markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Bloomberg+Markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"reuters", label:"Reuters", color:"#ff6b35",
       urls:[
-        "https://news.google.com/rss/search?q=source:reuters.com+%22markets%22+OR+%22bitcoin%22+OR+%22stocks%22+OR+%22rates%22+OR+%22fed%22&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Reuters+Markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"bloomberg", label:"Bloomberg", color:"#f0a030",
       urls:[
-        "https://news.google.com/rss/search?q=source:bloomberg.com+%22markets%22+OR+%22bitcoin%22+OR+%22rates%22+OR+%22crypto%22+OR+%22fed%22&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Bloomberg+Markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
