@@ -559,111 +559,221 @@ function App() {
 
 
 
-  // Confluence score
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════════
+  // BiG ENGiN3 POLARITY ENGINE v3 — EARLY SIGNAL FRAMEWORK
+  // Formula: Time Regime × Polarity × Zone Alignment × Market Confirmation
+  //          = Trade Confidence (0–100) + Traffic Light + Setup Type
+  //
+  // TIMING MAP (ET):
+  // 1:30  → SWITCH    Z1 SELL opens. Polarity flips bearish. Stalk shorts.
+  // 4:30  → RESET     Z4 BUY opens. Overnight sell exhausts. Counter reversal.
+  // 6:30  → DANGER    Z6 SELL — 60-min flush only. Transition. High risk.
+  // 7:30  → PRIMARY   Z7 BUY — highest edge. NYSE prep. ICT kill zone.
+  // 10:30 → TRAP/FADE Z10 SELL — AM exhaustion + London close.
+  // 12:30 → REVERSAL  Z12 BUY — post-lunch liquidity grab. Short window.
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
+
+  const ZONE_WINDOWS = [
+    { from:   0, to:  60, role:"DEAD",       setup:"no-trade",     pol:-1, tier:0, label:"Overnight dead" },
+    { from:  60, to:  90, role:"PRE-SWITCH", setup:"stalk",        pol:-1, tier:2, label:"Stalk Z1 short" },
+    { from:  90, to: 270, role:"SWITCH",     setup:"continuation", pol:-1, tier:3, label:"Z1 SELL regime" },
+    { from: 240, to: 270, role:"PRE-RESET",  setup:"stalk",        pol:+1, tier:2, label:"Stalk Z4 long" },
+    { from: 270, to: 390, role:"RESET",      setup:"counter",      pol:+1, tier:2, label:"Z4 BUY reset" },
+    { from: 360, to: 390, role:"PRE-DANGER", setup:"caution",      pol:-1, tier:1, label:"Entering Z6 danger" },
+    { from: 390, to: 450, role:"DANGER",     setup:"transition",   pol:-1, tier:1, label:"Z6 SELL — 60min only" },
+    { from: 420, to: 450, role:"PRE-PRIMARY",setup:"stalk",        pol:+1, tier:4, label:"Stalk Z7 long" },
+    { from: 450, to: 630, role:"PRIMARY",    setup:"continuation", pol:+1, tier:5, label:"Z7 BUY primary" },
+    { from: 600, to: 630, role:"PRE-FADE",   setup:"stalk",        pol:-1, tier:3, label:"Stalk Z10 short" },
+    { from: 630, to: 750, role:"TRAP",       setup:"fade",         pol:-1, tier:3, label:"Z10 SELL trap" },
+    { from: 720, to: 750, role:"PRE-REVERSAL",setup:"stalk",       pol:+1, tier:2, label:"Stalk Z12 long" },
+    { from: 750, to: 810, role:"REVERSAL",   setup:"counter",      pol:+1, tier:2, label:"Z12 BUY reversal" },
+    { from: 810, to:1440, role:"DEAD",       setup:"no-trade",     pol:-1, tier:0, label:"PM dead zone" },
+  ];
+
+  function getWindowAt(h24, m) {
+    const t = h24*60+m;
+    const matches = ZONE_WINDOWS.filter(w => t >= w.from && t < w.to);
+    return matches.reduce((best, w) => (!best || w.tier > best.tier) ? w : best, null)
+           || ZONE_WINDOWS[ZONE_WINDOWS.length-1];
+  }
+
+  function getMinutesToNextZone(h24, m) {
+    const t = h24*60+m;
+    const ZONE_OPENS = [90,270,390,450,630,750];
+    const next = ZONE_OPENS.find(z => z > t) || (ZONE_OPENS[0] + 1440);
+    return next - t;
+  }
+
+  // STAGE 1: EARLY BIAS (max 40 pts)
+  function computeEarlyBias(h24, m, zone, zType, inSubWindow) {
+    const win = getWindowAt(h24, m);
+    const polarity = win.pol;
+    const minsToNext = getMinutesToNextZone(h24, m);
+    const isStalk = win.setup === "stalk";
+    const isDanger = win.role === "DANGER";
+    let biasScore = 0;
+    let stalkMode = isStalk;
+
+    biasScore += win.tier * 4;
+    const zonePolMatch = zType && ((zType==="buy"&&polarity===+1)||(zType==="sell"&&polarity===-1));
+    if(zonePolMatch)  biasScore += 12;
+    else if(zType)    biasScore -= 8;
+    if(inSubWindow)   biasScore += 8;
+
+    if(zone && zType) {
+      const t = h24*60+m;
+      let zStart = zone.h1*60+zone.m1; if(zStart > t && t < 480) zStart -= 720;
+      const elapsed = Math.max(0, t - zStart);
+      const dur = ((zone.h2-zone.h1)*60+(zone.m2-zone.m1)+1440)%1440||120;
+      const freshness = Math.max(0, 1 - elapsed/dur);
+      biasScore = Math.round(biasScore * (0.7 + freshness*0.3));
+    }
+
+    if(isDanger) { biasScore = Math.round(biasScore * 0.4); }
+    if(minsToNext <= 30 && minsToNext > 0) stalkMode = true;
+
+    return {
+      direction: polarity===+1?"buy":"sell",
+      setupType: isDanger?"no-trade":win.setup,
+      stalkMode, isPrimary: win.role==="PRIMARY",
+      isDanger, window: win, polarity, zonePolMatch,
+      biasScore: Math.max(0, Math.min(40, biasScore)),
+    };
+  }
+
+  // STAGE 2: VALIDATION (max 35 pts)
+  function computeValidation(zType, md, inSubWindow, hotTraps, overall, btd, breakingAnchor, eb) {
+    let score = 0;
+    const signals = [];
+    let atrLabel="—", atrClass="normal";
+
+    if(md?.dxy?.change != null) {
+      const c = md.dxy.change;
+      const confirms=(zType==="buy"&&c<-0.15)||(zType==="sell"&&c>+0.15);
+      const conflicts=(zType==="buy"&&c>+0.15)||(zType==="sell"&&c<-0.15);
+      if(confirms)  { score+=10; signals.push({label:"DXY",val:`${c.toFixed(2)}%`,pts:+10,color:G,confirms:true}); }
+      else if(conflicts){ score-=7; signals.push({label:"DXY",val:`${c.toFixed(2)}%`,pts:-7,color:R,confirms:false}); }
+      else { signals.push({label:"DXY",val:"◆",pts:0,color:"#444",confirms:null}); }
+    }
+    if(md?.btc?.change != null) {
+      const c = md.btc.change;
+      const confirms=(zType==="buy"&&c>+0.8)||(zType==="sell"&&c<-0.8);
+      const conflicts=(zType==="buy"&&c<-0.8)||(zType==="sell"&&c>+0.8);
+      if(confirms)  { score+=8; signals.push({label:"BTC",val:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:+8,color:G,confirms:true}); }
+      else if(conflicts){ score-=6; signals.push({label:"BTC",val:`${c.toFixed(1)}%`,pts:-6,color:R,confirms:false}); }
+      else { signals.push({label:"BTC",val:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#444",confirms:null}); }
+    }
+    if(md?.btc?.atr != null) {
+      const atr = md.btc.atr;
+      if(atr>=4.5)      { score+=6; atrLabel=`${atr.toFixed(1)}% TREND`; atrClass="high"; signals.push({label:"ATR",val:atrLabel,pts:+6,color:G,confirms:true}); }
+      else if(atr>=2.5) { score+=3; atrLabel=`${atr.toFixed(1)}% MED`;   atrClass="med";  signals.push({label:"ATR",val:atrLabel,pts:+3,color:A,confirms:null}); }
+      else if(atr<1.2)  { score-=5; atrLabel=`${atr.toFixed(1)}% CHOP`;  atrClass="low";  signals.push({label:"ATR",val:atrLabel,pts:-5,color:R,confirms:false}); }
+      else { atrLabel=`${atr.toFixed(1)}% NORM`; signals.push({label:"ATR",val:atrLabel,pts:0,color:"#444",confirms:null}); }
+    }
+    if(md?.es?.change != null) {
+      const c = md.es.change;
+      const confirms=(zType==="buy"&&c>+0.25)||(zType==="sell"&&c<-0.25);
+      const conflicts=(zType==="buy"&&c<-0.25)||(zType==="sell"&&c>+0.25);
+      if(confirms)  { score+=5; signals.push({label:"ES",val:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:+5,color:G,confirms:true}); }
+      else if(conflicts){ score-=3; signals.push({label:"ES",val:`${c.toFixed(1)}%`,pts:-3,color:R,confirms:false}); }
+      else { signals.push({label:"ES",val:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#444",confirms:null}); }
+    }
+    if(md?.gc?.change != null) {
+      const c = md.gc.change;
+      if(zType==="sell"&&c>+0.4)    { score+=3; signals.push({label:"Gold",val:`+${c.toFixed(1)}%`,pts:+3,color:G,confirms:true}); }
+      else if(zType==="buy"&&c>+0.4){ score-=2; signals.push({label:"Gold",val:`+${c.toFixed(1)}%`,pts:-2,color:R,confirms:false}); }
+    }
+    if(overall!=="NEUTRAL") {
+      const biasAligned=(overall==="BULLISH"&&zType==="buy")||(overall==="BEARISH"&&zType==="sell");
+      if(biasAligned){ score+=3; signals.push({label:"BIAS",val:overall,pts:+3,color:G,confirms:true}); }
+    }
+    return { score:Math.max(-20,Math.min(35,score)), signals, atrLabel, atrClass };
+  }
+
+  // STAGE 3: EXECUTION + HARD GATES
+  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone) {
+    let contextPts=0, penalties=0;
+    const blocked=[];
+
+    if(!zone)                   return {blocked:true,reason:"No active zone",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
+    if(eb.isDanger)             return {blocked:true,reason:"Z6 danger window",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
+    if(eb.window.role==="DEAD") return {blocked:true,reason:"Dead zone",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
+
+    if(inSubWindow)  contextPts+=8;
+    if(hotTraps.length) contextPts+=5;
+    if(btd.best  && TODAYday===btd.best)  contextPts+=4;
+    if(btd.worst && TODAYday===btd.worst) contextPts-=8;
+
+    if(breakingAnchor) {
+      const zType=zone.type;
+      const agrees=(breakingAnchor.polarity===+1&&zType==="buy")||(breakingAnchor.polarity===-1&&zType==="sell");
+      if(agrees) contextPts+=5; else penalties+=6;
+    }
+
+    if(!eb.zonePolMatch)       penalties+=12;
+    if(val.atrClass==="low")   penalties+=5;
+    if(eb.window.tier<=1)      penalties+=8;
+
+    const totalScore = Math.min(100,Math.max(0, eb.biasScore+val.score+contextPts-penalties));
+
+    let light, action;
+    if(penalties>=12||!eb.zonePolMatch){ light="red";    action="AVOID"; }
+    else if(eb.stalkMode&&totalScore>=55){ light="yellow"; action="STALK"; }
+    else if(totalScore>=72&&eb.window.tier>=3){ light="green"; action=inSubWindow?"ENTER NOW":"ENTER — PRIME"; }
+    else if(totalScore>=50){ light="yellow"; action="STALK"; }
+    else { light="gray"; action="WAIT"; }
+
+    return {blocked:false,light,action,totalScore,contextPts,penalties,blockedReasons:blocked};
+  }
+
+  // MASTER ENGINE
+  const polarityEngine = (()=>{
+    const zone = liveZ.find(z=>z.type!=="dead") || null;
+    const zType = zone ? zone.type : null;
+    const md = marketData;
+    const btd = zone ? (BACKTEST[zone.id]||{}) : {};
+    const wr = zone ? ((BACKTEST[zone.id]&&BACKTEST[zone.id].wins)||65) : 65;
+
+    const eb  = computeEarlyBias(et.h24, et.m, zone, zType, inSub);
+    const val = computeValidation(zType, md, inSub, hotTraps, overall, btd, breakingAnchor, eb);
+    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone);
+
+    const totalScore = exe.blocked ? 0 : exe.totalScore;
+    const light = exe.light || "gray";
+
+    return {
+      strength:totalScore, light, action:exe.action,
+      earlyBias:eb, validation:val, execution:exe,
+      zType, zone, wr, btd,
+      polarityDir: eb.polarity===+1?"UP ▲":"DOWN ▼",
+      polarityAligned: eb.zonePolMatch,
+      setupType: eb.setupType,
+      stalkMode: eb.stalkMode,
+      windowLabel: eb.window.label,
+      windowRole: eb.window.role,
+    };
+  })();
+
+  const activeZoneStrength = polarityEngine.strength;
+  const timePolarityNow    = polarityEngine.earlyBias.polarity;
+  const polarityAligned    = polarityEngine.polarityAligned;
+  const activeZoneType     = polarityEngine.zType;
+
   const confScore = (()=>{
     let s=0;
-    const nonDeadLive=liveZ.filter(z=>z.type!=="dead");
-    if(nonDeadLive.length) s+=25;
+    const ndl=liveZ.filter(z=>z.type!=="dead");
+    if(ndl.length) s+=25;
     if(inSub) s+=20;
-    if(overall!=="NEUTRAL"&&nonDeadLive.length){
-      const aligned=(overall==="BULLISH"&&(nonDeadLive[0]&&nonDeadLive[0].type)==="buy")||(overall==="BEARISH"&&(nonDeadLive[0]&&nonDeadLive[0].type)==="sell");
-      if(aligned) s+=20; else s-=10;
-    }
+    if(overall!=="NEUTRAL"&&ndl.length){ const al=(overall==="BULLISH"&&ndl[0]?.type==="buy")||(overall==="BEARISH"&&ndl[0]?.type==="sell"); if(al) s+=20; else s-=10; }
     if(hotTraps.length) s+=15;
     return Math.min(100,Math.max(0,s));
   })();
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
-  // ── CORRELATION ENGINE — live DXY, ES, NQ, BTC, ATR ─────────────────────────
-  // Returns: { boost, signals, atrLabel, atrClass }
-  // boost = net ±pts added to strength (capped ±22)
-  // signals = array of {label, dir, pts, color} for display
-  const correlationEngine = (()=>{
-    const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
-    const zType = zone ? zone.type : null; // "buy" | "sell" | "dead"
-    const md = marketData;
-    if(!zType || zType==="dead" || !md) return { boost:0, signals:[], atrLabel:"—", atrClass:"neutral", stale:!md };
-
-    const signals = [];
-    let boost = 0;
-
-    // ── DXY (inverse to risk — most reliable BTC correlation) ──────────────────
-    if(md.dxy?.change != null) {
-      const c = md.dxy.change;
-      const bullish = c < -0.15; // dollar weakening = risk on
-      const bearish = c > +0.15;
-      if(zType==="buy" && bullish)  { boost+=8;  signals.push({label:"DXY",dir:"▼ Weak",pts:+8,color:G,desc:"Dollar falling → risk on"}); }
-      else if(zType==="sell"&&bearish){ boost+=8; signals.push({label:"DXY",dir:"▲ Strong",pts:+8,color:G,desc:"Dollar rising → risk off"}); }
-      else if(zType==="buy"&&bearish) { boost-=7; signals.push({label:"DXY",dir:"▲ Strong",pts:-7,color:R,desc:"Dollar rising → conflicts BUY"}); }
-      else if(zType==="sell"&&bullish){ boost-=7; signals.push({label:"DXY",dir:"▼ Weak",pts:-7,color:R,desc:"Dollar falling → conflicts SELL"}); }
-      else { signals.push({label:"DXY",dir:"◆ Flat",pts:0,color:"#555",desc:"No directional edge"}); }
-    }
-
-    // ── BTC 24h momentum ───────────────────────────────────────────────────────
-    if(md.btc?.change != null) {
-      const c = md.btc.change;
-      const bullish = c > +1.0;
-      const bearish = c < -1.0;
-      if(zType==="buy"&&bullish)  { boost+=7;  signals.push({label:"BTC",dir:`+${c.toFixed(1)}%`,pts:+7,color:G,desc:"Momentum aligned"}); }
-      else if(zType==="sell"&&bearish){ boost+=7; signals.push({label:"BTC",dir:`${c.toFixed(1)}%`,pts:+7,color:G,desc:"Momentum aligned"}); }
-      else if(zType==="buy"&&bearish) { boost-=6; signals.push({label:"BTC",dir:`${c.toFixed(1)}%`,pts:-6,color:R,desc:"BTC selling — conflicts BUY"}); }
-      else if(zType==="sell"&&bullish){ boost-=6; signals.push({label:"BTC",dir:`+${c.toFixed(1)}%`,pts:-6,color:R,desc:"BTC pumping — conflicts SELL"}); }
-      else { signals.push({label:"BTC",dir:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#555",desc:"Neutral momentum"}); }
-    }
-
-    // ── ES Futures (risk-on/off confirmation) ──────────────────────────────────
-    if(md.es?.change != null) {
-      const c = md.es.change;
-      const bullish = c > +0.3;
-      const bearish = c < -0.3;
-      if(zType==="buy"&&bullish)  { boost+=5;  signals.push({label:"ES",dir:`+${c.toFixed(1)}%`,pts:+5,color:G,desc:"Futures aligned"}); }
-      else if(zType==="sell"&&bearish){ boost+=5; signals.push({label:"ES",dir:`${c.toFixed(1)}%`,pts:+5,color:G,desc:"Futures aligned"}); }
-      else if(zType==="buy"&&bearish) { boost-=4; signals.push({label:"ES",dir:`${c.toFixed(1)}%`,pts:-4,color:R,desc:"Futures dropping"}); }
-      else if(zType==="sell"&&bullish){ boost-=4; signals.push({label:"ES",dir:`+${c.toFixed(1)}%`,pts:-4,color:R,desc:"Futures rising"}); }
-      else { signals.push({label:"ES",dir:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#555",desc:"Neutral"}); }
-    }
-
-    // ── Gold (safe-haven tells) ────────────────────────────────────────────────
-    if(md.gc?.change != null) {
-      const c = md.gc.change;
-      // Gold rising = risk-off = bearish for BTC
-      if(zType==="sell"&&c>+0.4)  { boost+=3;  signals.push({label:"Gold",dir:`+${c.toFixed(1)}%`,pts:+3,color:G,desc:"Safe haven bid"}); }
-      else if(zType==="buy"&&c>+0.4) { boost-=2; signals.push({label:"Gold",dir:`+${c.toFixed(1)}%`,pts:-2,color:R,desc:"Risk-off bid"}); }
-      else { signals.push({label:"Gold",dir:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#555",desc:"Neutral"}); }
-    }
-
-    // ── ATR / Volatility (BTC 24h range as % of price) ────────────────────────
-    let atrLabel = "—", atrClass = "neutral";
-    if(md.btc?.atr != null) {
-      const atr = md.btc.atr;
-      if(atr >= 4.5)      { boost+=4; atrLabel=`${atr.toFixed(1)}% HIGH`;  atrClass="high";   }
-      else if(atr >= 2.5) { boost+=2; atrLabel=`${atr.toFixed(1)}% MED`;   atrClass="med";    }
-      else if(atr < 1.2)  { boost-=4; atrLabel=`${atr.toFixed(1)}% LOW`;   atrClass="low";    }
-      else                {            atrLabel=`${atr.toFixed(1)}% NORM`; atrClass="normal"; }
-    }
-
-    // ── Cap total boost ────────────────────────────────────────────────────────
-    const cappedBoost = Math.max(-22, Math.min(22, boost));
-    return { boost:cappedBoost, signals, atrLabel, atrClass, stale:false };
-  })();
-
-  // Active zone strength — base + best/worst day + live correlation boost
-  const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
-
-  const activeZoneStrength = (()=>{
-    const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
-    if(!zone) return 0;
-    const wr  = (BACKTEST[zone.id] && BACKTEST[zone.id].wins) || 65;
-    const btd = BACKTEST[zone.id] || {};
-    let str = Math.round(wr*0.45 + confScore*0.55);
-    if(btd.best  && TODAYday === btd.best)  str += 7;
-    if(btd.worst && TODAYday === btd.worst) str -= 9;
-    if(inSub) str = Math.min(100, str + 8);
-    // Live correlation boost — unbiased confirmation layer on top of time polarity
-    str += correlationEngine.boost;
-    return Math.max(0, Math.min(100, str));
-  })();
 
   // ── APP-LEVEL CHECKLIST (used in both ClockTab summary and SignalsTab) ───────
   const appLiveZone = liveZ[0] || null;
@@ -673,6 +783,14 @@ function App() {
       label:"ZONE ACTIVE",
       passes: appLiveZone !== null,
       color: appLiveZone?(appLiveZone.type==="buy"?G:R):"#888",
+    },
+    {
+      label:"TIME POLARITY",
+      passes: polarityAligned ? true : (appLiveZone ? false : null),
+      value: polarityEngine.windowLabel +
+             (polarityEngine.stalkMode ? " · STALKING" : "") +
+             (polarityEngine.setupType!=="no-trade" ? " · "+polarityEngine.setupType.toUpperCase() : ""),
+      color: polarityEngine.lightCol,
     },
     {
       label:"CORRELATION ALIGNMENT",
@@ -704,8 +822,8 @@ function App() {
   ];
   const appGreenCount  = appChecks.filter(c=>c.passes===true).length;
   const appRedCount    = appChecks.filter(c=>c.passes===false).length;
-  const appReadyColor  = appGreenCount>=4?G:appGreenCount>=3?A:R;
-  const appReadyLabel  = appGreenCount>=4?"TAKE TRADE":appGreenCount>=3?"WATCH":"WAIT";
+  const appReadyColor  = appGreenCount>=5?G:appGreenCount>=3?A:R;
+  const appReadyLabel  = appGreenCount>=5?"TAKE TRADE":appGreenCount>=3?"WATCH":"WAIT";
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
   const flipZone = (zid,note="") => {
@@ -1070,47 +1188,59 @@ function App() {
                "◆ Neutral bias — zone only"}
             </div>
             {can("sub_pocket")&&inSub&&<div style={{fontSize:13,color:"#fff",...mono,opacity:.7,marginBottom:10}}>★ {(z.pocket&&z.pocket.label)}</div>}
-            {/* Strength bar + live correlation signals */}
+            {/* ── Polarity Engine v3 output ── */}
             <div style={{borderTop:"1px solid rgba(255,255,255,0.09)",paddingTop:9}}>
+              {/* Row 1: Strength bar + score */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <div style={{fontSize:14,letterSpacing:1.5,color:sc,fontWeight:700,...mono}}>
-                  ● {bz.label} · STRENGTH
+                <div style={{display:"flex",alignItems:"center",gap:7}}>
+                  {/* Traffic light dot */}
+                  <div style={{width:10,height:10,borderRadius:"50%",flexShrink:0,
+                    background:polarityEngine.lightCol,
+                    boxShadow:`0 0 8px ${polarityEngine.lightCol}`}}/>
+                  <div style={{fontSize:13,letterSpacing:1.5,color:polarityEngine.lightCol,fontWeight:900,...mono}}>
+                    {polarityEngine.action}
+                  </div>
                 </div>
                 <div style={{fontSize:18,fontWeight:900,color:sc,...mono}}>{str}%</div>
               </div>
+              {/* Progress bar */}
               <div style={{height:6,background:"rgba(255,255,255,0.07)",borderRadius:3,overflow:"hidden",marginBottom:8}}>
-                <div style={{height:"100%",width:`${str}%`,background:sc,borderRadius:3,boxShadow:`0 0 8px ${sc}88`,transition:"width 1s"}}/>
+                <div style={{height:"100%",width:`${str}%`,background:polarityEngine.lightCol,borderRadius:3,
+                  boxShadow:`0 0 8px ${polarityEngine.lightCol}88`,transition:"width 1s"}}/>
               </div>
-              {/* Live correlation signal chips */}
-              {correlationEngine.signals.length>0&&(
-                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:5}}>
-                  {correlationEngine.signals.map((sig,i)=>(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:8,
-                      background:`${sig.color}12`,border:`1px solid ${sig.color}33`}}>
-                      <span style={{fontSize:12,fontWeight:900,color:sig.color,...mono}}>{sig.label}</span>
-                      <span style={{fontSize:11,color:sig.color,...mono}}>{sig.dir}</span>
+              {/* Row 2: Window label + setup type */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{fontSize:12,...mono,color:"#888"}}>{polarityEngine.windowLabel}</div>
+                <div style={{fontSize:12,...mono,color:"#555",textTransform:"uppercase",letterSpacing:1}}>
+                  {polarityEngine.setupType}
+                  {polarityEngine.stalkMode&&<span style={{color:A,marginLeft:5}}>· STALKING</span>}
+                </div>
+              </div>
+              {/* Row 3: Validation signal chips */}
+              {polarityEngine.validation.signals.length>0&&(
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+                  {polarityEngine.validation.signals.map((sig,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:7,
+                      background:`${sig.color}10`,border:`1px solid ${sig.color}28`}}>
+                      <span style={{fontSize:12,fontWeight:700,color:sig.color,...mono}}>{sig.label}</span>
+                      <span style={{fontSize:11,color:sig.color,...mono}}>{sig.val}</span>
                       {sig.pts!==0&&<span style={{fontSize:11,color:sig.pts>0?G:R,fontWeight:700,...mono}}>{sig.pts>0?"+":""}{sig.pts}</span>}
                     </div>
                   ))}
-                  {correlationEngine.atrLabel!=="—"&&(
-                    <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:8,
-                      background:`${correlationEngine.atrClass==="high"?G:correlationEngine.atrClass==="low"?R:A}10`,
-                      border:`1px solid ${correlationEngine.atrClass==="high"?G:correlationEngine.atrClass==="low"?R:A}33`}}>
-                      <span style={{fontSize:11,color:correlationEngine.atrClass==="high"?G:correlationEngine.atrClass==="low"?R:A,...mono}}>
-                        ATR {correlationEngine.atrLabel}
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
-              {/* Net boost indicator */}
-              {correlationEngine.boost!==0&&(
-                <div style={{fontSize:11,color:correlationEngine.boost>0?G:R,...mono,opacity:.8}}>
-                  {correlationEngine.boost>0?"▲":"▼"} Live correlations: {correlationEngine.boost>0?"+":""}{correlationEngine.boost} pts
-                  {marketData?.fetchedAt&&<span style={{color:"#333",marginLeft:6}}>· {Math.round((Date.now()-marketData.fetchedAt)/60000)}m ago</span>}
-                </div>
-              )}
-              {!marketData&&<div style={{fontSize:11,color:"#333",...mono}}>● Fetching live correlations…</div>}
+              {/* Row 4: Score breakdown */}
+              <div style={{display:"flex",gap:8,fontSize:11,...mono,color:"#333"}}>
+                <span>bias {polarityEngine.earlyBias.biasScore}</span>
+                <span>·</span>
+                <span style={{color:polarityEngine.validation.score>=0?"#555":R}}>
+                  val {polarityEngine.validation.score>=0?"+":""}{polarityEngine.validation.score}
+                </span>
+                {polarityEngine.execution.contextPts!==0&&<><span>·</span><span style={{color:polarityEngine.execution.contextPts>0?"#555":R}}>ctx {polarityEngine.execution.contextPts>0?"+":""}{polarityEngine.execution.contextPts}</span></>}
+                {polarityEngine.execution.penalties>0&&<><span>·</span><span style={{color:R}}>−{polarityEngine.execution.penalties} pen</span></>}
+                {marketData?.fetchedAt&&<><span>·</span><span>{Math.round((Date.now()-marketData.fetchedAt)/60000)}m</span></>}
+              </div>
+              {!marketData&&<div style={{fontSize:11,color:"#333",...mono,marginTop:4}}>● Fetching live data…</div>}
             </div>
           </div>
         );
@@ -1169,12 +1299,12 @@ function App() {
             <div>
               <div style={lbl(appReadyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
               <div style={{fontSize:13,color:"#aaa",...mono,lineHeight:1.8}}>
-                {appGreenCount}/4 checks · Peak 88% when all conditions met
+                {appGreenCount}/5 checks · Peak 88% when all conditions met
                 {appRedCount>0?` · ${appRedCount} counter-signal${appRedCount>1?"s":""}`:""}.
               </div>
             </div>
             <div style={{textAlign:"center"}}>
-              <div style={{fontSize:30,fontWeight:900,color:appReadyColor,lineHeight:1}}>{appGreenCount}/4</div>
+              <div style={{fontSize:30,fontWeight:900,color:appReadyColor,lineHeight:1}}>{appGreenCount}/5</div>
               <div style={{fontSize:14,fontWeight:900,color:appReadyColor,letterSpacing:1.5}}>{appReadyLabel}</div>
             </div>
           </div>
