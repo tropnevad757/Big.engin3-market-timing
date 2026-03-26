@@ -578,39 +578,27 @@ function App() {
   // ── Feed definitions ──────────────────────────────────────────────────────────
   // ── LIVE FEED: Google News RSS — mirrors Feedly/FeedLab Reuters & Bloomberg channels ──
   // Uses topic-based queries (more stable than site: queries with rss2json)
+  // ── FEED: Reuters Markets + Bloomberg Markets only — same as Feedly ────────────
   const NEWS_FEEDS = [
-    { id:"combo", label:"Markets Feed", color:"#ffb347",
-      // Reuters + Bloomberg combined via Google News topic IDs
+    { id:"combo", label:"R + B", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=Reuters+Markets+finance+stocks&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=Bloomberg+Markets+finance+stocks&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=source:reuters.com+%22markets%22+OR+%22bitcoin%22+OR+%22stocks%22+OR+%22rates%22&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=source:bloomberg.com+%22markets%22+OR+%22bitcoin%22+OR+%22rates%22+OR+%22crypto%22&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"reuters", label:"Reuters Markets", color:"#ff6b35",
-      // Same query pattern Feedly uses for reuters/businessNews
+    { id:"reuters", label:"Reuters", color:"#ff6b35",
       urls:[
-        "https://news.google.com/rss/search?q=Reuters+%22markets%22+OR+%22bitcoin%22+OR+%22stocks%22+OR+%22federal+reserve%22+OR+%22crypto%22&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=source:reuters.com+%22markets%22+OR+%22bitcoin%22+OR+%22stocks%22+OR+%22rates%22+OR+%22fed%22&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
-      // Same query pattern Feedly uses for bloomberg/markets
+    { id:"bloomberg", label:"Bloomberg", color:"#f0a030",
       urls:[
-        "https://news.google.com/rss/search?q=Bloomberg+%22markets%22+OR+%22bitcoin%22+OR+%22rates%22+OR+%22crypto%22+OR+%22fed%22&hl=en-US&gl=US&ceid=US:en",
-      ]
-    },
-    { id:"crypto", label:"Crypto Markets", color:"#00ff88",
-      urls:[
-        "https://news.google.com/rss/search?q=%22bitcoin%22+OR+%22crypto+market%22+OR+%22ethereum%22+Reuters+OR+Bloomberg+OR+CoinDesk&hl=en-US&gl=US&ceid=US:en",
-      ]
-    },
-    { id:"macro", label:"Macro / Fed", color:"#aa88ff",
-      urls:[
-        "https://news.google.com/rss/search?q=%22Federal+Reserve%22+OR+%22interest+rate%22+OR+%22CPI%22+OR+%22NFP%22+Reuters+OR+Bloomberg&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=source:bloomberg.com+%22markets%22+OR+%22bitcoin%22+OR+%22rates%22+OR+%22crypto%22+OR+%22fed%22&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
 
-  // ── CALENDAR FEEDS ─────────────────────────────────────────────────────────────
+    // ── CALENDAR FEEDS ─────────────────────────────────────────────────────────────
   // ForexFactory JSON is the most reliable free cross-origin economic calendar
   // same underlying data Myfxbook and TradingEconomics aggregate
   const CALENDAR_FEEDS = [
@@ -1966,7 +1954,7 @@ function App() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {liveZ.length>0&&<div style={{width:7,height:7,borderRadius:"50%",background:liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D,boxShadow:`0 0 8px ${liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D}`}}/>}
-          <div style={{padding:"5px 12px",borderRadius:18,background:`${planColor}12`,border:`1px solid ${planColor}33`,color:planColor,fontSize:11,fontWeight:700,letterSpacing:1}}>{plan==="elite"?"₿":"₿"}</div>
+          <div style={{padding:"5px 14px",borderRadius:18,background:"rgba(255,149,0,0.12)",border:"1px solid rgba(255,149,0,0.45)",color:"#ff9500",fontSize:16,fontWeight:900,letterSpacing:1}}>₿</div>
         </div>
       </div>
 
