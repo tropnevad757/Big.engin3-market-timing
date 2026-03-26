@@ -460,6 +460,21 @@ function App() {
   const can = f => plan==="elite"||( plan==="pro"&&f!=="backtest_full"&&f!=="sub_pocket")||( plan==="free"&&["clock","news"].includes(f));
   const gate = (f,cb) => { if(can(f))cb(); else setSubOpen(true); };
 
+  // Track previous polarity window to detect flips
+  const prevPolarityRef = useRef(null);
+  const prevWindowRef   = useRef(null);
+
+  // Zone transition anchor map — each switch point fires an auto anchor
+  const TRANSITION_ANCHORS = [
+    { mins: 90,  label:"1:30 · Z1 SWITCH",    polarity:-1, stars:3, color:"#ff3355" }, // 1:30 AM bear
+    { mins:270,  label:"4:30 · Z4 RESET",      polarity:+1, stars:2, color:"#00ff88" }, // 4:30 AM bull
+    { mins:390,  label:"6:30 · Z6 DANGER",     polarity:-1, stars:1, color:"#888"    }, // 6:30 AM — low confidence
+    { mins:450,  label:"7:30 · Z7 PRIMARY",    polarity:+1, stars:3, color:"#00ff88" }, // 7:30 AM bull — highest
+    { mins:630,  label:"10:30 · Z10 TRAP",     polarity:-1, stars:3, color:"#ff3355" }, // 10:30 AM bear
+    { mins:750,  label:"12:30 · Z12 REVERSAL", polarity:+1, stars:2, color:"#00ff88" }, // 12:30 PM bull
+    { mins:810,  label:"1:30 · PM DEAD",       polarity:-1, stars:2, color:"#ff3355" }, // 1:30 PM bear ← the one that was missing
+  ];
+
   useEffect(()=>{
     const t=setInterval(()=>{
       const e=getTZ("America/New_York"),l=getTZ(tz);
@@ -470,7 +485,34 @@ function App() {
         if(prevRef.current.some(id=>!now.includes(id))&&!now.length) zoneEnd();
       }
       prevRef.current=now; setLiveIds(now);
-      // Expire breaking anchor after 15 min
+
+      // ── Auto-anchor on polarity flip at zone transition moments ──────────────
+      // Fires once per transition window (within 60s of the transition minute)
+      const nowMins = e.h24*60+e.m;
+      const transition = TRANSITION_ANCHORS.find(tr => {
+        const diff = ((nowMins - tr.mins) + 1440) % 1440;
+        return diff < 1; // fires in the first minute of each transition
+      });
+      if(transition && prevWindowRef.current !== transition.mins) {
+        prevWindowRef.current = transition.mins;
+        // Only auto-set if no manual anchor is active (don't override user's anchor)
+        setBreakingAnchor(prev => {
+          if(prev && !prev.auto) return prev; // preserve manual anchors
+          return {
+            title: transition.label,
+            polarity: transition.polarity,
+            expiresAt: Date.now() + 20*60*1000, // 20 min window
+            stars: transition.stars,
+            auto: true,
+          };
+        });
+        if(soundOn&&can("sound")) flipAlert();
+      }
+
+      // Reset window tracker when we're past the 1-min fire window
+      const inAnyTransition = TRANSITION_ANCHORS.some(tr => ((nowMins-tr.mins+1440)%1440) < 1);
+      if(!inAnyTransition) prevWindowRef.current = null;
+
       // Expire breaking anchor
       setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
     },1000);
@@ -1157,91 +1199,149 @@ function App() {
         </button>
       </div>
 
-      {/* ── Combined Zone + Strength card (single card, no duplicate) ── */}
+      {/* ── BiG ENGiN3 Early Direction Card ── */}
       {(()=>{
-        if(!liveZ.length) return(
-          <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.03)",padding:"14px 16px",textAlign:"center"}}>
-            <div style={{fontSize:13,color:"#999",letterSpacing:2,...mono}}>NO ACTIVE ZONE</div>
-            {nextZ&&<div style={{fontSize:14,color:"#888",marginTop:4,...mono}}>
-              Next: <span style={{color:nextZ.type==="buy"?G:R,fontWeight:700}}>{nextZ.type==="buy"?"▲ BUY":"▼ SELL"}</span>
-            </div>}
+        const pe   = polarityEngine;
+        const eb   = pe.earlyBias;
+        const val  = pe.validation;
+        const exe  = pe.execution;
+        const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
+        const col  = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#555";
+        const str  = activeZoneStrength;
+        const sc   = str>=70?G:str>=40?A:R;
+
+        // Light → color mapping
+        const lc = pe.light==="green"?G:pe.light==="yellow"?A:pe.light==="red"?R:"#555";
+
+        // Early direction: derived from polarity alone, before confirmation
+        const earlyDir    = eb.polarity===+1 ? "BUY" : "SELL";
+        const earlyCol    = eb.polarity===+1 ? G : R;
+        const earlyArrow  = eb.polarity===+1 ? "▲" : "▼";
+        const minsToNext  = getMinutesToNextZone(et.h24, et.m);
+
+        // No zone at all
+        if(!liveZ.length && eb.window.role==="DEAD") return(
+          <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",
+            background:"rgba(255,255,255,0.03)",padding:"16px"}}>
+            <div style={{fontSize:13,color:"#444",letterSpacing:2,...mono,marginBottom:6}}>◆ DEAD ZONE</div>
+            <div style={{fontSize:13,color:"#555",...mono}}>
+              Next zone in <span style={{color:A,fontWeight:700}}>{minsToNext}m</span>
+              {" · "}<span style={{color:eb.polarity===+1?G:R,fontWeight:700}}>{earlyArrow} {earlyDir} expected</span>
+            </div>
           </div>
         );
-        const z   = liveZ[0];
-        const col = z.type==="buy"?G:z.type==="sell"?R:D;
-        const str = activeZoneStrength;
-        const sc  = str>=70?G:str>=40?A:R;
-        const bz  = liveZ.find(lz=>lz.type!=="dead")||z;
+
         return(
-          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${col}55`,background:`${col}0a`,padding:"16px 16px 12px"}}>
-            {inSub&&<div style={{fontSize:13,letterSpacing:2,color:"#fff",fontWeight:700,marginBottom:8,background:"rgba(255,255,255,0.1)",borderRadius:6,padding:"3px 10px",display:"inline-block"}}>★ PRIME POCKET ACTIVE</div>}
-            {/* Big zone direction label */}
-            <div style={{fontSize:30,fontWeight:900,color:col,letterSpacing:2,marginBottom:3,...mono}}>
-              {z.type==="buy"?"▲  BUY CORE":z.type==="sell"?"▼  SELL RESET":"◆  DEAD ZONE"}
-            </div>
-            {/* Bias line */}
-            <div style={{fontSize:13,color:ovCol,...mono,marginBottom:can("sub_pocket")&&inSub?4:10}}>
-              {overall==="BULLISH"&&z.type==="buy"?"✓ Bias confirmed — FULL EDGE":
-               overall==="BEARISH"&&z.type==="sell"?"✓ Bias confirmed — FULL EDGE":
-               overall==="BULLISH"&&z.type==="sell"?"⚠ Counter-bias — reduce size":
-               overall==="BEARISH"&&z.type==="buy"?"⚠ Counter-bias — reduce size":
-               "◆ Neutral bias — zone only"}
-            </div>
-            {can("sub_pocket")&&inSub&&<div style={{fontSize:13,color:"#fff",...mono,opacity:.7,marginBottom:10}}>★ {(z.pocket&&z.pocket.label)}</div>}
-            {/* ── Polarity Engine v3 output ── */}
-            <div style={{borderTop:"1px solid rgba(255,255,255,0.09)",paddingTop:9}}>
-              {/* Row 1: Strength bar + score */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <div style={{display:"flex",alignItems:"center",gap:7}}>
-                  {/* Traffic light dot */}
-                  <div style={{width:10,height:10,borderRadius:"50%",flexShrink:0,
-                    background:polarityEngine.lightCol,
-                    boxShadow:`0 0 8px ${polarityEngine.lightCol}`}}/>
-                  <div style={{fontSize:13,letterSpacing:1.5,color:polarityEngine.lightCol,fontWeight:900,...mono}}>
-                    {polarityEngine.action}
+          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${lc}44`,
+            background:`${lc}08`,padding:"14px 15px 12px",position:"relative",overflow:"hidden"}}>
+
+            {/* Top stripe — traffic light color */}
+            <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:lc,
+              boxShadow:`0 0 12px ${lc}88`}}/>
+
+            {/* ── ROW 1: Early direction — the dominant read ── */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div>
+                {/* Stalk / Prime label above */}
+                {(eb.stalkMode || inSub) && (
+                  <div style={{fontSize:11,letterSpacing:2,fontWeight:700,marginBottom:4,
+                    color:inSub?"#fff":A,
+                    background:inSub?"rgba(255,255,255,0.1)":`${A}18`,
+                    borderRadius:5,padding:"2px 8px",display:"inline-block"}}>
+                    {inSub?"★ PRIME POCKET":eb.stalkMode?"◎ STALKING — ZONE OPENS IN "+minsToNext+"m":""}
+                  </div>
+                )}
+                {/* Big direction */}
+                <div style={{fontSize:32,fontWeight:900,color:earlyCol,letterSpacing:2,lineHeight:1,...mono}}>
+                  {earlyArrow}  {z ? (z.type==="buy"?"BUY CORE":"SELL RESET") : earlyDir}
+                </div>
+                {/* Window label + setup type */}
+                <div style={{fontSize:12,color:"#888",marginTop:3,...mono}}>
+                  {eb.window.label}
+                  <span style={{color:"#444",marginLeft:6}}>·</span>
+                  <span style={{color:eb.setupType==="continuation"?G:eb.setupType==="fade"?R:A,
+                    marginLeft:6,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
+                    {eb.setupType}
+                  </span>
+                </div>
+              </div>
+
+              {/* Traffic light + score — right side */}
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"flex-end",marginBottom:3}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:lc,
+                    boxShadow:`0 0 8px ${lc}`}}/>
+                  <div style={{fontSize:14,fontWeight:900,color:lc,...mono,letterSpacing:1}}>
+                    {pe.action}
                   </div>
                 </div>
-                <div style={{fontSize:18,fontWeight:900,color:sc,...mono}}>{str}%</div>
+                <div style={{fontSize:26,fontWeight:900,color:sc,lineHeight:1,...mono}}>{str}%</div>
+                <div style={{fontSize:10,color:"#333",letterSpacing:1,...mono}}>CONFIDENCE</div>
               </div>
-              {/* Progress bar */}
-              <div style={{height:6,background:"rgba(255,255,255,0.07)",borderRadius:3,overflow:"hidden",marginBottom:8}}>
-                <div style={{height:"100%",width:`${str}%`,background:polarityEngine.lightCol,borderRadius:3,
-                  boxShadow:`0 0 8px ${polarityEngine.lightCol}88`,transition:"width 1s"}}/>
-              </div>
-              {/* Row 2: Window label + setup type */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <div style={{fontSize:12,...mono,color:"#888"}}>{polarityEngine.windowLabel}</div>
-                <div style={{fontSize:12,...mono,color:"#555",textTransform:"uppercase",letterSpacing:1}}>
-                  {polarityEngine.setupType}
-                  {polarityEngine.stalkMode&&<span style={{color:A,marginLeft:5}}>· STALKING</span>}
-                </div>
-              </div>
-              {/* Row 3: Validation signal chips */}
-              {polarityEngine.validation.signals.length>0&&(
-                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-                  {polarityEngine.validation.signals.map((sig,i)=>(
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:7,
-                      background:`${sig.color}10`,border:`1px solid ${sig.color}28`}}>
-                      <span style={{fontSize:12,fontWeight:700,color:sig.color,...mono}}>{sig.label}</span>
-                      <span style={{fontSize:11,color:sig.color,...mono}}>{sig.val}</span>
-                      {sig.pts!==0&&<span style={{fontSize:11,color:sig.pts>0?G:R,fontWeight:700,...mono}}>{sig.pts>0?"+":""}{sig.pts}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* Row 4: Score breakdown */}
-              <div style={{display:"flex",gap:8,fontSize:11,...mono,color:"#333"}}>
-                <span>bias {polarityEngine.earlyBias.biasScore}</span>
-                <span>·</span>
-                <span style={{color:polarityEngine.validation.score>=0?"#555":R}}>
-                  val {polarityEngine.validation.score>=0?"+":""}{polarityEngine.validation.score}
-                </span>
-                {polarityEngine.execution.contextPts!==0&&<><span>·</span><span style={{color:polarityEngine.execution.contextPts>0?"#555":R}}>ctx {polarityEngine.execution.contextPts>0?"+":""}{polarityEngine.execution.contextPts}</span></>}
-                {polarityEngine.execution.penalties>0&&<><span>·</span><span style={{color:R}}>−{polarityEngine.execution.penalties} pen</span></>}
-                {marketData?.fetchedAt&&<><span>·</span><span>{Math.round((Date.now()-marketData.fetchedAt)/60000)}m</span></>}
-              </div>
-              {!marketData&&<div style={{fontSize:11,color:"#333",...mono,marginTop:4}}>● Fetching live data…</div>}
             </div>
+
+            {/* ── ROW 2: Progress bar ── */}
+            <div style={{height:5,background:"rgba(255,255,255,0.07)",borderRadius:3,
+              overflow:"hidden",marginBottom:8}}>
+              <div style={{height:"100%",width:`${str}%`,background:lc,borderRadius:3,
+                boxShadow:`0 0 8px ${lc}66`,transition:"width 1s"}}/>
+            </div>
+
+            {/* ── ROW 3: DXY first (best early signal), then other chips ── */}
+            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:val.signals.length?6:0}}>
+              {/* Sort: DXY first, then BTC, then others */}
+              {[...val.signals].sort((a,b)=>{
+                const order = {DXY:0,BTC:1,ATR:2,ES:3,Gold:4,BIAS:5};
+                return (order[a.label]??9) - (order[b.label]??9);
+              }).map((sig,i)=>{
+                const chipCol = sig.confirms===true?G:sig.confirms===false?R:"#333";
+                return(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:3,
+                    padding:"3px 8px",borderRadius:7,
+                    background:`${chipCol}10`,border:`1px solid ${chipCol}30`}}>
+                    <span style={{fontSize:12,fontWeight:700,color:chipCol,...mono}}>{sig.label}</span>
+                    <span style={{fontSize:11,color:sig.confirms===null?"#444":chipCol,...mono}}>{sig.val}</span>
+                    {sig.pts!==0&&<span style={{fontSize:10,color:sig.pts>0?G:R,fontWeight:700,...mono}}>
+                      {sig.pts>0?"+":""}{sig.pts}
+                    </span>}
+                  </div>
+                );
+              })}
+              {!marketData&&<span style={{fontSize:11,color:"#333",...mono}}>● loading…</span>}
+            </div>
+
+            {/* ── ROW 4: Score anatomy (small, secondary) ── */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",fontSize:11,...mono,color:"#333",
+              borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:6,marginTop:2}}>
+              <span style={{color:eb.biasScore>=25?A:"#444"}}>
+                early {eb.biasScore}/40
+              </span>
+              <span>·</span>
+              <span style={{color:val.score>0?"#555":val.score<0?R:"#444"}}>
+                confirm {val.score>0?"+":""}{val.score}/35
+              </span>
+              {exe.contextPts!==0&&<><span>·</span>
+                <span style={{color:exe.contextPts>0?"#555":R}}>
+                  ctx {exe.contextPts>0?"+":""}{exe.contextPts}
+                </span>
+              </>}
+              {exe.penalties>0&&<><span>·</span>
+                <span style={{color:R}}>−{exe.penalties} pen</span>
+              </>}
+              {marketData?.fetchedAt&&<><span style={{marginLeft:"auto",color:"#2a2a2a"}}>
+                {Math.round((Date.now()-marketData.fetchedAt)/60000)}m ago
+              </span></>}
+            </div>
+
+            {/* Bias line — only if meaningful */}
+            {overall!=="NEUTRAL"&&z&&(
+              <div style={{fontSize:12,color:ovCol,...mono,marginTop:5}}>
+                {overall==="BULLISH"&&z.type==="buy"?"✓ Bias confirmed — FULL EDGE":
+                 overall==="BEARISH"&&z.type==="sell"?"✓ Bias confirmed — FULL EDGE":
+                 overall==="BULLISH"&&z.type==="sell"?"⚠ Counter-bias — reduce size":
+                 overall==="BEARISH"&&z.type==="buy"?"⚠ Counter-bias — reduce size":""}
+              </div>
+            )}
           </div>
         );
       })()}
