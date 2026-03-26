@@ -581,21 +581,27 @@ function App() {
   // Uses topic-based queries (more stable than site: queries with rss2json)
   // ── FEED: Reuters Markets + Bloomberg Markets via Google News RSS ────────────
   // Exact same method Feedly/FeedLab uses — Google News search for the channel name
+  // ── FEED: Reuters Markets + Bloomberg Markets ──────────────────────────────
+  // Google News publication-search — exactly how Feedly sources these channels
+  // Reuters: google news search locked to reuters.com domain
+  // Bloomberg: google news search locked to bloomberg.com domain
   const NEWS_FEEDS = [
     { id:"combo", label:"R + B", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=Reuters+Markets&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=Bloomberg+Markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"reuters", label:"Reuters", color:"#ff6b35",
+      // Locked to reuters.com — last 24h — same as Feedly reuters/businessNews
       urls:[
-        "https://news.google.com/rss/search?q=Reuters+Markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"bloomberg", label:"Bloomberg", color:"#f0a030",
+      // Locked to bloomberg.com markets — last 24h
       urls:[
-        "https://news.google.com/rss/search?q=Bloomberg+Markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
@@ -1777,7 +1783,6 @@ function App() {
               {[
                 {id:"yesterday",l:"Yesterday"},
                 {id:"today",    l:"Today"},
-                {id:"tomorrow", l:"Tomorrow"},
               ].map(d=>(
                 <button key={d.id} onClick={()=>setCalDay(d.id)} style={{
                   flex:1,padding:"8px 0",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",
