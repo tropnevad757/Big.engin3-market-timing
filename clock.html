@@ -450,6 +450,10 @@ function App() {
   const [ecoArticles,  setEcoArticles]  = useState([]);
   const [ecoLoading,   setEcoLoading]   = useState(false);
   const [ecoStarFilter,setEcoStarFilter]= useState(0); // 0=all, 1/2/3=min stars
+  // ── Live market data for real-time correlation engine ────────────────────────
+  const [marketData,   setMarketData]   = useState(null);
+  // {btc:{price,change24h,high24h,low24h}, dxy:{price,change}, es:{price,change}, nq:{price,change}}
+  const marketFetchRef = useRef(false);
   const prevRef = useRef([]);
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
 
@@ -475,6 +479,73 @@ function App() {
 
   const selTZ    = TZ_LIST.find(t=>t.tz===tz)||TZ_LIST[0];
   const liveZ    = zones.filter(z=>liveIds.includes(z.id));
+
+  // ── Real-time market data fetch (BTC via CoinGecko + DXY/ES/NQ via Yahoo) ──
+  const fetchMarketData = useCallback(async ()=>{
+    if(marketFetchRef.current) return;
+    marketFetchRef.current = true;
+    try {
+      // BTC: CoinGecko free API — CORS-friendly, no key needed
+      const cgUrl = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_24hr_high=true&include_24hr_low=true&include_last_updated_at=true";
+      const cgRes = await fetch(cgUrl, {cache:"no-cache"});
+      const cgData = cgRes.ok ? await cgRes.json() : null;
+      const btcRaw = cgData && cgData.bitcoin ? cgData.bitcoin : null;
+
+      // DXY + ES + NQ via Yahoo Finance (corsproxy)
+      async function yahooQuote(sym) {
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=2d`;
+          const proxy = "https://corsproxy.io/?" + encodeURIComponent(url);
+          const r = await fetch(proxy, {cache:"no-cache"});
+          if(!r.ok) return null;
+          const d = await r.json();
+          const q = d?.chart?.result?.[0];
+          if(!q) return null;
+          const closes = q.indicators?.quote?.[0]?.close || [];
+          const prev = closes[closes.length-2];
+          const curr = closes[closes.length-1];
+          if(!prev || !curr) return null;
+          return { price: curr, change: ((curr-prev)/prev)*100 };
+        } catch(e) { return null; }
+      }
+
+      const [dxy, es, nq, gc] = await Promise.all([
+        yahooQuote("DX-Y.NYB"),
+        yahooQuote("ES=F"),
+        yahooQuote("NQ=F"),
+        yahooQuote("GC=F"),
+      ]);
+
+      setMarketData({
+        btc: btcRaw ? {
+          price:    btcRaw.usd,
+          change:   btcRaw.usd_24h_change,
+          high24h:  btcRaw.usd_24h_high,
+          low24h:   btcRaw.usd_24h_low,
+          // ATR proxy: 24h range as % of price
+          atr:      btcRaw.usd_24h_high && btcRaw.usd_24h_low
+                      ? ((btcRaw.usd_24h_high - btcRaw.usd_24h_low) / btcRaw.usd) * 100
+                      : null,
+          updated:  btcRaw.last_updated_at,
+        } : null,
+        dxy, es, nq, gc,
+        fetchedAt: Date.now(),
+      });
+    } catch(e) {
+      // Silently fail — strength meter falls back to base formula
+    } finally {
+      marketFetchRef.current = false;
+    }
+  }, []);
+
+  // Fetch on mount + every 90 seconds
+  useEffect(()=>{
+    fetchMarketData();
+    const t = setInterval(fetchMarketData, 90000);
+    return ()=>clearInterval(t);
+  }, []);
+
+
   const nextZ    = zones.filter(z=>!liveIds.includes(z.id)).map(z=>({...z,mins:minsUntil(z,et.h,et.m)})).sort((a,b)=>a.mins-b.mins)[0];
   const allActive= cats.flatMap(c=>c.items.filter(i=>i.active));
   const bulls    = allActive.filter(i=>i.bias==="bull").length;
@@ -504,8 +575,80 @@ function App() {
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
-  // Active zone strength — simple: zone win rate + confluence + prime pocket bonus
-  // Today's short day name for best/worst day check
+  // ── CORRELATION ENGINE — live DXY, ES, NQ, BTC, ATR ─────────────────────────
+  // Returns: { boost, signals, atrLabel, atrClass }
+  // boost = net ±pts added to strength (capped ±22)
+  // signals = array of {label, dir, pts, color} for display
+  const correlationEngine = (()=>{
+    const zone = liveZ.find(z=>z.type!=="dead") || liveZ[0] || null;
+    const zType = zone ? zone.type : null; // "buy" | "sell" | "dead"
+    const md = marketData;
+    if(!zType || zType==="dead" || !md) return { boost:0, signals:[], atrLabel:"—", atrClass:"neutral", stale:!md };
+
+    const signals = [];
+    let boost = 0;
+
+    // ── DXY (inverse to risk — most reliable BTC correlation) ──────────────────
+    if(md.dxy?.change != null) {
+      const c = md.dxy.change;
+      const bullish = c < -0.15; // dollar weakening = risk on
+      const bearish = c > +0.15;
+      if(zType==="buy" && bullish)  { boost+=8;  signals.push({label:"DXY",dir:"▼ Weak",pts:+8,color:G,desc:"Dollar falling → risk on"}); }
+      else if(zType==="sell"&&bearish){ boost+=8; signals.push({label:"DXY",dir:"▲ Strong",pts:+8,color:G,desc:"Dollar rising → risk off"}); }
+      else if(zType==="buy"&&bearish) { boost-=7; signals.push({label:"DXY",dir:"▲ Strong",pts:-7,color:R,desc:"Dollar rising → conflicts BUY"}); }
+      else if(zType==="sell"&&bullish){ boost-=7; signals.push({label:"DXY",dir:"▼ Weak",pts:-7,color:R,desc:"Dollar falling → conflicts SELL"}); }
+      else { signals.push({label:"DXY",dir:"◆ Flat",pts:0,color:"#555",desc:"No directional edge"}); }
+    }
+
+    // ── BTC 24h momentum ───────────────────────────────────────────────────────
+    if(md.btc?.change != null) {
+      const c = md.btc.change;
+      const bullish = c > +1.0;
+      const bearish = c < -1.0;
+      if(zType==="buy"&&bullish)  { boost+=7;  signals.push({label:"BTC",dir:`+${c.toFixed(1)}%`,pts:+7,color:G,desc:"Momentum aligned"}); }
+      else if(zType==="sell"&&bearish){ boost+=7; signals.push({label:"BTC",dir:`${c.toFixed(1)}%`,pts:+7,color:G,desc:"Momentum aligned"}); }
+      else if(zType==="buy"&&bearish) { boost-=6; signals.push({label:"BTC",dir:`${c.toFixed(1)}%`,pts:-6,color:R,desc:"BTC selling — conflicts BUY"}); }
+      else if(zType==="sell"&&bullish){ boost-=6; signals.push({label:"BTC",dir:`+${c.toFixed(1)}%`,pts:-6,color:R,desc:"BTC pumping — conflicts SELL"}); }
+      else { signals.push({label:"BTC",dir:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#555",desc:"Neutral momentum"}); }
+    }
+
+    // ── ES Futures (risk-on/off confirmation) ──────────────────────────────────
+    if(md.es?.change != null) {
+      const c = md.es.change;
+      const bullish = c > +0.3;
+      const bearish = c < -0.3;
+      if(zType==="buy"&&bullish)  { boost+=5;  signals.push({label:"ES",dir:`+${c.toFixed(1)}%`,pts:+5,color:G,desc:"Futures aligned"}); }
+      else if(zType==="sell"&&bearish){ boost+=5; signals.push({label:"ES",dir:`${c.toFixed(1)}%`,pts:+5,color:G,desc:"Futures aligned"}); }
+      else if(zType==="buy"&&bearish) { boost-=4; signals.push({label:"ES",dir:`${c.toFixed(1)}%`,pts:-4,color:R,desc:"Futures dropping"}); }
+      else if(zType==="sell"&&bullish){ boost-=4; signals.push({label:"ES",dir:`+${c.toFixed(1)}%`,pts:-4,color:R,desc:"Futures rising"}); }
+      else { signals.push({label:"ES",dir:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#555",desc:"Neutral"}); }
+    }
+
+    // ── Gold (safe-haven tells) ────────────────────────────────────────────────
+    if(md.gc?.change != null) {
+      const c = md.gc.change;
+      // Gold rising = risk-off = bearish for BTC
+      if(zType==="sell"&&c>+0.4)  { boost+=3;  signals.push({label:"Gold",dir:`+${c.toFixed(1)}%`,pts:+3,color:G,desc:"Safe haven bid"}); }
+      else if(zType==="buy"&&c>+0.4) { boost-=2; signals.push({label:"Gold",dir:`+${c.toFixed(1)}%`,pts:-2,color:R,desc:"Risk-off bid"}); }
+      else { signals.push({label:"Gold",dir:`${c>=0?"+":""}${c.toFixed(1)}%`,pts:0,color:"#555",desc:"Neutral"}); }
+    }
+
+    // ── ATR / Volatility (BTC 24h range as % of price) ────────────────────────
+    let atrLabel = "—", atrClass = "neutral";
+    if(md.btc?.atr != null) {
+      const atr = md.btc.atr;
+      if(atr >= 4.5)      { boost+=4; atrLabel=`${atr.toFixed(1)}% HIGH`;  atrClass="high";   }
+      else if(atr >= 2.5) { boost+=2; atrLabel=`${atr.toFixed(1)}% MED`;   atrClass="med";    }
+      else if(atr < 1.2)  { boost-=4; atrLabel=`${atr.toFixed(1)}% LOW`;   atrClass="low";    }
+      else                {            atrLabel=`${atr.toFixed(1)}% NORM`; atrClass="normal"; }
+    }
+
+    // ── Cap total boost ────────────────────────────────────────────────────────
+    const cappedBoost = Math.max(-22, Math.min(22, boost));
+    return { boost:cappedBoost, signals, atrLabel, atrClass, stale:false };
+  })();
+
+  // Active zone strength — base + best/worst day + live correlation boost
   const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
 
   const activeZoneStrength = (()=>{
@@ -514,10 +657,11 @@ function App() {
     const wr  = (BACKTEST[zone.id] && BACKTEST[zone.id].wins) || 65;
     const btd = BACKTEST[zone.id] || {};
     let str = Math.round(wr*0.45 + confScore*0.55);
-    // Best/worst day bonus — adds real edge from historical data
     if(btd.best  && TODAYday === btd.best)  str += 7;
     if(btd.worst && TODAYday === btd.worst) str -= 9;
     if(inSub) str = Math.min(100, str + 8);
+    // Live correlation boost — unbiased confirmation layer on top of time polarity
+    str += correlationEngine.boost;
     return Math.max(0, Math.min(100, str));
   })();
 
@@ -926,7 +1070,7 @@ function App() {
                "◆ Neutral bias — zone only"}
             </div>
             {can("sub_pocket")&&inSub&&<div style={{fontSize:13,color:"#fff",...mono,opacity:.7,marginBottom:10}}>★ {(z.pocket&&z.pocket.label)}</div>}
-            {/* Strength bar — inline, no second card */}
+            {/* Strength bar + live correlation signals */}
             <div style={{borderTop:"1px solid rgba(255,255,255,0.09)",paddingTop:9}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                 <div style={{fontSize:14,letterSpacing:1.5,color:sc,fontWeight:700,...mono}}>
@@ -934,9 +1078,39 @@ function App() {
                 </div>
                 <div style={{fontSize:18,fontWeight:900,color:sc,...mono}}>{str}%</div>
               </div>
-              <div style={{height:6,background:"rgba(255,255,255,0.07)",borderRadius:3,overflow:"hidden"}}>
+              <div style={{height:6,background:"rgba(255,255,255,0.07)",borderRadius:3,overflow:"hidden",marginBottom:8}}>
                 <div style={{height:"100%",width:`${str}%`,background:sc,borderRadius:3,boxShadow:`0 0 8px ${sc}88`,transition:"width 1s"}}/>
               </div>
+              {/* Live correlation signal chips */}
+              {correlationEngine.signals.length>0&&(
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:5}}>
+                  {correlationEngine.signals.map((sig,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:8,
+                      background:`${sig.color}12`,border:`1px solid ${sig.color}33`}}>
+                      <span style={{fontSize:12,fontWeight:900,color:sig.color,...mono}}>{sig.label}</span>
+                      <span style={{fontSize:11,color:sig.color,...mono}}>{sig.dir}</span>
+                      {sig.pts!==0&&<span style={{fontSize:11,color:sig.pts>0?G:R,fontWeight:700,...mono}}>{sig.pts>0?"+":""}{sig.pts}</span>}
+                    </div>
+                  ))}
+                  {correlationEngine.atrLabel!=="—"&&(
+                    <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:8,
+                      background:`${correlationEngine.atrClass==="high"?G:correlationEngine.atrClass==="low"?R:A}10`,
+                      border:`1px solid ${correlationEngine.atrClass==="high"?G:correlationEngine.atrClass==="low"?R:A}33`}}>
+                      <span style={{fontSize:11,color:correlationEngine.atrClass==="high"?G:correlationEngine.atrClass==="low"?R:A,...mono}}>
+                        ATR {correlationEngine.atrLabel}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Net boost indicator */}
+              {correlationEngine.boost!==0&&(
+                <div style={{fontSize:11,color:correlationEngine.boost>0?G:R,...mono,opacity:.8}}>
+                  {correlationEngine.boost>0?"▲":"▼"} Live correlations: {correlationEngine.boost>0?"+":""}{correlationEngine.boost} pts
+                  {marketData?.fetchedAt&&<span style={{color:"#333",marginLeft:6}}>· {Math.round((Date.now()-marketData.fetchedAt)/60000)}m ago</span>}
+                </div>
+              )}
+              {!marketData&&<div style={{fontSize:11,color:"#333",...mono}}>● Fetching live correlations…</div>}
             </div>
           </div>
         );
