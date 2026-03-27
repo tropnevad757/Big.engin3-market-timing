@@ -1112,68 +1112,71 @@ function App() {
   const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
 
   const appChecks = [
-    // 1. DXY — dollar direction confirms or conflicts zone
+    // 1. Correlation alignment — inverse instruments confirm direction
     {
-      label: "DXY CONFIRMS",
+      label: "CORRELATION",
+      passes: (()=>{
+        if(!appZType) return null;
+        const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
+        return inv.length===0?null:inv.every(i=>appZType==="buy"?i.bias==="bear":i.bias==="bull");
+      })(),
+      value: (()=>{
+        if(!appZType) return "—";
+        const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
+        if(!inv.length) return "No inverses set";
+        const ok = inv.filter(i=>appZType==="buy"?i.bias==="bear":i.bias==="bull");
+        return `${ok.length}/${inv.length} aligned`;
+      })(),
+    },
+    // 2. Confluence — zone + regime + pocket alignment score
+    {
+      label: "CONFLUENCE",
+      passes: confScore>=75?true:confScore>=50?null:false,
+      value: `${confScore}/100`,
+    },
+    // 3. DXY — dollar direction confirms or conflicts zone
+    {
+      label: "DXY",
       passes: (()=>{
         const c = marketData?.dxy?.change;
-        if(c == null) return null;
-        // Dollar falling = risk on = BUY. Dollar rising = risk off = SELL.
-        if(finalDirection==="buy")  return c < -0.10 ? true : c > +0.10 ? false : null;
-        if(finalDirection==="sell") return c > +0.10 ? true : c < -0.10 ? false : null;
+        if(c==null) return null;
+        if(appZType==="buy")  return c<-0.10?true:c>+0.10?false:null;
+        if(appZType==="sell") return c>+0.10?true:c<-0.10?false:null;
         return null;
       })(),
-      value: marketData?.dxy?.change != null
-        ? `DXY ${marketData.dxy.change>=0?"+":""}${marketData.dxy.change.toFixed(2)}%`
-        : "Loading…",
+      value: marketData?.dxy?.change!=null
+        ? `${marketData.dxy.change>=0?"+":""}${marketData.dxy.change.toFixed(2)}%`
+        : "…",
     },
-    // 2. BTC Momentum — 24h direction agrees with zone
+    // 4. BTC Momentum — 24h direction agrees with zone
     {
-      label: "BTC MOMENTUM",
+      label: "BTC",
       passes: (()=>{
         const c = marketData?.btc?.change;
-        if(c == null) return null;
-        if(finalDirection==="buy")  return c > +0.8 ? true : c < -0.8 ? false : null;
-        if(finalDirection==="sell") return c < -0.8 ? true : c > +0.8 ? false : null;
+        if(c==null) return null;
+        if(appZType==="buy")  return c>+0.8?true:c<-0.8?false:null;
+        if(appZType==="sell") return c<-0.8?true:c>+0.8?false:null;
         return null;
       })(),
-      value: marketData?.btc?.change != null
-        ? `BTC ${marketData.btc.change>=0?"+":""}${marketData.btc.change.toFixed(1)}%`
-        : "Loading…",
+      value: marketData?.btc?.change!=null
+        ? `${marketData.btc.change>=0?"+":""}${marketData.btc.change.toFixed(1)}%`
+        : "…",
     },
-    // 3. ATR — market is trending, not chopping
+    // 5. Expansion — ATR confirms trending market
     {
       label: "EXPANSION",
       passes: (()=>{
         const atr = marketData?.btc?.atr;
-        if(atr == null) return null;
-        if(atr >= 2.5) return true;   // trending — clean expansion
-        if(atr < 1.2)  return false;  // chop — avoid
-        return null;                  // borderline
+        if(atr==null) return null;
+        return atr>=2.5?true:atr<1.2?false:null;
       })(),
-      value: marketData?.btc?.atr != null
-        ? `ATR ${marketData.btc.atr.toFixed(1)}%${marketData.btc.atr>=4.5?" TREND":marketData.btc.atr>=2.5?" MED":marketData.btc.atr<1.2?" CHOP":" NORM"}`
-        : "Loading…",
+      value: marketData?.btc?.atr!=null
+        ? `${marketData.btc.atr.toFixed(1)}%${marketData.btc.atr>=4.5?" TREND":marketData.btc.atr>=2.5?" MED":marketData.btc.atr<1.2?" CHOP":" NORM"}`
+        : "…",
     },
-    // 4. News — window clear or news confirms direction
+    // 6. Day quality — historical best/worst day for zone
     {
-      label: "NEWS",
-      passes: (()=>{
-        if(!newsReaction.active) return null;  // no event in window — neutral
-        if(newsReaction.conflict) return false; // event conflicts zone
-        // Breaking news or post-event that agrees = green
-        if(newsReaction.activeEvent?.isBreaking) return true;
-        if(newsReaction.activeEvent?.isAfter && !newsReaction.conflict) return true;
-        // Pre-event: suppress = amber (wait for print)
-        return null;
-      })(),
-      value: newsReaction.active && newsReaction.activeEvent
-        ? `${newsReaction.conflict?"⚠ CONFLICT":newsReaction.activeEvent.isBreaking?"BREAK":newsReaction.activeEvent.isAfter?"POST":"PRE"} · ${"★".repeat(newsReaction.activeEvent.stars||0)||"NEWS"}`
-        : "Clear",
-    },
-    // 5. Best / Worst day — historical zone edge
-    {
-      label: "DAY QUALITY",
+      label: "DAY",
       passes: (()=>{
         if(!appLiveZone) return null;
         const btd = BACKTEST[appLiveZone.id]||{};
@@ -1183,16 +1186,43 @@ function App() {
       })(),
       value: (()=>{
         if(!appLiveZone) return "—";
-        const btd = BACKTEST[appLiveZone.id]||{best:"?",worst:"?"};
-        const wr = btd.wins ? btd.wins+"% WR" : "";
-        return `${wr} · ${TODAYday}`;
+        const btd = BACKTEST[appLiveZone.id]||{wins:"?",best:"?",worst:"?"};
+        return `${btd.wins||"?"}% WR`;
       })(),
     },
+    // 7. News — window clear, confirms, or conflicts
+    {
+      label: "NEWS",
+      passes: (()=>{
+        if(!newsReaction.active) return null;
+        if(newsReaction.conflict) return false;
+        if(newsReaction.activeEvent?.isBreaking) return true;
+        if(newsReaction.activeEvent?.isAfter&&!newsReaction.conflict) return true;
+        return null;
+      })(),
+      value: newsReaction.active&&newsReaction.activeEvent
+        ? `${newsReaction.conflict?"CONFLICT":newsReaction.activeEvent.isBreaking?"BREAK":newsReaction.activeEvent.isAfter?"POST":"PRE"} ${"★".repeat(newsReaction.activeEvent.stars||0)||""}`
+        : "Clear",
+    },
   ];
-  const appGreenCount  = appChecks.filter(c=>c.passes===true).length;
-  const appRedCount    = appChecks.filter(c=>c.passes===false).length;
-  const appReadyColor  = appGreenCount>=5?G:appGreenCount>=3?A:R;
-  const appReadyLabel  = appGreenCount>=5?"TAKE TRADE":appGreenCount>=3?"WATCH":"WAIT";
+
+  const appGreenCount = appChecks.filter(c=>c.passes===true).length;
+  const appRedCount   = appChecks.filter(c=>c.passes===false).length;
+
+  // ── FINAL SIGNAL ─────────────────────────────────────────────────────────────
+  const finalSignal = (()=>{
+    const zDir = appZType;
+    const mixed = appRedCount >= 3;
+    if(mixed || !zDir)          return { label:"WAIT",  col:"#555" };
+    if(appGreenCount >= 4) return zDir==="buy"
+                                ? { label:"BUY",   col:G }
+                                : { label:"SELL",  col:R };
+    if(appGreenCount === 3)     return { label:"WATCH", col:A };
+    return                             { label:"WAIT",  col:"#555" };
+  })();
+
+  const appReadyColor = finalSignal.col;
+  const appReadyLabel = finalSignal.label;
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
   const flipZone = (zid,note="") => {
@@ -1526,171 +1556,105 @@ function App() {
         </button>
       </div>
 
-      {/* ── BiG ENGiN3 Early Direction Card ── */}
+
+      {/* ── SIGNAL CARD ── */}
       {(()=>{
-        const pe   = polarityEngine;
-        const eb   = pe.earlyBias;
-        const val  = pe.validation;
-        const exe  = pe.execution;
-        const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
-        const col  = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#555";
-        const str  = activeZoneStrength;
-        const sc   = str>=70?G:str>=40?A:R;
+        const pe  = polarityEngine;
+        const eb  = pe.earlyBias;
+        const z   = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
+        const str = activeZoneStrength;
+        const sc  = str>=70?G:str>=40?A:R;
+        const zDir = appZType;
+        const sig = finalSignal;
 
-        // Light → color mapping
-        const lc = pe.light==="green"?G:pe.light==="yellow"?A:pe.light==="red"?R:"#555";
-
-        // Early direction: derived from polarity alone, before confirmation
-        const earlyDir    = finalLabel;
-        const earlyCol    = finalCol;
-        const earlyArrow  = finalArrow;
-        const minsToNext  = getMinutesToNextZone(et.h24, et.m);
-
-        // Between zones — always show polarity direction (every window has one)
-        if(!liveZ.length || eb.window.role==="DEAD") {
-          const minsDisplay = minsToNext > 240
-            ? `${Math.round(minsToNext/60)}h ${minsToNext%60}m`
-            : `${minsToNext}m`;
-          const isVwap = eb.window.label && eb.window.label.includes("VWAP");
-          return(
-            <div style={{marginBottom:10,borderRadius:14,
-              border:`1px solid ${earlyCol}22`,
-              background:`${earlyCol}05`,padding:"14px 15px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                <div>
-                  <div style={{fontSize:11,letterSpacing:2,color:"#444",fontWeight:700,marginBottom:5,...mono}}>
-                    ◆ NO ACTIVE WINDOW{isVwap?" · VWAP ANCHOR":""}
-                  </div>
-                  <div style={{fontSize:24,fontWeight:900,color:`${earlyCol}99`,
-                    letterSpacing:2,lineHeight:1,...mono,marginBottom:4}}>
-                    {earlyArrow}  {finalDirection==="buy"?"BUY":"SELL"}
-                  </div>
-                  <div style={{fontSize:12,color:"#444",...mono}}>{eb.window.label}</div>
-                </div>
-                {nextZ&&(
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:12,color:nextZ.type==="buy"?G:R,
-                      fontWeight:700,...mono}}>
-                      {nextZ.type==="buy"?"▲ BUY":"▼ SELL"}
-                    </div>
-                    <div style={{fontSize:10,color:"#333",...mono,marginTop:2}}>NEXT</div>
-                  </div>
-                )}
-              </div>
+        // ── Between zones ──
+        if(!liveZ.length || eb.window.role==="DEAD") return(
+          <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",
+            background:"rgba(255,255,255,0.02)",padding:"14px 16px",
+            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:11,letterSpacing:2,color:"#444",fontWeight:700,...mono}}>◆ NO WINDOW</div>
+              <div style={{fontSize:13,color:"#333",...mono,marginTop:4}}>{eb.window.label}</div>
             </div>
-          );
-        }
+            {nextZ&&<div style={{textAlign:"right"}}>
+              <div style={{fontSize:11,color:"#333",...mono,marginBottom:2}}>NEXT</div>
+              <div style={{fontSize:14,fontWeight:900,color:nextZ.type==="buy"?G:R,...mono}}>
+                {nextZ.type==="buy"?"▲ BUY":"▼ SELL"}
+              </div>
+            </div>}
+          </div>
+        );
 
         return(
-          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${lc}44`,
-            background:`${lc}08`,padding:"14px 15px 12px",position:"relative",overflow:"hidden"}}>
+          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${sig.col}44`,
+            background:`${sig.col}07`,overflow:"hidden"}}>
 
-            {/* Top stripe — traffic light color */}
-            <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:lc,
-              boxShadow:`0 0 12px ${lc}88`}}/>
+            {/* ── SECTION 1: STRUCTURAL — facts only, not scored ── */}
+            <div style={{padding:"13px 15px 10px",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  {/* Active zone */}
+                  <div style={{fontSize:11,color:"#444",letterSpacing:1.5,...mono,marginBottom:3}}>
+                    {z.label} · {eb.window.label}
+                    {inSub&&<span style={{color:"#fff",marginLeft:6}}>★ PRIME</span>}
+                  </div>
+                  {/* Current regime */}
+                  <div style={{fontSize:22,fontWeight:900,color:zDir==="buy"?G:R,letterSpacing:1,...mono}}>
+                    {zDir==="buy"?"▲ BUY CORE":"▼ SELL RESET"}
+                  </div>
 
-            {/* ── ROW 1: Early direction — the dominant read ── */}
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-              <div>
-                {/* Stalk / Prime label above */}
-                {(eb.stalkMode || inSub) && (
-                  <div style={{fontSize:11,letterSpacing:2,fontWeight:700,marginBottom:4,
-                    color:inSub?"#fff":A,
-                    background:inSub?"rgba(255,255,255,0.1)":`${A}18`,
-                    borderRadius:5,padding:"2px 8px",display:"inline-block"}}>
-                    {inSub?"★ PRIME POCKET":eb.stalkMode?"◎ STALKING":""}
+                </div>
+                {/* Strength bar — right */}
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:24,fontWeight:900,color:sc,...mono,lineHeight:1}}>{str}%</div>
+                  <div style={{fontSize:10,color:"#333",letterSpacing:1,...mono}}>STRENGTH</div>
+                  <div style={{width:60,height:4,background:"rgba(255,255,255,0.07)",borderRadius:2,
+                    overflow:"hidden",marginTop:5,marginLeft:"auto"}}>
+                    <div style={{height:"100%",width:`${str}%`,background:sc,borderRadius:2,
+                      transition:"width 1s"}}/>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── SECTION 2: CHECKLIST — scored confirmations ── */}
+            <div style={{padding:"8px 15px 0"}}>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,paddingBottom:10,
+                borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                {appChecks.map((chk,i)=>{
+                  const col = chk.passes===true?G:chk.passes===false?R:"#444";
+                  const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
+                  return(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:4,
+                      padding:"3px 8px",borderRadius:7,
+                      background:`${col}10`,border:`1px solid ${col}22`}}>
+                      <span style={{fontSize:11,color:col,fontWeight:900}}>{icon}</span>
+                      <span style={{fontSize:11,color:col,...mono,fontWeight:700}}>{chk.label}</span>
+                      {chk.value&&<span style={{fontSize:10,color:"#444",...mono}}>{chk.value}</span>}
+                    </div>
+                  );
+                })}
+
+              </div>
+            </div>
+
+            {/* ── SECTION 3: FINAL SIGNAL ── */}
+            <div style={{padding:"10px 15px 13px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{flex:1,padding:"10px 14px",borderRadius:10,textAlign:"center",
+                  background:`${sig.col}18`,border:`2px solid ${sig.col}55`,
+                  boxShadow:`0 0 14px ${sig.col}22`}}>
+                  <div style={{fontSize:22,fontWeight:900,color:sig.col,letterSpacing:3,...mono}}>
+                    {sig.label}
+                  </div>
+                </div>
+                {pe.action&&pe.action!=="NO TRADE"&&pe.action!=="WAIT"&&(
+                  <div style={{fontSize:11,color:"#444",...mono,letterSpacing:1}}>
+                    {pe.action}
                   </div>
                 )}
-                {/* Big direction — just BUY or SELL */}
-                <div style={{display:"flex",alignItems:"baseline",gap:12}}>
-                  <div style={{fontSize:32,fontWeight:900,color:earlyCol,letterSpacing:2,lineHeight:1,...mono}}>
-                    {earlyArrow}  {finalDirection==="buy"?"BUY":"SELL"}
-                  </div>
-
-                </div>
-                {/* Action word */}
-                <div style={{fontSize:13,fontWeight:900,color:lc,letterSpacing:2,...mono,marginTop:4}}>
-                  {pe.action}
-
-                </div>
-
-                {/* Window label + setup type */}
-                <div style={{fontSize:12,color:"#888",marginTop:3,...mono}}>
-                  {eb.window.label}
-                  <span style={{color:"#444",marginLeft:6}}>·</span>
-                  <span style={{color:eb.setupType==="continuation"?G:eb.setupType==="fade"?R:A,
-                    marginLeft:6,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>
-                    {eb.setupType}
-                  </span>
-                </div>
-              </div>
-
-              {/* Traffic light dot + score — right side */}
-              <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"flex-end",marginBottom:3}}>
-                  <div style={{width:10,height:10,borderRadius:"50%",background:lc,
-                    boxShadow:`0 0 8px ${lc}`}}/>
-                </div>
-                <div style={{fontSize:26,fontWeight:900,color:sc,lineHeight:1,...mono}}>{str}%</div>
-                <div style={{fontSize:10,color:"#333",letterSpacing:1,...mono}}>CONFIDENCE</div>
               </div>
             </div>
-
-            {/* ── ROW 2: Progress bar ── */}
-            <div style={{height:5,background:"rgba(255,255,255,0.07)",borderRadius:3,
-              overflow:"hidden",marginBottom:8}}>
-              <div style={{height:"100%",width:`${str}%`,background:lc,borderRadius:3,
-                boxShadow:`0 0 8px ${lc}66`,transition:"width 1s"}}/>
-            </div>
-
-            {/* ── News pre-bias warning ── */}
-            {newsReaction.active&&newsReaction.activeEvent&&(
-              <div style={{
-                marginBottom:6,padding:"6px 10px",borderRadius:8,
-                background:newsReaction.level==="high"?`${R}12`:newsReaction.level==="med"?`${A}12`:"rgba(255,255,255,0.04)",
-                border:`1px solid ${newsReaction.level==="high"?R:newsReaction.level==="med"?A:"#333"}44`,
-                display:"flex",alignItems:"center",gap:8
-              }}>
-                <span style={{fontSize:13,color:newsReaction.level==="high"?R:A,fontWeight:900}}>
-                  {"★".repeat(newsReaction.activeEvent.stars)}
-                </span>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:11,color:newsReaction.level==="high"?R:A,fontWeight:700,...mono,letterSpacing:1}}>
-                    NEWS IN {newsReaction.activeEvent.minsUntil}m — BIAS SUPPRESSED {newsReaction.suppressPts}
-                  </div>
-                  <div style={{fontSize:11,color:"#666",...mono}}>
-                    {(newsReaction.activeEvent.title||"").slice(0,45)}
-                    {(newsReaction.activeEvent.title||"").length>45?"...":""}
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* ── DXY first (best early signal), then other chips ── */}
-            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:val.signals.length?6:0}}>
-              {/* Sort: DXY first, then BTC, then others */}
-              {[...val.signals].sort((a,b)=>{
-                const order = {DXY:0,BTC:1,ATR:2,ES:3,Gold:4,BIAS:5};
-                return (order[a.label]??9) - (order[b.label]??9);
-              }).map((sig,i)=>{
-                const chipCol = sig.confirms===true?G:sig.confirms===false?R:"#333";
-                return(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:3,
-                    padding:"3px 8px",borderRadius:7,
-                    background:`${chipCol}10`,border:`1px solid ${chipCol}30`}}>
-                    <span style={{fontSize:12,fontWeight:700,color:chipCol,...mono}}>{sig.label}</span>
-                    <span style={{fontSize:11,color:sig.confirms===null?"#444":chipCol,...mono}}>{sig.val}</span>
-                    {sig.pts!==0&&<span style={{fontSize:10,color:sig.pts>0?G:R,fontWeight:700,...mono}}>
-                      {sig.pts>0?"+":""}{sig.pts}
-                    </span>}
-                  </div>
-                );
-              })}
-              {!marketData&&<span style={{fontSize:11,color:"#333",...mono}}>● loading…</span>}
-            </div>
-
-
-
-
           </div>
         );
       })()}
@@ -1742,109 +1706,6 @@ function App() {
       )}
 
 
-      {/* ── 3-Check Bias Checklist ── */}
-      <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.03)",padding:"12px 14px"}}>
-        <div style={{fontSize:11,letterSpacing:2,color:"#555",fontWeight:700,marginBottom:8,...mono}}>BIAS CHECKS</div>
-        {appChecks.map((chk,i)=>{
-          const col = chk.passes===true?G:chk.passes===false?R:"#555";
-          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
-          return(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",
-              borderBottom:i<appChecks.length-1?"1px solid rgba(255,255,255,0.04)":"none"}}>
-              <div style={{width:22,height:22,borderRadius:6,display:"flex",alignItems:"center",
-                justifyContent:"center",background:`${col}18`,border:`1px solid ${col}33`,flexShrink:0}}>
-                <span style={{fontSize:12,fontWeight:900,color:col}}>{icon}</span>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:12,fontWeight:700,color:chk.passes===true?"#ddd":chk.passes===false?"#aaa":"#666",...mono}}>
-                  {chk.label}
-                </div>
-                {chk.value&&<div style={{fontSize:11,color:"#444",...mono,marginTop:1}}>{chk.value}</div>}
-              </div>
-              {chk.note&&chk.passes===false&&(
-                <div style={{fontSize:10,color:R,maxWidth:100,textAlign:"right",...mono,lineHeight:1.4}}>{chk.note}</div>
-              )}
-            </div>
-          );
-        })}
-        {/* Ready label */}
-        <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid rgba(255,255,255,0.05)",
-          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:11,color:"#444",...mono}}>
-            {appGreenCount}/5 checks
-          </div>
-          <div style={{fontSize:12,fontWeight:900,color:appReadyColor,letterSpacing:1,...mono}}>
-            {appReadyLabel}
-          </div>
-        </div>
-      </div>
-
-      {/* ── News Reaction + TP Levels ── */}
-      {newsReaction.active&&newsReaction.activeEvent&&(
-        <div style={{marginBottom:10,borderRadius:14,
-          border:`1px solid ${newsReaction.level==="high"?R:newsReaction.level==="break"?A:newsReaction.level==="med"?A:"#333"}44`,
-          background:`${newsReaction.level==="high"?R:newsReaction.level==="break"?A:A}08`,
-          padding:"12px 14px"}}>
-          {/* Header */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <div>
-              <div style={{fontSize:11,letterSpacing:2,color:newsReaction.level==="high"?R:A,fontWeight:700,...mono}}>
-                {newsReaction.activeEvent.isBreaking?"📰 NEWS BREAK":
-                 newsReaction.activeEvent.isAfter?"📰 POST-EVENT":"📰 PRE-EVENT"}
-                {" · "}{newsReaction.activeEvent.stars>0?"★".repeat(newsReaction.activeEvent.stars):""}{" "}
-                {newsReaction.activeEvent.cfg?.label||""}
-              </div>
-              <div style={{fontSize:12,color:"#bbb",...mono,marginTop:2,lineHeight:1.4}}>
-                {(newsReaction.activeEvent.title||"").slice(0,50)}{(newsReaction.activeEvent.title||"").length>50?"...":""}
-              </div>
-            </div>
-            <div style={{textAlign:"right",flexShrink:0,marginLeft:10}}>
-              <div style={{fontSize:11,...mono,color:newsReaction.activeEvent.isAfter?G:R,fontWeight:700}}>
-                {newsReaction.activeEvent.isAfter
-                  ? `+${Math.abs(newsReaction.activeEvent.minsUntil)}m ago`
-                  : `${Math.abs(newsReaction.activeEvent.minsUntil)}m away`}
-              </div>
-              {newsReaction.conflict&&(
-                <div style={{fontSize:10,color:R,fontWeight:700,...mono,letterSpacing:1}}>⚠ CONFLICT</div>
-              )}
-            </div>
-          </div>
-          {/* Fib target range */}
-          {newsReaction.activeEvent.cfg?.fibs&&(
-            <div style={{fontSize:11,...mono,color:"#555",marginBottom:6}}>
-              Window: {newsReaction.activeEvent.cfg.fibs[0]}–{newsReaction.activeEvent.cfg.fibs[1]}%
-            </div>
-          )}
-          {/* TP Levels */}
-          {newsReaction.tpLevels?.tps?.length>0&&(
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {newsReaction.tpLevels.tps.map((tp,i)=>{
-                const tpCol = i===0?G:i===1?A:R;
-                return(
-                  <div key={i} style={{flex:1,minWidth:70,padding:"6px 8px",borderRadius:8,
-                    background:`${tpCol}10`,border:`1px solid ${tpCol}33`,textAlign:"center"}}>
-                    <div style={{fontSize:10,color:tpCol,fontWeight:700,...mono,letterSpacing:1}}>{tp.label}</div>
-                    <div style={{fontSize:12,fontWeight:900,color:"#ddd",...mono}}>${tp.price.toLocaleString()}</div>
-                    <div style={{fontSize:10,color:"#555",...mono}}>{tp.pct}%</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {/* Breaking news fib range only */}
-          {newsReaction.tpLevels?.fibs&&newsReaction.tpLevels.tps.length===0&&(
-            <div style={{display:"flex",gap:6}}>
-              {newsReaction.tpLevels.fibs.map((f,i)=>(
-                <div key={i} style={{flex:1,padding:"6px 8px",borderRadius:8,
-                  background:`${A}10`,border:`1px solid ${A}33`,textAlign:"center"}}>
-                  <div style={{fontSize:10,color:A,fontWeight:700,...mono}}>{i===0?"61.8%":"78.6%"}</div>
-                  <div style={{fontSize:12,fontWeight:900,color:"#ddd",...mono}}>${f.price?.toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
