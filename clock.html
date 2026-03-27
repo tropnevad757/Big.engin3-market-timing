@@ -98,46 +98,47 @@ const TRAP_TIMES = [
 ];
 
 // ─── ZONES (times hidden from display) ────────────────────────────────────────
-// ─── ZONES — 8 anchors: 1:30, 4:30, 7:30, 10:30 AM & PM ET ─────────────────
-// Mirrors VWAP anchor times exactly. Each zone runs to the next anchor.
-// Alternating sell/buy polarity following institutional flow.
+// All 6 transitions per cycle shown on clock: 1:30 · 4:30 · 6:30 · 7:30 · 10:30 · 12:30
 const BASE_ZONES = [
   // ── AM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_am", type:"sell", h1:1, m1:30, h2:4, m2:30, label:"Z1",
-    pocket:{ label:"OVERNIGHT SELL", note:"1:30 AM anchor. Asian session momentum. Overnight sell pressure peaks before 4:30 reset." },
-    subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 },
-    institutionalEdge:"Moderate — Asian session, thin liquidity", starRating:3 },
-  { id:"z4_am", type:"buy",  h1:4, m1:30, h2:7, m2:30, label:"Z4",
-    pocket:{ label:"PRE-MARKET BUY", note:"4:30 AM anchor. London open 3:00 AM, futures positioning. Prime window 6:30–7:30." },
-    subStart:{ h:6, m:30 }, subEnd:{ h:7, m:30 },
-    institutionalEdge:"High — London open overlap, pre-market futures bid", starRating:4 },
-  { id:"z7_am", type:"buy",  h1:7, m1:30, h2:10,m2:30, label:"Z7",
-    pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open 9:30. Highest institutional volume. 9:30–10:30 is the primary window." },
-    subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 },
-    institutionalEdge:"Highest — NYSE open + data releases + ICT NY Kill Zone", starRating:5 },
-  { id:"z10_am", type:"sell", h1:10,m1:30, h2:1, m2:30, label:"Z10",
-    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close 11:00–11:30. AM trend exhausts. 10:45–11:30 optimal." },
-    subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 },
-    institutionalEdge:"Very High — London close + AM session exhaustion", starRating:4 },
+  { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
+    pocket:{ label:"OVERNIGHT SELL", note:"1:30 AM anchor. Asian session momentum." },
+    subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
+  { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
+    pocket:{ label:"PRE-MARKET BUY", note:"4:30 AM anchor. London open overlap." },
+    subStart:{ h:5, m:0 }, subEnd:{ h:6, m:0 }, starRating:4 },
+  { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
+    pocket:{ label:"TRANSITION FLUSH", note:"6:30 AM anchor. Short flush — caution." },
+    subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
+  { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
+    pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open 9:30. Highest institutional volume." },
+    subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
+  { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
+    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close 11:00–11:30. AM trend exhausts." },
+    subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 }, starRating:4 },
+  { id:"z12_am", type:"buy",  h1:12, m1:30, h2:1,  m2:30, label:"Z12",
+    pocket:{ label:"LUNCH REVERSAL", note:"12:30 AM regime switch. Post-lunch liquidity grab." },
+    subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
   // ── PM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_pm", type:"sell", h1:1, m1:30, h2:4, m2:30, label:"Z1PM",
-    pocket:{ label:"POWER HOUR CLOSE", note:"3:00–4:15 PM. Highest single-hour volume. Fund rebalancing + CME futures close 4:15." },
-    subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 },
-    institutionalEdge:"Very High — Power Hour + PM rebalancing + CME close", starRating:4 },
-  { id:"z4_pm", type:"buy",  h1:4, m1:30, h2:7, m2:30, label:"Z4PM",
-    pocket:{ label:"DAILY CLOSE TRAP", note:"5:00 PM ET bank reset. Forex stops run before close. Cleanest entry: 4:45–5:15 PM." },
-    subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 },
-    institutionalEdge:"Moderate — forex bank reset, CME afterhours positioning", starRating:3 },
-  { id:"z7_pm", type:"sell", h1:7, m1:30, h2:10,m2:30, label:"Z7PM",
-    pocket:{ label:"ASIAN PRE-MARKET TRAP", note:"7:30–10:30 PM. Overnight highs/lows set here. Draw levels for next NY session." },
-    subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 },
-    institutionalEdge:"Moderate — thin volume, Asian session setup", starRating:2 },
-  { id:"z10_pm", type:"buy", h1:10,m1:30, h2:1, m2:30, label:"Z10PM",
-    pocket:{ label:"PRE-DAWN BUY", note:"10:30 PM–1:30 AM. Late Asia / early London accumulation before 1:30 AM switch." },
-    subStart:{ h:23, m:0 }, subEnd:{ h:0, m:30 },
-    institutionalEdge:"Low-Moderate — thin, but sets overnight bias", starRating:2 },
+  { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1PM",
+    pocket:{ label:"POWER HOUR CLOSE", note:"3:00–4:15 PM. Fund rebalancing + CME close 4:15." },
+    subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
+  { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4PM",
+    pocket:{ label:"DAILY CLOSE TRAP", note:"5:00 PM ET bank reset. Forex stops run before close." },
+    subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 }, starRating:3 },
+  { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6PM",
+    pocket:{ label:"EVENING TRANSITION", note:"6:30 PM anchor. Short flush — thin volume." },
+    subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
+  { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7PM",
+    pocket:{ label:"ASIAN PRE-MARKET", note:"7:30–10:30 PM. Overnight levels set here." },
+    subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
+  { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10PM",
+    pocket:{ label:"OVERNIGHT SELL", note:"10:30 PM anchor. Late Asia sell into midnight." },
+    subStart:{ h:23, m:0 }, subEnd:{ h:0, m:0 }, starRating:2 },
+  { id:"z12_pm", type:"buy",  h1:0,  m1:30, h2:1,  m2:30, label:"Z12PM",
+    pocket:{ label:"PRE-DAWN BUY", note:"12:30 AM counter move before 1:30 anchor fires." },
+    subStart:{ h:0, m:45 }, subEnd:{ h:1, m:15 }, starRating:1 },
 ];
-
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
 const CATS = [
   { id:"futures", label:"FUTURES", icon:"📈", items:[
@@ -1018,27 +1019,21 @@ function App() {
   // ── APP-LEVEL CHECKLIST (used in both ClockTab summary and SignalsTab) ───────
   const appLiveZone = liveZ[0] || null;
   const appZType    = appLiveZone && appLiveZone.type !== "dead" ? appLiveZone.type : null;
+
+  // ── FINAL ACTIONABLE DIRECTION ───────────────────────────────────────────────
+  // Zone + polarity always known. Confluence decides whether to follow or flip.
+  // Weak signal (<50) = counter-direction is the trade. Strong (≥75) = follow zone.
+  const finalDirection = (()=>{
+    const zDir = appZType || (polarityEngine.earlyBias.polarity===+1?"buy":"sell");
+    if(confScore >= 50) return zDir;           // strong or neutral — follow zone
+    return zDir === "buy" ? "sell" : "buy";    // weak — flip to counter direction
+  })();
+  const finalIsFlipped  = appZType && finalDirection !== appZType;
+  const finalCol        = finalDirection === "buy" ? G : R;
+  const finalArrow      = finalDirection === "buy" ? "▲" : "▼";
+  const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
+
   const appChecks = [
-    {
-      label:"ZONE ACTIVE",
-      passes: appLiveZone !== null,
-      color: appLiveZone?(appLiveZone.type==="buy"?G:R):"#888",
-    },
-    {
-      label:"TIME POLARITY",
-      // Polarity runs 24/7 — pass when aligned with zone OR when in stalk window
-      // null (amber) when between zones but polarity is live
-      // false only when polarity directly conflicts the active zone direction
-      // true = aligned, false = direct conflict with active zone, null = between zones
-      passes: (()=>{
-        if(!appLiveZone || !appZType) return null;  // no active zone — polarity live but unconfirmed
-        return polarityAligned ? true : false;       // false only when active zone conflicts polarity
-      })(),
-      value: polarityEngine.windowLabel +
-             (polarityEngine.stalkMode ? " · STALKING" : "") +
-             (polarityEngine.setupType && polarityEngine.setupType!=="no-trade" ? " · "+polarityEngine.setupType.toUpperCase() : ""),
-      color: polarityEngine.lightCol,
-    },
     {
       label:"CORRELATION ALIGNMENT",
       passes: (()=>{
@@ -1046,10 +1041,15 @@ function App() {
         const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
         return inv.length===0?null:inv.every(i=>appZType==="buy"?i.bias==="bear":i.bias==="bull");
       })(),
+      note:"Inverse instruments should move opposite to zone direction.",
     },
     {
       label:"CONFLUENCE SCORE",
       passes: confScore>=75?true:confScore>=50?null:false,
+      value: confScore+" / 100" + (finalIsFlipped?" · FLIPPED":""),
+      note: finalIsFlipped
+        ? "Weak signal — counter direction is the trade."
+        : confScore>=75?"Strong — follow zone.":"Moderate — proceed with caution.",
     },
     {
       label:"BEST / WORST DAY",
@@ -1069,8 +1069,8 @@ function App() {
   ];
   const appGreenCount  = appChecks.filter(c=>c.passes===true).length;
   const appRedCount    = appChecks.filter(c=>c.passes===false).length;
-  const appReadyColor  = appGreenCount>=5?G:appGreenCount>=3?A:R;
-  const appReadyLabel  = appGreenCount>=5?"TAKE TRADE":appGreenCount>=3?"WATCH":"WAIT";
+  const appReadyColor  = appGreenCount>=3?G:appGreenCount>=2?A:R;
+  const appReadyLabel  = appGreenCount>=3?"TAKE TRADE":appGreenCount>=2?"WATCH":"WAIT";
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
   const flipZone = (zid,note="") => {
@@ -1419,9 +1419,9 @@ function App() {
         const lc = pe.light==="green"?G:pe.light==="yellow"?A:pe.light==="red"?R:"#555";
 
         // Early direction: derived from polarity alone, before confirmation
-        const earlyDir    = eb.polarity===+1 ? "BUY" : "SELL";
-        const earlyCol    = eb.polarity===+1 ? G : R;
-        const earlyArrow  = eb.polarity===+1 ? "▲" : "▼";
+        const earlyDir    = finalLabel;
+        const earlyCol    = finalCol;
+        const earlyArrow  = finalArrow;
         const minsToNext  = getMinutesToNextZone(et.h24, et.m);
 
         // Between zones — always show polarity direction (every window has one)
@@ -1441,7 +1441,7 @@ function App() {
                   </div>
                   <div style={{fontSize:24,fontWeight:900,color:`${earlyCol}99`,
                     letterSpacing:2,lineHeight:1,...mono,marginBottom:4}}>
-                    {earlyArrow}  {earlyDir}
+                    {earlyArrow}  {finalDirection==="buy"?"BUY":"SELL"}
                   </div>
                   <div style={{fontSize:12,color:"#444",...mono}}>{eb.window.label}</div>
                 </div>
@@ -1482,40 +1482,24 @@ function App() {
                     {inSub?"★ PRIME POCKET":eb.stalkMode?"◎ STALKING — ZONE OPENS IN "+minsToNext+"m":""}
                   </div>
                 )}
-                {/* Big direction */}
-                <div style={{fontSize:32,fontWeight:900,color:earlyCol,letterSpacing:2,lineHeight:1,...mono}}>
-                  {earlyArrow}  {z ? (z.type==="buy"?"BUY CORE":"SELL RESET") : earlyDir}
-                </div>
-                {/* Action word — directly under direction, can't miss it */}
-                <div style={{fontSize:13,fontWeight:900,color:lc,letterSpacing:2,...mono,marginTop:4}}>
-                  {pe.action}
-                </div>
-                {/* Sweep toggle — highest-signal manual input */}
-                <div style={{marginTop:7,display:"flex",gap:6,alignItems:"center"}}>
-                  {!sweepSeen?(
-                    <button
-                      onClick={()=>setSweepSeen({dir:eb.polarity===+1?"buy":"sell",at:Date.now(),expiresAt:Date.now()+20*60*1000})}
-                      style={{padding:"5px 13px",borderRadius:8,fontSize:11,fontWeight:900,
-                        cursor:"pointer",letterSpacing:1.5,
-                        background:`${earlyCol}15`,border:`1px solid ${earlyCol}44`,color:earlyCol}}>
-                      ⚡ SWEEP SEEN
-                    </button>
-                  ):(
-                    <>
-                      <div style={{padding:"5px 13px",borderRadius:8,fontSize:11,fontWeight:900,
-                        letterSpacing:1.5,background:`${earlyCol}28`,border:`1px solid ${earlyCol}`,
-                        color:earlyCol,boxShadow:`0 0 8px ${earlyCol}44`}}>
-                        ⚡ SWEEP CONFIRMED +15
-                      </div>
-                      <span style={{fontSize:11,color:"#333",...mono}}>
-                        {Math.max(0,Math.round((sweepSeen.expiresAt-Date.now())/60000))}m
-                      </span>
-                      <button onClick={()=>setSweepSeen(null)}
-                        style={{fontSize:10,color:"#444",background:"none",border:"1px solid #222",
-                          borderRadius:5,padding:"2px 7px",cursor:"pointer"}}>✕</button>
-                    </>
+                {/* Big direction — just BUY or SELL */}
+                <div style={{display:"flex",alignItems:"baseline",gap:12}}>
+                  <div style={{fontSize:32,fontWeight:900,color:earlyCol,letterSpacing:2,lineHeight:1,...mono}}>
+                    {earlyArrow}  {finalDirection==="buy"?"BUY":"SELL"}
+                  </div>
+                  {/* If flipped: show original zone label dimmed so you still see it */}
+                  {finalIsFlipped&&z&&(
+                    <div style={{fontSize:14,color:"#333",fontWeight:700,...mono,letterSpacing:1,textDecoration:"line-through"}}>
+                      {z.type==="buy"?"BUY":"SELL"}
+                    </div>
                   )}
                 </div>
+                {/* Action word */}
+                <div style={{fontSize:13,fontWeight:900,color:lc,letterSpacing:2,...mono,marginTop:4}}>
+                  {pe.action}
+                  {finalIsFlipped&&<span style={{fontSize:11,color:A,marginLeft:8,fontWeight:700}}>↺ WEAK</span>}
+                </div>
+
                 {/* Window label + setup type */}
                 <div style={{fontSize:12,color:"#888",marginTop:3,...mono}}>
                   {eb.window.label}
@@ -1590,38 +1574,9 @@ function App() {
               {!marketData&&<span style={{fontSize:11,color:"#333",...mono}}>● loading…</span>}
             </div>
 
-            {/* ── ROW 4: Score anatomy (small, secondary) ── */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",fontSize:11,...mono,color:"#333",
-              borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:6,marginTop:2}}>
-              <span style={{color:eb.biasScore>=25?A:"#444"}}>
-                early {eb.biasScore}/40
-              </span>
-              <span>·</span>
-              <span style={{color:val.score>0?"#555":val.score<0?R:"#444"}}>
-                confirm {val.score>0?"+":""}{val.score}/35
-              </span>
-              {exe.contextPts!==0&&<><span>·</span>
-                <span style={{color:exe.contextPts>0?"#555":R}}>
-                  ctx {exe.contextPts>0?"+":""}{exe.contextPts}
-                </span>
-              </>}
-              {exe.penalties>0&&<><span>·</span>
-                <span style={{color:R}}>−{exe.penalties} pen</span>
-              </>}
-              {marketData?.fetchedAt&&<><span style={{marginLeft:"auto",color:"#2a2a2a"}}>
-                {Math.round((Date.now()-marketData.fetchedAt)/60000)}m ago
-              </span></>}
-            </div>
 
-            {/* Bias line — only if meaningful */}
-            {overall!=="NEUTRAL"&&z&&(
-              <div style={{fontSize:12,color:ovCol,...mono,marginTop:5}}>
-                {overall==="BULLISH"&&z.type==="buy"?"✓ Bias confirmed — FULL EDGE":
-                 overall==="BEARISH"&&z.type==="sell"?"✓ Bias confirmed — FULL EDGE":
-                 overall==="BULLISH"&&z.type==="sell"?"⚠ Counter-bias — reduce size":
-                 overall==="BEARISH"&&z.type==="buy"?"⚠ Counter-bias — reduce size":""}
-              </div>
-            )}
+
+
           </div>
         );
       })()}
@@ -1673,40 +1628,42 @@ function App() {
       )}
 
 
-        {/* Summary score */}
-        <div style={card({border:`1px solid ${appReadyColor}44`,background:`${appReadyColor}09`,marginBottom:12})}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={lbl(appReadyColor,{marginBottom:4})}>BIAS CHECKLIST</div>
-              <div style={{fontSize:13,color:"#aaa",...mono,lineHeight:1.8}}>
-                {appGreenCount}/5 checks · Peak 88% when all conditions met
-                {appRedCount>0?` · ${appRedCount} counter-signal${appRedCount>1?"s":""}`:""}.
+      {/* ── 3-Check Bias Checklist ── */}
+      <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.03)",padding:"12px 14px"}}>
+        <div style={{fontSize:11,letterSpacing:2,color:"#555",fontWeight:700,marginBottom:8,...mono}}>BIAS CHECKS</div>
+        {appChecks.map((chk,i)=>{
+          const col = chk.passes===true?G:chk.passes===false?R:"#555";
+          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
+          return(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",
+              borderBottom:i<appChecks.length-1?"1px solid rgba(255,255,255,0.04)":"none"}}>
+              <div style={{width:22,height:22,borderRadius:6,display:"flex",alignItems:"center",
+                justifyContent:"center",background:`${col}18`,border:`1px solid ${col}33`,flexShrink:0}}>
+                <span style={{fontSize:12,fontWeight:900,color:col}}>{icon}</span>
               </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:700,color:chk.passes===true?"#ddd":chk.passes===false?"#aaa":"#666",...mono}}>
+                  {chk.label}
+                </div>
+                {chk.value&&<div style={{fontSize:11,color:"#444",...mono,marginTop:1}}>{chk.value}</div>}
+              </div>
+              {chk.note&&chk.passes===false&&(
+                <div style={{fontSize:10,color:R,maxWidth:100,textAlign:"right",...mono,lineHeight:1.4}}>{chk.note}</div>
+              )}
             </div>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:30,fontWeight:900,color:appReadyColor,lineHeight:1}}>{appGreenCount}/5</div>
-              <div style={{fontSize:14,fontWeight:900,color:appReadyColor,letterSpacing:1.5}}>{appReadyLabel}</div>
-            </div>
+          );
+        })}
+        {/* Ready label */}
+        <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid rgba(255,255,255,0.05)",
+          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:11,color:"#444",...mono}}>
+            {appGreenCount}/3 checks
+          </div>
+          <div style={{fontSize:12,fontWeight:900,color:appReadyColor,letterSpacing:1,...mono}}>
+            {appReadyLabel}
           </div>
         </div>
-
-        {/* Mini checklist dots */}
-        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-          {appChecks.map((c,i)=>{
-            const col = c.passes===true?G:c.passes===false?R:"#2a2a2a";
-            const icon = c.passes===true?"✓":c.passes===false?"✗":"○";
-            return(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:10,
-                background:`${col}10`,border:`1px solid ${col}33`}}>
-                <span style={{fontSize:14,color:col,fontWeight:900}}>{icon}</span>
-                <span style={{fontSize:13,color:col,fontWeight:700,letterSpacing:.5}}>{c.label}</span>
-                {c.value&&<span style={{fontSize:14,color:col,opacity:.7,...mono}}>{c.value}</span>}
-              </div>
-            );
-          })}
-        </div>
-
-
+      </div>
 
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
@@ -1767,34 +1724,41 @@ function App() {
 
     const checks = [
       {
-        label: "ZONE ACTIVE",
-        value: liveZone?liveZone.label+` (${liveZone.type.toUpperCase()})` : "None",
-        passes: liveZone!==null,
-        note: "A zone must be active before taking any entry.",
-        color: liveZone?(liveZone.type==="buy"?G:R):"#888",
-      },
-      {
         label: "CORRELATION ALIGNMENT",
         value: (()=>{
           if(!zType) return "Waiting for zone";
           const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
-          const conf= cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="CONFIRM");
           const invOk = inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-          const cfOk  = conf.every(i=>zType==="buy"?i.bias==="bull":i.bias==="bear");
-          return invOk&&cfOk?"ALIGNED":"CHECK INVERSES";
+          return invOk?"ALIGNED":"CHECK INVERSES";
         })(),
         passes: (()=>{
           if(!zType) return null;
           const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
           return inv.length===0?null:inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
         })(),
-        note: "Inverse instruments (DXY, VIX) should move opposite to your trade direction.",
+        note: "Inverse instruments should move opposite to zone direction.",
       },
       {
         label: "CONFLUENCE SCORE",
-        value: confScore+" / 100 — "+confLabel,
+        value: confScore+" / 100" + (finalIsFlipped?" · FLIPPED":""),
         passes: confScore>=75?true:confScore>=50?null:false,
-        note: "Score based on zone + prime pocket + correlation + VWAP alignment. System peak: 88% when all 6 execution conditions confirmed.",
+        note: finalIsFlipped?"Weak — counter direction is the trade.":confScore>=75?"Strong — follow zone.":"Moderate — proceed with caution.",
+      },
+      {
+        label: "BEST / WORST DAY",
+        passes: (()=>{
+          if(!liveZone) return null;
+          const btd = BACKTEST[liveZone.id]||{};
+          if(btd.best  && TODAYday===btd.best)  return true;
+          if(btd.worst && TODAYday===btd.worst) return false;
+          return null;
+        })(),
+        value: (()=>{
+          if(!liveZone) return "—";
+          const btd = BACKTEST[liveZone.id]||{best:"?",worst:"?"};
+          return `${TODAYday} · Best:${btd.best} Worst:${btd.worst}`;
+        })(),
+        note: "Historical best/worst day for this zone.",
       },
     ];
 
@@ -2222,12 +2186,7 @@ function App() {
               </div>
               <div style={{fontSize:14,color:"#aaa",...mono,marginTop:2,lineHeight:1.5}}>{(breakingAnchor.title||"").replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?/gi,"").replace(/↑|↓/g,"").trim().slice(0,70)}</div>
             </div>
-            <div style={{textAlign:"center",flexShrink:0}}>
-              <div style={{fontSize:14,fontWeight:900,color:breakingAnchor.polarity===1?G:R,...mono}}>
-                {Math.max(0,Math.round((breakingAnchor.expiresAt-Date.now())/60000))}m
-              </div>
-              <button onClick={()=>setBreakingAnchor(null)} style={{fontSize:14,color:"#999",background:"none",border:"1px solid #333",borderRadius:6,padding:"2px 7px",cursor:"pointer",marginTop:2}}>CLEAR</button>
-            </div>
+            <button onClick={()=>setBreakingAnchor(null)} style={{fontSize:13,color:"#666",background:"none",border:"1px solid #333",borderRadius:6,padding:"3px 10px",cursor:"pointer",flexShrink:0}}>CLEAR</button>
           </div>
         )}
 
