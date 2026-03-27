@@ -181,6 +181,42 @@ const CATS = [
   ]}
 ];
 
+// ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
+// BUY CORE regime: connector = − (mirror). USD− is anchor.
+// SELL RESET regime: connector = + (aligned). USD+ is anchor.
+// Dynamic override: if symbol value ≤ USD anchor rate → invert that symbol's sign.
+const REGIME_CURRENCIES = {
+  buyCore: {
+    // connector: − (mirror from regime)
+    bearUSD:  ["AOA","EGP","INR","MKD","CLP","SAR","PEN","HKD","MOP","ILS","NOK","MUR","PHP","USD"],
+    bullUSD:  ["GBP","CNY","KRW","CAD","NZD","SGD","JPY"],
+  },
+  sellReset: {
+    // connector: + (aligned with regime)
+    bullUSD:  ["AOA","EGP","INR","MKD","CLP","SAR","PEN","HKD","MOP","ILS","NOK","MUR","PHP","AUD","USD"],
+    bearUSD:  ["GBP","CNY","KRW","CAD","NZD","SGD","JPY"],
+  },
+};
+
+// NEWS REACTION WINDOWS — symmetric (before AND after event)
+// Stars → window in mins, TP targets as % move from entry
+const NEWS_REACTION = {
+  break: { window: 15,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
+  1:     { window: 15,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
+  2:     { window: 45,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
+  3:     { window: 75,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
+};
+
+// POLARITY SIGN TABLE: Time sign × Value sign = direction
+// +/+ = − (sell)  +/− = + (buy)  −/− = + (buy)  −/+ = − (sell)
+function polaritySign(timeSign, valueSign) {
+  if(timeSign > 0 && valueSign > 0) return -1; // sell
+  if(timeSign > 0 && valueSign < 0) return +1; // buy
+  if(timeSign < 0 && valueSign < 0) return +1; // buy
+  if(timeSign < 0 && valueSign > 0) return -1; // sell
+  return 0;
+}
+
 const CORR_C = { primary:A, confirm:G, inverse:R, safe:"#88aaff", risk:"#aa88ff", other:"#aaa" };
 const CORR_L = { primary:"PRIMARY", confirm:"CONFIRM", inverse:"INVERSE", safe:"SAFE HAVEN", risk:"RISK-ON", other:"OTHER" };
 
@@ -906,61 +942,109 @@ function App() {
 
   // MASTER ENGINE
 
-  // ── NEWS PRE-BIAS — events suppress bias before they fire ────────────────────
-  // 3★ = 75 min pre-window · 2★ = 45 min · 1★ = 15 min
-  const newsBiasModifier = (()=>{
+  // ── NEWS REACTION ENGINE — symmetric windows, TP levels, conflict detection ───
+  // Windows are BEFORE and AFTER events. News break = RSS article from Reuters/Bloomberg.
+  const newsReaction = (()=>{
+    const btcPrice = marketData?.btc?.price || null;
+    const zDir = finalDirection; // "buy" | "sell"
+
     const toMins = (dateStr, timeStr) => {
-      if(!dateStr || !timeStr) return null;
-      try {
-        const ev = new Date(dateStr + 'T' + timeStr + ':00');
-        return Math.round((ev - new Date()) / 60000);
-      } catch(e) { return null; }
+      if(!dateStr||!timeStr) return null;
+      try { return Math.round((new Date(dateStr+'T'+timeStr+':00') - new Date()) / 60000); }
+      catch(e){ return null; }
     };
 
-    const WINDOWS = {3:75, 2:45, 1:15};
+    // Gather all events — calendar + eco news — with absolute distance from now
+    const allEvents = [
+      ...calArticles.map(ev=>({
+        title: ev.title||"",
+        stars: ev.stars||1,
+        minsUntil: toMins(ev.date, ev.time),
+        source: ev.source||"Calendar",
+        isBreaking: false,
+      })),
+      ...ecoArticles.map(ev=>({
+        title: ev.title||"",
+        stars: ev.stars||1,
+        minsUntil: ev.pub ? Math.round((new Date(ev.pub)-new Date())/60000) : null,
+        source: ev.source||"Eco",
+        isBreaking: false,
+      })),
+      // Breaking news = recent Reuters/Bloomberg RSS article (published within 30 min)
+      ...newsArticles
+        .filter(a=>{
+          const age = a.pub ? Math.round((new Date()-new Date(a.pub))/60000) : 999;
+          return age >= 0 && age <= 30;
+        })
+        .map(a=>({
+          title: a.title||"",
+          stars: 0, // news break = 0 stars = uses break window
+          minsUntil: a.pub ? -Math.round((new Date()-new Date(a.pub))/60000) : 0, // negative = already happened
+          source: a.feedLabel||"News",
+          isBreaking: true,
+        })),
+    ];
+
+    // Find the closest event within any window (symmetric: abs(minsUntil) <= window)
+    let activeEvent = null;
     let suppressPts = 0;
     const nearEvents = [];
 
-    // Live calendar events (ForexFactory + RSS)
-    for(const ev of calArticles) {
-      const mins = toMins(ev.date, ev.time);
-      if(mins === null) continue;
-      const stars = ev.stars || 1;
-      const win = WINDOWS[stars] || 15;
-      if(mins >= 0 && mins <= win) {
-        const prox = 1 - (mins / win);
-        const pen  = stars===3 ? -18 : stars===2 ? -10 : -5;
-        const pts  = Math.round(pen * prox);
-        suppressPts += pts;
-        nearEvents.push({title:ev.title||"", stars, minsUntil:mins, penalty:pts});
+    for(const ev of allEvents) {
+      if(ev.minsUntil === null || isNaN(ev.minsUntil)) continue;
+      const absMins = Math.abs(ev.minsUntil);
+      const cfg = ev.isBreaking ? NEWS_REACTION.break : NEWS_REACTION[ev.stars] || NEWS_REACTION[1];
+      if(absMins > cfg.window) continue;
+
+      // Proximity 0=edge of window, 1=at event
+      const prox = 1 - (absMins / cfg.window);
+      // Score impact: suppress before, amplify after if direction known
+      const isAfter = ev.minsUntil < 0;
+      let pts = 0;
+      if(!isAfter) {
+        // Before: suppress proportionally
+        pts = ev.stars===3 ? Math.round(-18*prox) : ev.stars===2 ? Math.round(-10*prox) : Math.round(-5*prox);
+      } else {
+        // After: check if news direction agrees with zone
+        pts = ev.stars===3 ? Math.round(+10*prox) : ev.stars===2 ? Math.round(+6*prox) : Math.round(+3*prox);
       }
+
+      suppressPts += pts;
+      nearEvents.push({...ev, absMins, prox, pts, cfg, isAfter});
+
+      if(!activeEvent || absMins < activeEvent.absMins) activeEvent = {...ev, absMins, prox, pts, cfg, isAfter};
     }
 
-    // Eco news articles with publication time
-    for(const ev of ecoArticles) {
-      if(!ev.pub) continue;
-      const mins = Math.round((new Date(ev.pub) - new Date()) / 60000);
-      if(isNaN(mins)) continue;
-      const stars = ev.stars || 1;
-      const win = WINDOWS[stars] || 15;
-      if(mins >= 0 && mins <= win) {
-        const prox = 1 - (mins / win);
-        const pen  = stars===3 ? -18 : stars===2 ? -10 : -5;
-        const pts  = Math.round(pen * prox);
-        suppressPts += pts;
-        nearEvents.push({title:ev.title||"", stars, minsUntil:mins, penalty:pts});
-      }
+    nearEvents.sort((a,b)=>a.absMins-b.absMins);
+    const total = Math.max(-30, Math.min(15, suppressPts));
+
+    // TP levels from BTC price
+    let tpLevels = null;
+    if(btcPrice && activeEvent) {
+      const tps = activeEvent.cfg.tps.filter(t=>t>0);
+      const fibs = activeEvent.cfg.fibs;
+      const dir = zDir === "buy" ? 1 : -1;
+      tpLevels = {
+        fibs: fibs.map(f=>({ pct: f/100, price: Math.round(btcPrice*(1+dir*(f/1000))) })),
+        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct: t, price: Math.round(btcPrice*(1+dir*t/100)) })),
+      };
     }
 
-    nearEvents.sort((a,b) => a.minsUntil - b.minsUntil);
-    const total = Math.max(-30, suppressPts);
-    const closest = nearEvents[0] || null;
+    // Conflict: news source conflicts zone direction
+    // (if a bearish eco article fires during a BUY zone — or vice versa)
+    const conflict = activeEvent && !activeEvent.isBreaking && activeEvent.isAfter
+      ? (zDir==="buy" && ecoArticles.find(a=>a.bearish&&a.title===activeEvent.title))
+        || (zDir==="sell" && ecoArticles.find(a=>a.bullish&&a.title===activeEvent.title))
+      : false;
+
     return {
       active: nearEvents.length > 0,
       suppressPts: total,
+      activeEvent,
       nearEvents,
-      closestEvent: closest,
-      level: closest?.stars===3?"high":closest?.stars===2?"med":"low",
+      tpLevels,
+      conflict: !!conflict,
+      level: activeEvent?.stars===3?"high":activeEvent?.stars===2?"med":activeEvent?.isBreaking?"break":"low",
     };
   })();
 
@@ -975,7 +1059,7 @@ function App() {
     const val = computeValidation(zType, md, inSub, hotTraps, overall, btd, breakingAnchor, eb);
     const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone, sweepSeen);
 
-    const totalScore = exe.blocked ? 0 : Math.max(0, exe.totalScore + newsBiasModifier.suppressPts);
+    const totalScore = exe.blocked ? 0 : Math.max(0, exe.totalScore + newsReaction.suppressPts);
     const light = exe.light || "gray";
     const lightCol = light==="green"?G:light==="yellow"?A:light==="red"?R:"#555";
 
@@ -1020,57 +1104,95 @@ function App() {
   const appLiveZone = liveZ[0] || null;
   const appZType    = appLiveZone && appLiveZone.type !== "dead" ? appLiveZone.type : null;
 
-  // ── FINAL ACTIONABLE DIRECTION ───────────────────────────────────────────────
-  // Zone + polarity always known. Confluence decides whether to follow or flip.
-  // Weak signal (<50) = counter-direction is the trade. Strong (≥75) = follow zone.
-  const finalDirection = (()=>{
-    const zDir = appZType || (polarityEngine.earlyBias.polarity===+1?"buy":"sell");
-    if(confScore >= 50) return zDir;           // strong or neutral — follow zone
-    return zDir === "buy" ? "sell" : "buy";    // weak — flip to counter direction
-  })();
-  const finalIsFlipped  = appZType && finalDirection !== appZType;
+  // ── FINAL DIRECTION — always follows zone/polarity, no flip logic ─────────────
+  const finalDirection  = appZType || (polarityEngine.earlyBias.polarity===+1?"buy":"sell");
+  const finalIsFlipped  = false;
   const finalCol        = finalDirection === "buy" ? G : R;
   const finalArrow      = finalDirection === "buy" ? "▲" : "▼";
   const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
 
   const appChecks = [
+    // 1. DXY — dollar direction confirms or conflicts zone
     {
-      label:"CORRELATION ALIGNMENT",
+      label: "DXY CONFIRMS",
       passes: (()=>{
-        if(!appZType) return null;
-        const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
-        return inv.length===0?null:inv.every(i=>appZType==="buy"?i.bias==="bear":i.bias==="bull");
+        const c = marketData?.dxy?.change;
+        if(c == null) return null;
+        // Dollar falling = risk on = BUY. Dollar rising = risk off = SELL.
+        if(finalDirection==="buy")  return c < -0.10 ? true : c > +0.10 ? false : null;
+        if(finalDirection==="sell") return c > +0.10 ? true : c < -0.10 ? false : null;
+        return null;
       })(),
-      note:"Inverse instruments should move opposite to zone direction.",
+      value: marketData?.dxy?.change != null
+        ? `DXY ${marketData.dxy.change>=0?"+":""}${marketData.dxy.change.toFixed(2)}%`
+        : "Loading…",
     },
+    // 2. BTC Momentum — 24h direction agrees with zone
     {
-      label:"CONFLUENCE SCORE",
-      passes: confScore>=75?true:confScore>=50?null:false,
-      value: confScore+" / 100" + (finalIsFlipped?" · FLIPPED":""),
-      note: finalIsFlipped
-        ? "Weak signal — counter direction is the trade."
-        : confScore>=75?"Strong — follow zone.":"Moderate — proceed with caution.",
+      label: "BTC MOMENTUM",
+      passes: (()=>{
+        const c = marketData?.btc?.change;
+        if(c == null) return null;
+        if(finalDirection==="buy")  return c > +0.8 ? true : c < -0.8 ? false : null;
+        if(finalDirection==="sell") return c < -0.8 ? true : c > +0.8 ? false : null;
+        return null;
+      })(),
+      value: marketData?.btc?.change != null
+        ? `BTC ${marketData.btc.change>=0?"+":""}${marketData.btc.change.toFixed(1)}%`
+        : "Loading…",
     },
+    // 3. ATR — market is trending, not chopping
     {
-      label:"BEST / WORST DAY",
+      label: "EXPANSION",
+      passes: (()=>{
+        const atr = marketData?.btc?.atr;
+        if(atr == null) return null;
+        if(atr >= 2.5) return true;   // trending — clean expansion
+        if(atr < 1.2)  return false;  // chop — avoid
+        return null;                  // borderline
+      })(),
+      value: marketData?.btc?.atr != null
+        ? `ATR ${marketData.btc.atr.toFixed(1)}%${marketData.btc.atr>=4.5?" TREND":marketData.btc.atr>=2.5?" MED":marketData.btc.atr<1.2?" CHOP":" NORM"}`
+        : "Loading…",
+    },
+    // 4. News — window clear or news confirms direction
+    {
+      label: "NEWS",
+      passes: (()=>{
+        if(!newsReaction.active) return null;  // no event in window — neutral
+        if(newsReaction.conflict) return false; // event conflicts zone
+        // Breaking news or post-event that agrees = green
+        if(newsReaction.activeEvent?.isBreaking) return true;
+        if(newsReaction.activeEvent?.isAfter && !newsReaction.conflict) return true;
+        // Pre-event: suppress = amber (wait for print)
+        return null;
+      })(),
+      value: newsReaction.active && newsReaction.activeEvent
+        ? `${newsReaction.conflict?"⚠ CONFLICT":newsReaction.activeEvent.isBreaking?"BREAK":newsReaction.activeEvent.isAfter?"POST":"PRE"} · ${"★".repeat(newsReaction.activeEvent.stars||0)||"NEWS"}`
+        : "Clear",
+    },
+    // 5. Best / Worst day — historical zone edge
+    {
+      label: "DAY QUALITY",
       passes: (()=>{
         if(!appLiveZone) return null;
         const btd = BACKTEST[appLiveZone.id]||{};
-        if(btd.best  && TODAYday === btd.best)  return true;
-        if(btd.worst && TODAYday === btd.worst) return false;
+        if(btd.best  && TODAYday===btd.best)  return true;
+        if(btd.worst && TODAYday===btd.worst) return false;
         return null;
       })(),
       value: (()=>{
         if(!appLiveZone) return "—";
         const btd = BACKTEST[appLiveZone.id]||{best:"?",worst:"?"};
-        return `${TODAYday} · Best:${btd.best} Worst:${btd.worst}`;
+        const wr = btd.wins ? btd.wins+"% WR" : "";
+        return `${wr} · ${TODAYday}`;
       })(),
     },
   ];
   const appGreenCount  = appChecks.filter(c=>c.passes===true).length;
   const appRedCount    = appChecks.filter(c=>c.passes===false).length;
-  const appReadyColor  = appGreenCount>=3?G:appGreenCount>=2?A:R;
-  const appReadyLabel  = appGreenCount>=3?"TAKE TRADE":appGreenCount>=2?"WATCH":"WAIT";
+  const appReadyColor  = appGreenCount>=5?G:appGreenCount>=3?A:R;
+  const appReadyLabel  = appGreenCount>=5?"TAKE TRADE":appGreenCount>=3?"WATCH":"WAIT";
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
   const flipZone = (zid,note="") => {
@@ -1445,18 +1567,15 @@ function App() {
                   </div>
                   <div style={{fontSize:12,color:"#444",...mono}}>{eb.window.label}</div>
                 </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:11,color:"#333",letterSpacing:1,...mono,marginBottom:4}}>
-                    {minsToNext > 240 ? "NEXT ZONE" : "NEXT ZONE IN"}
+                {nextZ&&(
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:12,color:nextZ.type==="buy"?G:R,
+                      fontWeight:700,...mono}}>
+                      {nextZ.type==="buy"?"▲ BUY":"▼ SELL"}
+                    </div>
+                    <div style={{fontSize:10,color:"#333",...mono,marginTop:2}}>NEXT</div>
                   </div>
-                  <div style={{fontSize:minsToNext>240?18:22,fontWeight:900,color:"#555",...mono}}>
-                    {minsDisplay}
-                  </div>
-                  {nextZ&&<div style={{fontSize:12,color:nextZ.type==="buy"?G:R,
-                    fontWeight:700,...mono,marginTop:2}}>
-                    {nextZ.type==="buy"?"▲ BUY CORE":"▼ SELL RESET"}
-                  </div>}
-                </div>
+                )}
               </div>
             </div>
           );
@@ -1479,7 +1598,7 @@ function App() {
                     color:inSub?"#fff":A,
                     background:inSub?"rgba(255,255,255,0.1)":`${A}18`,
                     borderRadius:5,padding:"2px 8px",display:"inline-block"}}>
-                    {inSub?"★ PRIME POCKET":eb.stalkMode?"◎ STALKING — ZONE OPENS IN "+minsToNext+"m":""}
+                    {inSub?"★ PRIME POCKET":eb.stalkMode?"◎ STALKING":""}
                   </div>
                 )}
                 {/* Big direction — just BUY or SELL */}
@@ -1487,17 +1606,12 @@ function App() {
                   <div style={{fontSize:32,fontWeight:900,color:earlyCol,letterSpacing:2,lineHeight:1,...mono}}>
                     {earlyArrow}  {finalDirection==="buy"?"BUY":"SELL"}
                   </div>
-                  {/* If flipped: show original zone label dimmed so you still see it */}
-                  {finalIsFlipped&&z&&(
-                    <div style={{fontSize:14,color:"#333",fontWeight:700,...mono,letterSpacing:1,textDecoration:"line-through"}}>
-                      {z.type==="buy"?"BUY":"SELL"}
-                    </div>
-                  )}
+
                 </div>
                 {/* Action word */}
                 <div style={{fontSize:13,fontWeight:900,color:lc,letterSpacing:2,...mono,marginTop:4}}>
                   {pe.action}
-                  {finalIsFlipped&&<span style={{fontSize:11,color:A,marginLeft:8,fontWeight:700}}>↺ WEAK</span>}
+
                 </div>
 
                 {/* Window label + setup type */}
@@ -1530,23 +1644,23 @@ function App() {
             </div>
 
             {/* ── News pre-bias warning ── */}
-            {newsBiasModifier.active&&newsBiasModifier.closestEvent&&(
+            {newsReaction.active&&newsReaction.activeEvent&&(
               <div style={{
                 marginBottom:6,padding:"6px 10px",borderRadius:8,
-                background:newsBiasModifier.level==="high"?`${R}12`:newsBiasModifier.level==="med"?`${A}12`:"rgba(255,255,255,0.04)",
-                border:`1px solid ${newsBiasModifier.level==="high"?R:newsBiasModifier.level==="med"?A:"#333"}44`,
+                background:newsReaction.level==="high"?`${R}12`:newsReaction.level==="med"?`${A}12`:"rgba(255,255,255,0.04)",
+                border:`1px solid ${newsReaction.level==="high"?R:newsReaction.level==="med"?A:"#333"}44`,
                 display:"flex",alignItems:"center",gap:8
               }}>
-                <span style={{fontSize:13,color:newsBiasModifier.level==="high"?R:A,fontWeight:900}}>
-                  {"★".repeat(newsBiasModifier.closestEvent.stars)}
+                <span style={{fontSize:13,color:newsReaction.level==="high"?R:A,fontWeight:900}}>
+                  {"★".repeat(newsReaction.activeEvent.stars)}
                 </span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:11,color:newsBiasModifier.level==="high"?R:A,fontWeight:700,...mono,letterSpacing:1}}>
-                    NEWS IN {newsBiasModifier.closestEvent.minsUntil}m — BIAS SUPPRESSED {newsBiasModifier.suppressPts}
+                  <div style={{fontSize:11,color:newsReaction.level==="high"?R:A,fontWeight:700,...mono,letterSpacing:1}}>
+                    NEWS IN {newsReaction.activeEvent.minsUntil}m — BIAS SUPPRESSED {newsReaction.suppressPts}
                   </div>
                   <div style={{fontSize:11,color:"#666",...mono}}>
-                    {(newsBiasModifier.closestEvent.title||"").slice(0,45)}
-                    {(newsBiasModifier.closestEvent.title||"").length>45?"...":""}
+                    {(newsReaction.activeEvent.title||"").slice(0,45)}
+                    {(newsReaction.activeEvent.title||"").length>45?"...":""}
                   </div>
                 </div>
               </div>
@@ -1657,13 +1771,80 @@ function App() {
         <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid rgba(255,255,255,0.05)",
           display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontSize:11,color:"#444",...mono}}>
-            {appGreenCount}/3 checks
+            {appGreenCount}/5 checks
           </div>
           <div style={{fontSize:12,fontWeight:900,color:appReadyColor,letterSpacing:1,...mono}}>
             {appReadyLabel}
           </div>
         </div>
       </div>
+
+      {/* ── News Reaction + TP Levels ── */}
+      {newsReaction.active&&newsReaction.activeEvent&&(
+        <div style={{marginBottom:10,borderRadius:14,
+          border:`1px solid ${newsReaction.level==="high"?R:newsReaction.level==="break"?A:newsReaction.level==="med"?A:"#333"}44`,
+          background:`${newsReaction.level==="high"?R:newsReaction.level==="break"?A:A}08`,
+          padding:"12px 14px"}}>
+          {/* Header */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div>
+              <div style={{fontSize:11,letterSpacing:2,color:newsReaction.level==="high"?R:A,fontWeight:700,...mono}}>
+                {newsReaction.activeEvent.isBreaking?"📰 NEWS BREAK":
+                 newsReaction.activeEvent.isAfter?"📰 POST-EVENT":"📰 PRE-EVENT"}
+                {" · "}{newsReaction.activeEvent.stars>0?"★".repeat(newsReaction.activeEvent.stars):""}{" "}
+                {newsReaction.activeEvent.cfg?.label||""}
+              </div>
+              <div style={{fontSize:12,color:"#bbb",...mono,marginTop:2,lineHeight:1.4}}>
+                {(newsReaction.activeEvent.title||"").slice(0,50)}{(newsReaction.activeEvent.title||"").length>50?"...":""}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0,marginLeft:10}}>
+              <div style={{fontSize:11,...mono,color:newsReaction.activeEvent.isAfter?G:R,fontWeight:700}}>
+                {newsReaction.activeEvent.isAfter
+                  ? `+${Math.abs(newsReaction.activeEvent.minsUntil)}m ago`
+                  : `${Math.abs(newsReaction.activeEvent.minsUntil)}m away`}
+              </div>
+              {newsReaction.conflict&&(
+                <div style={{fontSize:10,color:R,fontWeight:700,...mono,letterSpacing:1}}>⚠ CONFLICT</div>
+              )}
+            </div>
+          </div>
+          {/* Fib target range */}
+          {newsReaction.activeEvent.cfg?.fibs&&(
+            <div style={{fontSize:11,...mono,color:"#555",marginBottom:6}}>
+              Window: {newsReaction.activeEvent.cfg.fibs[0]}–{newsReaction.activeEvent.cfg.fibs[1]}%
+            </div>
+          )}
+          {/* TP Levels */}
+          {newsReaction.tpLevels?.tps?.length>0&&(
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {newsReaction.tpLevels.tps.map((tp,i)=>{
+                const tpCol = i===0?G:i===1?A:R;
+                return(
+                  <div key={i} style={{flex:1,minWidth:70,padding:"6px 8px",borderRadius:8,
+                    background:`${tpCol}10`,border:`1px solid ${tpCol}33`,textAlign:"center"}}>
+                    <div style={{fontSize:10,color:tpCol,fontWeight:700,...mono,letterSpacing:1}}>{tp.label}</div>
+                    <div style={{fontSize:12,fontWeight:900,color:"#ddd",...mono}}>${tp.price.toLocaleString()}</div>
+                    <div style={{fontSize:10,color:"#555",...mono}}>{tp.pct}%</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Breaking news fib range only */}
+          {newsReaction.tpLevels?.fibs&&newsReaction.tpLevels.tps.length===0&&(
+            <div style={{display:"flex",gap:6}}>
+              {newsReaction.tpLevels.fibs.map((f,i)=>(
+                <div key={i} style={{flex:1,padding:"6px 8px",borderRadius:8,
+                  background:`${A}10`,border:`1px solid ${A}33`,textAlign:"center"}}>
+                  <div style={{fontSize:10,color:A,fontWeight:700,...mono}}>{i===0?"61.8%":"78.6%"}</div>
+                  <div style={{fontSize:12,fontWeight:900,color:"#ddd",...mono}}>${f.price?.toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
@@ -1722,50 +1903,12 @@ function App() {
       return null;
     }
 
-    const checks = [
-      {
-        label: "CORRELATION ALIGNMENT",
-        value: (()=>{
-          if(!zType) return "Waiting for zone";
-          const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
-          const invOk = inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-          return invOk?"ALIGNED":"CHECK INVERSES";
-        })(),
-        passes: (()=>{
-          if(!zType) return null;
-          const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
-          return inv.length===0?null:inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-        })(),
-        note: "Inverse instruments should move opposite to zone direction.",
-      },
-      {
-        label: "CONFLUENCE SCORE",
-        value: confScore+" / 100" + (finalIsFlipped?" · FLIPPED":""),
-        passes: confScore>=75?true:confScore>=50?null:false,
-        note: finalIsFlipped?"Weak — counter direction is the trade.":confScore>=75?"Strong — follow zone.":"Moderate — proceed with caution.",
-      },
-      {
-        label: "BEST / WORST DAY",
-        passes: (()=>{
-          if(!liveZone) return null;
-          const btd = BACKTEST[liveZone.id]||{};
-          if(btd.best  && TODAYday===btd.best)  return true;
-          if(btd.worst && TODAYday===btd.worst) return false;
-          return null;
-        })(),
-        value: (()=>{
-          if(!liveZone) return "—";
-          const btd = BACKTEST[liveZone.id]||{best:"?",worst:"?"};
-          return `${TODAYday} · Best:${btd.best} Worst:${btd.worst}`;
-        })(),
-        note: "Historical best/worst day for this zone.",
-      },
-    ];
+    const checks = appChecks;  // single source of truth — defined at App level
 
-    const greenCount = checks.filter(c=>c.passes===true).length;
-    const redCount   = checks.filter(c=>c.passes===false).length;
-    const readyColor = greenCount>=3?G:greenCount>=2?A:R;
-    const readyLabel = greenCount>=3?"TAKE TRADE":greenCount>=2?"WATCH":"WAIT";
+    const greenCount = appGreenCount;
+    const redCount   = appRedCount;
+    const readyColor = appReadyColor;
+    const readyLabel = appReadyLabel;
 
     return(
       <div style={{padding:14}}>
