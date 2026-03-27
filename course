@@ -1724,34 +1724,41 @@ function App() {
 
     const checks = [
       {
-        label: "ZONE ACTIVE",
-        value: liveZone?liveZone.label+` (${liveZone.type.toUpperCase()})` : "None",
-        passes: liveZone!==null,
-        note: "A zone must be active before taking any entry.",
-        color: liveZone?(liveZone.type==="buy"?G:R):"#888",
-      },
-      {
         label: "CORRELATION ALIGNMENT",
         value: (()=>{
           if(!zType) return "Waiting for zone";
           const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
-          const conf= cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="CONFIRM");
           const invOk = inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
-          const cfOk  = conf.every(i=>zType==="buy"?i.bias==="bull":i.bias==="bear");
-          return invOk&&cfOk?"ALIGNED":"CHECK INVERSES";
+          return invOk?"ALIGNED":"CHECK INVERSES";
         })(),
         passes: (()=>{
           if(!zType) return null;
           const inv = cats.flatMap(c=>c.items).filter(i=>i.active&&CORR_L[i.corr]==="INVERSE");
           return inv.length===0?null:inv.every(i=>zType==="buy"?i.bias==="bear":i.bias==="bull");
         })(),
-        note: "Inverse instruments (DXY, VIX) should move opposite to your trade direction.",
+        note: "Inverse instruments should move opposite to zone direction.",
       },
       {
         label: "CONFLUENCE SCORE",
-        value: confScore+" / 100 — "+confLabel,
+        value: confScore+" / 100" + (finalIsFlipped?" · FLIPPED":""),
         passes: confScore>=75?true:confScore>=50?null:false,
-        note: "Score based on zone + prime pocket + correlation + VWAP alignment. System peak: 88% when all 6 execution conditions confirmed.",
+        note: finalIsFlipped?"Weak — counter direction is the trade.":confScore>=75?"Strong — follow zone.":"Moderate — proceed with caution.",
+      },
+      {
+        label: "BEST / WORST DAY",
+        passes: (()=>{
+          if(!liveZone) return null;
+          const btd = BACKTEST[liveZone.id]||{};
+          if(btd.best  && TODAYday===btd.best)  return true;
+          if(btd.worst && TODAYday===btd.worst) return false;
+          return null;
+        })(),
+        value: (()=>{
+          if(!liveZone) return "—";
+          const btd = BACKTEST[liveZone.id]||{best:"?",worst:"?"};
+          return `${TODAYday} · Best:${btd.best} Worst:${btd.worst}`;
+        })(),
+        note: "Historical best/worst day for this zone.",
       },
     ];
 
