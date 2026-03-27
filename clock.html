@@ -904,6 +904,65 @@ function App() {
   }
 
   // MASTER ENGINE
+
+  // ── NEWS PRE-BIAS — events suppress bias before they fire ────────────────────
+  // 3★ = 75 min pre-window · 2★ = 45 min · 1★ = 15 min
+  const newsBiasModifier = (()=>{
+    const toMins = (dateStr, timeStr) => {
+      if(!dateStr || !timeStr) return null;
+      try {
+        const ev = new Date(dateStr + 'T' + timeStr + ':00');
+        return Math.round((ev - new Date()) / 60000);
+      } catch(e) { return null; }
+    };
+
+    const WINDOWS = {3:75, 2:45, 1:15};
+    let suppressPts = 0;
+    const nearEvents = [];
+
+    // Live calendar events (ForexFactory + RSS)
+    for(const ev of calArticles) {
+      const mins = toMins(ev.date, ev.time);
+      if(mins === null) continue;
+      const stars = ev.stars || 1;
+      const win = WINDOWS[stars] || 15;
+      if(mins >= 0 && mins <= win) {
+        const prox = 1 - (mins / win);
+        const pen  = stars===3 ? -18 : stars===2 ? -10 : -5;
+        const pts  = Math.round(pen * prox);
+        suppressPts += pts;
+        nearEvents.push({title:ev.title||"", stars, minsUntil:mins, penalty:pts});
+      }
+    }
+
+    // Eco news articles with publication time
+    for(const ev of ecoArticles) {
+      if(!ev.pub) continue;
+      const mins = Math.round((new Date(ev.pub) - new Date()) / 60000);
+      if(isNaN(mins)) continue;
+      const stars = ev.stars || 1;
+      const win = WINDOWS[stars] || 15;
+      if(mins >= 0 && mins <= win) {
+        const prox = 1 - (mins / win);
+        const pen  = stars===3 ? -18 : stars===2 ? -10 : -5;
+        const pts  = Math.round(pen * prox);
+        suppressPts += pts;
+        nearEvents.push({title:ev.title||"", stars, minsUntil:mins, penalty:pts});
+      }
+    }
+
+    nearEvents.sort((a,b) => a.minsUntil - b.minsUntil);
+    const total = Math.max(-30, suppressPts);
+    const closest = nearEvents[0] || null;
+    return {
+      active: nearEvents.length > 0,
+      suppressPts: total,
+      nearEvents,
+      closestEvent: closest,
+      level: closest?.stars===3?"high":closest?.stars===2?"med":"low",
+    };
+  })();
+
   const polarityEngine = (()=>{
     const zone = liveZ.find(z=>z.type!=="dead") || null;
     const zType = zone ? zone.type : null;
@@ -954,76 +1013,6 @@ function App() {
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
-  // ── NEWS PRE-BIAS — news events affect bias before they happen ───────────────
-  // 3★ events suppress/shift bias 75 min before · 2★ = 45 min · 1★ = 15 min
-  const newsBiasModifier = (()=>{
-    const nowMins = et.h24*60 + et.m;
-    const todayStr = new Date().toISOString().slice(0,10);
-
-    // Gather all upcoming events from ECON static + live calArticles
-    // Build a merged list with minutes-until for each
-    const toMins = (d, t) => {
-      if(!d || !t) return null;
-      const [h, m] = (t||"00:00").split(":").map(Number);
-      const evDate = new Date(d + "T" + (t||"00:00") + ":00");
-      const nowDate = new Date();
-      return Math.round((evDate - nowDate) / 60000); // mins until
-    };
-
-    // Collect from ECON static array (defined inside NewsTab but accessible via calArticles too)
-    // We use calArticles (live) + a snapshot of key events
-    const allEvents = [
-      ...calArticles.map(ev => ({
-        minsUntil: ev.date && ev.time ? toMins(ev.date, ev.time) : null,
-        stars: ev.stars || 1,
-        title: ev.title || "",
-        source: "live",
-      })),
-      ...ecoArticles.map(ev => ({
-        minsUntil: ev.pub ? Math.round((new Date(ev.pub) - new Date()) / 60000) : null,
-        stars: ev.stars || 1,
-        title: ev.title || "",
-        source: "eco",
-      })),
-    ];
-
-    const WINDOWS = { 3: 75, 2: 45, 1: 15 }; // stars → pre-bias window in mins
-
-    let suppressPts = 0;
-    let nearEvents = [];
-
-    for(const ev of allEvents) {
-      if(ev.minsUntil === null) continue;
-      const window = WINDOWS[ev.stars] || WINDOWS[1];
-      if(ev.minsUntil >= 0 && ev.minsUntil <= window) {
-        // Inside the pre-bias window — suppress confidence proportionally
-        const proximity = 1 - (ev.minsUntil / window); // 0 = at window edge, 1 = at event
-        const penalty = ev.stars === 3 ? -18 : ev.stars === 2 ? -10 : -5;
-        suppressPts += Math.round(penalty * proximity);
-        nearEvents.push({
-          title: ev.title,
-          stars: ev.stars,
-          minsUntil: ev.minsUntil,
-          penalty: Math.round(penalty * proximity),
-          window,
-        });
-      }
-    }
-
-    // Cap total suppression
-    const totalSuppression = Math.max(-30, suppressPts);
-    const isActive = nearEvents.length > 0;
-    const closestEvent = nearEvents.sort((a,b) => a.minsUntil - b.minsUntil)[0] || null;
-
-    return {
-      active: isActive,
-      suppressPts: totalSuppression,
-      nearEvents,
-      closestEvent,
-      // Warning level
-      level: closestEvent?.stars === 3 ? "high" : closestEvent?.stars === 2 ? "med" : "low",
-    };
-  })();
 
 
   // ── APP-LEVEL CHECKLIST (used in both ClockTab summary and SignalsTab) ───────
