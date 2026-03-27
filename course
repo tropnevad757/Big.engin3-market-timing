@@ -1574,36 +1574,9 @@ function App() {
               {!marketData&&<span style={{fontSize:11,color:"#333",...mono}}>● loading…</span>}
             </div>
 
-            {/* ── ROW 4: Score anatomy (small, secondary) ── */}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",fontSize:11,...mono,color:"#333",
-              borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:6,marginTop:2}}>
-              <span style={{color:eb.biasScore>=25?A:"#444"}}>
-                early {eb.biasScore}/40
-              </span>
-              <span>·</span>
-              <span style={{color:val.score>0?"#555":val.score<0?R:"#444"}}>
-                confirm {val.score>0?"+":""}{val.score}/35
-              </span>
-              {exe.contextPts!==0&&<><span>·</span>
-                <span style={{color:exe.contextPts>0?"#555":R}}>
-                  ctx {exe.contextPts>0?"+":""}{exe.contextPts}
-                </span>
-              </>}
-              {exe.penalties>0&&<><span>·</span>
-                <span style={{color:R}}>−{exe.penalties} pen</span>
-              </>}
 
-            </div>
 
-            {/* Bias line — only if meaningful */}
-            {overall!=="NEUTRAL"&&z&&(
-              <div style={{fontSize:12,color:ovCol,...mono,marginTop:5}}>
-                {overall==="BULLISH"&&z.type==="buy"?"✓ Bias confirmed — FULL EDGE":
-                 overall==="BEARISH"&&z.type==="sell"?"✓ Bias confirmed — FULL EDGE":
-                 overall==="BULLISH"&&z.type==="sell"?"⚠ Counter-bias — reduce size":
-                 overall==="BEARISH"&&z.type==="buy"?"⚠ Counter-bias — reduce size":""}
-              </div>
-            )}
+
           </div>
         );
       })()}
@@ -1654,6 +1627,43 @@ function App() {
       </div>
       )}
 
+
+      {/* ── 3-Check Bias Checklist ── */}
+      <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.03)",padding:"12px 14px"}}>
+        <div style={{fontSize:11,letterSpacing:2,color:"#555",fontWeight:700,marginBottom:8,...mono}}>BIAS CHECKS</div>
+        {appChecks.map((chk,i)=>{
+          const col = chk.passes===true?G:chk.passes===false?R:"#555";
+          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
+          return(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",
+              borderBottom:i<appChecks.length-1?"1px solid rgba(255,255,255,0.04)":"none"}}>
+              <div style={{width:22,height:22,borderRadius:6,display:"flex",alignItems:"center",
+                justifyContent:"center",background:`${col}18`,border:`1px solid ${col}33`,flexShrink:0}}>
+                <span style={{fontSize:12,fontWeight:900,color:col}}>{icon}</span>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:700,color:chk.passes===true?"#ddd":chk.passes===false?"#aaa":"#666",...mono}}>
+                  {chk.label}
+                </div>
+                {chk.value&&<div style={{fontSize:11,color:"#444",...mono,marginTop:1}}>{chk.value}</div>}
+              </div>
+              {chk.note&&chk.passes===false&&(
+                <div style={{fontSize:10,color:R,maxWidth:100,textAlign:"right",...mono,lineHeight:1.4}}>{chk.note}</div>
+              )}
+            </div>
+          );
+        })}
+        {/* Ready label */}
+        <div style={{marginTop:8,paddingTop:6,borderTop:"1px solid rgba(255,255,255,0.05)",
+          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:11,color:"#444",...mono}}>
+            {appGreenCount}/3 checks
+          </div>
+          <div style={{fontSize:12,fontWeight:900,color:appReadyColor,letterSpacing:1,...mono}}>
+            {appReadyLabel}
+          </div>
+        </div>
+      </div>
 
       {/* Sound */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
