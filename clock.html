@@ -87,42 +87,55 @@ const BG = "#06071a";
 // ─── TRAP TIMES (anchor points) ET ────────────────────────────────────────────
 // AM: 1:30, 4:30, 7:30, 10:30   PM: 1:30, 4:30, 7:30, 10:30
 const TRAP_TIMES = [
-  { id:"t1",  label:"1:30 AM",  h:1,  m:30, period:"AM" },
-  { id:"t2",  label:"4:30 AM",  h:4,  m:30, period:"AM" },
-  { id:"t3",  label:"7:30 AM",  h:7,  m:30, period:"AM" },
-  { id:"t4",  label:"10:30 AM", h:10, m:30, period:"AM" },
-  { id:"t5",  label:"1:30 PM",  h:13, m:30, period:"PM" },
-  { id:"t6",  label:"4:30 PM",  h:16, m:30, period:"PM" },
-  { id:"t7",  label:"7:30 PM",  h:19, m:30, period:"PM" },
-  { id:"t8",  label:"10:30 PM", h:22, m:30, period:"PM" },
+  { id:"t1",  label:"ANCHOR A1",  h:1,  m:30, period:"AM" },
+  { id:"t2",  label:"ANCHOR A2",  h:4,  m:30, period:"AM" },
+  { id:"t3",  label:"ANCHOR A3",  h:7,  m:30, period:"AM" },
+  { id:"t4",  label:"ANCHOR A4", h:10, m:30, period:"AM" },
+  { id:"t5",  label:"ANCHOR P1",  h:13, m:30, period:"PM" },
+  { id:"t6",  label:"ANCHOR P2",  h:16, m:30, period:"PM" },
+  { id:"t7",  label:"ANCHOR P3",  h:19, m:30, period:"PM" },
+  { id:"t8",  label:"ANCHOR P4", h:22, m:30, period:"PM" },
 ];
 
 // ─── ZONES (times hidden from display) ────────────────────────────────────────
+// ─── ZONES — 8 anchors: 1:30, 4:30, 7:30, 10:30 AM & PM ET ─────────────────
+// Mirrors VWAP anchor times exactly. Each zone runs to the next anchor.
+// Alternating sell/buy polarity following institutional flow.
 const BASE_ZONES = [
-  { id:"z6", type:"sell", h1:1, m1:30,h2:4, m2:30, label:"Z1",
-    pocket:{ label:"POWER HOUR CLOSE", note:"3:00–4:00 PM is highest single-hour volume after NYSE open. Fund rebalancing + futures close 4:15." },
-    subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 },
-    institutionalEdge: "Very High — Power Hour + PM rebalancing + CME close", starRating:4 },
-  { id:"z2", type:"buy",  h1:4, m1:30,h2:6, m2:30, label:"Z4",
-    pocket:{ label:"DAILY CLOSE TRAP", note:"5:00 PM ET bank reset. Stops run before close. Cleanest entry: 4:45–5:15." },
-    subStart:{ h:4, m:45 }, subEnd:{ h:5, m:15 },
-    institutionalEdge: "Moderate — forex bank reset, futures thin", starRating:3 },
-  { id:"z4", type:"sell", h1:6, m1:30,h2:7, m2:30, label:"Z6",
-    pocket:{ label:"ASIAN SESSION TRAP", note:"Overnight highs/lows set here. Draw levels for NY session. Best for Forex." },
-    subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 },
-    institutionalEdge: "Instrument-dependent — strong for Forex/Bonds", starRating:2 },
-  { id:"z3", type:"buy",  h1:7, m1:30,h2:10,m2:30, label:"Z7",
+  // ── AM ZONES ──────────────────────────────────────────────────────────────
+  { id:"z1_am", type:"sell", h1:1, m1:30, h2:4, m2:30, label:"Z1",
+    pocket:{ label:"OVERNIGHT SELL", note:"1:30 AM anchor. Asian session momentum. Overnight sell pressure peaks before 4:30 reset." },
+    subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 },
+    institutionalEdge:"Moderate — Asian session, thin liquidity", starRating:3 },
+  { id:"z4_am", type:"buy",  h1:4, m1:30, h2:7, m2:30, label:"Z4",
+    pocket:{ label:"PRE-MARKET BUY", note:"4:30 AM anchor. London open 3:00 AM, futures positioning. Prime window 6:30–7:30." },
+    subStart:{ h:6, m:30 }, subEnd:{ h:7, m:30 },
+    institutionalEdge:"High — London open overlap, pre-market futures bid", starRating:4 },
+  { id:"z7_am", type:"buy",  h1:7, m1:30, h2:10,m2:30, label:"Z7",
     pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open 9:30. Highest institutional volume. 9:30–10:30 is the primary window." },
     subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 },
-    institutionalEdge: "Highest — NYSE open + data releases + ICT NY Kill Zone", starRating:5 },
-  { id:"z5", type:"sell", h1:10,m1:30,h2:12,m2:30, label:"Z10",
-    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close 11:00–11:30. Morning trend stalls or reverses. 10:45–11:30 optimal." },
+    institutionalEdge:"Highest — NYSE open + data releases + ICT NY Kill Zone", starRating:5 },
+  { id:"z10_am", type:"sell", h1:10,m1:30, h2:1, m2:30, label:"Z10",
+    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close 11:00–11:30. AM trend exhausts. 10:45–11:30 optimal." },
     subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 },
-    institutionalEdge: "Very High — London close + AM session exhaustion", starRating:4 },
-  { id:"z1", type:"buy",  h1:12,m1:30,h2:1, m2:30, label:"Z12",
-    pocket:{ label:"AFTERNOON OPEN REVERSAL", note:"Liquidity grab after lunch dead zone. Institutions re-enter 1:00–1:30." },
-    subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 },
-    institutionalEdge: "Medium — lunch hour thins before pickup", starRating:2 },
+    institutionalEdge:"Very High — London close + AM session exhaustion", starRating:4 },
+  // ── PM ZONES ──────────────────────────────────────────────────────────────
+  { id:"z1_pm", type:"sell", h1:1, m1:30, h2:4, m2:30, label:"Z1PM",
+    pocket:{ label:"POWER HOUR CLOSE", note:"3:00–4:15 PM. Highest single-hour volume. Fund rebalancing + CME futures close 4:15." },
+    subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 },
+    institutionalEdge:"Very High — Power Hour + PM rebalancing + CME close", starRating:4 },
+  { id:"z4_pm", type:"buy",  h1:4, m1:30, h2:7, m2:30, label:"Z4PM",
+    pocket:{ label:"DAILY CLOSE TRAP", note:"5:00 PM ET bank reset. Forex stops run before close. Cleanest entry: 4:45–5:15 PM." },
+    subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 },
+    institutionalEdge:"Moderate — forex bank reset, CME afterhours positioning", starRating:3 },
+  { id:"z7_pm", type:"sell", h1:7, m1:30, h2:10,m2:30, label:"Z7PM",
+    pocket:{ label:"ASIAN PRE-MARKET TRAP", note:"7:30–10:30 PM. Overnight highs/lows set here. Draw levels for next NY session." },
+    subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 },
+    institutionalEdge:"Moderate — thin volume, Asian session setup", starRating:2 },
+  { id:"z10_pm", type:"buy", h1:10,m1:30, h2:1, m2:30, label:"Z10PM",
+    pocket:{ label:"PRE-DAWN BUY", note:"10:30 PM–1:30 AM. Late Asia / early London accumulation before 1:30 AM switch." },
+    subStart:{ h:23, m:0 }, subEnd:{ h:0, m:30 },
+    institutionalEdge:"Low-Moderate — thin, but sets overnight bias", starRating:2 },
 ];
 
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
@@ -191,6 +204,17 @@ const PLANS = [
 // Win rates from ENGiN3 system historical data (BTC)
 // System peak: 88% when all 6 conditions met (prime window + regime + news + sweep + displacement)
 const BACKTEST = {
+  // AM zones
+  z1_am: {wins:72, avgPts:8.2,  best:"Tue", worst:"Mon", months:[70,74,68,76,70,73,68,76,71,70,74,72], peak:88},
+  z4_am: {wins:76, avgPts:11.4, best:"Wed", worst:"Thu", months:[74,78,74,80,74,77,72,80,75,74,78,76], peak:88},
+  z7_am: {wins:88, avgPts:21.0, best:"Tue", worst:"Fri", months:[86,90,87,91,86,89,85,91,87,88,90,88], peak:88},
+  z10_am:{wins:82, avgPts:15.5, best:"Wed", worst:"Fri", months:[80,84,81,85,80,83,79,85,81,82,84,82], peak:88},
+  // PM zones
+  z1_pm: {wins:79, avgPts:14.2, best:"Thu", worst:"Mon", months:[77,81,78,82,77,80,77,82,78,79,81,79], peak:88},
+  z4_pm: {wins:68, avgPts:7.1,  best:"Thu", worst:"Mon", months:[65,70,67,72,66,69,65,72,67,68,70,68], peak:88},
+  z7_pm: {wins:62, avgPts:5.8,  best:"Wed", worst:"Mon", months:[60,64,61,65,60,63,59,65,61,62,64,62], peak:80},
+  z10_pm:{wins:65, avgPts:6.4,  best:"Tue", worst:"Fri", months:[62,67,64,68,63,66,62,68,64,65,67,65], peak:80},
+  // Legacy keys (keep for backward compat)
   z1:{wins:72,avgPts:8.2, best:"Tue",worst:"Mon",months:[70,74,68,76,70,73,68,76,71,70,74,72],peak:88},
   z2:{wins:76,avgPts:11.4,best:"Wed",worst:"Thu",months:[74,78,74,80,74,77,72,80,75,74,78,76],peak:88},
   z3:{wins:88,avgPts:21.0,best:"Tue",worst:"Fri",months:[86,90,87,91,86,89,85,91,87,88,90,88],peak:88},
@@ -373,7 +397,7 @@ function VWAPBandCard({trap, et, price}) {
           <div>
             <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:2}}>VWAP — FAIR VALUE</div>
             <div style={{fontSize:13,color:"#888",...mono}}>Target when price is at either band</div>
-            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>Anchor: {trap.label} ET</div>
+            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>BiG ENGiN3 Anchor</div>
           </div>
           <div style={{fontSize:16,fontWeight:900,color:A,...mono,textAlign:"right"}}>
             {vwapLine}
@@ -443,6 +467,8 @@ function App() {
   const [newsExpanded, setNewsExpanded] = useState(null);
   // Breaking news anchor — polarity override for high-impact events
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
+  // Sweep confirmed — manual tap when liquidity sweep seen at VWAP anchor
+  const [sweepSeen, setSweepSeen] = useState(null); // {at: timestamp, dir: "buy"|"sell", expiresAt}
   // Live calendar state
   const [calArticles,  setCalArticles]  = useState([]);
   const [calLoading,   setCalLoading]   = useState(false);
@@ -464,15 +490,46 @@ function App() {
   const prevPolarityRef = useRef(null);
   const prevWindowRef   = useRef(null);
 
-  // Zone transition anchor map — each switch point fires an auto anchor
+  // Zone transition anchor map — fires auto anchor at each zone open
+  // All polarity flip points — fires auto-anchor at each transition
+  // VWAP anchors (★★★) + key session flips (★★) + minor flips (★)
   const TRANSITION_ANCHORS = [
-    { mins: 90,  label:"1:30 · Z1 SWITCH",    polarity:-1, stars:3, color:"#ff3355" }, // 1:30 AM bear
-    { mins:270,  label:"4:30 · Z4 RESET",      polarity:+1, stars:2, color:"#00ff88" }, // 4:30 AM bull
-    { mins:390,  label:"6:30 · Z6 DANGER",     polarity:-1, stars:1, color:"#888"    }, // 6:30 AM — low confidence
-    { mins:450,  label:"7:30 · Z7 PRIMARY",    polarity:+1, stars:3, color:"#00ff88" }, // 7:30 AM bull — highest
-    { mins:630,  label:"10:30 · Z10 TRAP",     polarity:-1, stars:3, color:"#ff3355" }, // 10:30 AM bear
-    { mins:750,  label:"12:30 · Z12 REVERSAL", polarity:+1, stars:2, color:"#00ff88" }, // 12:30 PM bull
-    { mins:810,  label:"1:30 · PM DEAD",       polarity:-1, stars:2, color:"#ff3355" }, // 1:30 PM bear ← the one that was missing
+    // ─── AM ──────────────────────────────────────────────────────────────────
+    { mins:  60, label:"STALK LONG ↑",         polarity:+1, stars:2 }, // pre-VWAP stalk long
+    { mins:  90, label:"VWAP ANCHOR ↓", polarity:-1, stars:3 }, // ★★★ switch to sell
+    { mins: 120, label:"COUNTER ↑",             polarity:+1, stars:1 },
+    { mins: 180, label:"CONTINUATION ↓",             polarity:-1, stars:2 },
+    { mins: 240, label:"STALK LONG ↑",         polarity:+1, stars:2 }, // stalk long pre-VWAP
+    { mins: 270, label:"VWAP ANCHOR ↓", polarity:-1, stars:3 }, // ★★★
+    { mins: 300, label:"RECOVERY ↑",             polarity:+1, stars:1 },
+    { mins: 360, label:"FLUSH ↓",             polarity:-1, stars:2 },
+    { mins: 390, label:"COUNTER ↑",             polarity:+1, stars:1 },
+    { mins: 420, label:"STALK BUY DIP ↓",   polarity:-1, stars:2 }, // dip before Z7
+    { mins: 450, label:"VWAP ANCHOR ↑", polarity:+1, stars:3 }, // ★★★ Z7 primary
+    { mins: 480, label:"PULLBACK ↓",    polarity:-1, stars:2 },
+    { mins: 540, label:"SESSION OPEN ↑",   polarity:+1, stars:3 }, // ★★★ highest expansion
+    { mins: 600, label:"STALK SELL ↓", polarity:-1, stars:2 },
+    { mins: 630, label:"VWAP FADE ↑",  polarity:+1, stars:2 }, // fade the spike
+    { mins: 660, label:"SELL MOMENTUM ↓",   polarity:-1, stars:3 }, // ★★★ sell momentum
+    { mins: 720, label:"STALK LONG ↑",      polarity:+1, stars:2 },
+    { mins: 750, label:"REGIME SWITCH ↓", polarity:-1, stars:3 }, // ★★★
+    // ─── PM (exact mirror) ───────────────────────────────────────────────────
+    { mins: 780, label:"STALK LONG ↑",         polarity:+1, stars:2 },
+    { mins: 810, label:"VWAP ANCHOR ↓", polarity:-1, stars:3 }, // ★★★ was missing
+    { mins: 840, label:"COUNTER ↑",             polarity:+1, stars:1 },
+    { mins: 900, label:"CONTINUATION ↓",             polarity:-1, stars:2 },
+    { mins: 960, label:"STALK LONG ↑",             polarity:+1, stars:2 },
+    { mins: 990, label:"VWAP ANCHOR ↓", polarity:-1, stars:3 }, // ★★★
+    { mins:1020, label:"RECOVERY ↑",             polarity:+1, stars:1 },
+    { mins:1080, label:"FLUSH ↓",             polarity:-1, stars:2 },
+    { mins:1110, label:"COUNTER ↑",             polarity:+1, stars:1 },
+    { mins:1140, label:"STALK BUY DIP ↓",   polarity:-1, stars:2 },
+    { mins:1170, label:"VWAP ANCHOR ↑", polarity:+1, stars:3 }, // ★★★
+    { mins:1200, label:"PULLBACK ↓",             polarity:-1, stars:2 },
+    { mins:1260, label:"SESSION CONTINUATION ↑",             polarity:+1, stars:2 },
+    { mins:1320, label:"STALK SELL ↓",            polarity:-1, stars:2 },
+    { mins:1350, label:"VWAP ANCHOR ↑",polarity:+1, stars:3 }, // ★★★
+    { mins:1380, label:"OVERNIGHT ↓",            polarity:-1, stars:2 },
   ];
 
   useEffect(()=>{
@@ -515,6 +572,8 @@ function App() {
 
       // Expire breaking anchor
       setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
+      // Expire sweep confirmation (lasts 20 minutes)
+      setSweepSeen(prev => prev && Date.now() > prev.expiresAt ? null : prev);
     },1000);
     return()=>clearInterval(t);
   },[zones,soundOn,plan,tz]);
@@ -618,21 +677,84 @@ function App() {
 
   const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
 
+  // ── POLARITY CLOCK — exact regime sequence (ET, repeats AM + PM) ─────────────
+  // Source: BiG ENGiN3 time regime without news disruption
+  // VWAP Anchors: 1:30 · 4:30 · 7:30 · 10:30 (AM + PM)
+  // UP = buy | DOWN = sell
   const ZONE_WINDOWS = [
-    { from:   0, to:  60, role:"DEAD",       setup:"no-trade",     pol:-1, tier:0, label:"Overnight dead" },
-    { from:  60, to:  90, role:"PRE-SWITCH", setup:"stalk",        pol:-1, tier:2, label:"Stalk Z1 short" },
-    { from:  90, to: 270, role:"SWITCH",     setup:"continuation", pol:-1, tier:3, label:"Z1 SELL regime" },
-    { from: 240, to: 270, role:"PRE-RESET",  setup:"stalk",        pol:+1, tier:2, label:"Stalk Z4 long" },
-    { from: 270, to: 390, role:"RESET",      setup:"counter",      pol:+1, tier:2, label:"Z4 BUY reset" },
-    { from: 360, to: 390, role:"PRE-DANGER", setup:"caution",      pol:-1, tier:1, label:"Entering Z6 danger" },
-    { from: 390, to: 450, role:"DANGER",     setup:"transition",   pol:-1, tier:1, label:"Z6 SELL — 60min only" },
-    { from: 420, to: 450, role:"PRE-PRIMARY",setup:"stalk",        pol:+1, tier:4, label:"Stalk Z7 long" },
-    { from: 450, to: 630, role:"PRIMARY",    setup:"continuation", pol:+1, tier:5, label:"Z7 BUY primary" },
-    { from: 600, to: 630, role:"PRE-FADE",   setup:"stalk",        pol:-1, tier:3, label:"Stalk Z10 short" },
-    { from: 630, to: 750, role:"TRAP",       setup:"fade",         pol:-1, tier:3, label:"Z10 SELL trap" },
-    { from: 720, to: 750, role:"PRE-REVERSAL",setup:"stalk",       pol:+1, tier:2, label:"Stalk Z12 long" },
-    { from: 750, to: 810, role:"REVERSAL",   setup:"counter",      pol:+1, tier:2, label:"Z12 BUY reversal" },
-    { from: 810, to:1440, role:"DEAD",       setup:"no-trade",     pol:-1, tier:0, label:"PM dead zone" },
+    // ─── AM CYCLE ────────────────────────────────────────────────────────────
+    // 12:30–1:00 AM : DOWN (tail of previous 12:30 cycle)
+    { from:   0, to:  60, pol:-1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
+    // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
+    { from:  60, to:  90, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
+    { from:  90, to: 120, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    // 2:00–3:00 AM  : UP (counter inside Z1)
+    { from: 120, to: 180, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 3:00–4:00 AM  : DOWN (continuation sell)
+    { from: 180, to: 240, pol:-1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    // 4:00–4:30 AM  : UP (pre-anchor stalk)
+    { from: 240, to: 270, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
+    { from: 270, to: 300, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    // 5:00–6:00 AM  : UP (Z4 recovery buy)
+    { from: 300, to: 360, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
+    { from: 360, to: 390, pol:-1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    // 6:30–7:00 AM  : UP (Z6 counter move)
+    { from: 390, to: 420, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 7:00–7:30 AM  : DOWN (final flush before NY open)
+    { from: 420, to: 450, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
+    { from: 450, to: 480, pol:+1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
+    { from: 480, to: 540, pol:-1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    // 9:00–10:00 AM : UP (NYSE open expansion)
+    { from: 540, to: 600, pol:+1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
+    // 10:00–10:30 AM: DOWN (AM exhaustion / pre-Z10)
+    { from: 600, to: 630, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    // 10:30–11:00 AM: UP ★ VWAP ANCHOR (initial Z10 spike — sell the rip)
+    { from: 630, to: 660, pol:+1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
+    // 11:00–12:00 AM: DOWN (Z10 sell momentum / London close)
+    { from: 660, to: 720, pol:-1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
+    // 12:00–12:30 AM: UP (pre-Z12 stalk)
+    { from: 720, to: 750, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
+    { from: 750, to: 780, pol:-1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
+
+    // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
+    // 1:00–1:30 PM  : UP
+    { from: 780, to: 810, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
+    { from: 810, to: 840, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    // 2:00–3:00 PM  : UP
+    { from: 840, to: 900, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 3:00–4:00 PM  : DOWN
+    { from: 900, to: 960, pol:-1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    // 4:00–4:30 PM  : UP
+    { from: 960, to: 990, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
+    { from: 990, to:1020, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    // 5:00–6:00 PM  : UP
+    { from:1020, to:1080, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    // 6:00–6:30 PM  : DOWN
+    { from:1080, to:1110, pol:-1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    // 6:30–7:00 PM  : UP
+    { from:1110, to:1140, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 7:00–7:30 PM  : DOWN
+    { from:1140, to:1170, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
+    { from:1170, to:1200, pol:+1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    // 8:00–9:00 PM  : DOWN
+    { from:1200, to:1260, pol:-1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    // 9:00–10:00 PM : UP
+    { from:1260, to:1320, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
+    // 10:00–10:30 PM: DOWN
+    { from:1320, to:1350, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    // 10:30–11:00 PM: UP ★ VWAP ANCHOR
+    { from:1350, to:1380, pol:+1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
+    // 11:00–12:00 AM: DOWN
+    { from:1380, to:1440, pol:-1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
   ];
 
   function getWindowAt(h24, m) {
@@ -644,7 +766,8 @@ function App() {
 
   function getMinutesToNextZone(h24, m) {
     const t = h24*60+m;
-    const ZONE_OPENS = [90,270,390,450,630,750];
+    // All 8 zone opens: 1:30, 4:30, 7:30, 10:30 AM and PM
+    const ZONE_OPENS = [90, 270, 450, 630, 810, 990, 1170, 1350];
     const next = ZONE_OPENS.find(z => z > t) || (ZONE_OPENS[0] + 1440);
     return next - t;
   }
@@ -736,18 +859,27 @@ function App() {
   }
 
   // STAGE 3: EXECUTION + HARD GATES
-  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone) {
+  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone, sweepSeen) {
     let contextPts=0, penalties=0;
     const blocked=[];
 
-    if(!zone)                   return {blocked:true,reason:"No active zone",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
+    if(!zone)                   return {blocked:true,reason:"No active zone",light:"gray",action:"WAIT",contextPts:0,penalties:0};
     if(eb.isDanger)             return {blocked:true,reason:"Z6 danger window",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
-    if(eb.window.role==="DEAD") return {blocked:true,reason:"Dead zone",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
+    // No DEAD zones in v3 — every window has a polarity direction
 
     if(inSubWindow)  contextPts+=8;
     if(hotTraps.length) contextPts+=5;
     if(btd.best  && TODAYday===btd.best)  contextPts+=4;
     if(btd.worst && TODAYday===btd.worst) contextPts-=8;
+
+    // ── SWEEP CONFIRMATION — highest-signal manual input (+15) ───────────────
+    // Fires when user taps "SWEEP" at a VWAP anchor. Confirms the actual trigger.
+    if(sweepSeen) {
+      const zType = zone.type;
+      const sweepAligned = (sweepSeen.dir==="buy"&&zType==="buy")||(sweepSeen.dir==="sell"&&zType==="sell");
+      if(sweepAligned) contextPts += 15; // highest single input — confirms entry trigger
+      else             contextPts -= 8;  // sweep against zone = warning
+    }
 
     if(breakingAnchor) {
       const zType=zone.type;
@@ -781,17 +913,23 @@ function App() {
 
     const eb  = computeEarlyBias(et.h24, et.m, zone, zType, inSub);
     const val = computeValidation(zType, md, inSub, hotTraps, overall, btd, breakingAnchor, eb);
-    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone);
+    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone, sweepSeen);
 
-    const totalScore = exe.blocked ? 0 : exe.totalScore;
+    const totalScore = exe.blocked ? 0 : Math.max(0, exe.totalScore + newsBiasModifier.suppressPts);
     const light = exe.light || "gray";
+    const lightCol = light==="green"?G:light==="yellow"?A:light==="red"?R:"#555";
+
+    // polarityAligned: true if polarity direction matches zone OR if in a stalk window
+    // pointing toward the upcoming zone — don't require active zone to show alignment
+    const polAlign = eb.zonePolMatch ||
+      (eb.stalkMode && !zType); // stalking toward a zone, polarity has a direction
 
     return {
-      strength:totalScore, light, action:exe.action,
+      strength:totalScore, light, lightCol, action:exe.action,
       earlyBias:eb, validation:val, execution:exe,
       zType, zone, wr, btd,
       polarityDir: eb.polarity===+1?"UP ▲":"DOWN ▼",
-      polarityAligned: eb.zonePolMatch,
+      polarityAligned: polAlign,
       setupType: eb.setupType,
       stalkMode: eb.stalkMode,
       windowLabel: eb.window.label,
@@ -816,6 +954,77 @@ function App() {
   const confCol = confScore>=75?G:confScore>=50?A:R;
   const confLabel = confScore>=75?"TRADE":confScore>=50?"WATCH":"WAIT";
 
+  // ── NEWS PRE-BIAS — news events affect bias before they happen ───────────────
+  // 3★ events suppress/shift bias 75 min before · 2★ = 45 min · 1★ = 15 min
+  const newsBiasModifier = (()=>{
+    const nowMins = et.h24*60 + et.m;
+    const todayStr = new Date().toISOString().slice(0,10);
+
+    // Gather all upcoming events from ECON static + live calArticles
+    // Build a merged list with minutes-until for each
+    const toMins = (d, t) => {
+      if(!d || !t) return null;
+      const [h, m] = (t||"00:00").split(":").map(Number);
+      const evDate = new Date(d + "T" + (t||"00:00") + ":00");
+      const nowDate = new Date();
+      return Math.round((evDate - nowDate) / 60000); // mins until
+    };
+
+    // Collect from ECON static array (defined inside NewsTab but accessible via calArticles too)
+    // We use calArticles (live) + a snapshot of key events
+    const allEvents = [
+      ...calArticles.map(ev => ({
+        minsUntil: ev.date && ev.time ? toMins(ev.date, ev.time) : null,
+        stars: ev.stars || 1,
+        title: ev.title || "",
+        source: "live",
+      })),
+      ...ecoArticles.map(ev => ({
+        minsUntil: ev.pub ? Math.round((new Date(ev.pub) - new Date()) / 60000) : null,
+        stars: ev.stars || 1,
+        title: ev.title || "",
+        source: "eco",
+      })),
+    ];
+
+    const WINDOWS = { 3: 75, 2: 45, 1: 15 }; // stars → pre-bias window in mins
+
+    let suppressPts = 0;
+    let nearEvents = [];
+
+    for(const ev of allEvents) {
+      if(ev.minsUntil === null) continue;
+      const window = WINDOWS[ev.stars] || WINDOWS[1];
+      if(ev.minsUntil >= 0 && ev.minsUntil <= window) {
+        // Inside the pre-bias window — suppress confidence proportionally
+        const proximity = 1 - (ev.minsUntil / window); // 0 = at window edge, 1 = at event
+        const penalty = ev.stars === 3 ? -18 : ev.stars === 2 ? -10 : -5;
+        suppressPts += Math.round(penalty * proximity);
+        nearEvents.push({
+          title: ev.title,
+          stars: ev.stars,
+          minsUntil: ev.minsUntil,
+          penalty: Math.round(penalty * proximity),
+          window,
+        });
+      }
+    }
+
+    // Cap total suppression
+    const totalSuppression = Math.max(-30, suppressPts);
+    const isActive = nearEvents.length > 0;
+    const closestEvent = nearEvents.sort((a,b) => a.minsUntil - b.minsUntil)[0] || null;
+
+    return {
+      active: isActive,
+      suppressPts: totalSuppression,
+      nearEvents,
+      closestEvent,
+      // Warning level
+      level: closestEvent?.stars === 3 ? "high" : closestEvent?.stars === 2 ? "med" : "low",
+    };
+  })();
+
 
   // ── APP-LEVEL CHECKLIST (used in both ClockTab summary and SignalsTab) ───────
   const appLiveZone = liveZ[0] || null;
@@ -828,10 +1037,17 @@ function App() {
     },
     {
       label:"TIME POLARITY",
-      passes: polarityAligned ? true : (appLiveZone ? false : null),
+      // Polarity runs 24/7 — pass when aligned with zone OR when in stalk window
+      // null (amber) when between zones but polarity is live
+      // false only when polarity directly conflicts the active zone direction
+      // true = aligned, false = direct conflict with active zone, null = between zones
+      passes: (()=>{
+        if(!appLiveZone || !appZType) return null;  // no active zone — polarity live but unconfirmed
+        return polarityAligned ? true : false;       // false only when active zone conflicts polarity
+      })(),
       value: polarityEngine.windowLabel +
              (polarityEngine.stalkMode ? " · STALKING" : "") +
-             (polarityEngine.setupType!=="no-trade" ? " · "+polarityEngine.setupType.toUpperCase() : ""),
+             (polarityEngine.setupType && polarityEngine.setupType!=="no-trade" ? " · "+polarityEngine.setupType.toUpperCase() : ""),
       color: polarityEngine.lightCol,
     },
     {
@@ -1219,17 +1435,43 @@ function App() {
         const earlyArrow  = eb.polarity===+1 ? "▲" : "▼";
         const minsToNext  = getMinutesToNextZone(et.h24, et.m);
 
-        // No zone at all
-        if(!liveZ.length && eb.window.role==="DEAD") return(
-          <div style={{marginBottom:10,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",
-            background:"rgba(255,255,255,0.03)",padding:"16px"}}>
-            <div style={{fontSize:13,color:"#444",letterSpacing:2,...mono,marginBottom:6}}>◆ DEAD ZONE</div>
-            <div style={{fontSize:13,color:"#555",...mono}}>
-              Next zone in <span style={{color:A,fontWeight:700}}>{minsToNext}m</span>
-              {" · "}<span style={{color:eb.polarity===+1?G:R,fontWeight:700}}>{earlyArrow} {earlyDir} expected</span>
+        // Between zones — always show polarity direction (every window has one)
+        if(!liveZ.length || eb.window.role==="DEAD") {
+          const minsDisplay = minsToNext > 240
+            ? `${Math.round(minsToNext/60)}h ${minsToNext%60}m`
+            : `${minsToNext}m`;
+          const isVwap = eb.window.label && eb.window.label.includes("VWAP");
+          return(
+            <div style={{marginBottom:10,borderRadius:14,
+              border:`1px solid ${earlyCol}22`,
+              background:`${earlyCol}05`,padding:"14px 15px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontSize:11,letterSpacing:2,color:"#444",fontWeight:700,marginBottom:5,...mono}}>
+                    ◆ NO ACTIVE WINDOW{isVwap?" · VWAP ANCHOR":""}
+                  </div>
+                  <div style={{fontSize:24,fontWeight:900,color:`${earlyCol}99`,
+                    letterSpacing:2,lineHeight:1,...mono,marginBottom:4}}>
+                    {earlyArrow}  {earlyDir}
+                  </div>
+                  <div style={{fontSize:12,color:"#444",...mono}}>{eb.window.label}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:11,color:"#333",letterSpacing:1,...mono,marginBottom:4}}>
+                    {minsToNext > 240 ? "NEXT ZONE" : "NEXT ZONE IN"}
+                  </div>
+                  <div style={{fontSize:minsToNext>240?18:22,fontWeight:900,color:"#555",...mono}}>
+                    {minsDisplay}
+                  </div>
+                  {nextZ&&<div style={{fontSize:12,color:nextZ.type==="buy"?G:R,
+                    fontWeight:700,...mono,marginTop:2}}>
+                    {nextZ.type==="buy"?"▲ BUY CORE":"▼ SELL RESET"}
+                  </div>}
+                </div>
+              </div>
             </div>
-          </div>
-        );
+          );
+        }
 
         return(
           <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${lc}44`,
@@ -1255,6 +1497,36 @@ function App() {
                 <div style={{fontSize:32,fontWeight:900,color:earlyCol,letterSpacing:2,lineHeight:1,...mono}}>
                   {earlyArrow}  {z ? (z.type==="buy"?"BUY CORE":"SELL RESET") : earlyDir}
                 </div>
+                {/* Action word — directly under direction, can't miss it */}
+                <div style={{fontSize:13,fontWeight:900,color:lc,letterSpacing:2,...mono,marginTop:4}}>
+                  {pe.action}
+                </div>
+                {/* Sweep toggle — highest-signal manual input */}
+                <div style={{marginTop:7,display:"flex",gap:6,alignItems:"center"}}>
+                  {!sweepSeen?(
+                    <button
+                      onClick={()=>setSweepSeen({dir:eb.polarity===+1?"buy":"sell",at:Date.now(),expiresAt:Date.now()+20*60*1000})}
+                      style={{padding:"5px 13px",borderRadius:8,fontSize:11,fontWeight:900,
+                        cursor:"pointer",letterSpacing:1.5,
+                        background:`${earlyCol}15`,border:`1px solid ${earlyCol}44`,color:earlyCol}}>
+                      ⚡ SWEEP SEEN
+                    </button>
+                  ):(
+                    <>
+                      <div style={{padding:"5px 13px",borderRadius:8,fontSize:11,fontWeight:900,
+                        letterSpacing:1.5,background:`${earlyCol}28`,border:`1px solid ${earlyCol}`,
+                        color:earlyCol,boxShadow:`0 0 8px ${earlyCol}44`}}>
+                        ⚡ SWEEP CONFIRMED +15
+                      </div>
+                      <span style={{fontSize:11,color:"#333",...mono}}>
+                        {Math.max(0,Math.round((sweepSeen.expiresAt-Date.now())/60000))}m
+                      </span>
+                      <button onClick={()=>setSweepSeen(null)}
+                        style={{fontSize:10,color:"#444",background:"none",border:"1px solid #222",
+                          borderRadius:5,padding:"2px 7px",cursor:"pointer"}}>✕</button>
+                    </>
+                  )}
+                </div>
                 {/* Window label + setup type */}
                 <div style={{fontSize:12,color:"#888",marginTop:3,...mono}}>
                   {eb.window.label}
@@ -1266,14 +1538,11 @@ function App() {
                 </div>
               </div>
 
-              {/* Traffic light + score — right side */}
+              {/* Traffic light dot + score — right side */}
               <div style={{textAlign:"right",flexShrink:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"flex-end",marginBottom:3}}>
                   <div style={{width:10,height:10,borderRadius:"50%",background:lc,
                     boxShadow:`0 0 8px ${lc}`}}/>
-                  <div style={{fontSize:14,fontWeight:900,color:lc,...mono,letterSpacing:1}}>
-                    {pe.action}
-                  </div>
                 </div>
                 <div style={{fontSize:26,fontWeight:900,color:sc,lineHeight:1,...mono}}>{str}%</div>
                 <div style={{fontSize:10,color:"#333",letterSpacing:1,...mono}}>CONFIDENCE</div>
@@ -1287,7 +1556,29 @@ function App() {
                 boxShadow:`0 0 8px ${lc}66`,transition:"width 1s"}}/>
             </div>
 
-            {/* ── ROW 3: DXY first (best early signal), then other chips ── */}
+            {/* ── News pre-bias warning ── */}
+            {newsBiasModifier.active&&newsBiasModifier.closestEvent&&(
+              <div style={{
+                marginBottom:6,padding:"6px 10px",borderRadius:8,
+                background:newsBiasModifier.level==="high"?`${R}12`:newsBiasModifier.level==="med"?`${A}12`:"rgba(255,255,255,0.04)",
+                border:`1px solid ${newsBiasModifier.level==="high"?R:newsBiasModifier.level==="med"?A:"#333"}44`,
+                display:"flex",alignItems:"center",gap:8
+              }}>
+                <span style={{fontSize:13,color:newsBiasModifier.level==="high"?R:A,fontWeight:900}}>
+                  {"★".repeat(newsBiasModifier.closestEvent.stars)}
+                </span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:newsBiasModifier.level==="high"?R:A,fontWeight:700,...mono,letterSpacing:1}}>
+                    NEWS IN {newsBiasModifier.closestEvent.minsUntil}m — BIAS SUPPRESSED {newsBiasModifier.suppressPts}
+                  </div>
+                  <div style={{fontSize:11,color:"#666",...mono}}>
+                    {(newsBiasModifier.closestEvent.title||"").slice(0,45)}
+                    {(newsBiasModifier.closestEvent.title||"").length>45?"...":""}
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* ── DXY first (best early signal), then other chips ── */}
             <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:val.signals.length?6:0}}>
               {/* Sort: DXY first, then BTC, then others */}
               {[...val.signals].sort((a,b)=>{
@@ -1940,7 +2231,7 @@ function App() {
                 {breakingAnchor.auto&&<span style={{fontSize:14,color:"#888",marginLeft:6,fontWeight:400}}>auto-detected</span>}
                 {"★".repeat(breakingAnchor.stars||1)}
               </div>
-              <div style={{fontSize:14,color:"#aaa",...mono,marginTop:2,lineHeight:1.5}}>{(breakingAnchor.title||"").slice(0,70)}{(breakingAnchor.title||"").length>70?"...":""}</div>
+              <div style={{fontSize:14,color:"#aaa",...mono,marginTop:2,lineHeight:1.5}}>{(breakingAnchor.title||"").replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?/gi,"").replace(/↑|↓/g,"").trim().slice(0,70)}</div>
             </div>
             <div style={{textAlign:"center",flexShrink:0}}>
               <div style={{fontSize:14,fontWeight:900,color:breakingAnchor.polarity===1?G:R,...mono}}>
