@@ -98,34 +98,47 @@ const TRAP_TIMES = [
 ];
 
 // ─── ZONES (times hidden from display) ────────────────────────────────────────
-// All 6 transitions per cycle shown on clock: 1:30 · 4:30 · 6:30 · 7:30 · 10:30 · 12:30
+// All 6 transitions per cycle: 1:30 · 4:30 · 6:30 · 7:30 · 10:30 · 12:30
+// Z1=sell Z4=buy Z6=sell Z7=buy Z10=sell Z12=buy (AM+PM)
 const BASE_ZONES = [
   // ── AM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_am",  type:"buy", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
+  { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
     pocket:{ label:"OVERNIGHT SELL", note:"1:30 AM anchor. Asian session momentum." },
     subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
-  { id:"z4_am",  type:"sell",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
+  { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
     pocket:{ label:"PRE-MARKET BUY", note:"4:30 AM anchor. London open overlap." },
     subStart:{ h:5, m:0 }, subEnd:{ h:6, m:0 }, starRating:4 },
-  { id:"z7_am",  type:"sell",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
+  { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
+    pocket:{ label:"TRANSITION FLUSH", note:"6:30 AM anchor. Short flush before NY open." },
+    subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
+  { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
     pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open 9:30. Highest institutional volume." },
     subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
-  { id:"z10_am", type:"buy", h1:10, m1:30, h2:12, m2:30, label:"Z10",
+  { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
     pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close 11:00–11:30. AM trend exhausts." },
     subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 }, starRating:4 },
+  { id:"z12_am", type:"buy",  h1:12, m1:30, h2:1,  m2:30, label:"Z12",
+    pocket:{ label:"LUNCH REVERSAL", note:"12:30 PM regime switch. Post-lunch liquidity grab." },
+    subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
   // ── PM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_pm",  type:"buy", h1:13, m1:30, h2:16, m2:30, label:"Z1",
+  { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1",
     pocket:{ label:"POWER HOUR CLOSE", note:"3:00–4:15 PM. Fund rebalancing + CME close 4:15." },
     subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
-  { id:"z4_pm",  type:"sell",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
+  { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
     pocket:{ label:"DAILY CLOSE TRAP", note:"5:00 PM ET bank reset. Forex stops run before close." },
     subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 }, starRating:3 },
-  { id:"z7_pm",  type:"sell",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
+  { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6",
+    pocket:{ label:"EVENING TRANSITION", note:"6:30 PM anchor. Short flush — thin volume." },
+    subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
+  { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
     pocket:{ label:"ASIAN PRE-MARKET", note:"7:30–10:30 PM. Overnight levels set here." },
     subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
-  { id:"z10_pm", type:"buy", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
+  { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
     pocket:{ label:"OVERNIGHT SELL", note:"10:30 PM anchor. Late Asia sell into midnight." },
     subStart:{ h:23, m:0 }, subEnd:{ h:0, m:0 }, starRating:2 },
+  { id:"z12_pm", type:"buy",  h1:0,  m1:30, h2:1,  m2:30, label:"Z12",
+    pocket:{ label:"PRE-DAWN BUY", note:"12:30 AM counter move before 1:30 anchor fires." },
+    subStart:{ h:0, m:45 }, subEnd:{ h:1, m:15 }, starRating:1 },
 ];
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
 const CATS = [
@@ -881,20 +894,43 @@ function App() {
   // CONNECTOR + CHARGE ENGINE
   // ══════════════════════════════════════════════════════════════════════
   // Interest rates — update monthly. USD is the anchor.
-  // USD anchor — Fed funds upper bound March 2026
-  // Equal-to-USD is treated same as below (goes with lower)
-  const USD_RATE = 3.75; // Fed: 3.75–4.00% range, lower bound (Nov 2025 cut, held since)
+  // USD anchor — Fed funds rate March 2026
+  // Equal-to-USD treated same as below (goes with lower)
+  // USD anchor — Fed funds range 3.50–3.75%, using upper bound
+  // Equal-to-USD treated same as below per system rules
+  const USD_RATE = 3.75;
   const CHARGE_CURRENCIES = [
-    { sym:"GBP", rate:3.75 }, // Bank of England — 3.75% (held Mar 19 2026)
-    { sym:"EUR", rate:2.00 }, // ECB deposit rate — 2.00% (held Mar 19 2026)
-    { sym:"JPY", rate:0.75 }, // Bank of Japan — 0.75% (held Mar 19 2026)
-    { sym:"CAD", rate:2.25 }, // Bank of Canada — 2.25% (held Mar 18 2026)
-    { sym:"AUD", rate:4.10 }, // RBA — 4.10% (cut to 4.10% Mar 17 2026)
-    { sym:"NZD", rate:2.25 }, // RBNZ — 2.25% (held Q1 2026)
-    { sym:"NOK", rate:4.00 }, // Norges Bank — 4.00% (held Mar 25 2026)
-    { sym:"CHF", rate:0.25 }, // SNB — 0.25% (two cuts in 2025)
-    { sym:"SGD", rate:3.00 }, // MAS proxy — ~3.00%
-    { sym:"CNY", rate:3.00 }, // PBOC LPR 1yr — 3.00%
+    // G10
+    { sym:"AUD", rate:4.10  }, // RBA — 4.10% (Mar 17 2026)
+    { sym:"NOK", rate:4.00  }, // Norges Bank — 4.00% (Mar 25 2026)
+    { sym:"GBP", rate:3.75  }, // BOE — 3.75% = equal → lower
+    { sym:"EUR", rate:2.15  }, // ECB deposit — 2.15%
+    { sym:"CAD", rate:2.25  }, // BOC — 2.25%
+    { sym:"NZD", rate:2.25  }, // RBNZ — 2.25%
+    { sym:"SEK", rate:2.25  }, // Riksbank — 2.25%
+    { sym:"CHF", rate:0.00  }, // SNB — 0.00%
+    { sym:"JPY", rate:0.75  }, // BOJ — 0.75%
+    // EM / Major Crosses
+    { sym:"BRL", rate:14.75 }, // Banco Central Brasil — 14.75%
+    { sym:"TRY", rate:40.00 }, // CBRT Turkey — ~40%
+    { sym:"MXN", rate:9.00  }, // Banxico Mexico — ~9.00%
+    { sym:"ISK", rate:8.50  }, // Seðlabanki Iceland — 8.50%
+    { sym:"ZAR", rate:7.50  }, // SARB South Africa — 7.50%
+    { sym:"HUF", rate:6.50  }, // MNB Hungary — 6.50%
+    { sym:"RON", rate:6.50  }, // BNR Romania — 6.50%
+    { sym:"INR", rate:6.25  }, // RBI India — 6.25%
+    { sym:"IDR", rate:5.75  }, // BI Indonesia — 5.75%
+    { sym:"PLN", rate:5.75  }, // NBP Poland — 5.75%
+    { sym:"PHP", rate:5.50  }, // BSP Philippines — 5.50%
+    { sym:"ILS", rate:4.50  }, // BOI Israel — 4.50%
+    { sym:"CZK", rate:3.50  }, // CNB Czech Republic — 3.50%
+    { sym:"MYR", rate:3.00  }, // BNM Malaysia — 3.00%
+    { sym:"SGD", rate:3.00  }, // MAS Singapore — 3.00%
+    { sym:"CNY", rate:3.00  }, // PBOC LPR — 3.00%
+    { sym:"KRW", rate:2.75  }, // BOK South Korea — 2.75%
+    { sym:"DKK", rate:2.35  }, // DNB Denmark — 2.35%
+    { sym:"TWD", rate:2.00  }, // CBC Taiwan — 2.00%
+    { sym:"THB", rate:2.00  }, // BOT Thailand — 2.00%
   ];
 
   // Connector window: which logic applies right now (24h ET minutes)
@@ -1284,29 +1320,27 @@ function App() {
   // PART 1: CLOCK STRUCTURE — display only, not scored
   // ═══════════════════════════════════════════════════════════════════════════
   const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
-  const majorRegime        = getMajorRegime(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
-  const minsToMajorChange  = getMajorRegimeChange(et.h24, et.m);
   const connectorMode      = getConnectorMode(et.h24, et.m);
   const charge             = computeCharge(connectorMode, USD_RATE, CHARGE_CURRENCIES);
   // charge.positive, charge.negative, charge.flipTriggered, charge.finalCharge (+1/-1)
   // charge.mode ("mirror"|"aligned")
 
   const appChecks = [
-    // 1. DXY — dollar leads BTC, confirms direction
+    // 1. DXY — confirms charge direction (not major regime)
     {
       label: "DXY",
       passes: (()=>{
         const ch = marketData?.dxy?.change;
-        if(ch==null) return null; // still loading or fetch failed
-        const dir = majorRegime.direction;
-        if(dir==="buy")  return ch<-0.10?true:ch>+0.10?false:null;
-        if(dir==="sell") return ch>+0.10?true:ch<-0.10?false:null;
-        return null; // flat — neutral
+        if(ch==null) return null;
+        const chgDir = charge.finalCharge; // +1=buy -1=sell
+        if(chgDir===+1) return ch<-0.10?true:ch>+0.10?false:null;
+        if(chgDir===-1) return ch>+0.10?true:ch<-0.10?false:null;
+        return null;
       })(),
       value: marketData?.dxy?.change!=null
         ? `${marketData.dxy.change>=0?"+":""}${marketData.dxy.change.toFixed(2)}%`
-        : marketData?"FLAT":"—",
+        : "--",
     },
     // 2. News — clears or conflicts the setup
     {
@@ -1352,52 +1386,50 @@ function App() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ── INTEREST RATE CONFIRMATION ───────────────────────────────────────────────
+  // Charge direction = major regime (1:30-7:30 BUY, 7:30-1:30 SELL)
+  // Interest rates confirm or conflict the regime strength
+  // ═══════════════════════════════════════════════════════════════════════════
   // PART 3: FINAL SIGNAL TRANSLATOR
-  // Inputs: majorRegime · charge · DXY · NEWS · DAY
-  // Output: BUY | SELL | BUY FADE | SELL FADE | WATCH | WAIT
+  // Direction comes purely from the charge engine (interest rate differentials).
+  // Major regime (1:30-7:30 BUY / 7:30-1:30 SELL) is display only — not in signal.
+  // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
-    const dir  = majorRegime.direction;          // "buy" | "sell" from Layer 1
-    const chg  = charge.finalCharge;             // +1 (positive) | -1 (negative)
-    const buy  = dir === "buy";
-    const sell = dir === "sell";
+    // Direction = charge engine (interest rate differentials)
+    const chgDir  = charge.finalCharge;   // +1=buy | -1=sell
+    const stepDir = internalStep.direction === "buy" ? +1 : -1;
+    const chargeMatchesStep = chgDir === stepDir;
 
     const dxyCk  = appChecks.find(c=>c.label==="DXY");
     const newsCk = appChecks.find(c=>c.label==="NEWS");
-    const dayCk  = appChecks.find(c=>c.label==="DAY");
+    const dxyGreen = dxyCk?.passes === true;
+    const dxyRed   = dxyCk?.passes === false;
+    const newsRed  = newsCk?.passes === false;
 
-    const dxyGreen  = dxyCk?.passes  === true;
-    const dxyRed    = dxyCk?.passes  === false;
-    const newsGreen = newsCk?.passes  === true;
-    const newsRed   = newsCk?.passes  === false;
-    const dayGreen  = dayCk?.passes  === true;
-    const dayRed    = dayCk?.passes  === false;
-
-    // Charge aligned with regime?
-    const chargeAligned   = (buy && chg===+1) || (sell && chg===-1);
-    const chargeConflicts = (buy && chg===-1) || (sell && chg===+1);
-
-    // Hard block: news and DXY both conflict
+    // Hard block
     if(newsRed && dxyRed) return { label:"WAIT", col:"#555" };
 
-    // Charge conflicts with regime → fade signal
-    if(chargeConflicts) {
-      return buy
-        ? { label:"SELL FADE", col:R }
-        : { label:"BUY FADE",  col:G };
+    if(inTrap) return { label:"STALK", col:A };
+
+    // Charge and step both agree → clean signal
+    if(chargeMatchesStep) {
+      if(inExecute && dxyGreen) {
+        return chgDir===+1
+          ? { label:"BUY",  col:G }
+          : { label:"SELL", col:R };
+      }
+      return { label:"WATCH", col:A };
     }
 
-    // Charge aligned — BUY/SELL when execute window + at least DXY confirms
-    if(chargeAligned && inExecute && dxyGreen) {
-      return buy
-        ? { label:"BUY",  col:G }
-        : { label:"SELL", col:R };
-    }
-
-    // Charge aligned but not strong enough yet
-    return { label:"WATCH", col:A };
+    // Charge and step conflict → fade
+    // Step says up but charge says sell = SELL FADE (fade the step)
+    // Step says down but charge says buy = BUY FADE
+    return chgDir===+1
+      ? { label:"BUY FADE",  col:G }
+      : { label:"SELL FADE", col:R };
   })();
-  const appReadyColor = finalSignal.col;
+    const appReadyColor = finalSignal.col;
   const appReadyLabel = finalSignal.label;
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
@@ -1738,7 +1770,7 @@ function App() {
         </button>
       </div>
 
-      {/* REGIME — three tiles: major regime, internal step, active zone */}
+      {/* STEP · ZONE · WINDOW — internal step is the sole direction driver */}
       {(()=>{
         const z = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
         const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
@@ -1746,9 +1778,11 @@ function App() {
         return(
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             {[
-              {label:"REGIME", val:majorRegime.label, arrow:majorRegime.direction==="buy"?"▲":"▼", col:majorRegime.col},
               {label:"STEP",   val:internalStep.label, arrow:internalStep.direction==="buy"?"▲":"▼", col:internalStep.col},
               {label:"ZONE",   val:zLabel, arrow:null, col:zCol},
+              {label:"WINDOW", val:inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE",
+               arrow:null,
+               col:inExecute?G:inTrap?A:"#444"},
             ].map(item=>(
               <div key={item.label} style={{flex:1,borderRadius:14,
                 border:`1px solid ${item.col}33`,background:`${item.col}07`,
@@ -2135,16 +2169,15 @@ function App() {
 
     // Replay the signal engine at a given ET hour+minute
     function replaySignal(h24, m, btcChange, dxyChange) {
-      const major = getMajorRegime(h24, m);
       const step  = getInternalStep(h24, m);
       const conn  = getConnectorMode(h24, m);
       const chg   = computeCharge(conn, USD_RATE, CHARGE_CURRENCIES);
       const { inExecute, inTrap } = getExecuteState(h24, m);
 
-      const dir  = major.direction;
-      const chgFinal = chg.finalCharge;
-      const chargeAligned   = (dir==="buy"&&chgFinal===+1)||(dir==="sell"&&chgFinal===-1);
-      const chargeConflicts = (dir==="buy"&&chgFinal===-1)||(dir==="sell"&&chgFinal===+1);
+      // Direction = charge engine, not major regime
+      const chgFinal = chg.finalCharge; // +1=buy -1=sell
+      const buy  = chgFinal === +1;
+      const sell = chgFinal === -1;
 
       // DXY check
       const dxyPass = dxyChange!=null
@@ -2153,10 +2186,10 @@ function App() {
         : null;
 
       let signal;
-      if(chargeConflicts) {
-        signal = dir==="buy" ? "SELL FADE" : "BUY FADE";
-      } else if(chargeAligned && inExecute && dxyPass===true) {
-        signal = dir==="buy" ? "BUY" : "SELL";
+      if(chg.flipTriggered) {
+        signal = buy ? "BUY FADE" : "SELL FADE";
+      } else if(inExecute && dxyPass===true) {
+        signal = buy ? "BUY" : "SELL";
       } else if(inTrap) {
         signal = "STALK";
       } else {
