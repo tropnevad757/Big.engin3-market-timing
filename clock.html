@@ -2168,35 +2168,28 @@ function App() {
     const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
     // Replay the signal engine at a given ET hour+minute
-    function replaySignal(h24, m, btcChange, dxyChange) {
+    function replaySignal(h24, m) {
       const step  = getInternalStep(h24, m);
       const conn  = getConnectorMode(h24, m);
       const chg   = computeCharge(conn, USD_RATE, CHARGE_CURRENCIES);
       const { inExecute, inTrap } = getExecuteState(h24, m);
 
-      // Direction = charge engine, not major regime
-      const chgFinal = chg.finalCharge; // +1=buy -1=sell
-      const buy  = chgFinal === +1;
-      const sell = chgFinal === -1;
-
-      // DXY check
-      const dxyPass = dxyChange!=null
-        ? (dir==="buy" ? dxyChange<-0.10 : dxyChange>+0.10) ? true
-        : (dir==="buy" ? dxyChange>+0.10 : dxyChange<-0.10) ? false : null
-        : null;
+      const stepDir = step.direction === "buy" ? +1 : -1;
+      const chgDir  = chg.finalCharge; // +1=buy -1=sell
+      const chargeMatchesStep = chgDir === stepDir;
 
       let signal;
-      if(chg.flipTriggered) {
-        signal = buy ? "BUY FADE" : "SELL FADE";
-      } else if(inExecute && dxyPass===true) {
-        signal = buy ? "BUY" : "SELL";
-      } else if(inTrap) {
-        signal = "STALK";
+      if(chargeMatchesStep) {
+        if(inExecute) signal = chgDir===+1 ? "BUY" : "SELL";
+        else if(inTrap) signal = "STALK";
+        else signal = "WATCH";
       } else {
-        signal = "WATCH";
+        // Charge conflicts step → fade
+        signal = chgDir===+1 ? "BUY FADE" : "SELL FADE";
       }
 
-      return { signal, dir, chargeAligned, chargeConflicts, inExecute, inTrap, step: step.label };
+      return { signal, stepDir, chgDir, chargeMatchesStep, inExecute, inTrap,
+               stepLabel: step.label, mode: conn };
     }
 
     // Score a signal against actual price: BUY correct if price went up, SELL if down
@@ -2238,7 +2231,7 @@ function App() {
           if(seen.has(sessionKey)) continue;
           seen.add(sessionKey);
 
-          const replay = replaySignal(h24, m, null, null);
+          const replay = replaySignal(h24, m);
           const score  = scoreSignal(replay.signal, open, close);
 
           sessions.push({
