@@ -2305,27 +2305,12 @@ function App() {
 
     // Replay the signal engine at a given ET hour+minute
     function replaySignal(h24, m) {
-      const step  = getInternalStep(h24, m);
-      const conn  = getConnectorMode(h24, m);
-      const chg   = computeCharge(conn, USD_RATE, CHARGE_CURRENCIES);
-      const { inExecute, inTrap } = getExecuteState(h24, m);
-
-      const stepDir = step.direction === "buy" ? +1 : -1;
-      const chgDir  = chg.finalCharge; // +1=buy -1=sell
-      const chargeMatchesStep = chgDir === stepDir;
-
-      let signal;
-      if(chargeMatchesStep) {
-        if(inExecute) signal = chgDir===+1 ? "BUY" : "SELL";
-        else if(inTrap) signal = "STALK";
-        else signal = "WATCH";
-      } else {
-        // Charge conflicts step → fade
-        signal = chgDir===+1 ? "BUY FADE" : "SELL FADE";
-      }
-
-      return { signal, stepDir, chgDir, chargeMatchesStep, inExecute, inTrap,
-               stepLabel: step.label, mode: conn };
+      // Matches live finalSignal exactly — charge engine is the sole direction driver
+      const conn = getConnectorMode(h24, m);
+      const chg  = computeCharge(conn, USD_RATE, CHARGE_CURRENCIES);
+      const chgDir = chg.finalCharge; // +1=buy, -1=sell
+      const signal = chgDir === +1 ? "BUY" : "SELL";
+      return { signal, chgDir, mode: conn, flip: chg.flipTriggered };
     }
 
     // Score a signal against actual price: BUY correct if price went up, SELL if down
@@ -2345,10 +2330,16 @@ function App() {
         // Fetch hourly BTC OHLC for the target week
         // CoinGecko free API: /coins/bitcoin/ohlc — max 7 days, hourly for 1d/7d
         const days = 7;
-        const url = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=${days}`;
-        const res  = await fetch(url, {cache:"no-cache"});
-        if(!res.ok) throw new Error("CoinGecko fetch failed");
-        const raw = await res.json(); // [[timestamp, open, high, low, close], ...]
+        const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=${days}`;
+        // Try direct first, fall back to proxy if rate-limited
+        let raw = null;
+        for(const url of [cgUrl, `https://corsproxy.io/?${encodeURIComponent(cgUrl)}`]) {
+          try {
+            const res = await fetch(url, {cache:"no-cache"});
+            if(res.ok) { raw = await res.json(); break; }
+          } catch(e) { continue; }
+        }
+        if(!raw || !Array.isArray(raw)) throw new Error("BTC data unavailable — try again in 60s");
 
         // CoinGecko OHLC comes in 4h or 1d candles for 7 days — we get 4h candles
         // Convert to ET timezone sessions
