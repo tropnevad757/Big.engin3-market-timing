@@ -1450,7 +1450,7 @@ function App() {
   const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
   const connectorMode      = getConnectorMode(et.h24, et.m);
-  const charge             = computeChargeEngine(et.h24, et.m, internalStep.direction === "buy" ? 1 : -1);
+  // Charge engine removed from signal + replay path per latest logic update.
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
@@ -1473,9 +1473,9 @@ function App() {
       passes: (()=>{
         const ch = marketData?.dxy?.change;
         if(ch==null) return null;
-        const chgDir = charge.finalCharge; // +1=buy -1=sell
-        if(chgDir===+1) return ch<-0.10?true:ch>+0.10?false:null;
-        if(chgDir===-1) return ch>+0.10?true:ch<-0.10?false:null;
+        const dir = polarityDirection; // "buy" | "sell"
+        if(dir==="buy")  return ch<-0.10?true:ch>+0.10?false:null;
+        if(dir==="sell") return ch>+0.10?true:ch<-0.10?false:null;
         return null;
       })(),
       value: marketData?.dxy?.change!=null
@@ -1531,14 +1531,13 @@ function App() {
   // Interest rates confirm or conflict the regime strength
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 3: FINAL SIGNAL TRANSLATOR
-  // Direction comes purely from the charge engine (interest rate differentials).
-  // Major regime (1:30-7:30 BUY / 7:30-1:30 SELL) is display only — not in signal.
+  // Direction now comes from polarity math only.
+  // Charge engine removed from signal + replay path.
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
-    // Signal = charge engine final (interest rate differential)
-    const chg = charge.finalCharge; // +1=buy, -1=sell
-    return chg === +1
+    // Signal now follows polarity math only.
+    return polarityDirection === "buy"
       ? { label:"BUY",  col:G }
       : { label:"SELL", col:R };
   })();
@@ -1929,38 +1928,6 @@ function App() {
         ))}
       </div>
 
-
-
-      {/* CHARGE ROW */}
-      {(()=>{
-        const chgCol = charge.finalCharge===+1?G:R;
-        return(
-          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${chgCol}33`,
-            background:`${chgCol}06`,padding:"11px 14px"}}>
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,
-              marginBottom:8,display:"flex",justifyContent:"space-between"}}>
-              <span>CHARGE ENGINE</span>
-              <span style={{color:charge.mode==="mirror"?"#888":"#aaa"}}>{charge.mode.toUpperCase()}</span>
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              {[
-                {label:"POSITIVE", val:`+${charge.positive}`, col:G},
-                {label:"NEGATIVE", val:`−${charge.negative}`, col:R},
-                {label:"FLIP",     val:charge.flipTriggered?"YES":"NO", col:charge.flipTriggered?A:"#444"},
-                {label:"FINAL",    val:charge.finalCharge===+1?"▲ BUY":"▼ SELL", col:chgCol},
-              ].map(item=>(
-                <div key={item.label} style={{flex:1,textAlign:"center",
-                  padding:"7px 4px",borderRadius:8,
-                  background:`${item.col}10`,border:`1px solid ${item.col}22`}}>
-                  <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>{item.label}</div>
-                  <div style={{fontSize:16,fontWeight:900,color:item.col,...mono}}>{item.val}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
       {/* POLARITY MATH ROW */}
       {(timeMathResult||windowMathResult)&&(()=>{
         const tCol = timeMathResult?.finalDirection==="buy"?G:R;
@@ -2336,13 +2303,16 @@ function App() {
 
     // Replay the signal engine at a given ET hour+minute
     function replaySignal(h24, m) {
-      // Matches live finalSignal exactly — charge engine is the sole direction driver
-      const conn = getConnectorMode(h24, m);
+      // Replay now follows the same polarity-math path as live display.
       const step = getInternalStep(h24, m);
-      const chg  = computeChargeEngine(h24, m, step.direction === "buy" ? 1 : -1);
-      const chgDir = chg.finalCharge; // +1=buy, -1=sell
-      const signal = chgDir === +1 ? "BUY" : "SELL";
-      return { signal, chgDir, mode: conn, flip: chg.flipTriggered };
+      const slot = getZoneWindow(h24, m);
+      const slotPol = slot && slot.pol === +1 ? "positive" : "negative";
+      const polarityState = buildPolarityState(step.direction, slotPol);
+
+      // Replay has no historical news feed wired in, so use slot/base polarity only.
+      const finalDirection = polarityState.baseDirection;
+      const signal = finalDirection === "buy" ? "BUY" : "SELL";
+      return { signal, mode: getConnectorMode(h24, m), flip: false };
     }
 
     // Score a signal against actual price: BUY correct if price went up, SELL if down
