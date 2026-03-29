@@ -889,8 +889,49 @@ function App() {
   }
 
   // End of two-layer regime functions
-  // Connector mode retained only for no-news fallback direction.
 
+  // ══════════════════════════════════════════════════════════════════════
+  // CONNECTOR + CHARGE ENGINE
+  // ══════════════════════════════════════════════════════════════════════
+  // Interest rates — update monthly. USD is the anchor.
+  // USD anchor — Fed funds rate March 2026
+  // Equal-to-USD treated same as below (goes with lower)
+  // USD anchor — Fed funds range 3.50–3.75%, using upper bound
+  // Equal-to-USD treated same as below per system rules
+  const USD_RATE = 3.75;
+  const CHARGE_CURRENCIES = [
+    // G10
+    { sym:"AUD", rate:4.10  }, // RBA — 4.10% (Mar 17 2026)
+    { sym:"NOK", rate:4.00  }, // Norges Bank — 4.00% (Mar 25 2026)
+    { sym:"GBP", rate:3.75  }, // BOE — 3.75% = equal → lower
+    { sym:"EUR", rate:2.15  }, // ECB deposit — 2.15%
+    { sym:"CAD", rate:2.25  }, // BOC — 2.25%
+    { sym:"NZD", rate:2.25  }, // RBNZ — 2.25%
+    { sym:"SEK", rate:2.25  }, // Riksbank — 2.25%
+    { sym:"CHF", rate:0.00  }, // SNB — 0.00%
+    { sym:"JPY", rate:0.75  }, // BOJ — 0.75%
+    // EM / Major Crosses
+    { sym:"BRL", rate:14.75 }, // Banco Central Brasil — 14.75%
+    { sym:"TRY", rate:40.00 }, // CBRT Turkey — ~40%
+    { sym:"MXN", rate:9.00  }, // Banxico Mexico — ~9.00%
+    { sym:"ISK", rate:8.50  }, // Seðlabanki Iceland — 8.50%
+    { sym:"ZAR", rate:7.50  }, // SARB South Africa — 7.50%
+    { sym:"HUF", rate:6.50  }, // MNB Hungary — 6.50%
+    { sym:"RON", rate:6.50  }, // BNR Romania — 6.50%
+    { sym:"INR", rate:6.25  }, // RBI India — 6.25%
+    { sym:"IDR", rate:5.75  }, // BI Indonesia — 5.75%
+    { sym:"PLN", rate:5.75  }, // NBP Poland — 5.75%
+    { sym:"PHP", rate:5.50  }, // BSP Philippines — 5.50%
+    { sym:"ILS", rate:4.50  }, // BOI Israel — 4.50%
+    { sym:"CZK", rate:3.50  }, // CNB Czech Republic — 3.50%
+    { sym:"MYR", rate:3.00  }, // BNM Malaysia — 3.00%
+    { sym:"SGD", rate:3.00  }, // MAS Singapore — 3.00%
+    { sym:"CNY", rate:3.00  }, // PBOC LPR — 3.00%
+    { sym:"KRW", rate:2.75  }, // BOK South Korea — 2.75%
+    { sym:"DKK", rate:2.35  }, // DNB Denmark — 2.35%
+    { sym:"TWD", rate:2.00  }, // CBC Taiwan — 2.00%
+    { sym:"THB", rate:2.00  }, // BOT Thailand — 2.00%
+  ];
 
   // Connector window: which logic applies right now (24h ET minutes)
   // Mirror (−): 12:30–1:30 · 4:30–6:30 · 7:30–10:30  AM + PM
@@ -920,7 +961,35 @@ function App() {
   }
 
   // Charge engine — applies mirror or aligned rules to interest rates
-// ══════════════════════════════════════════════════════════════════════
+  function computeCharge(mode, usdRate, currencies) {
+    let positive = 0, negative = 0, details = [];
+    for(const cur of currencies) {
+      let chg;
+      const aboveUSD = cur.rate > usdRate;  // strictly above — equal goes with lower
+      if(mode === "mirror") {
+        // Mirror (−): strictly above USD = negative, at or below = positive
+        chg = aboveUSD ? -1 : +1;
+      } else {
+        // Aligned (+): strictly above USD = positive, at or below = negative
+        chg = aboveUSD ? +1 : -1;
+      }
+      if(chg > 0) positive++; else negative++;
+      details.push({...cur, chg});
+    }
+    let flipTriggered = false;
+    let finalCharge;
+    if(mode === "mirror") {
+      // 2+ negatives → flip final to positive
+      if(negative >= 2) { flipTriggered = true; finalCharge = +1; }
+      else finalCharge = positive >= negative ? +1 : -1;
+    } else {
+      // 2+ positives → flip final to negative
+      if(positive >= 2) { flipTriggered = true; finalCharge = -1; }
+      else finalCharge = negative >= positive ? -1 : +1;
+    }
+    return { mode, positive, negative, flipTriggered, finalCharge, details };
+  }
+  // ══════════════════════════════════════════════════════════════════════
 
   function getWindowAt(h24, m) {
     const t = h24*60+m;
@@ -1240,14 +1309,12 @@ function App() {
   const appLiveZone = liveZ[0] || null;
   const appZType    = appLiveZone && appLiveZone.type !== "dead" ? appLiveZone.type : null;
 
-  // ── FINAL DIRECTION — news uses polarity math; no-news uses connector fallback ──
-  const polarityDir       = polarityEngine.earlyBias.polarity===+1 ? "buy" : "sell";
-  const connectorDir      = connectorMode === "mirror" ? "buy" : "sell";
-  const finalDirection    = appZType || (newsReaction.active ? polarityDir : connectorDir);
-  const finalIsFlipped    = false;
-  const finalCol          = finalDirection === "buy" ? G : R;
-  const finalArrow        = finalDirection === "buy" ? "▲" : "▼";
-  const finalLabel        = finalDirection === "buy" ? "BUY" : "SELL";
+  // ── FINAL DIRECTION — always follows zone/polarity, no flip logic ─────────────
+  const finalDirection  = appZType || (polarityEngine.earlyBias.polarity===+1?"buy":"sell");
+  const finalIsFlipped  = false;
+  const finalCol        = finalDirection === "buy" ? G : R;
+  const finalArrow      = finalDirection === "buy" ? "▲" : "▼";
+  const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 1: CLOCK STRUCTURE — display only, not scored
@@ -1255,10 +1322,12 @@ function App() {
   const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
   const connectorMode      = getConnectorMode(et.h24, et.m);
-  // connectorMode ("mirror"|"aligned")
+  const charge             = computeCharge(connectorMode, USD_RATE, CHARGE_CURRENCIES);
+  // charge.positive, charge.negative, charge.flipTriggered, charge.finalCharge (+1/-1)
+  // charge.mode ("mirror"|"aligned")
 
   const appChecks = [
-    // 1. DXY — confirms final direction
+    // 1. DXY — confirms charge direction (not major regime)
     {
       label: "DXY",
       passes: (()=>{
@@ -1354,11 +1423,11 @@ function App() {
     }
 
     // Charge and step conflict → fade
-    // Step says up but charge says sell = SELL (fade the step)
-    // Step says down but charge says buy = BUY
+    // Step says up but charge says sell = SELL FADE (fade the step)
+    // Step says down but charge says buy = BUY FADE
     return chgDir===+1
-      ? { label:"BUY",  col:G }
-      : { label:"SELL", col:R };
+      ? { label:"BUY FADE",  col:G }
+      : { label:"SELL FADE", col:R };
   })();
     const appReadyColor = finalSignal.col;
   const appReadyLabel = finalSignal.label;
@@ -1771,13 +1840,14 @@ function App() {
 
       {/* CHARGE ROW */}
       {(()=>{
+        const chgCol = charge.finalCharge===+1?G:R;
         return(
           <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${chgCol}33`,
             background:`${chgCol}06`,padding:"11px 14px"}}>
             <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,
               marginBottom:8,display:"flex",justifyContent:"space-between"}}>
               <span>CHARGE ENGINE</span>
-              <span style={{color:connectorMode==="mirror"?"#888":"#aaa"}}>{connectorMode.toUpperCase()}</span>
+              <span style={{color:charge.mode==="mirror"?"#888":"#aaa"}}>{charge.mode.toUpperCase()}</span>
             </div>
             <div style={{display:"flex",gap:6}}>
               {[
@@ -2088,7 +2158,7 @@ function App() {
 
     // ── BACKTEST ──
   // ── SIGNAL REPLAY — fetches real BTC OHLC + replays engine against last week ──
-  const ReplayTab = ()=>{
+  const LegacyReplayTab = ()=>{
     const [loading,  setLoading]  = React.useState(false);
     const [results,  setResults]  = React.useState(null);
     const [error,    setError]    = React.useState("");
@@ -2101,26 +2171,32 @@ function App() {
     function replaySignal(h24, m, btcChange, dxyChange) {
       const step  = getInternalStep(h24, m);
       const conn  = getConnectorMode(h24, m);
+      const chg   = computeCharge(conn, USD_RATE, CHARGE_CURRENCIES);
       const { inExecute, inTrap } = getExecuteState(h24, m);
 
-      // Replay uses connector fallback direction when no historical news state is present.
-      const dir = conn === "mirror" ? "buy" : "sell";
+      // Direction = charge engine, not major regime
+      const chgFinal = chg.finalCharge; // +1=buy -1=sell
+      const buy  = chgFinal === +1;
+      const sell = chgFinal === -1;
 
+      // DXY check
       const dxyPass = dxyChange!=null
         ? (dir==="buy" ? dxyChange<-0.10 : dxyChange>+0.10) ? true
         : (dir==="buy" ? dxyChange>+0.10 : dxyChange<-0.10) ? false : null
         : null;
 
       let signal;
-      if(inExecute && dxyPass===true) {
-        signal = dir === "buy" ? "BUY" : "SELL";
+      if(chg.flipTriggered) {
+        signal = buy ? "BUY FADE" : "SELL FADE";
+      } else if(inExecute && dxyPass===true) {
+        signal = buy ? "BUY" : "SELL";
       } else if(inTrap) {
         signal = "STALK";
       } else {
         signal = "WATCH";
       }
 
-      return { signal, dir, inExecute, inTrap, step: step.label, connectorMode: conn };
+      return { signal, dir, chargeAligned, chargeConflicts, inExecute, inTrap, step: step.label };
     }
 
     // Score a signal against actual price: BUY correct if price went up, SELL if down
@@ -2129,8 +2205,8 @@ function App() {
       const pctMove   = ((closePrice - openPrice) / openPrice) * 100;
       if(signal==="BUY")       return { correct: priceDiff > 0, pct: pctMove };
       if(signal==="SELL")      return { correct: priceDiff < 0, pct: pctMove };
-      if(signal==="SELL") return { correct: priceDiff > 0, pct: pctMove }; // fade = opposite
-      if(signal==="BUY")  return { correct: priceDiff < 0, pct: pctMove };
+      if(signal==="SELL FADE") return { correct: priceDiff > 0, pct: pctMove }; // fade = opposite
+      if(signal==="BUY FADE")  return { correct: priceDiff < 0, pct: pctMove };
       return null; // WATCH / STALK = no score
     }
 
@@ -2181,7 +2257,7 @@ function App() {
 
         // Only include actionable signals (BUY/SELL/FADE), skip WATCH/STALK
         const actionable = sessions.filter(s=>
-          ["BUY","SELL","BUY","SELL"].includes(s.signal)
+          ["BUY","SELL","BUY FADE","SELL FADE"].includes(s.signal)
         );
 
         const wins   = actionable.filter(s=>s.score?.correct===true).length;
@@ -2199,7 +2275,7 @@ function App() {
 
     const sigCol = s =>
       s==="BUY"?"#00ff88":s==="SELL"?"#ff3355":
-      s==="BUY"?"#00cc66":s==="SELL"?"#cc2244":"#555";
+      s==="BUY FADE"?"#00cc66":s==="SELL FADE"?"#cc2244":"#555";
 
     return(
       <div style={{padding:14}}>
@@ -2239,7 +2315,7 @@ function App() {
 
             {/* Signal breakdown */}
             {(()=>{
-              const types = ["BUY","SELL","BUY","SELL"];
+              const types = ["BUY","SELL","BUY FADE","SELL FADE"];
               return(
                 <div style={{marginBottom:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.07)",
                   background:"rgba(255,255,255,0.02)",padding:"12px 14px"}}>
@@ -2942,7 +3018,7 @@ function App() {
     {id:"signals",icon:"📡",l:"SIGNALS"},
     {id:"news",icon:"📰",l:"NEWS"},
     {id:"backtest",icon:"📊",l:"BACKTEST"},
-    {id:"replay",icon:"⏪",l:"REPLAY"}
+    {id:"lab",icon:"💰",l:"REPLAY PRO",href:"engin3_replay_pro.html"}
   ];
 
   return(
@@ -2971,13 +3047,12 @@ function App() {
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {tab==="replay" && <ReplayTab/>}
         {/* Plan tab removed per user request */}
       </div>
 
       {/* NAV */}
       <nav style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#07071c",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",zIndex:200}}>
-        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,padding:"9px 2px 7px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?A:"#aaa",fontSize:13,fontWeight:700,letterSpacing:.4,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s"}}>
+        {NAV.map(n=><button key={n.id} onClick={()=>{ if(n.href){ window.location.href=n.href; return; } setTab(n.id); }} style={{flex:1,padding:"9px 2px 7px",background:"none",border:"none",cursor:"pointer",color:(n.href? "#aaa" : tab===n.id?A:"#aaa"),fontSize:13,fontWeight:700,letterSpacing:.4,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s"}}>
           <span style={{fontSize:15}}>{n.icon}</span>{n.l}
         </button>)}
       </nav>
