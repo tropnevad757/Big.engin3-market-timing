@@ -44,7 +44,7 @@ function getTZ(tz) {
     const p=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"numeric",minute:"numeric",second:"numeric",hour12:false}).formatToParts(new Date());
     const g=t=>parseInt((p.find(x=>x.type===t)||{value:0}).value|| 0);
     const h24=g("hour")%24; return {h:h24%12,m:g("minute"),s:g("second"),h24};
-  } catch (e) { const d=new Date(); return {h:d.getHours()%12,m:d.getMinutes(),s:d.getSeconds(),h24:d.getHours()}; }
+  } catch { const d=new Date(); return {h:d.getHours()%12,m:d.getMinutes(),s:d.getSeconds(),h24:d.getHours()}; }
 }
 
 function fmt(h24,m,s) {
@@ -72,7 +72,7 @@ function convertTime(z,localTZ) {
     const et=getTZ("America/New_York"),lc=getTZ(localTZ),off=(lc.h24*60+lc.m)-(et.h24*60+et.m);
     const cvt=(h,mn)=>{ const t=(((h%12)*60+mn+off)%(24*60)+24*60)%(24*60); return fmt(Math.floor(t/60),t%60); };
     return cvt(z.h1,z.m1)+" – "+cvt(z.h2,z.m2);
-  } catch (e) { return "–"; }
+  } catch { return "–"; }
 }
 
 const { useState, useEffect, useRef, useCallback } = React;
@@ -372,7 +372,7 @@ function getTrapAnchorStatus(et) {
 function useAudio() {
   const ctx = useRef(null);
   const go  = () => { if(!ctx.current) ctx.current=new(window.AudioContext||window.webkitAudioContext)(); return ctx.current; };
-  const tone = (f,d,v=0.18) => { try { const c=go(),o=c.createOscillator(),g=c.createGain(); o.connect(g);g.connect(c.destination); o.frequency.value=f; g.gain.setValueAtTime(v,c.currentTime); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d); o.start(c.currentTime); o.stop(c.currentTime+d); } catch (err) {} };
+  const tone = (f,d,v=0.18) => { try { const c=go(),o=c.createOscillator(),g=c.createGain(); o.connect(g);g.connect(c.destination); o.frequency.value=f; g.gain.setValueAtTime(v,c.currentTime); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d); o.start(c.currentTime); o.stop(c.currentTime+d); } catch {} };
   return {
     buy:  ()=>{tone(440,.07);setTimeout(()=>tone(523,.07),80);setTimeout(()=>tone(659,.07),160);setTimeout(()=>tone(784,.4),240);},
     sell: ()=>{tone(784,.07);setTimeout(()=>tone(659,.07),80);setTimeout(()=>tone(523,.07),160);setTimeout(()=>tone(440,.4),240);},
@@ -987,139 +987,7 @@ function App() {
 
   // End of two-layer regime functions
 
-  // ══════════════════════════════════════════════════════════════════════
-  // CONNECTOR + CHARGE ENGINE — exact no-duplicate version
-  // ══════════════════════════════════════════════════════════════════════
-  const USD_RATE = 3.75;
-  const CHARGE_CURRENCIES = [
-    { sym:"USD", rate:3.75 },
-    { sym:"AUD", rate:4.10 },
-    { sym:"NOK", rate:4.00 },
-    { sym:"GBP", rate:3.75 },
-    { sym:"EUR", rate:2.15 },
-    { sym:"CAD", rate:2.25 },
-    { sym:"NZD", rate:2.25 },
-    { sym:"SEK", rate:2.25 },
-    { sym:"CHF", rate:0.00 },
-    { sym:"JPY", rate:0.75 },
-    { sym:"BRL", rate:14.75 },
-    { sym:"TRY", rate:40.00 },
-    { sym:"MXN", rate:9.00  },
-    { sym:"ISK", rate:8.50  },
-    { sym:"ZAR", rate:7.50  },
-    { sym:"HUF", rate:6.50  },
-    { sym:"RON", rate:6.50  },
-    { sym:"INR", rate:6.25  },
-    { sym:"IDR", rate:5.75  },
-    { sym:"PLN", rate:5.75  },
-    { sym:"PHP", rate:5.50  },
-    { sym:"ILS", rate:4.50  },
-    { sym:"CZK", rate:3.50  },
-    { sym:"MYR", rate:3.00  },
-    { sym:"SGD", rate:3.00  },
-    { sym:"CNY", rate:3.00  },
-    { sym:"KRW", rate:2.75  },
-    { sym:"DKK", rate:2.35  },
-    { sym:"TWD", rate:2.00  },
-    { sym:"THB", rate:2.00  },
-  ];
-
-  const MIRROR_RANGES = [
-    [30, 90], [270, 390], [450, 630],
-    [750, 810], [990, 1110], [1170, 1350],
-  ];
-
-  const ALIGNED_RANGES = [
-    [0, 30], [90, 270], [390, 450], [630, 750],
-    [810, 990], [1110, 1170], [1350, 1440],
-  ];
-
-  function getConnectorMode(h24, m) {
-    const t = h24 * 60 + m;
-    if (MIRROR_RANGES.some(([s, e]) => t >= s && t < e)) return "mirror";
-    if (ALIGNED_RANGES.some(([s, e]) => t >= s && t < e)) return "aligned";
-    return "mirror";
-  }
-
-  function stackCharges(a, b) {
-    if (a === 1 && b === 1) return -1;
-    if (a === -1 && b === -1) return 1;
-    return -1;
-  }
-
-  function compareCharges(a, b) {
-    return a === b ? 1 : -1;
-  }
-
-  function assignRawCharge(currencyRate, connectorMode) {
-    const aboveUSD = currencyRate > USD_RATE;
-    if (connectorMode === "mirror") return aboveUSD ? -1 : 1;
-    return aboveUSD ? 1 : -1;
-  }
-
-  function computeChargeEngine(h24, m, timeCharge) {
-    const mode = getConnectorMode(h24, m);
-    const usdRawCharge = mode === "mirror" ? -1 : 1;
-
-    const higherGroup = CHARGE_CURRENCIES
-      .filter(c => c.sym !== "USD" && c.rate > USD_RATE)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: assignRawCharge(c.rate, mode) }));
-
-    const lowerGroup = CHARGE_CURRENCIES
-      .filter(c => c.sym !== "USD" && c.rate <= USD_RATE)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: assignRawCharge(c.rate, mode) }));
-
-    let higherCombinedCharge = null;
-    let flipTriggered = false;
-    let stackSteps = [];
-
-    if (higherGroup.length === 1) {
-      higherCombinedCharge = higherGroup[0].rawCharge;
-      stackSteps = [{ a: higherGroup[0].sym, b: null, result: higherCombinedCharge, flip: false }];
-    } else if (higherGroup.length > 1) {
-      let running = higherGroup[0].rawCharge;
-      for (let i = 1; i < higherGroup.length; i++) {
-        const prev = running;
-        running = stackCharges(running, higherGroup[i].rawCharge);
-        const didFlip = prev === higherGroup[i].rawCharge;
-        if (didFlip) flipTriggered = true;
-        stackSteps.push({
-          a: i === 1 ? higherGroup[0].sym : `prev(${prev > 0 ? "+" : "−"})`,
-          b: higherGroup[i].sym,
-          aCharge: prev,
-          bCharge: higherGroup[i].rawCharge,
-          result: running,
-          flip: didFlip,
-        });
-      }
-      higherCombinedCharge = running;
-    }
-
-    const rateCharge = higherCombinedCharge !== null ? higherCombinedCharge : usdRawCharge;
-    const finalCharge = compareCharges(rateCharge, timeCharge);
-
-    const positive = [...higherGroup, ...lowerGroup].filter(c => c.rawCharge === 1).length;
-    const negative = [...higherGroup, ...lowerGroup].filter(c => c.rawCharge === -1).length;
-    const details = [...higherGroup, ...lowerGroup].map(c => ({ ...c, chg: c.rawCharge }));
-
-    return {
-      mode,
-      positive,
-      negative,
-      flipTriggered,
-      finalCharge,
-      details,
-      higherGroup,
-      lowerGroup,
-      higherCombinedCharge,
-      stackSteps,
-      rateCharge,
-      timeCharge,
-      signal: finalCharge === 1 ? "BUY" : "SELL",
-    };
-  }
-
-  function getWindowAt(h24, m) {
+  // function getWindowAt(h24, m) {
     const t = h24*60+m;
     const matches = ZONE_WINDOWS.filter(w => t >= w.from && t < w.to);
     return matches.reduce((best, w) => (!best || w.tier > best.tier) ? w : best, null)
@@ -1449,8 +1317,6 @@ function App() {
   // ═══════════════════════════════════════════════════════════════════════════
   const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
-  const connectorMode      = getConnectorMode(et.h24, et.m);
-  // Charge engine removed from signal + replay path per latest logic update.
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
@@ -1467,7 +1333,7 @@ function App() {
   const polarityDirection = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
 
   const appChecks = [
-    // 1. DXY — confirms charge direction (not major regime)
+    // 1. DXY — confirms polarity direction (not major regime)
     {
       label: "DXY",
       passes: (()=>{
@@ -1531,8 +1397,8 @@ function App() {
   // Interest rates confirm or conflict the regime strength
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 3: FINAL SIGNAL TRANSLATOR
-  // Direction now comes from polarity math only.
-  // Charge engine removed from signal + replay path.
+  // Direction comes purely from the charge engine (interest rate differentials).
+  // Major regime (1:30-7:30 BUY / 7:30-1:30 SELL) is display only — not in signal.
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
@@ -2303,16 +2169,16 @@ function App() {
 
     // Replay the signal engine at a given ET hour+minute
     function replaySignal(h24, m) {
-      // Replay now follows the same polarity-math path as live display.
-      const step = getInternalStep(h24, m);
-      const slot = getZoneWindow(h24, m);
-      const slotPol = slot && slot.pol === +1 ? "positive" : "negative";
-      const polarityState = buildPolarityState(step.direction, slotPol);
-
-      // Replay has no historical news feed wired in, so use slot/base polarity only.
-      const finalDirection = polarityState.baseDirection;
-      const signal = finalDirection === "buy" ? "BUY" : "SELL";
-      return { signal, mode: getConnectorMode(h24, m), flip: false };
+      // Replay now uses polarity math only.
+      const internalStep = getInternalStep(h24, m);
+      const stepDir = internalStep.direction;
+      const polarityState = buildPolarityState(stepDir, stepDir==="buy"?"positive":"negative");
+      const newsActive = false; // replay currently scores the time table only unless historical news is loaded
+      const newsPol = newsActive ? "positive" : null;
+      const timeMathResult = newsPol ? applyNewsToSlot(polarityState, newsPol, "time") : null;
+      const direction = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
+      const signal = direction === "buy" ? "BUY" : "SELL";
+      return { signal, direction, math: timeMathResult?.result || "base" };
     }
 
     // Score a signal against actual price: BUY correct if price went up, SELL if down
