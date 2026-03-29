@@ -210,103 +210,39 @@ const NEWS_REACTION = {
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
 // +/+ = − (sell)  +/− = + (buy)  −/− = + (buy)  −/+ = − (sell)
-// ══════════════════════════════════════════════════════════════════════════════
-// TWO-MODE POLARITY MATH ENGINE
-// ══════════════════════════════════════════════════════════════════════════════
-//
-// MODE 1 — WINDOW MATH  (window-vs-window or news-vs-news)
-//   pos + pos => neg
-//   neg + neg => pos   ← only this case flips to positive
-//   pos + neg => neg
-//   neg + pos => neg
-//
-// MODE 2 — TIME MATH  (time-slot-vs-news)
-//   same signs  => pos   (like sign multiplication)
-//   diff signs  => neg
-//   positive result in a positive/up window => move UP
-//
-// IMPORTANT: movement direction and slot polarity are stored separately.
-// Do not assume up=positive or down=negative across the whole system.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ── WINDOW MATH ───────────────────────────────────────────────────────────────
-// Used for: window-vs-window, news-vs-news calculations
+// ── WINDOW MATH: window-vs-window / news-vs-news ──────────────────────────────
+// pos+pos→neg  neg+neg→pos  pos+neg→neg  neg+pos→neg
 function resolveWindowMath(a, b) {
-  // Only neg+neg flips to positive — everything else resolves negative
   if(a === "negative" && b === "negative") return "positive";
   return "negative";
 }
 
-// ── TIME MATH ─────────────────────────────────────────────────────────────────
-// Used for: time-slot-vs-news, timetable interactions
+// ── TIME MATH: time-slot-vs-news (sign multiplication) ────────────────────────
+// same signs→pos  different signs→neg
 function resolveTimeMath(a, b) {
-  // Same signs = positive, opposite signs = negative (sign multiplication)
   if(a === b) return "positive";
   return "negative";
 }
 
-// ── POLARITY STATE BUILDER ────────────────────────────────────────────────────
-// Builds the full polarity state for a given slot, separating:
-//   baseDirection  — natural scheduled movement without news
-//   slotPolarity   — polarity label for time-based math
-//   movement       — "up" | "down" (resolved from base)
-//
-// baseDir: "buy" | "sell" (from INTERNAL_STEPS)
-// slotPol: "positive" | "negative" (from ZONE_WINDOWS pol field)
+// ── POLARITY STATE ─────────────────────────────────────────────────────────────
 function buildPolarityState(baseDir, slotPol) {
-  return {
-    baseDirection: baseDir,          // "buy" | "sell" — natural movement, no news
-    slotPolarity:  slotPol,          // "positive" | "negative" — used in time math
-    movement:      baseDir === "buy" ? "up" : "down",  // display direction
-  };
+  return { baseDirection:baseDir, slotPolarity:slotPol,
+           movement: baseDir==="buy"?"up":"down" };
 }
-
-// ── APPLY NEWS TO SLOT ────────────────────────────────────────────────────────
-// Given a polarity state and a news polarity, applies the right math mode
-// and returns the final movement direction
-//
-// newsPolarity: "positive" | "negative" | null
-// calcType: "time"   → TIME MATH  (slot vs news)
-//           "window" → WINDOW MATH (news vs news)
-//           null     → no news, return baseDirection as-is
 function applyNewsToSlot(polarityState, newsPolarity, calcType) {
-  if(!newsPolarity || !calcType) {
-    // No news — natural base direction wins
-    return {
-      finalDirection: polarityState.baseDirection,
-      finalMovement:  polarityState.movement,
-      mathUsed: "none",
-      result: null,
-    };
-  }
-
-  let result;
-  if(calcType === "time") {
-    result = resolveTimeMath(polarityState.slotPolarity, newsPolarity);
-  } else {
-    result = resolveWindowMath(polarityState.slotPolarity, newsPolarity);
-  }
-
-  // Map result → direction
-  // positive result in a positive/up window => go UP
-  // negative result => invert the base direction
+  if(!newsPolarity || !calcType) return {
+    finalDirection:polarityState.baseDirection,
+    finalMovement:polarityState.movement, mathUsed:"none", result:null };
+  const result = calcType==="time"
+    ? resolveTimeMath(polarityState.slotPolarity, newsPolarity)
+    : resolveWindowMath(polarityState.slotPolarity, newsPolarity);
   const isPositiveWindow = polarityState.slotPolarity === "positive";
-  let finalMovement;
-  if(result === "positive") {
-    finalMovement = isPositiveWindow ? "up" : "down";
-  } else {
-    finalMovement = isPositiveWindow ? "down" : "up";
-  }
-
-  return {
-    finalDirection: finalMovement === "up" ? "buy" : "sell",
-    finalMovement,
-    mathUsed: calcType,
-    result,
-  };
+  const finalMovement = result==="positive" ? (isPositiveWindow?"up":"down") : (isPositiveWindow?"down":"up");
+  return { finalDirection:finalMovement==="up"?"buy":"sell",
+           finalMovement, mathUsed:calcType, result };
 }
 
-// Legacy sign function kept for backward compat — not used in new logic
+// Legacy sign function
 function polaritySign(timeSign, valueSign) {
   if(timeSign > 0 && valueSign > 0) return -1;
   if(timeSign > 0 && valueSign < 0) return +1;
@@ -600,7 +536,7 @@ function App() {
   // Breaking news anchor — polarity override for high-impact events
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
   // Sweep confirmed — manual tap when liquidity sweep seen at VWAP anchor
-  const [sweepSeen, setSweepSeen] = useState(null); // {at: timestamp, dir: "buy"|"sell", expiresAt}
+  
   // Live calendar state
   const [calArticles,  setCalArticles]  = useState([]);
   const [calLoading,   setCalLoading]   = useState(false);
@@ -704,8 +640,6 @@ function App() {
 
       // Expire breaking anchor
       setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
-      // Expire sweep confirmation (lasts 20 minutes)
-      setSweepSeen(prev => prev && Date.now() > prev.expiresAt ? null : prev);
     },1000);
     return()=>clearInterval(t);
   },[zones,soundOn,plan,tz]);
@@ -1058,35 +992,89 @@ function App() {
   }
 
   // Charge engine — applies mirror or aligned rules to interest rates
-  function computeCharge(mode, usdRate, currencies) {
-    let positive = 0, negative = 0, details = [];
-    for(const cur of currencies) {
-      let chg;
-      const aboveUSD = cur.rate > usdRate;  // strictly above — equal goes with lower
-      if(mode === "mirror") {
-        // Mirror (−): strictly above USD = negative, at or below = positive
-        chg = aboveUSD ? -1 : +1;
-      } else {
-        // Aligned (+): strictly above USD = positive, at or below = negative
-        chg = aboveUSD ? +1 : -1;
-      }
-      if(chg > 0) positive++; else negative++;
-      details.push({...cur, chg});
-    }
-    let flipTriggered = false;
-    let finalCharge;
-    if(mode === "mirror") {
-      // 2+ negatives → flip final to positive
-      if(negative >= 2) { flipTriggered = true; finalCharge = +1; }
-      else finalCharge = positive >= negative ? +1 : -1;
-    } else {
-      // 2+ positives → flip final to negative
-      if(positive >= 2) { flipTriggered = true; finalCharge = -1; }
-      else finalCharge = negative >= positive ? -1 : +1;
-    }
-    return { mode, positive, negative, flipTriggered, finalCharge, details };
+  // ── COUNTRY INFERENCE from news title ────────────────────────────────────────
+  function inferCountry(title) {
+    if(!title) return null;
+    const t = title.toLowerCase();
+    if(/federal reserve|fomc|powell|nfp|payroll|us cpi|us gdp|us pce|united states/.test(t)) return "USD";
+    if(/ecb|european central bank|eurozone/.test(t)) return "EUR";
+    if(/bank of england|boe|britain|uk |pound sterling/.test(t)) return "GBP";
+    if(/bank of japan|boj|yen |jpy/.test(t)) return "JPY";
+    if(/bank of canada|boc|canada |canadian/.test(t)) return "CAD";
+    if(/reserve bank.*australia|rba|australia /.test(t)) return "AUD";
+    if(/rbnz|new zealand/.test(t)) return "NZD";
+    if(/snb|swiss national|switzerland/.test(t)) return "CHF";
+    if(/norges bank|norway|norwegian/.test(t)) return "NOK";
+    if(/riksbank|sweden|swedish/.test(t)) return "SEK";
+    if(/banco central.*brasil|brazil|brazilian/.test(t)) return "BRL";
+    if(/cbrt|turkey|turkish lira/.test(t)) return "TRY";
+    if(/banxico|mexico |mexican peso/.test(t)) return "MXN";
+    if(/reserve bank.*india|india |rupee/.test(t)) return "INR";
+    if(/pboc|peoples bank.*china|china |yuan|renminbi/.test(t)) return "CNY";
+    if(/sarb|south africa/.test(t)) return "ZAR";
+    if(/nbp|poland|zloty/.test(t)) return "PLN";
+    if(/bank of israel|israel |shekel/.test(t)) return "ILS";
+    if(/bank of korea|south korea|korean won/.test(t)) return "KRW";
+    return null;
   }
-  // ══════════════════════════════════════════════════════════════════════
+
+  // ── CHARGE ENGINE V2 — 2-Step Traceable Formula ───────────────────────────
+  // STEP A: Higher-rate events → combine with WINDOW MATH
+  //   pos+pos→neg  neg+neg→pos  pos+neg→neg  neg+pos→neg
+  // STEP B: Rate-group charge vs TIME CHARGE → TIME MATH
+  //   same signs→pos (BUY)  different signs→neg (SELL)
+  function computeChargeV2(connMode, stepDir, activeEvent, nearEvents, usdRate, currencies) {
+    // Time charge
+    const connPol    = connMode === "aligned" ? "positive" : "negative";
+    const stepPol    = stepDir  === "buy"     ? "positive" : "negative";
+    const timeCharge = resolveTimeMath(connPol, stepPol);
+
+    // Build higher-rate group from all active events
+    const allEvts = [];
+    if(activeEvent) allEvts.push(activeEvent);
+    for(const ev of (nearEvents||[])){
+      if(!allEvts.find(e=>e.title===ev.title)) allEvts.push(ev);
+    }
+    const higherGroup = [];
+    for(const ev of allEvts){
+      const sym = ev.currency || inferCountry(ev.title);
+      if(!sym) continue;
+      const cur = currencies.find(c=>c.sym===sym);
+      if(!cur || cur.rate <= usdRate) continue;
+      const evCharge = connMode==="mirror" ? "negative" : "positive";
+      higherGroup.push({sym, rate:cur.rate, charge:evCharge, label:(ev.title||"").slice(0,35)});
+    }
+
+    // Step A: Combine higher-rate group with WINDOW MATH
+    let rateGroupCharge = null;
+    if(higherGroup.length===1) rateGroupCharge = higherGroup[0].charge;
+    else if(higherGroup.length>=2)
+      rateGroupCharge = higherGroup.slice(1).reduce((acc,ev)=>resolveWindowMath(acc,ev.charge), higherGroup[0].charge);
+
+    // Step B: Time vs rate-group with TIME MATH
+    const finalPol    = rateGroupCharge ? resolveTimeMath(timeCharge, rateGroupCharge) : timeCharge;
+    const finalCharge = finalPol==="positive" ? +1 : -1;
+
+    return { mode:connMode, connPol, stepPol, timeCharge,
+             higherGroup, rateGroupCharge, finalPol, finalCharge,
+             hasRateInput:higherGroup.length>0,
+             stepAMath:higherGroup.length>=2?"window":"direct",
+             flipTriggered:false, positive:0, negative:0 };
+  }
+
+  // Legacy computeCharge — used in ReplayTab (no news context)
+  function computeCharge(mode, usdRate, currencies) {
+    let pos=0, neg=0;
+    for(const cur of currencies){
+      const ab=cur.rate>usdRate;
+      const chg=mode==="mirror"?(ab?-1:+1):(ab?+1:-1);
+      if(chg>0)pos++;else neg++;
+    }
+    let flip=false, finalCharge;
+    if(mode==="mirror"){if(neg>=2){flip=true;finalCharge=+1;}else finalCharge=pos>=neg?+1:-1;}
+    else{if(pos>=2){flip=true;finalCharge=-1;}else finalCharge=neg>=pos?-1:+1;}
+    return {mode,positive:pos,negative:neg,flipTriggered:flip,finalCharge};
+  }
 
   function getWindowAt(h24, m) {
     const t = h24*60+m;
@@ -1200,7 +1188,7 @@ function App() {
   }
 
   // STAGE 3: EXECUTION + HARD GATES
-  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone, sweepSeen) {
+  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone) {
     let contextPts=0, penalties=0;
     const blocked=[];
 
@@ -1212,15 +1200,6 @@ function App() {
     if(hotTraps.length) contextPts+=5;
     if(btd.best  && TODAYday===btd.best)  contextPts+=4;
     if(btd.worst && TODAYday===btd.worst) contextPts-=8;
-
-    // ── SWEEP CONFIRMATION — highest-signal manual input (+15) ───────────────
-    // Fires when user taps "SWEEP" at a VWAP anchor. Confirms the actual trigger.
-    if(sweepSeen) {
-      const zType = zone.type;
-      const sweepAligned = (sweepSeen.dir==="buy"&&zType==="buy")||(sweepSeen.dir==="sell"&&zType==="sell");
-      if(sweepAligned) contextPts += 15; // highest single input — confirms entry trigger
-      else             contextPts -= 8;  // sweep against zone = warning
-    }
 
     if(breakingAnchor) {
       const zType=zone.type;
@@ -1359,7 +1338,7 @@ function App() {
 
     const eb  = computeEarlyBias(et.h24, et.m, zone, zType, inSub);
     const val = computeValidation(zType, md, inSub, hotTraps, overall, btd, breakingAnchor, eb);
-    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone, sweepSeen);
+    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone);
 
     const totalScore = exe.blocked ? 0 : Math.max(0, exe.totalScore + newsReaction.suppressPts);
     const light = exe.light || "gray";
@@ -1419,9 +1398,12 @@ function App() {
   const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
   const connectorMode      = getConnectorMode(et.h24, et.m);
-  const charge             = computeCharge(connectorMode, USD_RATE, CHARGE_CURRENCIES);
-
-  // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
+  const charge             = computeChargeV2(
+    connectorMode, internalStep.direction,
+    newsReaction.activeEvent||null, newsReaction.nearEvents||[],
+    USD_RATE, CHARGE_CURRENCIES
+  );
+  // Polarity math — runs after internalStep + newsReaction available
   const _stepDir = internalStep.direction;
   const polarityState = buildPolarityState(_stepDir, _stepDir==="buy"?"positive":"negative");
   const _newsPol = (()=>{
@@ -1505,11 +1487,8 @@ function App() {
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
-    // Signal = charge engine final (interest rate differential)
-    const chg = charge.finalCharge; // +1=buy, -1=sell
-    return chg === +1
-      ? { label:"BUY",  col:G }
-      : { label:"SELL", col:R };
+    const chg = charge.finalCharge;
+    return chg===+1 ? { label:"BUY", col:G } : { label:"SELL", col:R };
   })();
     const appReadyColor = finalSignal.col;
   const appReadyLabel = finalSignal.label;
@@ -1672,6 +1651,41 @@ function App() {
   const ecoLoadedRef  = useRef(false);
   const calLoadedRef  = useRef(false);
 
+
+
+function dedupeKey(item, mode="news") {
+  const clean = s => String(s || "")
+    .toLowerCase()
+    .replace(/&amp;/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  const compactTitle = clean(item.title).slice(0, 110);
+  const compactLink = String(item.link || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\?.*$/, "")
+    .replace(/#.*$/, "")
+    .trim();
+
+  if (mode === "calendar") {
+    const date = String(item.date || "").trim();
+    const time = String(item.time || "").trim();
+    const ccys = Array.isArray(item.ccys) ? item.ccys.join(",") : (item.ccy || "");
+    const stars = String(item.stars || "");
+    return [compactTitle, date, time, clean(ccys), stars].join("|");
+  }
+
+  if (mode === "eco") {
+    const pub = String(item.pub || item.pubDate || "").slice(0, 16);
+    return [compactTitle, pub].join("|");
+  }
+
+  const pub = String(item.pub || item.pubDate || "").slice(0, 16);
+  return [compactTitle, compactLink || pub].join("|");
+}
+
   // ── fetchNews — Reuters/Bloomberg via Google News RSS ────────────────────────
   const fetchNews = useCallback((feedId)=>{
     const feed = NEWS_FEEDS.find(f=>f.id===feedId)||NEWS_FEEDS[0];
@@ -1693,8 +1707,10 @@ function App() {
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
       const seen=new Set();
       arts=arts.filter(a=>{
-        const k=(a.title||"").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,45);
-        if(!k||seen.has(k))return false; seen.add(k); return true;
+        const k=dedupeKey(a,"news");
+        if(!k||seen.has(k)) return false;
+        seen.add(k);
+        return true;
       });
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
       setNewsArticles(arts.slice(0,30));
@@ -1721,7 +1737,12 @@ function App() {
     )).then(results=>{
       const all=results.flat();
       const seen=new Set();
-      const deduped=all.filter(a=>{ const k=a.title.slice(0,40).toLowerCase(); if(seen.has(k))return false; seen.add(k); return true; });
+      const deduped=all.filter(a=>{
+        const k=dedupeKey(a,"eco");
+        if(!k||seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
       deduped.sort((a,b)=>(b.stars-a.stars)||new Date(b.pub)-new Date(a.pub));
       setEcoArticles(deduped);
       const recent3=deduped.find(a=>a.stars===3&&!breakingAnchor&&(Date.now()-new Date(a.pub).getTime())<30*60000);
@@ -1802,11 +1823,10 @@ function App() {
       const all = [...ffItems, ...rssItems];
       const seen = new Set();
       const deduped = all.filter(a=>{
-        // Fingerprint = first 40 chars of title + date — catches cross-source duplicates
-        const title = (a.title||"").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,40);
-        const k = title + (a.date||"");
-        if(!title||seen.has(k)) return false;
-        seen.add(k); return true;
+        const k = dedupeKey(a,"calendar");
+        if(!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
       });
       // Sort: today first (by time), then upcoming by date
       deduped.sort((a,b)=>{
@@ -1852,19 +1872,19 @@ function App() {
         </button>
       </div>
 
-      {/* Z# · STEP · WINDOW */}
+      {/* STEP · ZONE · WINDOW — internal step is the sole direction driver */}
       {(()=>{
-        const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
+        const z = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
         const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
         const zLabel = z ? z.label : "—";
-        const winLabel = inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE";
-        const winCol   = inExecute?G:inTrap?A:"#444";
         return(
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             {[
-              {label:"ZONE",   val:zLabel,             arrow:null,                                    col:zCol},
               {label:"STEP",   val:internalStep.label, arrow:internalStep.direction==="buy"?"▲":"▼", col:internalStep.col},
-              {label:"WINDOW", val:winLabel,            arrow:null,                                    col:winCol},
+              {label:"ZONE",   val:zLabel, arrow:null, col:zCol},
+              {label:"WINDOW", val:inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE",
+               arrow:null,
+               col:inExecute?G:inTrap?A:"#444"},
             ].map(item=>(
               <div key={item.label} style={{flex:1,borderRadius:14,
                 border:`1px solid ${item.col}33`,background:`${item.col}07`,
@@ -1898,91 +1918,112 @@ function App() {
         ))}
       </div>
 
+      {/* BIAS CHECKLIST — 3 equal horizontal tiles, centered */}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        {appChecks.map((chk,i)=>{
+          const col  = chk.passes===true?G:chk.passes===false?R:"#555";
+          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
+          return(
+            <div key={i} style={{flex:1,borderRadius:14,border:`1px solid ${col}33`,
+              background:`${col}08`,padding:"14px 10px",textAlign:"center"}}>
+              <div style={{fontSize:11,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:6}}>
+                {chk.label}
+              </div>
+              <div style={{fontSize:22,fontWeight:900,color:col,lineHeight:1,marginBottom:5}}>
+                {icon}
+              </div>
+              <div style={{fontSize:12,color:col,...mono,fontWeight:700,lineHeight:1.3}}>
+                {chk.value||"—"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-
-      {/* CHARGE ROW */}
+      {/* CHARGE ENGINE — 2-Step Traceable */}
       {(()=>{
-        const chgCol = charge.finalCharge===+1?G:R;
+        const col   = charge.finalCharge===+1?G:R;
+        const tCol  = charge.timeCharge==="positive"?G:R;
+        const rgCol = charge.rateGroupCharge==="positive"?G:charge.rateGroupCharge==="negative"?R:"#444";
+        const fCol  = charge.finalPol==="positive"?G:R;
+        const pol   = p=>p==="positive"?"▲ POS":p==="negative"?"▼ NEG":"—";
+        const wMath = (a,b)=>{
+          if(a==="negative"&&b==="negative") return "−/− → ▲ POS";
+          if(a==="positive"&&b==="positive") return "+/+ → ▼ NEG";
+          return "+/− → ▼ NEG";
+        };
         return(
-          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${chgCol}33`,
-            background:`${chgCol}06`,padding:"11px 14px"}}>
+          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${col}33`,
+            background:`${col}05`,padding:"11px 14px"}}>
             <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,
               marginBottom:8,display:"flex",justifyContent:"space-between"}}>
               <span>CHARGE ENGINE</span>
-              <span style={{color:charge.mode==="mirror"?"#888":"#aaa"}}>{charge.mode.toUpperCase()}</span>
+              <span style={{color:charge.mode==="mirror"?"#777":"#999"}}>{charge.mode.toUpperCase()}</span>
             </div>
-            <div style={{display:"flex",gap:6}}>
-              {[
-                {label:"POSITIVE", val:`+${charge.positive}`, col:G},
-                {label:"NEGATIVE", val:`−${charge.negative}`, col:R},
-                {label:"FLIP",     val:charge.flipTriggered?"YES":"NO", col:charge.flipTriggered?A:"#444"},
-                {label:"FINAL",    val:charge.finalCharge===+1?"▲ BUY":"▼ SELL", col:chgCol},
-              ].map(item=>(
-                <div key={item.label} style={{flex:1,textAlign:"center",
-                  padding:"7px 4px",borderRadius:8,
-                  background:`${item.col}10`,border:`1px solid ${item.col}22`}}>
-                  <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>{item.label}</div>
-                  <div style={{fontSize:16,fontWeight:900,color:item.col,...mono}}>{item.val}</div>
+            {/* Step A */}
+            <div style={{marginBottom:6,padding:"8px 10px",borderRadius:10,
+              background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)"}}>
+              <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:5}}>
+                STEP A · HIGHER-RATE GROUP {charge.higherGroup.length===0?"(NONE)":charge.stepAMath==="window"?"(WINDOW MATH)":"(DIRECT)"}
+              </div>
+              {charge.higherGroup.length===0
+                ? <div style={{fontSize:11,color:"#2a2a2a",...mono}}>No events above USD {USD_RATE}% active — time charge only</div>
+                : <>
+                    {charge.higherGroup.map((ev,i)=>(
+                      <div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                        <span style={{fontSize:11,color:"#888",...mono}}>{ev.sym} {ev.rate.toFixed(2)}%</span>
+                        <span style={{fontSize:12,fontWeight:900,color:ev.charge==="positive"?G:R,...mono}}>{pol(ev.charge)}</span>
+                      </div>
+                    ))}
+                    {charge.higherGroup.length>=2&&(
+                      <div style={{borderTop:"1px solid rgba(255,255,255,0.05)",marginTop:4,paddingTop:4,
+                        display:"flex",justifyContent:"space-between"}}>
+                        <span style={{fontSize:10,color:"#444",...mono}}>
+                          {wMath(charge.higherGroup[0].charge, charge.higherGroup[1].charge)}
+                        </span>
+                        <span style={{fontSize:12,fontWeight:900,color:rgCol,...mono}}>{pol(charge.rateGroupCharge)}</span>
+                      </div>
+                    )}
+                  </>
+              }
+            </div>
+            {/* Step B */}
+            <div style={{marginBottom:6,padding:"8px 10px",borderRadius:10,
+              background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)"}}>
+              <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:6}}>STEP B · TIME MATH</div>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <div style={{flex:1,textAlign:"center",padding:"5px 4px",borderRadius:8,
+                  background:`${tCol}10`,border:`1px solid ${tCol}22`}}>
+                  <div style={{fontSize:9,color:"#444",...mono,marginBottom:2}}>TIME</div>
+                  <div style={{fontSize:13,fontWeight:900,color:tCol,...mono}}>{pol(charge.timeCharge)}</div>
                 </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* POLARITY MATH ROW */}
-      {(timeMathResult||windowMathResult)&&(()=>{
-        const tCol = timeMathResult?.finalDirection==="buy"?G:R;
-        const wCol = windowMathResult?.result==="positive"?G:R;
-        const pdCol = polarityDirection==="buy"?G:R;
-        return(
-          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${pdCol}33`,
-            background:"rgba(255,255,255,0.02)",padding:"11px 14px"}}>
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>
-              POLARITY MATH
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${G}08`,border:`1px solid ${G}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SLOT</div>
-                <div style={{fontSize:13,fontWeight:900,color:"#aaa",...mono}}>
-                  {polarityState.slotPolarity==="positive"?"▲ POS":"▼ NEG"}
+                <span style={{color:"#333",fontWeight:900}}>×</span>
+                <div style={{flex:1,textAlign:"center",padding:"5px 4px",borderRadius:8,
+                  background:`${rgCol}10`,border:`1px solid ${rgCol}22`}}>
+                  <div style={{fontSize:9,color:"#444",...mono,marginBottom:2}}>RATE</div>
+                  <div style={{fontSize:13,fontWeight:900,color:rgCol,...mono}}>{pol(charge.rateGroupCharge)}</div>
+                </div>
+                <span style={{color:"#333",fontWeight:900}}>=</span>
+                <div style={{flex:1,textAlign:"center",padding:"5px 4px",borderRadius:8,
+                  background:`${fCol}10`,border:`1px solid ${fCol}22`}}>
+                  <div style={{fontSize:9,color:"#444",...mono,marginBottom:2}}>RESULT</div>
+                  <div style={{fontSize:13,fontWeight:900,color:fCol,...mono}}>{pol(charge.finalPol)}</div>
                 </div>
               </div>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${A}08`,border:`1px solid ${A}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
-                <div style={{fontSize:13,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive"?"▲ POS":_newsPol==="negative"?"▼ NEG":"—"}
-                </div>
-              </div>
-              {timeMathResult&&<div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${tCol}10`,border:`1px solid ${tCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>TIME</div>
-                <div style={{fontSize:13,fontWeight:900,color:tCol,...mono}}>
-                  {timeMathResult.finalDirection==="buy"?"▲ BUY":"▼ SELL"}
-                </div>
-              </div>}
-              {windowMathResult&&<div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
-                <div style={{fontSize:13,fontWeight:900,color:wCol,...mono}}>
-                  {windowMathResult.result==="positive"?"▲ POS":"▼ NEG"}
-                </div>
-              </div>}
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>FINAL</div>
-                <div style={{fontSize:13,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy"?"▲ BUY":"▼ SELL"}
-                </div>
+            </div>
+            {/* Final */}
+            <div style={{textAlign:"center",padding:"7px 0",borderRadius:10,
+              background:`${col}18`,border:`1px solid ${col}44`}}>
+              <div style={{fontSize:9,color:"#555",letterSpacing:2,...mono,marginBottom:2}}>FINAL</div>
+              <div style={{fontSize:18,fontWeight:900,color:col,letterSpacing:2,...mono}}>
+                {charge.finalCharge===+1?"▲ BUY":"▼ SELL"}
               </div>
             </div>
           </div>
         );
       })()}
 
-      {/* FINAL SIGNAL */}
+            {/* FINAL SIGNAL */}
       {(()=>{
         const sig = finalSignal;
         return(
@@ -1999,29 +2040,7 @@ function App() {
         );
       })()}
 
-      {/* BIAS — DXY · NEWS · DAY — secondary, below signal */}
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
-        {appChecks.map((chk,i)=>{
-          const col  = chk.passes===true?G:chk.passes===false?R:"#444";
-          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
-          return(
-            <div key={i} style={{flex:1,borderRadius:10,border:`1px solid ${col}22`,
-              background:"rgba(255,255,255,0.02)",padding:"8px 6px",textAlign:"center"}}>
-              <div style={{fontSize:9,letterSpacing:2,color:"#333",fontWeight:700,...mono,marginBottom:3}}>
-                {chk.label}
-              </div>
-              <div style={{fontSize:14,fontWeight:900,color:col,lineHeight:1,marginBottom:3}}>
-                {icon}
-              </div>
-              <div style={{fontSize:10,color:col,...mono,fontWeight:700}}>
-                {chk.value||"—"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-            {/* SOUND */}
+      {/* SOUND */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:soundOn&&can("sound")?"#ddd":"#888"}}>🔔 Sound Alerts</div>
@@ -2305,23 +2324,27 @@ function App() {
 
     // Replay the signal engine at a given ET hour+minute
     function replaySignal(h24, m) {
-      // Matches live finalSignal exactly — charge engine is the sole direction driver
       const conn = getConnectorMode(h24, m);
       const chg  = computeCharge(conn, USD_RATE, CHARGE_CURRENCIES);
-      const chgDir = chg.finalCharge; // +1=buy, -1=sell
-      const signal = chgDir === +1 ? "BUY" : "SELL";
-      return { signal, chgDir, mode: conn, flip: chg.flipTriggered };
+      return { signal: chg.finalCharge===+1?"BUY":"SELL", chgDir:chg.finalCharge, mode:conn };
     }
 
-    // Score a signal against actual price: BUY correct if price went up, SELL if down
-    function scoreSignal(signal, openPrice, closePrice) {
-      const priceDiff = closePrice - openPrice;
-      const pctMove   = ((closePrice - openPrice) / openPrice) * 100;
-      if(signal==="BUY")       return { correct: priceDiff > 0, pct: pctMove };
-      if(signal==="SELL")      return { correct: priceDiff < 0, pct: pctMove };
-      if(signal==="SELL FADE") return { correct: priceDiff > 0, pct: pctMove }; // fade = opposite
-      if(signal==="BUY FADE")  return { correct: priceDiff < 0, pct: pctMove };
-      return null; // WATCH / STALK = no score
+        function scoreSignal(signal, openPrice, highPrice, lowPrice) {
+      const tp1 = 0.003, tp2 = 0.006, tp3 = 0.009;
+      if(!openPrice) return null;
+      if(signal==="BUY") {
+        const h1=openPrice*(1+tp1), h2=openPrice*(1+tp2), h3=openPrice*(1+tp3);
+        const t1=highPrice>=h1, t2=highPrice>=h2, t3=highPrice>=h3;
+        return {correct:t1, tp1Hit:t1, tp2Hit:t2, tp3Hit:t3,
+                label:t3?"TP3":t2?"TP2":t1?"TP1":"MISS"};
+      }
+      if(signal==="SELL") {
+        const l1=openPrice*(1-tp1), l2=openPrice*(1-tp2), l3=openPrice*(1-tp3);
+        const t1=lowPrice<=l1, t2=lowPrice<=l2, t3=lowPrice<=l3;
+        return {correct:t1, tp1Hit:t1, tp2Hit:t2, tp3Hit:t3,
+                label:t3?"TP3":t2?"TP2":t1?"TP1":"MISS"};
+      }
+      return null;
     }
 
     async function runReplay() {
@@ -2330,16 +2353,10 @@ function App() {
         // Fetch hourly BTC OHLC for the target week
         // CoinGecko free API: /coins/bitcoin/ohlc — max 7 days, hourly for 1d/7d
         const days = 7;
-        const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=${days}`;
-        // Try direct first, fall back to proxy if rate-limited
-        let raw = null;
-        for(const url of [cgUrl, `https://corsproxy.io/?${encodeURIComponent(cgUrl)}`]) {
-          try {
-            const res = await fetch(url, {cache:"no-cache"});
-            if(res.ok) { raw = await res.json(); break; }
-          } catch(e) { continue; }
-        }
-        if(!raw || !Array.isArray(raw)) throw new Error("BTC data unavailable — try again in 60s");
+        const url = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=${days}`;
+        const res  = await fetch(url, {cache:"no-cache"});
+        if(!res.ok) throw new Error("CoinGecko fetch failed");
+        const raw = await res.json(); // [[timestamp, open, high, low, close], ...]
 
         // CoinGecko OHLC comes in 4h or 1d candles for 7 days — we get 4h candles
         // Convert to ET timezone sessions
@@ -2358,8 +2375,8 @@ function App() {
           if(seen.has(sessionKey)) continue;
           seen.add(sessionKey);
 
-          const replay = replaySignal(h24, m);
-          const score  = scoreSignal(replay.signal, open, close);
+          const replay = replaySignal(h24, m, null, null);
+          const score  = scoreSignal(replay.signal, open, high, low);
 
           sessions.push({
             ts, date: etDate,
@@ -3183,9 +3200,50 @@ function App() {
     </div>
   );
 }
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-const l=document.getElementById('loader');
-if(l){l.style.opacity='0';setTimeout(()=>l.style.display='none',500)}
+(function bootApp(){
+  const hideLoader = () => {
+    const l = document.getElementById('loader');
+    if(l){ l.style.opacity='0'; setTimeout(()=>{ l.style.display='none'; }, 500); }
+  };
+
+  const showBootError = (message) => {
+    hideLoader();
+    const root = document.getElementById('root');
+    if(root){
+      root.innerHTML = `
+        <div style="min-height:100vh;background:#06071a;color:#fff;padding:24px;font-family:Orbitron,monospace;display:flex;align-items:center;justify-content:center;">
+          <div style="max-width:640px;width:100%;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:22px;background:rgba(255,255,255,.04);">
+            <div style="font-size:18px;letter-spacing:2px;color:#f0a030;margin-bottom:12px;">APP LOAD ERROR</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:14px;line-height:1.6;color:#ddd;white-space:pre-wrap;">${String(message || "Unknown startup error")}</div>
+          </div>
+        </div>`;
+    }
+  };
+
+  window.addEventListener('error', (e) => {
+    if (e?.message) showBootError(e.message);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = e?.reason?.message || e?.reason || 'Unhandled promise rejection';
+    showBootError(msg);
+  });
+
+  try {
+    if(!window.React || !window.ReactDOM){
+      showBootError('React or ReactDOM did not load. Check your network/CDN scripts.');
+      return;
+    }
+    const mountNode = document.getElementById('root');
+    if(!mountNode){
+      showBootError('Missing #root mount node.');
+      return;
+    }
+    ReactDOM.createRoot(mountNode).render(React.createElement(App));
+    hideLoader();
+  } catch (err) {
+    showBootError(err?.message || err);
+  }
+})();
 </script>
 </body>
 </html>
