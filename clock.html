@@ -239,6 +239,23 @@ function resolveWindowMath(a, b) {
 
 // ── TIME MATH ─────────────────────────────────────────────────────────────────
 // Used for: time-slot-vs-news, timetable interactions
+
+function buildPolarityDebug({slot, newsEvent, polarityState, result}) {
+  return {
+    slotLabel: slot?.label || slot?.id || "NO SLOT",
+    slotType: slot?.type || "none",
+    slotPolarity: polarityState?.slotPolarity || "none",
+    connector: polarityState?.connector || "none",
+    windowMode: polarityState?.windowMode || "none",
+    newsTitle: newsEvent?.title || "No active news",
+    newsPolarity: newsEvent?.polarityLabel || newsEvent?.polarity || "none",
+    finalDirection: result?.finalDirection || polarityState?.baseDirection || "none",
+    finalMovement: result?.finalMovement || polarityState?.movement || "none",
+    mathUsed: result?.mathUsed || "polarity-only",
+    timestamp: Date.now()
+  };
+}
+
 function resolveTimeMath(a, b) {
   // Same signs = positive, opposite signs = negative (sign multiplication)
   if(a === b) return "positive";
@@ -1980,23 +1997,6 @@ function App() {
         );
       })()}
 
-      {/* FINAL SIGNAL */}
-      {(()=>{
-        const sig = finalSignal;
-        return(
-          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${sig.col}44`,
-            background:`${sig.col}08`,padding:"12px 16px"}}>
-            <div style={{textAlign:"center",padding:"10px 0",borderRadius:10,
-              background:`${sig.col}18`,border:`2px solid ${sig.col}55`,
-              boxShadow:`0 0 16px ${sig.col}22`}}>
-              <div style={{fontSize:28,fontWeight:900,color:sig.col,letterSpacing:3,...mono}}>
-                {sig.label}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* BIAS — DXY · NEWS · DAY — secondary, below signal */}
       <div style={{display:"flex",gap:6,marginBottom:10}}>
         {appChecks.map((chk,i)=>{
@@ -2294,6 +2294,7 @@ function App() {
   // ── SIGNAL REPLAY — fetches real BTC OHLC + replays engine against last week ──
   const ReplayTab = ()=>{
     const [loading,  setLoading]  = React.useState(false);
+    const [replayDebug,setReplayDebug] = React.useState(null);
     const [results,  setResults]  = React.useState(null);
     const [error,    setError]    = React.useState("");
     const [weekOffset, setWeekOffset] = React.useState(0); // 0=last week, 1=2 weeks ago
@@ -2387,6 +2388,7 @@ function App() {
         const total  = wins + losses;
         const wr     = total>0 ? Math.round((wins/total)*100) : 0;
 
+        setReplayDebug(buildPolarityDebug({slot: actionable[actionable.length-1], newsEvent: actionable[actionable.length-1]?.newsEvent || null, polarityState: actionable[actionable.length-1]?.polarityState || null, result: { finalDirection: actionable[actionable.length-1]?.signal || "none", finalMovement: actionable[actionable.length-1]?.signal || "none", mathUsed: "replay-polarity-only" }}));
         setResults({ sessions: actionable.slice(-50), wins, losses, total, wr,
           allSessions: sessions });
       } catch(e) {
@@ -3161,6 +3163,32 @@ function App() {
           <div style={{padding:"5px 14px",borderRadius:18,background:"rgba(255,149,0,0.12)",border:"1px solid rgba(255,149,0,0.45)",color:"#ff9500",fontSize:16,fontWeight:900,letterSpacing:1}}>₿</div>
         </div>
       </div>
+
+      <div style={{display:"flex",justifyContent:"center",padding:"8px 12px 0"}}>
+        <button onClick={()=>setDebugOpen(v=>!v)} style={{padding:"7px 12px",borderRadius:10,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",color:"#ccc",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+          {debugOpen ? "Hide Debug" : "Show Debug"}
+        </button>
+      </div>
+
+      {debugOpen && latestDebug && (
+        <div style={{margin:"10px 12px 12px",padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:900,letterSpacing:1.5,color:"#f0a030"}}>POLARITY DEBUG</div>
+            <div style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>{new Date(latestDebug.timestamp).toLocaleTimeString()}</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px",fontSize:12,fontFamily:"'Share Tech Mono',monospace",color:"#ddd",lineHeight:1.55}}>
+            <div><span style={{color:"#888"}}>Slot:</span> {latestDebug.slotLabel}</div>
+            <div><span style={{color:"#888"}}>Type:</span> {latestDebug.slotType}</div>
+            <div><span style={{color:"#888"}}>Connector:</span> {latestDebug.connector}</div>
+            <div><span style={{color:"#888"}}>Window:</span> {latestDebug.windowMode}</div>
+            <div><span style={{color:"#888"}}>Slot polarity:</span> {latestDebug.slotPolarity}</div>
+            <div><span style={{color:"#888"}}>News polarity:</span> {latestDebug.newsPolarity}</div>
+            <div style={{gridColumn:"1 / -1"}}><span style={{color:"#888"}}>News:</span> {latestDebug.newsTitle}</div>
+            <div><span style={{color:"#888"}}>Math:</span> {latestDebug.mathUsed}</div>
+            <div><span style={{color:"#888"}}>Final:</span> {latestDebug.finalDirection}</div>
+          </div>
+        </div>
+      )}
 
       {/* CONTENT */}
       <div style={{animation:"fadeUp .3s ease"}}>
