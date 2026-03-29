@@ -210,108 +210,11 @@ const NEWS_REACTION = {
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
 // +/+ = − (sell)  +/− = + (buy)  −/− = + (buy)  −/+ = − (sell)
-// ══════════════════════════════════════════════════════════════════════════════
-// TWO-MODE POLARITY MATH ENGINE
-// ══════════════════════════════════════════════════════════════════════════════
-//
-// MODE 1 — WINDOW MATH  (window-vs-window or news-vs-news)
-//   pos + pos => neg
-//   neg + neg => pos   ← only this case flips to positive
-//   pos + neg => neg
-//   neg + pos => neg
-//
-// MODE 2 — TIME MATH  (time-slot-vs-news)
-//   same signs  => pos   (like sign multiplication)
-//   diff signs  => neg
-//   positive result in a positive/up window => move UP
-//
-// IMPORTANT: movement direction and slot polarity are stored separately.
-// Do not assume up=positive or down=negative across the whole system.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ── WINDOW MATH ───────────────────────────────────────────────────────────────
-// Used for: window-vs-window, news-vs-news calculations
-function resolveWindowMath(a, b) {
-  // Only neg+neg flips to positive — everything else resolves negative
-  if(a === "negative" && b === "negative") return "positive";
-  return "negative";
-}
-
-// ── TIME MATH ─────────────────────────────────────────────────────────────────
-// Used for: time-slot-vs-news, timetable interactions
-function resolveTimeMath(a, b) {
-  // Same signs = positive, opposite signs = negative (sign multiplication)
-  if(a === b) return "positive";
-  return "negative";
-}
-
-// ── POLARITY STATE BUILDER ────────────────────────────────────────────────────
-// Builds the full polarity state for a given slot, separating:
-//   baseDirection  — natural scheduled movement without news
-//   slotPolarity   — polarity label for time-based math
-//   movement       — "up" | "down" (resolved from base)
-//
-// baseDir: "buy" | "sell" (from INTERNAL_STEPS)
-// slotPol: "positive" | "negative" (from ZONE_WINDOWS pol field)
-function buildPolarityState(baseDir, slotPol) {
-  return {
-    baseDirection: baseDir,          // "buy" | "sell" — natural movement, no news
-    slotPolarity:  slotPol,          // "positive" | "negative" — used in time math
-    movement:      baseDir === "buy" ? "up" : "down",  // display direction
-  };
-}
-
-// ── APPLY NEWS TO SLOT ────────────────────────────────────────────────────────
-// Given a polarity state and a news polarity, applies the right math mode
-// and returns the final movement direction
-//
-// newsPolarity: "positive" | "negative" | null
-// calcType: "time"   → TIME MATH  (slot vs news)
-//           "window" → WINDOW MATH (news vs news)
-//           null     → no news, return baseDirection as-is
-function applyNewsToSlot(polarityState, newsPolarity, calcType) {
-  if(!newsPolarity || !calcType) {
-    // No news — natural base direction wins
-    return {
-      finalDirection: polarityState.baseDirection,
-      finalMovement:  polarityState.movement,
-      mathUsed: "none",
-      result: null,
-    };
-  }
-
-  let result;
-  if(calcType === "time") {
-    result = resolveTimeMath(polarityState.slotPolarity, newsPolarity);
-  } else {
-    result = resolveWindowMath(polarityState.slotPolarity, newsPolarity);
-  }
-
-  // Map result → direction
-  // positive result in a positive/up window => go UP
-  // negative result => invert the base direction
-  const isPositiveWindow = polarityState.slotPolarity === "positive";
-  let finalMovement;
-  if(result === "positive") {
-    finalMovement = isPositiveWindow ? "up" : "down";
-  } else {
-    finalMovement = isPositiveWindow ? "down" : "up";
-  }
-
-  return {
-    finalDirection: finalMovement === "up" ? "buy" : "sell",
-    finalMovement,
-    mathUsed: calcType,
-    result,
-  };
-}
-
-// Legacy sign function kept for backward compat — not used in new logic
 function polaritySign(timeSign, valueSign) {
-  if(timeSign > 0 && valueSign > 0) return -1;
-  if(timeSign > 0 && valueSign < 0) return +1;
-  if(timeSign < 0 && valueSign < 0) return +1;
-  if(timeSign < 0 && valueSign > 0) return -1;
+  if(timeSign > 0 && valueSign > 0) return -1; // sell
+  if(timeSign > 0 && valueSign < 0) return +1; // buy
+  if(timeSign < 0 && valueSign < 0) return +1; // buy
+  if(timeSign < 0 && valueSign > 0) return -1; // sell
   return 0;
 }
 
@@ -986,8 +889,40 @@ function App() {
   }
 
   // End of two-layer regime functions
+  // Connector mode retained only for no-news fallback direction.
 
-  // function getWindowAt(h24, m) {
+
+  // Connector window: which logic applies right now (24h ET minutes)
+  // Mirror (−): 12:30–1:30 · 4:30–6:30 · 7:30–10:30  AM + PM
+  // Aligned (+): 1:30–4:30 · 6:30–7:30 · 10:30–12:30  AM + PM
+  function getConnectorMode(h24, m) {
+    const t = h24*60+m;
+    const MIRROR = [
+      [30,   90],   // 12:30–1:30 AM
+      [270,  390],  // 4:30–6:30 AM
+      [450,  630],  // 7:30–10:30 AM
+      [750,  810],  // 12:30–1:30 PM
+      [990,  1110], // 4:30–6:30 PM
+      [1170, 1350], // 7:30–10:30 PM
+    ];
+    const ALIGNED = [
+      [0,    30],   // 12:00–12:30 AM
+      [90,   270],  // 1:30–4:30 AM
+      [390,  450],  // 6:30–7:30 AM
+      [630,  750],  // 10:30 AM–12:30 PM
+      [810,  990],  // 1:30–4:30 PM
+      [1110, 1170], // 6:30–7:30 PM
+      [1350, 1440], // 10:30 PM–12:00 AM
+    ];
+    if(MIRROR.some(([s,e]) => t>=s && t<e))  return "mirror";
+    if(ALIGNED.some(([s,e]) => t>=s && t<e)) return "aligned";
+    return "mirror";
+  }
+
+  // Charge engine — applies mirror or aligned rules to interest rates
+// ══════════════════════════════════════════════════════════════════════
+
+  function getWindowAt(h24, m) {
     const t = h24*60+m;
     const matches = ZONE_WINDOWS.filter(w => t >= w.from && t < w.to);
     return matches.reduce((best, w) => (!best || w.tier > best.tier) ? w : best, null)
@@ -1305,43 +1240,33 @@ function App() {
   const appLiveZone = liveZ[0] || null;
   const appZType    = appLiveZone && appLiveZone.type !== "dead" ? appLiveZone.type : null;
 
-  // ── FINAL DIRECTION — always follows zone/polarity, no flip logic ─────────────
-  const finalDirection  = appZType || (polarityEngine.earlyBias.polarity===+1?"buy":"sell");
-  const finalIsFlipped  = false;
-  const finalCol        = finalDirection === "buy" ? G : R;
-  const finalArrow      = finalDirection === "buy" ? "▲" : "▼";
-  const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
+  // ── FINAL DIRECTION — news uses polarity math; no-news uses connector fallback ──
+  const polarityDir       = polarityEngine.earlyBias.polarity===+1 ? "buy" : "sell";
+  const connectorDir      = connectorMode === "mirror" ? "buy" : "sell";
+  const finalDirection    = appZType || (newsReaction.active ? polarityDir : connectorDir);
+  const finalIsFlipped    = false;
+  const finalCol          = finalDirection === "buy" ? G : R;
+  const finalArrow        = finalDirection === "buy" ? "▲" : "▼";
+  const finalLabel        = finalDirection === "buy" ? "BUY" : "SELL";
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 1: CLOCK STRUCTURE — display only, not scored
   // ═══════════════════════════════════════════════════════════════════════════
   const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
-
-  // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
-  const _stepDir = internalStep.direction;
-  const polarityState = buildPolarityState(_stepDir, _stepDir==="buy"?"positive":"negative");
-  const _newsPol = (()=>{
-    if(!newsReaction.active||!newsReaction.activeEvent) return null;
-    if(newsReaction.conflict) return "negative";
-    if(newsReaction.activeEvent.isBreaking) return _stepDir==="sell"?"negative":"positive";
-    if(newsReaction.activeEvent.isAfter) return newsReaction.conflict?"negative":"positive";
-    return null;
-  })();
-  const timeMathResult   = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "time")   : null;
-  const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
-  const polarityDirection = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
+  const connectorMode      = getConnectorMode(et.h24, et.m);
+  // connectorMode ("mirror"|"aligned")
 
   const appChecks = [
-    // 1. DXY — confirms polarity direction (not major regime)
+    // 1. DXY — confirms final direction
     {
       label: "DXY",
       passes: (()=>{
         const ch = marketData?.dxy?.change;
         if(ch==null) return null;
-        const dir = polarityDirection; // "buy" | "sell"
-        if(dir==="buy")  return ch<-0.10?true:ch>+0.10?false:null;
-        if(dir==="sell") return ch>+0.10?true:ch<-0.10?false:null;
+        const chgDir = charge.finalCharge; // +1=buy -1=sell
+        if(chgDir===+1) return ch<-0.10?true:ch>+0.10?false:null;
+        if(chgDir===-1) return ch>+0.10?true:ch<-0.10?false:null;
         return null;
       })(),
       value: marketData?.dxy?.change!=null
@@ -1402,8 +1327,36 @@ function App() {
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
-    // Signal now follows polarity math only.
-    return polarityDirection === "buy"
+    // Direction = charge engine (interest rate differentials)
+    const chgDir  = charge.finalCharge;   // +1=buy | -1=sell
+    const stepDir = internalStep.direction === "buy" ? +1 : -1;
+    const chargeMatchesStep = chgDir === stepDir;
+
+    const dxyCk  = appChecks.find(c=>c.label==="DXY");
+    const newsCk = appChecks.find(c=>c.label==="NEWS");
+    const dxyGreen = dxyCk?.passes === true;
+    const dxyRed   = dxyCk?.passes === false;
+    const newsRed  = newsCk?.passes === false;
+
+    // Hard block
+    if(newsRed && dxyRed) return { label:"WAIT", col:"#555" };
+
+    if(inTrap) return { label:"STALK", col:A };
+
+    // Charge and step both agree → clean signal
+    if(chargeMatchesStep) {
+      if(inExecute && dxyGreen) {
+        return chgDir===+1
+          ? { label:"BUY",  col:G }
+          : { label:"SELL", col:R };
+      }
+      return { label:"WATCH", col:A };
+    }
+
+    // Charge and step conflict → fade
+    // Step says up but charge says sell = SELL (fade the step)
+    // Step says down but charge says buy = BUY
+    return chgDir===+1
       ? { label:"BUY",  col:G }
       : { label:"SELL", col:R };
   })();
@@ -1748,19 +1701,19 @@ function App() {
         </button>
       </div>
 
-      {/* Z# · STEP · WINDOW */}
+      {/* STEP · ZONE · WINDOW — internal step is the sole direction driver */}
       {(()=>{
-        const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
+        const z = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
         const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
         const zLabel = z ? z.label : "—";
-        const winLabel = inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE";
-        const winCol   = inExecute?G:inTrap?A:"#444";
         return(
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             {[
-              {label:"ZONE",   val:zLabel,             arrow:null,                                    col:zCol},
               {label:"STEP",   val:internalStep.label, arrow:internalStep.direction==="buy"?"▲":"▼", col:internalStep.col},
-              {label:"WINDOW", val:winLabel,            arrow:null,                                    col:winCol},
+              {label:"ZONE",   val:zLabel, arrow:null, col:zCol},
+              {label:"WINDOW", val:inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE",
+               arrow:null,
+               col:inExecute?G:inTrap?A:"#444"},
             ].map(item=>(
               <div key={item.label} style={{flex:1,borderRadius:14,
                 border:`1px solid ${item.col}33`,background:`${item.col}07`,
@@ -1794,53 +1747,52 @@ function App() {
         ))}
       </div>
 
-      {/* POLARITY MATH ROW */}
-      {(timeMathResult||windowMathResult)&&(()=>{
-        const tCol = timeMathResult?.finalDirection==="buy"?G:R;
-        const wCol = windowMathResult?.result==="positive"?G:R;
-        const pdCol = polarityDirection==="buy"?G:R;
+      {/* BIAS CHECKLIST — 3 equal horizontal tiles, centered */}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        {appChecks.map((chk,i)=>{
+          const col  = chk.passes===true?G:chk.passes===false?R:"#555";
+          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
+          return(
+            <div key={i} style={{flex:1,borderRadius:14,border:`1px solid ${col}33`,
+              background:`${col}08`,padding:"14px 10px",textAlign:"center"}}>
+              <div style={{fontSize:11,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:6}}>
+                {chk.label}
+              </div>
+              <div style={{fontSize:22,fontWeight:900,color:col,lineHeight:1,marginBottom:5}}>
+                {icon}
+              </div>
+              <div style={{fontSize:12,color:col,...mono,fontWeight:700,lineHeight:1.3}}>
+                {chk.value||"—"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* CHARGE ROW */}
+      {(()=>{
         return(
-          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${pdCol}33`,
-            background:"rgba(255,255,255,0.02)",padding:"11px 14px"}}>
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>
-              POLARITY MATH
+          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${chgCol}33`,
+            background:`${chgCol}06`,padding:"11px 14px"}}>
+            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,
+              marginBottom:8,display:"flex",justifyContent:"space-between"}}>
+              <span>CHARGE ENGINE</span>
+              <span style={{color:connectorMode==="mirror"?"#888":"#aaa"}}>{connectorMode.toUpperCase()}</span>
             </div>
             <div style={{display:"flex",gap:6}}>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${G}08`,border:`1px solid ${G}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SLOT</div>
-                <div style={{fontSize:13,fontWeight:900,color:"#aaa",...mono}}>
-                  {polarityState.slotPolarity==="positive"?"▲ POS":"▼ NEG"}
+              {[
+                {label:"POSITIVE", val:`+${charge.positive}`, col:G},
+                {label:"NEGATIVE", val:`−${charge.negative}`, col:R},
+                {label:"FLIP",     val:charge.flipTriggered?"YES":"NO", col:charge.flipTriggered?A:"#444"},
+                {label:"FINAL",    val:charge.finalCharge===+1?"▲ POS":"▼ NEG", col:chgCol},
+              ].map(item=>(
+                <div key={item.label} style={{flex:1,textAlign:"center",
+                  padding:"7px 4px",borderRadius:8,
+                  background:`${item.col}10`,border:`1px solid ${item.col}22`}}>
+                  <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>{item.label}</div>
+                  <div style={{fontSize:16,fontWeight:900,color:item.col,...mono}}>{item.val}</div>
                 </div>
-              </div>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${A}08`,border:`1px solid ${A}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
-                <div style={{fontSize:13,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive"?"▲ POS":_newsPol==="negative"?"▼ NEG":"—"}
-                </div>
-              </div>
-              {timeMathResult&&<div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${tCol}10`,border:`1px solid ${tCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>TIME</div>
-                <div style={{fontSize:13,fontWeight:900,color:tCol,...mono}}>
-                  {timeMathResult.finalDirection==="buy"?"▲ BUY":"▼ SELL"}
-                </div>
-              </div>}
-              {windowMathResult&&<div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
-                <div style={{fontSize:13,fontWeight:900,color:wCol,...mono}}>
-                  {windowMathResult.result==="positive"?"▲ POS":"▼ NEG"}
-                </div>
-              </div>}
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>FINAL</div>
-                <div style={{fontSize:13,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy"?"▲ BUY":"▼ SELL"}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         );
@@ -1863,29 +1815,7 @@ function App() {
         );
       })()}
 
-      {/* BIAS — DXY · NEWS · DAY — secondary, below signal */}
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
-        {appChecks.map((chk,i)=>{
-          const col  = chk.passes===true?G:chk.passes===false?R:"#444";
-          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
-          return(
-            <div key={i} style={{flex:1,borderRadius:10,border:`1px solid ${col}22`,
-              background:"rgba(255,255,255,0.02)",padding:"8px 6px",textAlign:"center"}}>
-              <div style={{fontSize:9,letterSpacing:2,color:"#333",fontWeight:700,...mono,marginBottom:3}}>
-                {chk.label}
-              </div>
-              <div style={{fontSize:14,fontWeight:900,color:col,lineHeight:1,marginBottom:3}}>
-                {icon}
-              </div>
-              <div style={{fontSize:10,color:col,...mono,fontWeight:700}}>
-                {chk.value||"—"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-            {/* SOUND */}
+      {/* SOUND */}
       <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:soundOn&&can("sound")?"#ddd":"#888"}}>🔔 Sound Alerts</div>
@@ -2168,17 +2098,29 @@ function App() {
     const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
     // Replay the signal engine at a given ET hour+minute
-    function replaySignal(h24, m) {
-      // Replay now uses polarity math only.
-      const internalStep = getInternalStep(h24, m);
-      const stepDir = internalStep.direction;
-      const polarityState = buildPolarityState(stepDir, stepDir==="buy"?"positive":"negative");
-      const newsActive = false; // replay currently scores the time table only unless historical news is loaded
-      const newsPol = newsActive ? "positive" : null;
-      const timeMathResult = newsPol ? applyNewsToSlot(polarityState, newsPol, "time") : null;
-      const direction = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
-      const signal = direction === "buy" ? "BUY" : "SELL";
-      return { signal, direction, math: timeMathResult?.result || "base" };
+    function replaySignal(h24, m, btcChange, dxyChange) {
+      const step  = getInternalStep(h24, m);
+      const conn  = getConnectorMode(h24, m);
+      const { inExecute, inTrap } = getExecuteState(h24, m);
+
+      // Replay uses connector fallback direction when no historical news state is present.
+      const dir = conn === "mirror" ? "buy" : "sell";
+
+      const dxyPass = dxyChange!=null
+        ? (dir==="buy" ? dxyChange<-0.10 : dxyChange>+0.10) ? true
+        : (dir==="buy" ? dxyChange>+0.10 : dxyChange<-0.10) ? false : null
+        : null;
+
+      let signal;
+      if(inExecute && dxyPass===true) {
+        signal = dir === "buy" ? "BUY" : "SELL";
+      } else if(inTrap) {
+        signal = "STALK";
+      } else {
+        signal = "WATCH";
+      }
+
+      return { signal, dir, inExecute, inTrap, step: step.label, connectorMode: conn };
     }
 
     // Score a signal against actual price: BUY correct if price went up, SELL if down
@@ -2187,8 +2129,8 @@ function App() {
       const pctMove   = ((closePrice - openPrice) / openPrice) * 100;
       if(signal==="BUY")       return { correct: priceDiff > 0, pct: pctMove };
       if(signal==="SELL")      return { correct: priceDiff < 0, pct: pctMove };
-      if(signal==="SELL FADE") return { correct: priceDiff > 0, pct: pctMove }; // fade = opposite
-      if(signal==="BUY FADE")  return { correct: priceDiff < 0, pct: pctMove };
+      if(signal==="SELL") return { correct: priceDiff > 0, pct: pctMove }; // fade = opposite
+      if(signal==="BUY")  return { correct: priceDiff < 0, pct: pctMove };
       return null; // WATCH / STALK = no score
     }
 
@@ -2198,16 +2140,10 @@ function App() {
         // Fetch hourly BTC OHLC for the target week
         // CoinGecko free API: /coins/bitcoin/ohlc — max 7 days, hourly for 1d/7d
         const days = 7;
-        const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=${days}`;
-        // Try direct first, fall back to proxy if rate-limited
-        let raw = null;
-        for(const url of [cgUrl, `https://corsproxy.io/?${encodeURIComponent(cgUrl)}`]) {
-          try {
-            const res = await fetch(url, {cache:"no-cache"});
-            if(res.ok) { raw = await res.json(); break; }
-          } catch(e) { continue; }
-        }
-        if(!raw || !Array.isArray(raw)) throw new Error("BTC data unavailable — try again in 60s");
+        const url = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=${days}`;
+        const res  = await fetch(url, {cache:"no-cache"});
+        if(!res.ok) throw new Error("CoinGecko fetch failed");
+        const raw = await res.json(); // [[timestamp, open, high, low, close], ...]
 
         // CoinGecko OHLC comes in 4h or 1d candles for 7 days — we get 4h candles
         // Convert to ET timezone sessions
@@ -2226,7 +2162,7 @@ function App() {
           if(seen.has(sessionKey)) continue;
           seen.add(sessionKey);
 
-          const replay = replaySignal(h24, m);
+          const replay = replaySignal(h24, m, null, null);
           const score  = scoreSignal(replay.signal, open, close);
 
           sessions.push({
@@ -2245,7 +2181,7 @@ function App() {
 
         // Only include actionable signals (BUY/SELL/FADE), skip WATCH/STALK
         const actionable = sessions.filter(s=>
-          ["BUY","SELL","BUY FADE","SELL FADE"].includes(s.signal)
+          ["BUY","SELL","BUY","SELL"].includes(s.signal)
         );
 
         const wins   = actionable.filter(s=>s.score?.correct===true).length;
@@ -2263,7 +2199,7 @@ function App() {
 
     const sigCol = s =>
       s==="BUY"?"#00ff88":s==="SELL"?"#ff3355":
-      s==="BUY FADE"?"#00cc66":s==="SELL FADE"?"#cc2244":"#555";
+      s==="BUY"?"#00cc66":s==="SELL"?"#cc2244":"#555";
 
     return(
       <div style={{padding:14}}>
@@ -2303,7 +2239,7 @@ function App() {
 
             {/* Signal breakdown */}
             {(()=>{
-              const types = ["BUY","SELL","BUY FADE","SELL FADE"];
+              const types = ["BUY","SELL","BUY","SELL"];
               return(
                 <div style={{marginBottom:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.07)",
                   background:"rgba(255,255,255,0.02)",padding:"12px 14px"}}>
