@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>BiG ENGiN3 · Zone Clock Pro</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
+
 <meta name="theme-color" content="#06071a"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -18,7 +23,6 @@ body{overflow-x:hidden}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 14px #f0a03055)}50%{filter:drop-shadow(0 0 30px #f0a030aa)}}
 input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 #loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .5s}
-#loader img{width:170px;height:170px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
 #spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
 #loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
 </style>
@@ -30,9 +34,9 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>ZONE CLOCK</p>
 </div>
 <div id="root"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
 <script type="text/babel">
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
 const toAngle = (h,m) => ((h%12)*60+m)*0.5;
@@ -615,6 +619,7 @@ function App() {
   ];
 
   useEffect(()=>{
+    const tickMs = tab==="clock" ? 1000 : 15000;
     const t=setInterval(()=>{
       const e=getTZ("America/New_York"),l=getTZ(tz);
       setET(e); setLoc(l);
@@ -654,9 +659,9 @@ function App() {
 
       // Expire breaking anchor
       setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
-    },1000);
+    },tickMs);
     return()=>clearInterval(t);
-  },[zones,soundOn,plan,tz]);
+  },[zones,soundOn,plan,tz,tab]);
 
   const selTZ    = TZ_LIST.find(t=>t.tz===tz)||TZ_LIST[0];
   const liveZ    = zones.filter(z=>liveIds.includes(z.id));
@@ -721,10 +726,23 @@ function App() {
 
   // Fetch on mount + every 90 seconds
   useEffect(()=>{
-    fetchMarketData();
-    const t = setInterval(fetchMarketData, 90000);
-    return ()=>clearInterval(t);
-  }, []);
+    let intervalId = null;
+    let idleId = null;
+    const startFetches = () => {
+      fetchMarketData();
+      intervalId = setInterval(fetchMarketData, 180000);
+    };
+    if(window.requestIdleCallback){
+      idleId = window.requestIdleCallback(startFetches, { timeout: 1200 });
+    } else {
+      idleId = setTimeout(startFetches, 600);
+    }
+    return ()=>{
+      if(intervalId) clearInterval(intervalId);
+      if(window.cancelIdleCallback && typeof idleId === "number") window.cancelIdleCallback(idleId);
+      else if(idleId) clearTimeout(idleId);
+    };
+  }, [fetchMarketData]);
 
 
   const nextZ    = zones.filter(z=>!liveIds.includes(z.id)).map(z=>({...z,mins:minsUntil(z,et.h,et.m)})).sort((a,b)=>a.mins-b.mins)[0];
