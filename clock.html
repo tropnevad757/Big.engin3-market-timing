@@ -103,41 +103,41 @@ const TRAP_TIMES = [
 const BASE_ZONES = [
   // ── AM ZONES ──────────────────────────────────────────────────────────────
   { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
-    pocket:{ label:"OVERNIGHT SELL", note:"1:30 AM anchor. Asian session momentum." },
+    pocket:{ label:"OVERNIGHT SELL", note:"Asian session momentum." },
     subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
   { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
-    pocket:{ label:"PRE-MARKET BUY", note:"4:30 AM anchor. London open overlap." },
+    pocket:{ label:"PRE-MARKET BUY", note:"London open overlap." },
     subStart:{ h:5, m:0 }, subEnd:{ h:6, m:0 }, starRating:4 },
   { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
-    pocket:{ label:"TRANSITION FLUSH", note:"6:30 AM anchor. Short flush before NY open." },
+    pocket:{ label:"TRANSITION FLUSH", note:"Short flush before NY open." },
     subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
   { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
-    pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open 9:30. Highest institutional volume." },
+    pocket:{ label:"NEW YORK KILL ZONE", note:"Highest institutional volume." },
     subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
   { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
-    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close 11:00–11:30. AM trend exhausts." },
+    pocket:{ label:"LONDON CLOSE FLUSH", note:"AM trend exhausts." },
     subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 }, starRating:4 },
   { id:"z12_am", type:"buy",  h1:12, m1:30, h2:1,  m2:30, label:"Z12",
-    pocket:{ label:"LUNCH REVERSAL", note:"12:30 PM regime switch. Post-lunch liquidity grab." },
+    pocket:{ label:"LUNCH REVERSAL", note:"Post-lunch liquidity grab." },
     subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
   // ── PM ZONES ──────────────────────────────────────────────────────────────
   { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1",
-    pocket:{ label:"POWER HOUR CLOSE", note:"3:00–4:15 PM. Fund rebalancing + CME close 4:15." },
+    pocket:{ label:"POWER HOUR CLOSE", note:"Fund rebalancing and close pressure." },
     subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
   { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
-    pocket:{ label:"DAILY CLOSE TRAP", note:"5:00 PM ET bank reset. Forex stops run before close." },
+    pocket:{ label:"DAILY CLOSE TRAP", note:"Bank reset. Forex stops run before close." },
     subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 }, starRating:3 },
   { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6",
-    pocket:{ label:"EVENING TRANSITION", note:"6:30 PM anchor. Short flush — thin volume." },
+    pocket:{ label:"EVENING TRANSITION", note:"Short flush — thin volume." },
     subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
   { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
-    pocket:{ label:"ASIAN PRE-MARKET", note:"7:30–10:30 PM. Overnight levels set here." },
+    pocket:{ label:"ASIAN PRE-MARKET", note:"Overnight levels set here." },
     subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
   { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
-    pocket:{ label:"OVERNIGHT SELL", note:"10:30 PM anchor. Late Asia sell into midnight." },
+    pocket:{ label:"OVERNIGHT SELL", note:"Late Asia sell into midnight." },
     subStart:{ h:23, m:0 }, subEnd:{ h:0, m:0 }, starRating:2 },
   { id:"z12_pm", type:"buy",  h1:0,  m1:30, h2:1,  m2:30, label:"Z12",
-    pocket:{ label:"PRE-DAWN BUY", note:"12:30 AM counter move before 1:30 anchor fires." },
+    pocket:{ label:"PRE-DAWN BUY", note:"Counter move before the next anchor fires." },
     subStart:{ h:0, m:45 }, subEnd:{ h:1, m:15 }, starRating:1 },
 ];
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
@@ -1752,20 +1752,32 @@ function App() {
   }
 
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
-    let finalDirection = baseDirection;
+    const baseCharge = baseDirection === "buy" ? 1 : -1;
     const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
     const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
     const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
     const negativePressure = negatives + speeches;
-    if(negativePressure > 0){
-      finalDirection = baseDirection === "buy" ? "sell" : "buy";
-    }
+    const newsFlip = negativePressure > 0 ? -1 : 1;
+    const finalCharge = baseCharge * newsFlip;
+    const finalDirection = finalCharge === 1 ? "buy" : "sell";
+    const eqBase = baseCharge === 1 ? "+1" : "-1";
+    const eqFlip = newsFlip === 1 ? "+1" : "-1";
+    const eqFinal = finalCharge === 1 ? "+1" : "-1";
+    const equation = `Base charge ${eqBase} × news flip ${eqFlip} = final charge ${eqFinal}`;
+    const equationPlain = negativePressure > 0
+      ? `${baseDirection.toUpperCase()} + NEGATIVE NEWS(${negativePressure}) = ${finalDirection.toUpperCase()}`
+      : `${baseDirection.toUpperCase()} + NO NEGATIVE NEWS = ${finalDirection.toUpperCase()}`;
     return {
       finalDirection,
+      baseCharge,
+      finalCharge,
+      newsFlip,
       negativePressure,
       positivePressure: positives,
       activeCount: (activeEvents||[]).length,
-      reason: negativePressure>0 ? "negative news pressure flipped base charge" : "base polarity held"
+      reason: negativePressure>0 ? "negative news pressure flipped base charge" : "base polarity held",
+      equation,
+      equationPlain,
     };
   }
 
@@ -2404,6 +2416,60 @@ function App() {
       return ()=>clearInterval(timer);
     },[playing, results]);
 
+    function getETParts(tsMs){
+      const bag = {};
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).formatToParts(new Date(tsMs)).forEach(p=>{
+        if(p.type !== "literal") bag[p.type] = p.value;
+      });
+      const hour12 = Number(bag.hour || 0);
+      const minute = Number(bag.minute || 0);
+      const dp = String(bag.dayPeriod || "AM").toUpperCase();
+      const h24 = (hour12 % 12) + (dp === "PM" ? 12 : 0);
+      return {
+        h24,
+        m: minute,
+        dayStr: `${bag.weekday} ${bag.month} ${bag.day}`,
+        timeStr: `${bag.hour}:${bag.minute} ${dp}`,
+      };
+    }
+
+    async function fetchReplayCandles(){
+      const out = [];
+      const binance = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
+      for(const url of [binance, `https://corsproxy.io/?${encodeURIComponent(binance)}`]){
+        try{
+          const res = await fetch(url, {cache:"no-cache"});
+          if(!res.ok) continue;
+          const raw = await res.json();
+          if(Array.isArray(raw) && raw.length){
+            return raw.map(k=>(
+              { ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }
+            ));
+          }
+        }catch(e){}
+      }
+      const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7`;
+      for(const url of [cgUrl, `https://corsproxy.io/?${encodeURIComponent(cgUrl)}`]){
+        try{
+          const res = await fetch(url, {cache:"no-cache"});
+          if(!res.ok) continue;
+          const raw = await res.json();
+          if(Array.isArray(raw) && raw.length){
+            return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }));
+          }
+        }catch(e){}
+      }
+      throw new Error("BTC replay data unavailable");
+    }
+
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
       const slot = getZoneWindow(h24, m);
@@ -2417,8 +2483,16 @@ function App() {
         flip: applied.finalDirection !== polarityState.baseDirection,
         reason: applied.reason,
         activeEvents,
-        negativePressure: applied.negativePressure,
         activeCount: applied.activeCount,
+        negativePressure: applied.negativePressure,
+        positivePressure: applied.positivePressure,
+        baseDirection: polarityState.baseDirection,
+        baseCharge: applied.baseCharge,
+        finalCharge: applied.finalCharge,
+        newsFlip: applied.newsFlip,
+        slotPolarity: slotPol,
+        equation: applied.equation,
+        equationPlain: applied.equationPlain,
       };
     }
 
@@ -2442,46 +2516,36 @@ function App() {
     async function runReplay() {
       setLoading(true); setError(""); setResults(null); setPlayIdx(0); setPlaying(false);
       try {
-        const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7`;
-        let raw = null;
-        for(const url of [cgUrl, `https://corsproxy.io/?${encodeURIComponent(cgUrl)}`]) {
-          try {
-            const res = await fetch(url, {cache:"no-cache"});
-            if(res.ok) { raw = await res.json(); break; }
-          } catch(e) {}
-        }
-        if(!raw || !Array.isArray(raw)) throw new Error("BTC data unavailable");
-
+        const candles = await fetchReplayCandles();
         const sessions = [];
-        const seen = new Set();
-        for(const [ts, open, high, low, close] of raw) {
-          const date = new Date(ts);
-          const etDate = new Date(ts + (-4) * 3600 * 1000);
-          const h24 = etDate.getUTCHours();
-          const m   = etDate.getUTCMinutes();
-          const dayKey = etDate.toISOString().slice(0,13);
-          if(seen.has(dayKey)) continue;
-          seen.add(dayKey);
-          const activeEvents = activeEventsFor(ts);
-          const replay = replaySignal(h24, m, activeEvents);
-          const score  = scoreSignal(replay.signal, open, close);
+        for(const c of candles) {
+          const et = getETParts(c.ts);
+          const activeEvents = activeEventsFor(c.ts);
+          const replay = replaySignal(et.h24, et.m, activeEvents);
+          const score  = scoreSignal(replay.signal, c.open, c.close);
           sessions.push({
-            ts, date: etDate, h24, m,
-            dayStr: etDate.toLocaleDateString("en-US",{month:"short",day:"numeric"}),
-            timeStr: `${String(h24).padStart(2,"0")}:${String(m).padStart(2,"0")}`,
-            open: Math.round(open), close: Math.round(close), high: Math.round(high), low: Math.round(low),
-            ...replay, score,
+            ts: c.ts,
+            h24: et.h24,
+            m: et.m,
+            dayStr: et.dayStr,
+            timeStr: et.timeStr,
+            open: Math.round(c.open),
+            close: Math.round(c.close),
+            high: Math.round(c.high),
+            low: Math.round(c.low),
+            ...replay,
+            score,
           });
         }
-
         const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
         const wins   = actionable.filter(s=>s.score?.correct===true).length;
         const losses = actionable.filter(s=>s.score?.correct===false).length;
         const total  = wins + losses;
         const wr     = total>0 ? Math.round((wins/total)*100) : 0;
+        if(!actionable.length) throw new Error("No replay signals found");
         setResults({ sessions: actionable, wins, losses, total, wr, eventsUsed: loggedLastWeek.length });
       } catch(e) {
-        setError("Could not load BTC data. Check connection and try again.");
+        setError("Replay could not load BTC candles. Open the file in a normal browser tab with internet, then run again.");
       }
       setLoading(false);
     }
@@ -2534,12 +2598,23 @@ function App() {
 
             {current && (
               <div style={{borderRadius:12,border:`1px solid ${sigCol(current.signal)}33`,background:`${sigCol(current.signal)}09`,padding:"12px 14px",marginBottom:12}}>
-                <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:6}}>
-                  <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} · {current.signal}</div>
-                  <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900}}>{current.score?.correct?"✓ WIN":"✗ LOSS"}</div>
+                <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:6,alignItems:"center"}}>
+                  <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} ET</div>
+                  <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.signal}</div>
                 </div>
-                <div style={{fontSize:12,color:"#aaa",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>Reason: {current.reason}</div>
-                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>Active events: {current.activeCount} · Negative pressure: {current.negativePressure}</div>
+                <div style={{fontSize:12,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8}}>{current.score?.correct?"✓ WIN":"✗ LOSS"}</div>
+                <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
+                  Base: {current.baseDirection.toUpperCase()} ({current.baseCharge>0?"+1":"-1"}) · News flip: {current.newsFlip>0?"+1":"-1"} · Final: {current.finalCharge>0?"+1":"-1"}
+                </div>
+                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
+                  {current.equation}
+                </div>
+                <div style={{fontSize:13,color:"#fff",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
+                  {current.equationPlain}
+                </div>
+                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
+                  Slot polarity: {current.slotPolarity} · Active events: {current.activeCount} · Negative pressure: {current.negativePressure} · Positive pressure: {current.positivePressure}
+                </div>
                 <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>setPlayIdx(Number(e.target.value)||0)} style={{width:"100%",marginTop:10}}/>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:8,gap:8}}>
                   <button onClick={()=>setPlayIdx(i=>Math.max(0,i-1))} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
@@ -2553,10 +2628,11 @@ function App() {
               const sc = sigCol(s.signal);
               return(
                 <div key={i} onClick={()=>setPlayIdx(results.sessions.findIndex(x=>x.ts===s.ts))} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
-                  <div style={{fontSize:10,color:"#444",...mono,minWidth:54}}>{s.dayStr}</div>
-                  <div style={{fontSize:11,color:"#666",...mono,minWidth:40}}>{s.timeStr}</div>
+                  <div style={{fontSize:10,color:"#444",...mono,minWidth:68}}>{s.dayStr}</div>
+                  <div style={{fontSize:11,color:"#aaa",...mono,minWidth:72}}>{s.timeStr}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
-                  <div style={{fontSize:11,color:"#777",...mono,minWidth:50,textAlign:"right"}}>{s.activeCount} ev</div>
+                  <div style={{fontSize:11,color:"#777",...mono,minWidth:56,textAlign:"right"}}>{s.finalCharge>0?"+1":"-1"}</div>
+                  <div style={{fontSize:11,color:"#777",...mono,minWidth:52,textAlign:"right"}}>{s.activeCount} ev</div>
                   <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
               );
@@ -2567,7 +2643,7 @@ function App() {
         {!results&&!loading&&(
           <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
             Log news and calendar items in the polarity tab, then run replay.<br/>
-            The engine will score last week using BTC candles plus your saved event pressure.
+            The engine will show the polarity equation and final BUY or SELL result for each replay candle.
           </div>
         )}
       </div>
@@ -2637,6 +2713,8 @@ function App() {
         </div>
         {can("sub_pocket")&&<div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
           <div style={lbl(A,{marginBottom:6})}>PRIME POCKET</div>
+          <div style={{fontSize:14,color:A,fontWeight:900,letterSpacing:1,marginBottom:6}}>{zone ? `${(((zone.h1%12)||12))}:${String(zone.m1).padStart(2,"0")} ${zone.h1>=12?"PM":"AM"} - ${(((zone.h2%12)||12))}:${String(zone.m2).padStart(2,"0")} ${zone.h2>=12?"PM":"AM"} ET` : ""}</div>
+          
           <div style={{fontSize:14,color:"#888",...mono,lineHeight:1.8}}>{(zone&&zone.pocket&&zone.pocket.note)}</div>
           <div style={{fontSize:13,color:"#aaa",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
         </div>}
