@@ -287,19 +287,14 @@ function applyNewsToSlot(polarityState, newsPolarity, calcType) {
     result = resolveWindowMath(polarityState.slotPolarity, newsPolarity);
   }
 
-  // Map result → direction
-  // positive result in a positive/up window => go UP
-  // negative result => invert the base direction
-  const isPositiveWindow = polarityState.slotPolarity === "positive";
-  let finalMovement;
-  if(result === "positive") {
-    finalMovement = isPositiveWindow ? "up" : "down";
-  } else {
-    finalMovement = isPositiveWindow ? "down" : "up";
-  }
+  // Final result follows the equation directly:
+  // same signs  => positive => BUY
+  // mixed signs => negative => SELL
+  const finalDirection = result === "positive" ? "buy" : "sell";
+  const finalMovement  = finalDirection === "buy" ? "up" : "down";
 
   return {
-    finalDirection: finalMovement === "up" ? "buy" : "sell",
+    finalDirection,
     finalMovement,
     mathUsed: calcType,
     result,
@@ -647,40 +642,40 @@ function App() {
   // VWAP anchors (★★★) + key session flips (★★) + minor flips (★)
   const TRANSITION_ANCHORS = [
     // ─── AM ──────────────────────────────────────────────────────────────────
-    { mins:  60, label:"STALK LONG ↑",         polarity:-1, stars:2 }, // pre-VWAP stalk long
-    { mins:  90, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★ switch to sell
-    { mins: 120, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins: 180, label:"CONTINUATION ↓",             polarity:+1, stars:2 },
-    { mins: 240, label:"STALK LONG ↑",         polarity:-1, stars:2 }, // stalk long pre-VWAP
-    { mins: 270, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★
-    { mins: 300, label:"RECOVERY ↑",             polarity:-1, stars:1 },
-    { mins: 360, label:"FLUSH ↓",             polarity:+1, stars:2 },
-    { mins: 390, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins: 420, label:"STALK BUY DIP ↓",   polarity:+1, stars:2 }, // dip before Z7
-    { mins: 450, label:"VWAP ANCHOR ↑", polarity:-1, stars:3 }, // ★★★ Z7 primary
-    { mins: 480, label:"PULLBACK ↓",    polarity:+1, stars:2 },
-    { mins: 540, label:"SESSION OPEN ↑",   polarity:-1, stars:3 }, // ★★★ highest expansion
-    { mins: 600, label:"STALK SELL ↓", polarity:+1, stars:2 },
+    { mins:  60, label:"TRAP ↑",         polarity:-1, stars:2 }, // pre-VWAP stalk long
+    { mins:  90, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★ switch to sell
+    { mins: 120, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins: 180, label:"EXECUTE ↓",             polarity:+1, stars:2 },
+    { mins: 240, label:"TRAP ↑",         polarity:-1, stars:2 }, // stalk long pre-VWAP
+    { mins: 270, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★
+    { mins: 300, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins: 360, label:"EXECUTE ↓",             polarity:+1, stars:2 },
+    { mins: 390, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins: 420, label:"TRAP ↓",   polarity:+1, stars:2 }, // dip before Z7
+    { mins: 450, label:"TRAP ↑", polarity:-1, stars:3 }, // ★★★ Z7 primary
+    { mins: 480, label:"LIQUID ↓",    polarity:+1, stars:2 },
+    { mins: 540, label:"EXECUTE ↑",   polarity:-1, stars:3 }, // ★★★ highest expansion
+    { mins: 600, label:"TRAP ↓", polarity:+1, stars:2 },
     { mins: 630, label:"VWAP FADE ↑",  polarity:-1, stars:2 }, // fade the spike
     { mins: 660, label:"SELL MOMENTUM ↓",   polarity:+1, stars:3 }, // ★★★ sell momentum
-    { mins: 720, label:"STALK LONG ↑",      polarity:-1, stars:2 },
-    { mins: 750, label:"REGIME SWITCH ↓", polarity:+1, stars:3 }, // ★★★
+    { mins: 720, label:"TRAP ↑",      polarity:-1, stars:2 },
+    { mins: 750, label:"RECAL ↓", polarity:+1, stars:3 }, // ★★★
     // ─── PM (exact mirror) ───────────────────────────────────────────────────
-    { mins: 780, label:"STALK LONG ↑",         polarity:-1, stars:2 },
-    { mins: 810, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★ was missing
-    { mins: 840, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins: 900, label:"CONTINUATION ↓",             polarity:+1, stars:2 },
-    { mins: 960, label:"STALK LONG ↑",             polarity:-1, stars:2 },
-    { mins: 990, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★
-    { mins:1020, label:"RECOVERY ↑",             polarity:-1, stars:1 },
-    { mins:1080, label:"FLUSH ↓",             polarity:+1, stars:2 },
-    { mins:1110, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins:1140, label:"STALK BUY DIP ↓",   polarity:+1, stars:2 },
-    { mins:1170, label:"VWAP ANCHOR ↑", polarity:-1, stars:3 }, // ★★★
-    { mins:1200, label:"PULLBACK ↓",             polarity:+1, stars:2 },
+    { mins: 780, label:"TRAP ↑",         polarity:-1, stars:2 },
+    { mins: 810, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★ was missing
+    { mins: 840, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins: 900, label:"EXECUTE ↓",             polarity:+1, stars:2 },
+    { mins: 960, label:"TRAP ↑",             polarity:-1, stars:2 },
+    { mins: 990, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★
+    { mins:1020, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins:1080, label:"EXECUTE ↓",             polarity:+1, stars:2 },
+    { mins:1110, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins:1140, label:"TRAP ↓",   polarity:+1, stars:2 },
+    { mins:1170, label:"TRAP ↑", polarity:-1, stars:3 }, // ★★★
+    { mins:1200, label:"LIQUID ↓",             polarity:+1, stars:2 },
     { mins:1260, label:"SESSION CONTINUATION ↑",             polarity:-1, stars:2 },
-    { mins:1320, label:"STALK SELL ↓",            polarity:+1, stars:2 },
-    { mins:1350, label:"VWAP ANCHOR ↑",polarity:-1, stars:3 }, // ★★★
+    { mins:1320, label:"TRAP ↓",            polarity:+1, stars:2 },
+    { mins:1350, label:"TRAP ↑",polarity:-1, stars:3 }, // ★★★
     { mins:1380, label:"OVERNIGHT ↓",            polarity:+1, stars:2 },
   ];
 
@@ -840,7 +835,7 @@ function App() {
     // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
     { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
-    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 2:00–3:00 AM  : UP (counter inside Z1)
     { from: 120, to: 180, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 AM  : DOWN (continuation sell)
@@ -848,7 +843,7 @@ function App() {
     // 4:00–4:30 AM  : UP (pre-anchor stalk)
     { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
-    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 5:00–6:00 AM  : UP (Z4 recovery buy)
     { from: 300, to: 360, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
@@ -858,7 +853,7 @@ function App() {
     // 7:00–7:30 AM  : DOWN (final flush before NY open)
     { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
-    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"TRAP ↑" },
     // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
     { from: 480, to: 540, pol:+1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 AM : UP (NYSE open expansion)
@@ -872,13 +867,13 @@ function App() {
     // 12:00–12:30 AM: UP (pre-Z12 stalk)
     { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
-    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
+    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"RECAL ↓" },
 
     // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
     // 1:00–1:30 PM  : UP
     { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 2:00–3:00 PM  : UP
     { from: 840, to: 900, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 PM  : DOWN
@@ -886,7 +881,7 @@ function App() {
     // 4:00–4:30 PM  : UP
     { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 5:00–6:00 PM  : UP
     { from:1020, to:1080, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 PM  : DOWN
@@ -896,7 +891,7 @@ function App() {
     // 7:00–7:30 PM  : DOWN
     { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
-    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"TRAP ↑" },
     // 8:00–9:00 PM  : DOWN
     { from:1200, to:1260, pol:+1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 PM : UP
@@ -904,7 +899,7 @@ function App() {
     // 10:00–10:30 PM: DOWN
     { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 PM: UP ★ VWAP ANCHOR
-    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
+    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"TRAP ↑" },
     // 11:00–12:00 AM: DOWN
     { from:1380, to:1440, pol:+1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
   ];
@@ -1947,10 +1942,7 @@ function App() {
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
     if(newsView==="feed") {
-      // always load eco, news and calendar for unified feed
-      ecoLoadedRef.current=false; fetchEcoNews();
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
-      calLoadedRef.current=false; fetchCalendar();
     }
     if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
@@ -1985,7 +1977,7 @@ function App() {
         const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
         const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
         const zLabel = z ? z.label : "—";
-        const winLabel = inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE";
+        const winLabel = inExecute?"EXECUTE":inTrap?"TRAP":"OBSERVE";
         const winCol   = inExecute?G:inTrap?A:"#444";
         return(
           <div style={{display:"flex",gap:8,marginBottom:10}}>
@@ -2872,21 +2864,7 @@ function App() {
           </div>
         )}
 
-        {/* Replay event log controls */}
-        {newsView==="events"&&(
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8}}>
-              <div style={{fontSize:12,color:"#888",fontWeight:700,letterSpacing:1.2}}>POLARITY EVENT LOG · {dedupeFeedItems(replayEvents).length} SAVED</div>
-              <div style={{display:"flex",gap:6}}>
-                <button onClick={()=>setReplayEvents(dedupeFeedItems(replayEvents).slice(0,200))} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#aaa",cursor:"pointer"}}>DEDUPE</button>
-                <button onClick={clearReplayEvents} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,51,85,0.08)",border:"1px solid rgba(255,51,85,0.3)",color:"#ff5570",cursor:"pointer"}}>CLEAR LOG</button>
-              </div>
-            </div>
-            <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-              Save breaking headlines, calendar events, and speeches here. Replay uses this log for the last 7 days so negative news can flip the base charge.
-            </div>
-          </div>
-        )}
+        {/* Replay log removed */}
 
         {/* ── LIVE ECO NEWS / EVENTS ── */}
         {newsView==="events"&&(
@@ -2971,43 +2949,55 @@ function App() {
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>LIVE FEED</div>
-              <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS</div>
+              <button onClick={()=>{ newsLoadedFor.current=""; fetchNews("combo"); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
-            {(ecoLoading || newsLoading)&&(
+            {newsLoading&&(
               <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing feed...</div>
             )}
 
+            {!newsLoading && newsError && (
+              <div style={{padding:"14px 16px",background:"rgba(255,51,85,0.07)",border:"1px solid rgba(255,51,85,0.25)",borderRadius:12,marginBottom:12}}>
+                <div style={{fontSize:14,color:"#ff7788",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>{newsError}</div>
+              </div>
+            )}
+
+            {!newsLoading&&!newsError&&newsArticles.length===0&&(
+              <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No Reuters/Bloomberg items yet — tap refresh.</div>
+            )}
+
+            {newsArticles.map((item,i)=>(
+              <div key={i}
+                onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
+                style={{
+                  background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
+                  borderRadius:12,padding:"12px 14px",marginBottom:8,
+                  cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
+                }}>
+                <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
+                <div style={{paddingLeft:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                      <span style={{fontSize:13,color:item.color||"#888",fontWeight:700,letterSpacing:1}}>📰 NEWS</span>
+                      <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                    </div>
+                    <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
+                  {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
+                    {item.link&&<span style={{fontSize:14,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
             {(()=>{
-              // Build unified feed: eco events, breaking news and calendar items
-              const calItems = calArticles.map(a => ({
-                kind: "calendar",
-                title: a.title,
-                link: a.link,
-                // compute pub date from date/time if missing
-                pub: a.pub || (a.date && a.time ? new Date(`${a.date}T${a.time}:00`).toISOString() : ""),
-                desc: a.desc || a.btc || "",
-                // color by stars if present or fallback
-                color: (a.stars===3?"#ff3355":a.stars===2?"#f0a030":a.stars===1?"#88aaff":"#888"),
-                source: a.source || "Calendar",
-                stars: a.stars || 0,
-                bullish: false,
-                bearish: false
-              }));
-              const econItems = ecoArticles.map(a=>({
-                kind: "event",
-                title: a.title,
-                link: a.link,
-                pub: a.pub,
-                desc: a.desc,
-                color: a.stars===3?"#ff3355":a.stars===2?"#f0a030":"#88aaff",
-                source: (a.source || "Event"),
-                stars: a.stars || 0,
-                bullish: !!a.bullish,
-                bearish: !!a.bearish
-              }));
-              const newsItems = newsArticles.map(a=>({
+              // Feed = Reuters Markets + Bloomberg Markets breaking news only
+              const merged = newsArticles.map(a=>({
                 kind: "news",
                 title: a.title,
                 link: a.link,
@@ -3018,19 +3008,18 @@ function App() {
                 stars: 0,
                 bullish: false,
                 bearish: false
-              }));
-              const merged = [...econItems, ...newsItems, ...calItems].filter(x=>x.title);
+              })).filter(x=>x.title);
               const seenFeed = new Set();
               const deduped = merged.filter(item => {
-                const key = (item.title||"").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0,40);
+                const key = (item.title||"").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0,60);
                 if(!key || seenFeed.has(key)) return false;
                 seenFeed.add(key);
                 return true;
               });
               deduped.sort((a,b) => (Date.parse(b.pub||0)||0) - (Date.parse(a.pub||0)||0) );
               const rows = deduped.slice(0, 40);
-              if(!rows.length && !ecoLoading && !newsLoading && !calLoading){
-                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No feed items yet — tap refresh.</div>;
+              if(!rows.length && !newsLoading){
+                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No Reuters / Bloomberg breaking news yet — tap refresh.</div>;
               }
               return rows.map((item,i)=>(
                 <div key={i}
@@ -3064,15 +3053,7 @@ function App() {
                           ⚡ ANCHOR {item.bearish?"BEAR":"BULL"}
                         </button>
                       )}
-                      {(item.kind==="event" || item.kind==="news") && (
-                        <button
-                          onClick={(e)=>{e.stopPropagation(); pushReplayEvent(item,{kind:item.kind==="event"?"event":/powell|speech|remarks|testimony/i.test(item.title||"")?"speech":"breaking"});}}
-                          style={{fontSize:14,padding:"2px 8px",borderRadius:6,
-                            background:"rgba(240,160,48,0.12)",border:`1px solid ${A}44`,
-                            color:A,cursor:"pointer",fontWeight:700}}>
-                          ＋ LOG
-                        </button>
-                      )}
+
                     </div>
                   </div>
                 </div>
@@ -3315,8 +3296,7 @@ function App() {
     {id:"clock",icon:"⏱",l:"CLOCK"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
     {id:"news",icon:"📰",l:"NEWS"},
-    {id:"backtest",icon:"📊",l:"BACKTEST"},
-    {id:"replay",icon:"⏪",l:"REPLAY"}
+    {id:"backtest",icon:"📊",l:"BACKTEST"}
   ];
 
   return(
@@ -3345,7 +3325,7 @@ function App() {
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {tab==="replay" && <ReplayTab/>}
+        {/* replay removed */}
         {/* Plan tab removed per user request */}
       </div>
 
