@@ -1164,6 +1164,21 @@ function App() {
     return { inExecute, inTrap };
   }
 
+  function getClockPhase(h24, m) {
+    const t = h24*60+m;
+    const anchors = [90,270,450,630,810,990,1170,1350];
+    let last = anchors[anchors.length - 1] - 1440;
+    for (const a of anchors) {
+      if (a <= t) last = a;
+      else break;
+    }
+    const delta = t - last;
+    if (delta >= 0 && delta < 30) return { label: 'TRAP', color: A };
+    if (delta >= 30 && delta < 90) return { label: 'EXECUTE', color: G };
+    if (delta >= 90 && delta < 120) return { label: 'RECAL', color: '#88aaff' };
+    return { label: 'LIQUID', color: '#aa88ff' };
+  }
+
   // STAGE 1: EARLY BIAS (max 40 pts)
   function computeEarlyBias(h24, m, zone, zType, inSubWindow) {
     const win = getWindowAt(h24, m);
@@ -1484,7 +1499,12 @@ function App() {
   })();
   const timeMathResult   = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "time")   : null;
   const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
-  const polarityDirection = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
+  const equationLeftSign  = polarityState.slotPolarity === "positive" ? "+" : "-";
+  const equationRightPol  = _newsPol || (windowMathResult ? windowMathResult.result : polarityState.slotPolarity);
+  const equationRightSign = equationRightPol === "positive" ? "+" : "-";
+  const equationSame      = equationLeftSign === equationRightSign;
+  const equationSignal    = equationSame ? "buy" : "sell";
+  const polarityDirection = equationSignal;
 
   const appChecks = [
     // 1. DXY — confirms charge direction (not major regime)
@@ -1985,8 +2005,9 @@ function App() {
         const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
         const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
         const zLabel = z ? z.label : "—";
-        const winLabel = inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE";
-        const winCol   = inExecute?G:inTrap?A:"#444";
+        const phase = getClockPhase(et.h24, et.m);
+        const winLabel = phase.label;
+        const winCol   = phase.color;
         return(
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             {[
@@ -2026,6 +2047,17 @@ function App() {
         ))}
       </div>
 
+      {/* EQUATION BAR */}
+      <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${equationSame?G:R}33`,background:`${equationSame?G:R}0a`,padding:"12px 14px"}}>
+        <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>
+          EQUATION
+        </div>
+        <div style={{textAlign:"center",padding:"10px 0",borderRadius:10,background:`${equationSame?G:R}14`,border:`1px solid ${equationSame?G:R}44`}}>
+          <div style={{fontSize:24,fontWeight:900,color:equationSame?G:R,letterSpacing:4,...mono}}>{`${equationLeftSign} × ${equationRightSign}`}</div>
+          <div style={{fontSize:12,color:"#aaa",marginTop:6,...mono}}>{equationSame?"SAME SIGN = BUY":"MIXED SIGN = SELL"}</div>
+        </div>
+      </div>
+
       {/* POLARITY MATH ROW */}
       {(timeMathResult||windowMathResult)&&(()=>{
         const tCol = timeMathResult?.finalDirection==="buy"?G:R;
@@ -2043,7 +2075,7 @@ function App() {
                 background:`${A}08`,border:`1px solid ${A}22`}}>
                 <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
                 <div style={{fontSize:13,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive" ? "▲ POS" : _newsPol==="negative" ? "▼ NEG" : (polarityState.slotPolarity==="positive" ? "▲ POS" : "▼ NEG")}
+                  {equationLeftSign === "+" ? "+" : "-"}
                 </div>
               </div>
               {/* WINDOW card */}
@@ -2051,7 +2083,7 @@ function App() {
                 background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
                 <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
                 <div style={{fontSize:13,fontWeight:900,color:wCol,...mono}}>
-                  {windowMathResult ? (windowMathResult.result==="positive" ? "▲ POS" : "▼ NEG") : (polarityState.slotPolarity==="positive" ? "▲ POS" : "▼ NEG")}
+                  {equationRightSign === "+" ? "+" : "-"}
                 </div>
               </div>
               {/* FINAL SIGNAL card */}
@@ -2059,7 +2091,7 @@ function App() {
                 background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
                 <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SIGNAL</div>
                 <div style={{fontSize:13,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy" ? "▲ BUY" : "▼ SELL"}
+                  {polarityDirection==="buy" ? "BUY" : "SELL"}
                 </div>
               </div>
             </div>
@@ -2069,7 +2101,7 @@ function App() {
 
       {/* FINAL SIGNAL */}
       {(()=>{
-        const sig = finalSignal;
+        const sig = { label: polarityDirection === "buy" ? "BUY" : "SELL", col: polarityDirection === "buy" ? G : R };
         return(
           <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${sig.col}44`,
             background:`${sig.col}08`,padding:"12px 16px"}}>
