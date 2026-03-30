@@ -287,14 +287,13 @@ function applyNewsToSlot(polarityState, newsPolarity, calcType) {
     result = resolveWindowMath(polarityState.slotPolarity, newsPolarity);
   }
 
-  // Final result follows the equation directly:
-  // same signs  => positive => BUY
-  // mixed signs => negative => SELL
-  const finalDirection = result === "positive" ? "buy" : "sell";
-  const finalMovement  = finalDirection === "buy" ? "up" : "down";
+  // Final rule:
+  // same signs => BUY / positive
+  // opposite signs => SELL / negative
+  const finalMovement = result === "positive" ? "up" : "down";
 
   return {
-    finalDirection,
+    finalDirection: result === "positive" ? "buy" : "sell",
     finalMovement,
     mathUsed: calcType,
     result,
