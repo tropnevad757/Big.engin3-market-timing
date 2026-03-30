@@ -1481,13 +1481,6 @@ function App() {
   const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
   const polarityDirection = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
 
-  // ── FINAL DIRECTION (DISPLAY) — enforce sign rule ───────────────────────────────
-  const finalDirection  = polarityDirection;
-  const finalIsFlipped  = timeMathResult ? (finalDirection !== polarityState.baseDirection) : false;
-  const finalCol        = finalDirection === "buy" ? G : R;
-  const finalArrow      = finalDirection === "buy" ? "▲" : "▼";
-  const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
-
   const appChecks = [
     // 1. DXY — confirms charge direction (not major regime)
     {
@@ -1753,33 +1746,77 @@ function App() {
     return {pre:75, post:75};
   }
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, mode="classic"){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
-    const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
-    const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
-    const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
-    const negativePressure = negatives + speeches;
-    const newsFlip = negativePressure > 0 ? -1 : 1;
-    const finalCharge = baseCharge * newsFlip;
-    const finalDirection = finalCharge === 1 ? "buy" : "sell";
-    const eqBase = baseCharge === 1 ? "+1" : "-1";
-    const eqFlip = newsFlip === 1 ? "+1" : "-1";
-    const eqFinal = finalCharge === 1 ? "+1" : "-1";
-    const equation = `Base charge ${eqBase} × news flip ${eqFlip} = final charge ${eqFinal}`;
-    const equationPlain = negativePressure > 0
-      ? `${baseDirection.toUpperCase()} + NEGATIVE NEWS(${negativePressure}) = ${finalDirection.toUpperCase()}`
-      : `${baseDirection.toUpperCase()} + NO NEGATIVE NEWS = ${finalDirection.toUpperCase()}`;
+    const signed = (activeEvents||[])
+      .flatMap(ev=>{
+        const pol = Number(ev?.polarity);
+        if(pol !== 1 && pol !== -1) return [];
+        // Speeches can act like multiple pieces of news. Keep them weighted heavier.
+        const weight = replayEventType(ev)==="speech" ? 2 : 1;
+        return Array.from({length:weight},()=>({
+          ...ev,
+          _sign: pol === 1 ? 1 : -1,
+          _pol:  pol === 1 ? "positive" : "negative",
+          _t: Date.parse(ev.pub||0) || 0,
+        }));
+      })
+      .sort((a,b)=>(a._t-b._t) || String(a.title||"").localeCompare(String(b.title||"")));
+
+    const positivePressure = signed.filter(e=>e._sign===1).length;
+    const negativePressure = signed.filter(e=>e._sign===-1).length;
+
+    let newsPolarity = null;
+
+    if(mode === "parity"){
+      if(signed.length){
+        const product = signed.reduce((acc,e)=>acc * e._sign, 1);
+        newsPolarity = product === 1 ? "positive" : "negative";
+      }
+    } else {
+      // Classic/simple model:
+      // any negative pressure => negative, else positive if any positive pressure
+      if(negativePressure > 0) newsPolarity = "negative";
+      else if(positivePressure > 0) newsPolarity = "positive";
+    }
+
+    if(!newsPolarity){
+      return {
+        finalDirection: baseDirection,
+        baseCharge,
+        finalCharge: baseCharge,
+        newsFlip: 1,
+        activeCount: (activeEvents||[]).length,
+        negativePressure,
+        positivePressure,
+        slotPolarity,
+        newsPolarity: null,
+        result: null,
+        reason: "no signed news events",
+        equation: `${slotPolarity} x — = ${baseDirection==="buy"?"positive":"negative"}`,
+        equationPlain: `${slotPolarity.toUpperCase()} x NO NEWS = ${baseDirection.toUpperCase()}`,
+      };
+    }
+
+    const result = resolveTimeMath(slotPolarity, newsPolarity);
+    const finalDirection = result === "positive" ? "buy" : "sell";
+    const finalCharge = finalDirection === "buy" ? 1 : -1;
+    const newsFlip = newsPolarity === "positive" ? 1 : -1;
+
     return {
       finalDirection,
       baseCharge,
       finalCharge,
       newsFlip,
-      negativePressure,
-      positivePressure: positives,
       activeCount: (activeEvents||[]).length,
-      reason: negativePressure>0 ? "negative news pressure flipped base charge" : "base polarity held",
-      equation,
-      equationPlain,
+      negativePressure,
+      positivePressure,
+      slotPolarity,
+      newsPolarity,
+      result,
+      reason: mode==="parity" ? "parity aggregation across multiple events" : "classic negative-pressure aggregation",
+      equation: `${slotPolarity} x ${newsPolarity} = ${result}`,
+      equationPlain: `${slotPolarity.toUpperCase()} x ${newsPolarity.toUpperCase()} = ${result.toUpperCase()} → ${finalDirection.toUpperCase()}`,
     };
   }
 
@@ -1950,6 +1987,7 @@ function App() {
   useEffect(()=>{
     if(newsView==="feed") {
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
+      calLoadedRef.current=false; fetchCalendar();
     }
     if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
@@ -2381,6 +2419,7 @@ function App() {
     const [error,    setError]    = React.useState("");
     const [playIdx,  setPlayIdx]  = React.useState(0);
     const [playing,  setPlaying]  = React.useState(false);
+    const [replayMode, setReplayMode] = React.useState("classic");
 
     const loggedLastWeek = dedupeFeedItems(replayEvents)
       .filter(ev=>{
@@ -2390,10 +2429,14 @@ function App() {
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
 
     React.useEffect(()=>{
-      if(!playing || !results?.sessions?.length) return;
+      setPlayIdx(0);
+    },[replayMode, results]);
+
+    React.useEffect(()=>{
+      if(!playing || !results?.[replayMode]?.sessions?.length) return;
       const timer = setInterval(()=>{
         setPlayIdx(prev=>{
-          if(prev >= results.sessions.length-1){
+          if(prev >= results[replayMode].sessions.length-1){
             setPlaying(false);
             return prev;
           }
@@ -2401,7 +2444,7 @@ function App() {
         });
       }, 900);
       return ()=>clearInterval(timer);
-    },[playing, results]);
+    },[playing, results, replayMode]);
 
     function getETParts(tsMs){
       const bag = {};
@@ -2429,7 +2472,6 @@ function App() {
     }
 
     async function fetchReplayCandles(){
-      const out = [];
       const binance = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
       for(const url of [binance, `https://corsproxy.io/?${encodeURIComponent(binance)}`]){
         try{
@@ -2457,17 +2499,17 @@ function App() {
       throw new Error("BTC replay data unavailable");
     }
 
-    function replaySignal(h24, m, activeEvents) {
+    function replaySignal(h24, m, activeEvents, mode) {
       const step = getInternalStep(h24, m);
-      const slot = getWindowAt(h24, m);
       const connectorMode = getConnectorMode(h24, m);
       const slotPol = connectorMode === "aligned" ? "positive" : "negative";
       const polarityState = buildPolarityState(step.direction, slotPol);
-      const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
+      const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents, mode);
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
       return {
         signal,
         mode: getConnectorMode(h24, m),
+        replayMode: mode,
         flip: applied.finalDirection !== polarityState.baseDirection,
         reason: applied.reason,
         activeEvents,
@@ -2479,6 +2521,8 @@ function App() {
         finalCharge: applied.finalCharge,
         newsFlip: applied.newsFlip,
         slotPolarity: slotPol,
+        newsPolarity: applied.newsPolarity,
+        result: applied.result,
         equation: applied.equation,
         equationPlain: applied.equationPlain,
       };
@@ -2501,51 +2545,67 @@ function App() {
       });
     }
 
+    function summarizeSessions(sessions){
+      const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
+      const wins   = actionable.filter(s=>s.score?.correct===true).length;
+      const losses = actionable.filter(s=>s.score?.correct===false).length;
+      const total  = wins + losses;
+      const wr     = total>0 ? Math.round((wins/total)*100) : 0;
+      return { sessions: actionable, wins, losses, total, wr };
+    }
+
     async function runReplay() {
       setLoading(true); setError(""); setResults(null); setPlayIdx(0); setPlaying(false);
       try {
         const candles = await fetchReplayCandles();
-        const sessions = [];
+        const classicSessions = [];
+        const paritySessions  = [];
         for(const c of candles) {
           const et = getETParts(c.ts);
           const activeEvents = activeEventsFor(c.ts);
-          const replay = replaySignal(et.h24, et.m, activeEvents);
-          const score  = scoreSignal(replay.signal, c.open, c.close);
-          sessions.push({
-            ts: c.ts,
-            h24: et.h24,
-            m: et.m,
-            dayStr: et.dayStr,
-            timeStr: et.timeStr,
-            open: Math.round(c.open),
-            close: Math.round(c.close),
-            high: Math.round(c.high),
-            low: Math.round(c.low),
-            ...replay,
-            score,
-          });
+
+          for(const mode of ["classic","parity"]){
+            const replay = replaySignal(et.h24, et.m, activeEvents, mode);
+            const score  = scoreSignal(replay.signal, c.open, c.close);
+            const row = {
+              ts: c.ts,
+              h24: et.h24,
+              m: et.m,
+              dayStr: et.dayStr,
+              timeStr: et.timeStr,
+              open: Math.round(c.open),
+              close: Math.round(c.close),
+              high: Math.round(c.high),
+              low: Math.round(c.low),
+              ...replay,
+              score,
+            };
+            if(mode==="classic") classicSessions.push(row);
+            else paritySessions.push(row);
+          }
         }
-        const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
-        const wins   = actionable.filter(s=>s.score?.correct===true).length;
-        const losses = actionable.filter(s=>s.score?.correct===false).length;
-        const total  = wins + losses;
-        const wr     = total>0 ? Math.round((wins/total)*100) : 0;
-        if(!actionable.length) throw new Error("No replay signals found");
-        setResults({ sessions: actionable, wins, losses, total, wr, eventsUsed: loggedLastWeek.length });
+        const classic = summarizeSessions(classicSessions);
+        const parity  = summarizeSessions(paritySessions);
+        if(!classic.sessions.length && !parity.sessions.length) throw new Error("No replay signals found");
+        setResults({
+          classic: {...classic, eventsUsed: loggedLastWeek.length},
+          parity:  {...parity, eventsUsed: loggedLastWeek.length},
+        });
       } catch(e) {
         setError("Replay could not load BTC candles. Open the file in a normal browser tab with internet, then run again.");
       }
       setLoading(false);
     }
 
+    const activePack = results?.[replayMode] || null;
     const sigCol = s => s==="BUY"?G:R;
-    const current = results?.sessions?.[playIdx] || null;
+    const current = activePack?.sessions?.[playIdx] || null;
 
     return(
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST WEEK RESULTS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses your saved polarity event log from the last 7 days. Scheduled events use symmetric windows, breaking news uses 15 minutes, and speeches stack as multiple negative pieces of news when applicable.
+          Replay compares two models side-by-side. Classic keeps the simpler event aggregation. Parity uses your odd/even sign rule for multiple signed events. Star calendar events stay symmetric. Breaking news stays 15 minutes.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2554,8 +2614,8 @@ function App() {
             <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.length}</div>
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>DEDUPED</div>
-            <div style={{fontSize:22,color:"#ccc",fontWeight:900}}>{dedupeFeedItems(loggedLastWeek).length}</div>
+            <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>MODE</div>
+            <div style={{fontSize:18,color:"#ccc",fontWeight:900}}>{replayMode==="classic"?"CLASSIC":"PARITY"}</div>
           </div>
         </div>
 
@@ -2565,22 +2625,52 @@ function App() {
               background:loading?"rgba(255,255,255,0.05)":`${G}1a`,border:`1px solid ${loading?"#333":G}`,color:loading?"#555":G}}>
             {loading?"⏳ RUNNING...":"▶ RUN LAST WEEK"}
           </button>
-          <button onClick={()=>setPlaying(p=>!p)} disabled={!results?.sessions?.length}
-            style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
+          <button onClick={()=>setPlaying(p=>!p)} disabled={!activePack?.sessions?.length}
+            style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:activePack?.sessions?.length?"pointer":"not-allowed"}}>
             {playing?"❚❚":"▶"}
           </button>
+        </div>
+
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          {[
+            {id:"classic", label:"CLASSIC"},
+            {id:"parity", label:"PARITY"},
+          ].map(m=>(
+            <button key={m.id} onClick={()=>setReplayMode(m.id)}
+              style={{flex:1,padding:"10px 0",borderRadius:12,fontSize:13,fontWeight:900,letterSpacing:2,cursor:"pointer",
+                background:replayMode===m.id?`${A}14`:"rgba(255,255,255,0.04)",
+                border:`1px solid ${replayMode===m.id?A:"rgba(255,255,255,0.1)"}`,
+                color:replayMode===m.id?A:"#bbb"}}>
+              {m.label}
+            </button>
+          ))}
         </div>
 
         {error&&<div style={{color:R,fontSize:13,...mono,marginBottom:12,padding:"10px 14px",background:`${R}12`,borderRadius:10,border:`1px solid ${R}33`}}>{error}</div>}
 
         {results&&(
           <>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+              {[
+                {key:"classic", title:"CLASSIC WR", color:results.classic.wr>=60?G:results.classic.wr>=45?A:R, wr:results.classic.wr, wins:results.classic.wins, losses:results.classic.losses},
+                {key:"parity",  title:"PARITY WR",  color:results.parity.wr>=60?G:results.parity.wr>=45?A:R, wr:results.parity.wr, wins:results.parity.wins, losses:results.parity.losses},
+              ].map(box=>(
+                <div key={box.key} style={{borderRadius:12,border:`1px solid ${box.color}33`,background:`${box.color}09`,padding:"10px 12px"}}>
+                  <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:6}}>{box.title}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                    <div style={{fontSize:22,fontWeight:900,color:box.color}}>{box.wr}%</div>
+                    <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace"}}>{box.wins}W / {box.losses}L</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:12}}>
               {[
-                {l:"WIN RATE", v:`${results.wr}%`, c:results.wr>=60?G:results.wr>=45?A:R},
-                {l:"WINS", v:results.wins, c:G},
-                {l:"LOSSES", v:results.losses, c:R},
-                {l:"SIGNALS", v:results.total, c:A},
+                {l:"WIN RATE", v:`${activePack.wr}%`, c:activePack.wr>=60?G:activePack.wr>=45?A:R},
+                {l:"WINS", v:activePack.wins, c:G},
+                {l:"LOSSES", v:activePack.losses, c:R},
+                {l:"SIGNALS", v:activePack.total, c:A},
               ].map(i=>(<div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>))}
             </div>
 
@@ -2590,49 +2680,31 @@ function App() {
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} ET</div>
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.signal}</div>
                 </div>
-                <div style={{fontSize:12,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8}}>{current.score?.correct?"✓ WIN":"✗ LOSS"}</div>
-                <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  Base: {current.baseDirection.toUpperCase()} ({current.baseCharge>0?"+1":"-1"}) · News flip: {current.newsFlip>0?"+1":"-1"} · Final: {current.finalCharge>0?"+1":"-1"}
-                </div>
-                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  {current.equation}
-                </div>
-                <div style={{fontSize:13,color:"#fff",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  {current.equationPlain}
-                </div>
-                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                  Slot polarity: {current.slotPolarity} · Active events: {current.activeCount} · Negative pressure: {current.negativePressure} · Positive pressure: {current.positivePressure}
-                </div>
-                <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>setPlayIdx(Number(e.target.value)||0)} style={{width:"100%",marginTop:10}}/>
-                <div style={{display:"flex",justifyContent:"space-between",marginTop:8,gap:8}}>
-                  <button onClick={()=>setPlayIdx(i=>Math.max(0,i-1))} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
-                  <button onClick={()=>setPlayIdx(i=>Math.min((results.sessions.length-1),i+1))} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>STEP →</button>
+                <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>
+                  Open {current.open} → Close {current.close} · Slot {current.slotPolarity || "—"} · News {current.newsPolarity || "—"}<br/>
+                  {current.equationPlain}<br/>
+                  Signed events {current.activeCount} · Pos {current.positivePressure} · Neg {current.negativePressure}
                 </div>
               </div>
             )}
 
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST WEEK SESSION LOG</div>
-            {results.sessions.slice().reverse().map((s,i)=>{
-              const sc = sigCol(s.signal);
-              return(
-                <div key={i} onClick={()=>setPlayIdx(results.sessions.findIndex(x=>x.ts===s.ts))} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
-                  <div style={{fontSize:10,color:"#444",...mono,minWidth:68}}>{s.dayStr}</div>
-                  <div style={{fontSize:11,color:"#aaa",...mono,minWidth:72}}>{s.timeStr}</div>
-                  <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
-                  <div style={{fontSize:11,color:"#777",...mono,minWidth:56,textAlign:"right"}}>{s.finalCharge>0?"+1":"-1"}</div>
-                  <div style={{fontSize:11,color:"#777",...mono,minWidth:52,textAlign:"right"}}>{s.activeCount} ev</div>
-                  <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
+            <div style={{display:"grid",gap:8}}>
+              {activePack.sessions.slice(Math.max(0,playIdx-6), Math.max(0,playIdx-6)+12).map((s,idx)=>(
+                <div key={s.ts+"_"+idx} style={{borderRadius:12,border:`1px solid ${sigCol(s.signal)}22`,background:"rgba(255,255,255,0.03)",padding:"10px 12px",position:"relative"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:"#ddd"}}>{s.dayStr} · {s.timeStr} ET</div>
+                      <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>{s.equationPlain}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:13,fontWeight:900,color:sigCol(s.signal)}}>{s.signal}</div>
+                      <div style={{fontSize:12,color:s.score?.correct?G:R,fontFamily:"'Share Tech Mono',monospace"}}>{s.score?.correct?"WIN":"LOSS"}</div>
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </>
-        )}
-
-        {!results&&!loading&&(
-          <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
-            Log news and calendar items in the polarity tab, then run replay.<br/>
-            The engine will show the polarity equation and final BUY or SELL result for each replay candle.
-          </div>
         )}
       </div>
     );
@@ -2932,6 +3004,11 @@ function App() {
                             color:art.bearish?R:G,cursor:"pointer",fontWeight:700}}>
                           ⚡ ANCHOR {art.bearish?"BEAR":"BULL"}
                         </button>
+                        <button onClick={()=>pushReplayEvent(art,{kind:/powell|speech|remarks|testimony/i.test(art.title||"")?"speech":"breaking"})}
+                          style={{fontSize:14,padding:"2px 8px",borderRadius:6,
+                            background:"rgba(240,160,48,0.12)",border:`1px solid ${A}44`,color:A,cursor:"pointer",fontWeight:700}}>
+                          ＋ LOG
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2952,49 +3029,54 @@ function App() {
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS</div>
-              <button onClick={()=>{ newsLoadedFor.current=""; fetchNews("combo"); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS + MYFXBOOK</div>
+              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
-            {newsLoading&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing feed...</div>
-            )}
+            {(()=>{
+              const merged = dedupeFeedItems([
+                ...newsArticles.map(a=>({...a, kind:"news"})),
+                ...calArticles.map(a=>({...a, kind:"event"})),
+              ]).sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
 
-            {!newsLoading && newsError && (
-              <div style={{padding:"14px 16px",background:"rgba(255,51,85,0.07)",border:"1px solid rgba(255,51,85,0.25)",borderRadius:12,marginBottom:12}}>
-                <div style={{fontSize:14,color:"#ff7788",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>{newsError}</div>
-              </div>
-            )}
+              return (
+                <>
+                  {(newsLoading||calLoading)&&(
+                    <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing feed...</div>
+                  )}
 
-            {!newsLoading&&!newsError&&newsArticles.length===0&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No Reuters/Bloomberg items yet — tap refresh.</div>
-            )}
+                  {!newsLoading && !calLoading && merged.length===0&&(
+                    <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No Reuters / Bloomberg / MyFXBook items yet — tap refresh.</div>
+                  )}
 
-            {newsArticles.map((item,i)=>(
-              <div key={i}
-                onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
-                style={{
-                  background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
-                  borderRadius:12,padding:"12px 14px",marginBottom:8,
-                  cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
-                }}>
-                <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
-                <div style={{paddingLeft:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
-                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{fontSize:13,color:item.color||"#888",fontWeight:700,letterSpacing:1}}>📰 NEWS</span>
-                      <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                  {merged.map((item,i)=>(
+                    <div key={i}
+                      onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
+                      style={{
+                        background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
+                        borderRadius:12,padding:"12px 14px",marginBottom:8,
+                        cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
+                      }}>
+                      <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
+                      <div style={{paddingLeft:12}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
+                          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                            <span style={{fontSize:13,color:item.color||"#888",fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"📅 CAL":"📰 NEWS"}</span>
+                            <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                            {item.stars ? <span style={{fontSize:12,color:"#bbb"}}>{"★".repeat(Math.max(1,Math.min(3,Number(item.stars||1))))}</span> : null}
+                          </div>
+                          <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub||item.date)}</span>
+                        </div>
+                        <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
+                        {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
+                        {item.kind==="event" && item.stars ? <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",marginTop:6}}>Symmetric window: {Number(item.stars)===1?"15m before/after":Number(item.stars)===2?"45m before/after":"75m before/after"}</div> : null}
+                        {item.kind==="news" ? <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",marginTop:6}}>Breaking window: 15m</div> : null}
+                      </div>
                     </div>
-                    <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
-                  </div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
-                  {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
-                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                    {item.link&&<span style={{fontSize:14,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
+                  ))}
+                </>
+              );
+            })()}
           </>
         )}
 
@@ -3235,7 +3317,8 @@ function App() {
     {id:"clock",icon:"⏱",l:"CLOCK"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
     {id:"news",icon:"📰",l:"NEWS"},
-    {id:"backtest",icon:"📊",l:"BACKTEST"}
+    {id:"backtest",icon:"📊",l:"BACKTEST"},
+    {id:"replay",icon:"⏪",l:"REPLAY"}
   ];
 
   return(
@@ -3264,7 +3347,7 @@ function App() {
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {/* replay removed */}
+        {tab==="replay"   && <ReplayTab/>}
         {/* Plan tab removed per user request */}
       </div>
 
