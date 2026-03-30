@@ -1474,7 +1474,7 @@ function App() {
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
-  const polarityState = buildPolarityState(_stepDir, _stepDir==="buy"?"positive":"negative");
+  const polarityState = buildPolarityState(_stepDir, (et.h24 % 2 === 0) ? "positive" : "negative");
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
@@ -2464,7 +2464,7 @@ function App() {
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
       const slot = getZoneWindow(h24, m);
-      const slotPol = slot && slot.pol === +1 ? "positive" : "negative";
+      const slotPol = (h24 % 2 === 0) ? "positive" : "negative";
       const polarityState = buildPolarityState(step.direction, slotPol);
       const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
@@ -2704,8 +2704,8 @@ function App() {
         </div>
         {can("sub_pocket")&&<div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
           <div style={lbl(A,{marginBottom:6})}>PRIME POCKET</div>
-          <div style={{fontSize:14,color:A,fontWeight:900,letterSpacing:1,marginBottom:6}}>{zone ? `${(((zone.h1%12)||12))}:${String(zone.m1).padStart(2,"0")} ${zone.h1>=12?"PM":"AM"} - ${(((zone.h2%12)||12))}:${String(zone.m2).padStart(2,"0")} ${zone.h2>=12?"PM":"AM"} ET` : ""}</div>
-          {zone&&zone.subStart&&zone.subEnd&&<div style={{fontSize:12,color:"#aaa",...mono,marginBottom:6}}>Pocket: {`${(((zone.subStart.h%12)||12))}:${String(zone.subStart.m).padStart(2,"0")} ${zone.subStart.h>=12?"PM":"AM"} - ${(((zone.subEnd.h%12)||12))}:${String(zone.subEnd.m).padStart(2,"0")} ${zone.subEnd.h>=12?"PM":"AM"} ET`}</div>}
+          <div style={{fontSize:14,color:A,fontWeight:900,letterSpacing:1,marginBottom:6}}>{""}</div>
+          
           <div style={{fontSize:14,color:"#888",...mono,lineHeight:1.8}}>{(zone&&zone.pocket&&zone.pocket.note)}</div>
           <div style={{fontSize:13,color:"#aaa",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
         </div>}
@@ -2848,7 +2848,7 @@ function App() {
       <div style={{padding:14}}>
 
         {/* Toggle */}
-        <div style={{display:"flex",gap:6,marginBottom:14}}>
+        <div style={{display:"none",gap:6,marginBottom:14}}>
           {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"events",l:"⚡ POLARITY"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
