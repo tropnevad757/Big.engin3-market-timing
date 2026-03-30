@@ -1295,7 +1295,7 @@ function App() {
   // Windows are BEFORE and AFTER events. News break = RSS article from Reuters/Bloomberg.
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell"); // zone/polarity baseline
+    const zDir = finalDirection; // "buy" | "sell"
 
     const toMins = (dateStr, timeStr) => {
       if(!dateStr||!timeStr) return null;
@@ -1468,7 +1468,7 @@ function App() {
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
-  const polarityState = buildPolarityState(_stepDir, connectorMode === "aligned" ? "positive" : "negative");
+  const polarityState = buildPolarityState(_stepDir, (et.h24 % 2 === 0) ? "positive" : "negative");
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
@@ -2451,9 +2451,8 @@ function App() {
 
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
-      const slot = getWindowAt(h24, m);
-      const connectorMode = getConnectorMode(h24, m);
-      const slotPol = connectorMode === "aligned" ? "positive" : "negative";
+      const slot = getZoneWindow(h24, m);
+      const slotPol = (h24 % 2 === 0) ? "positive" : "negative";
       const polarityState = buildPolarityState(step.direction, slotPol);
       const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
@@ -3341,24 +3340,6 @@ function App() {
     </div>
   );
 }
-window.addEventListener('error', function(e){
-  try {
-    const root = document.getElementById('root');
-    if(root && !root.dataset.errorShown){
-      root.dataset.errorShown = '1';
-      root.innerHTML = '<div style="min-height:100vh;background:#06071a;color:#fff;padding:20px;font-family:monospace;white-space:pre-wrap"><div style="font-weight:bold;margin-bottom:10px;color:#ff9500">BiG ENGiN3 error</div>' + String((e && e.message) || 'Unknown script error') + '</div>';
-    }
-  } catch(_) {}
-});
-window.addEventListener('unhandledrejection', function(e){
-  try {
-    const root = document.getElementById('root');
-    if(root && !root.dataset.errorShown){
-      root.dataset.errorShown = '1';
-      root.innerHTML = '<div style="min-height:100vh;background:#06071a;color:#fff;padding:20px;font-family:monospace;white-space:pre-wrap"><div style="font-weight:bold;margin-bottom:10px;color:#ff9500">BiG ENGiN3 error</div>' + String((e && e.reason && e.reason.message) || (e && e.reason) || 'Unhandled promise rejection') + '</div>';
-    }
-  } catch(_) {}
-});
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 const l=document.getElementById('loader');
 if(l){l.style.opacity='0';setTimeout(()=>l.style.display='none',500)}
