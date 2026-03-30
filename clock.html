@@ -2875,21 +2875,7 @@ function App() {
           </div>
         )}
 
-        {/* Replay event log controls */}
-        {newsView==="events"&&(
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8}}>
-              <div style={{fontSize:12,color:"#888",fontWeight:700,letterSpacing:1.2}}>POLARITY EVENT LOG · {dedupeFeedItems(replayEvents).length} SAVED</div>
-              <div style={{display:"flex",gap:6}}>
-                <button onClick={()=>setReplayEvents(dedupeFeedItems(replayEvents).slice(0,200))} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#aaa",cursor:"pointer"}}>DEDUPE</button>
-                <button onClick={clearReplayEvents} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,51,85,0.08)",border:"1px solid rgba(255,51,85,0.3)",color:"#ff5570",cursor:"pointer"}}>CLEAR LOG</button>
-              </div>
-            </div>
-            <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-              Save breaking headlines, calendar events, and speeches here. Replay uses this log for the last 7 days so negative news can flip the base charge.
-            </div>
-          </div>
-        )}
+        {/* Polarity event log controls removed with replay */}
 
         {/* ── LIVE ECO NEWS / EVENTS ── */}
         {newsView==="events"&&(
@@ -3314,12 +3300,12 @@ function App() {
   // ── NAV ──
   const planColor=plan==="elite"?A:plan==="pro"?G:"#bbb";
   // Navigation tabs: remove VWAP and Plan tabs per user request
+  // Navigation tabs: removed Replay per latest user request
   const NAV=[
     {id:"clock",icon:"⏱",l:"CLOCK"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
     {id:"news",icon:"📰",l:"NEWS"},
-    {id:"backtest",icon:"📊",l:"BACKTEST"},
-    {id:"replay",icon:"⏪",l:"REPLAY"}
+    {id:"backtest",icon:"📊",l:"BACKTEST"}
   ];
 
   return(
@@ -3348,7 +3334,7 @@ function App() {
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {tab==="replay" && <ReplayTab/>}
+        {/* Replay tab removed per user request */}
         {/* Plan tab removed per user request */}
       </div>
 
