@@ -1295,7 +1295,7 @@ function App() {
   // Windows are BEFORE and AFTER events. News break = RSS article from Reuters/Bloomberg.
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    const zDir = finalDirection; // "buy" | "sell"
+    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell"); // zone/polarity baseline
 
     const toMins = (dateStr, timeStr) => {
       if(!dateStr||!timeStr) return null;
@@ -1468,7 +1468,7 @@ function App() {
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
-  const polarityState = buildPolarityState(_stepDir, (et.h24 % 2 === 0) ? "positive" : "negative");
+  const polarityState = buildPolarityState(_stepDir, connectorMode === "aligned" ? "positive" : "negative");
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
