@@ -2067,7 +2067,35 @@ function App() {
         );
       })()}
 
-      {/* FINAL SIGNAL */}
+      
+
+{/* STEP × NEWS EQUATION ROW */}
+{(() => {
+  // Show the step × news equation even if no news. Step sign comes from the internal step
+  // ("buy" becomes +, "sell" becomes -). News sign uses active news polarity when present,
+  // otherwise the slot polarity. The final sign follows simple sign multiplication: same signs
+  // yield + (BUY) and different signs yield − (SELL).
+  const stepSign = internalStep.direction === "buy" ? "+" : "-";
+  const newsSign = _newsPol
+    ? (_newsPol === "positive" ? "+" : "-")
+    : (polarityState.slotPolarity === "positive" ? "+" : "-");
+  const finalSign = stepSign === newsSign ? "+" : "-";
+  const eqLabel  = finalSign === "+" ? "BUY" : "SELL";
+  const eqCol    = finalSign === "+" ? G : R;
+  const eqBorder = "1px solid " + eqCol + "33";
+  return (
+    <div style={{marginBottom:10,borderRadius:14,border:eqBorder,
+      background:"rgba(255,255,255,0.02)",padding:"10px 14px"}}>
+      <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:6}}>
+        STEP × NEWS
+      </div>
+      <div style={{fontSize:22,fontWeight:900,color:eqCol,...mono,lineHeight:1.2}}>
+        {stepSign} × {newsSign} = {finalSign} ({eqLabel})
+      </div>
+    </div>
+  );
+})()}
+{/* FINAL SIGNAL */}
       {(()=>{
         const sig = finalSignal;
         return(
