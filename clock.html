@@ -103,41 +103,41 @@ const TRAP_TIMES = [
 const BASE_ZONES = [
   // ── AM ZONES ──────────────────────────────────────────────────────────────
   { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
-    pocket:{ label:"OVERNIGHT SELL", note:"Asian session momentum." },
+    pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Asian session momentum." },
     subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
   { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
-    pocket:{ label:"PRE-MARKET BUY", note:"London open overlap." },
+    pocket:{ label:"PRE-MARKET BUY", note:"Anchor. London open overlap." },
     subStart:{ h:5, m:0 }, subEnd:{ h:6, m:0 }, starRating:4 },
   { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
-    pocket:{ label:"TRANSITION FLUSH", note:"Short flush before NY open." },
+    pocket:{ label:"TRANSITION FLUSH", note:"Anchor. Short flush before NY open." },
     subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
   { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
-    pocket:{ label:"NEW YORK KILL ZONE", note:"Highest institutional volume." },
+    pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open. Highest institutional volume." },
     subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
   { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
-    pocket:{ label:"LONDON CLOSE FLUSH", note:"AM trend exhausts." },
+    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close. AM trend exhausts." },
     subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 }, starRating:4 },
   { id:"z12_am", type:"buy",  h1:12, m1:30, h2:1,  m2:30, label:"Z12",
-    pocket:{ label:"LUNCH REVERSAL", note:"Post-lunch liquidity grab." },
+    pocket:{ label:"LUNCH REVERSAL", note:"Regime switch. Post-lunch liquidity grab." },
     subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
   // ── PM ZONES ──────────────────────────────────────────────────────────────
   { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1",
-    pocket:{ label:"POWER HOUR CLOSE", note:"Fund rebalancing and close pressure." },
+    pocket:{ label:"POWER HOUR CLOSE", note:"Fund rebalancing. CME close." },
     subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
   { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
     pocket:{ label:"DAILY CLOSE TRAP", note:"Bank reset. Forex stops run before close." },
     subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 }, starRating:3 },
   { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6",
-    pocket:{ label:"EVENING TRANSITION", note:"Short flush — thin volume." },
+    pocket:{ label:"EVENING TRANSITION", note:"Anchor. Short flush — thin volume." },
     subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
   { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
     pocket:{ label:"ASIAN PRE-MARKET", note:"Overnight levels set here." },
     subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
   { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
-    pocket:{ label:"OVERNIGHT SELL", note:"Late Asia sell into midnight." },
+    pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Late Asia sell into midnight." },
     subStart:{ h:23, m:0 }, subEnd:{ h:0, m:0 }, starRating:2 },
   { id:"z12_pm", type:"buy",  h1:0,  m1:30, h2:1,  m2:30, label:"Z12",
-    pocket:{ label:"PRE-DAWN BUY", note:"Counter move before the next anchor fires." },
+    pocket:{ label:"PRE-DAWN BUY", note:"Counter move before anchor fires." },
     subStart:{ h:0, m:45 }, subEnd:{ h:1, m:15 }, starRating:1 },
 ];
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
@@ -1947,8 +1947,10 @@ function App() {
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
     if(newsView==="feed") {
+      // always load eco, news and calendar for unified feed
       ecoLoadedRef.current=false; fetchEcoNews();
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
+      calLoadedRef.current=false; fetchCalendar();
     }
     if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
@@ -2036,39 +2038,28 @@ function App() {
               POLARITY MATH
             </div>
             <div style={{display:"flex",gap:6}}>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${G}08`,border:`1px solid ${G}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SLOT</div>
-                <div style={{fontSize:13,fontWeight:900,color:"#aaa",...mono}}>
-                  {polarityState.slotPolarity==="positive"?"▲ POS":"▼ NEG"}
-                </div>
-              </div>
+              {/* NEWS card: if no news, fall back to slot polarity */}
               <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
                 background:`${A}08`,border:`1px solid ${A}22`}}>
                 <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
                 <div style={{fontSize:13,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive"?"▲ POS":_newsPol==="negative"?"▼ NEG":"—"}
+                  {_newsPol==="positive" ? "▲ POS" : _newsPol==="negative" ? "▼ NEG" : (polarityState.slotPolarity==="positive" ? "▲ POS" : "▼ NEG")}
                 </div>
               </div>
-              {timeMathResult&&<div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${tCol}10`,border:`1px solid ${tCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>TIME</div>
-                <div style={{fontSize:13,fontWeight:900,color:tCol,...mono}}>
-                  {timeMathResult.finalDirection==="buy"?"▲ BUY":"▼ SELL"}
-                </div>
-              </div>}
-              {windowMathResult&&<div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
+              {/* WINDOW card */}
+              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
                 background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
                 <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
                 <div style={{fontSize:13,fontWeight:900,color:wCol,...mono}}>
-                  {windowMathResult.result==="positive"?"▲ POS":"▼ NEG"}
+                  {windowMathResult ? (windowMathResult.result==="positive" ? "▲ POS" : "▼ NEG") : (polarityState.slotPolarity==="positive" ? "▲ POS" : "▼ NEG")}
                 </div>
-              </div>}
+              </div>
+              {/* FINAL SIGNAL card */}
               <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
                 background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>FINAL</div>
+                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SIGNAL</div>
                 <div style={{fontSize:13,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy"?"▲ BUY":"▼ SELL"}
+                  {polarityDirection==="buy" ? "▲ BUY" : "▼ SELL"}
                 </div>
               </div>
             </div>
@@ -2714,7 +2705,7 @@ function App() {
         {can("sub_pocket")&&<div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
           <div style={lbl(A,{marginBottom:6})}>PRIME POCKET</div>
           <div style={{fontSize:14,color:A,fontWeight:900,letterSpacing:1,marginBottom:6}}>{zone ? `${(((zone.h1%12)||12))}:${String(zone.m1).padStart(2,"0")} ${zone.h1>=12?"PM":"AM"} - ${(((zone.h2%12)||12))}:${String(zone.m2).padStart(2,"0")} ${zone.h2>=12?"PM":"AM"} ET` : ""}</div>
-          
+          {zone&&zone.subStart&&zone.subEnd&&<div style={{fontSize:12,color:"#aaa",...mono,marginBottom:6}}>Pocket: {`${(((zone.subStart.h%12)||12))}:${String(zone.subStart.m).padStart(2,"0")} ${zone.subStart.h>=12?"PM":"AM"} - ${(((zone.subEnd.h%12)||12))}:${String(zone.subEnd.m).padStart(2,"0")} ${zone.subEnd.h>=12?"PM":"AM"} ET`}</div>}
           <div style={{fontSize:14,color:"#888",...mono,lineHeight:1.8}}>{(zone&&zone.pocket&&zone.pocket.note)}</div>
           <div style={{fontSize:13,color:"#aaa",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
         </div>}
@@ -2992,40 +2983,58 @@ function App() {
             )}
 
             {(()=>{
-              const mixed = [
-                ...ecoArticles.map(a=>({
-                  kind:"event",
-                  title:a.title,
-                  link:a.link,
-                  pub:a.pub,
-                  desc:a.desc,
-                  color:a.stars===3?"#ff3355":a.stars===2?"#f0a030":"#88aaff",
-                  source:(a.source||"Event"),
-                  stars:a.stars||0,
-                  bullish:!!a.bullish,
-                  bearish:!!a.bearish
-                })),
-                ...newsArticles.map(a=>({
-                  kind:"news",
-                  title:a.title,
-                  link:a.link,
-                  pub:a.pub,
-                  desc:a.desc,
-                  color:a.color||"#888",
-                  source:a.feedLabel||a.source||"News",
-                  stars:0,
-                  bullish:false,
-                  bearish:false
-                }))
-              ].filter(x=>x.title);
-
-              mixed.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
-              const rows = mixed.slice(0, 40);
-
-              if(!rows.length && !ecoLoading && !newsLoading){
+              // Build unified feed: eco events, breaking news and calendar items
+              const calItems = calArticles.map(a => ({
+                kind: "calendar",
+                title: a.title,
+                link: a.link,
+                // compute pub date from date/time if missing
+                pub: a.pub || (a.date && a.time ? new Date(`${a.date}T${a.time}:00`).toISOString() : ""),
+                desc: a.desc || a.btc || "",
+                // color by stars if present or fallback
+                color: (a.stars===3?"#ff3355":a.stars===2?"#f0a030":a.stars===1?"#88aaff":"#888"),
+                source: a.source || "Calendar",
+                stars: a.stars || 0,
+                bullish: false,
+                bearish: false
+              }));
+              const econItems = ecoArticles.map(a=>({
+                kind: "event",
+                title: a.title,
+                link: a.link,
+                pub: a.pub,
+                desc: a.desc,
+                color: a.stars===3?"#ff3355":a.stars===2?"#f0a030":"#88aaff",
+                source: (a.source || "Event"),
+                stars: a.stars || 0,
+                bullish: !!a.bullish,
+                bearish: !!a.bearish
+              }));
+              const newsItems = newsArticles.map(a=>({
+                kind: "news",
+                title: a.title,
+                link: a.link,
+                pub: a.pub,
+                desc: a.desc,
+                color: a.color || "#888",
+                source: a.feedLabel || a.source || "News",
+                stars: 0,
+                bullish: false,
+                bearish: false
+              }));
+              const merged = [...econItems, ...newsItems, ...calItems].filter(x=>x.title);
+              const seenFeed = new Set();
+              const deduped = merged.filter(item => {
+                const key = (item.title||"").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0,40);
+                if(!key || seenFeed.has(key)) return false;
+                seenFeed.add(key);
+                return true;
+              });
+              deduped.sort((a,b) => (Date.parse(b.pub||0)||0) - (Date.parse(a.pub||0)||0) );
+              const rows = deduped.slice(0, 40);
+              if(!rows.length && !ecoLoading && !newsLoading && !calLoading){
                 return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No feed items yet — tap refresh.</div>;
               }
-
               return rows.map((item,i)=>(
                 <div key={i}
                   onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
