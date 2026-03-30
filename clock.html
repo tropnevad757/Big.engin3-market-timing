@@ -604,7 +604,8 @@ function App() {
   const [ecoStarFilter,setEcoStarFilter]= useState(0); // 0=all, 1/2/3=min stars
   // ── Live market data for real-time correlation engine ────────────────────────
   const [marketData,   setMarketData]   = useState(null);
-  const [replayEvents, setReplayEvents] = useState(()=>safeJsonParse(localStorage.getItem("engin3ReplayEvents"), []));
+  const safeLocalGet = (k,d=null)=>{ try{ return localStorage.getItem(k) ?? d; }catch(_){ return d; } };
+  const [replayEvents, setReplayEvents] = useState(()=>safeJsonParse(safeLocalGet("engin3ReplayEvents", null), []));
   // {btc:{price,change24h,high24h,low24h}, dxy:{price,change}, es:{price,change}, nq:{price,change}}
   const marketFetchRef = useRef(false);
   const prevRef = useRef([]);
@@ -1295,7 +1296,7 @@ function App() {
   // Windows are BEFORE and AFTER events. News break = RSS article from Reuters/Bloomberg.
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    const zDir = finalDirection; // "buy" | "sell"
+    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell"); // zone/polarity baseline
 
     const toMins = (dateStr, timeStr) => {
       if(!dateStr||!timeStr) return null;
@@ -1468,7 +1469,7 @@ function App() {
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
-  const polarityState = buildPolarityState(_stepDir, (et.h24 % 2 === 0) ? "positive" : "negative");
+  const polarityState = buildPolarityState(_stepDir, connectorMode === "aligned" ? "positive" : "negative");
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
@@ -2451,8 +2452,9 @@ function App() {
 
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
-      const slot = getZoneWindow(h24, m);
-      const slotPol = (h24 % 2 === 0) ? "positive" : "negative";
+      const slot = getWindowAt(h24, m);
+      const connectorMode = getConnectorMode(h24, m);
+      const slotPol = connectorMode === "aligned" ? "positive" : "negative";
       const polarityState = buildPolarityState(step.direction, slotPol);
       const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
@@ -2994,72 +2996,8 @@ function App() {
           </>
         )}
 
-            {(()=>{
-              // Feed = Reuters Markets + Bloomberg Markets breaking news only
-              const merged = newsArticles.map(a=>({
-                kind: "news",
-                title: a.title,
-                link: a.link,
-                pub: a.pub,
-                desc: a.desc,
-                color: a.color || "#888",
-                source: a.feedLabel || a.source || "News",
-                stars: 0,
-                bullish: false,
-                bearish: false
-              })).filter(x=>x.title);
-              const seenFeed = new Set();
-              const deduped = merged.filter(item => {
-                const key = (item.title||"").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0,60);
-                if(!key || seenFeed.has(key)) return false;
-                seenFeed.add(key);
-                return true;
-              });
-              deduped.sort((a,b) => (Date.parse(b.pub||0)||0) - (Date.parse(a.pub||0)||0) );
-              const rows = deduped.slice(0, 40);
-              if(!rows.length && !newsLoading){
-                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No Reuters / Bloomberg breaking news yet — tap refresh.</div>;
-              }
-              return rows.map((item,i)=>(
-                <div key={i}
-                  onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
-                  style={{
-                    background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
-                    borderRadius:12,padding:"12px 14px",marginBottom:8,
-                    cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
-                  }}>
-                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color}}/>
-                  <div style={{paddingLeft:12}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
-                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"📰 NEWS"}</span>
-                        <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
-                        {item.stars>0 && <span style={{fontSize:13,color:item.color}}>{"★".repeat(item.stars)}</span>}
-                      </div>
-                      <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
-                    </div>
-                    <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
-                    {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
-                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                      {item.link&&<span style={{fontSize:14,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
-                      {item.kind==="event" && (item.bullish || item.bearish) && (
-                        <button
-                          onClick={(e)=>{e.stopPropagation(); setBreakingAnchor({title:item.title,polarity:item.bearish?-1:1,expiresAt:Date.now()+15*60*1000,stars:item.stars||3});}}
-                          style={{fontSize:14,padding:"2px 8px",borderRadius:6,
-                            background:item.bearish?`${R}18`:`${G}18`,
-                            border:`1px solid ${item.bearish?R:G}44`,
-                            color:item.bearish?R:G,cursor:"pointer",fontWeight:700}}>
-                          ⚡ ANCHOR {item.bearish?"BEAR":"BULL"}
-                        </button>
-                      )}
 
-                    </div>
-                  </div>
-                </div>
-              ));
-            })()}
-          </>
-        )}
+
 
 
         {newsView==="news"&&(
@@ -3340,9 +3278,45 @@ function App() {
     </div>
   );
 }
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-const l=document.getElementById('loader');
-if(l){l.style.opacity='0';setTimeout(()=>l.style.display='none',500)}
+function hideLoader(){
+  try {
+    const l = document.getElementById('loader');
+    if(l){ l.style.opacity='0'; setTimeout(()=>{ l.style.display='none'; }, 250); }
+  } catch(_) {}
+}
+function showFatal(msg){
+  try {
+    hideLoader();
+    const root = document.getElementById('root');
+    if(root && !root.dataset.errorShown){
+      root.dataset.errorShown = '1';
+      root.innerHTML = '<div style="min-height:100vh;background:#06071a;color:#fff;padding:20px;font-family:monospace;white-space:pre-wrap"><div style="font-weight:bold;margin-bottom:10px;color:#ff9500">BiG ENGiN3 error</div>' + String(msg || 'Unknown script error') + '</div>';
+    }
+  } catch(_) {}
+}
+window.addEventListener('error', function(e){
+  showFatal((e && e.message) || 'Unknown script error');
+});
+window.addEventListener('unhandledrejection', function(e){
+  showFatal((e && e.reason && e.reason.message) || (e && e.reason) || 'Unhandled promise rejection');
+});
+setTimeout(function(){
+  try {
+    const root = document.getElementById('root');
+    if(root && !root.dataset.rendered && !root.dataset.errorShown){
+      hideLoader();
+      root.innerHTML = '<div style="min-height:100vh;background:#06071a;color:#fff;padding:20px;font-family:monospace"><div style="font-weight:bold;margin-bottom:10px;color:#ff9500">BiG ENGiN3 notice</div>The app took too long to start. Refresh once. If it still sticks, the page hit a startup error and this fallback prevented the endless loader.</div>';
+    }
+  } catch(_) {}
+}, 4000);
+try {
+  const rootEl = document.getElementById('root');
+  ReactDOM.createRoot(rootEl).render(React.createElement(App));
+  if(rootEl){ rootEl.dataset.rendered = '1'; }
+  hideLoader();
+} catch(e){
+  showFatal((e && e.message) || e);
+}
 </script>
 </body>
 </html>
