@@ -836,77 +836,77 @@ function App() {
   const ZONE_WINDOWS = [
     // ─── AM CYCLE ────────────────────────────────────────────────────────────
     // 12:30–1:00 AM : DOWN (tail of previous 12:30 cycle)
-    { from:   0, to:  60, pol:-1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
+    { from:   0, to:  60, pol:+1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
     // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
-    { from:  60, to:  90, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
-    { from:  90, to: 120, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 2:00–3:00 AM  : UP (counter inside Z1)
-    { from: 120, to: 180, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from: 120, to: 180, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 AM  : DOWN (continuation sell)
-    { from: 180, to: 240, pol:-1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    { from: 180, to: 240, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
     // 4:00–4:30 AM  : UP (pre-anchor stalk)
-    { from: 240, to: 270, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
-    { from: 270, to: 300, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 5:00–6:00 AM  : UP (Z4 recovery buy)
-    { from: 300, to: 360, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    { from: 300, to: 360, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
-    { from: 360, to: 390, pol:-1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    { from: 360, to: 390, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
     // 6:30–7:00 AM  : UP (Z6 counter move)
-    { from: 390, to: 420, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from: 390, to: 420, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 7:00–7:30 AM  : DOWN (final flush before NY open)
-    { from: 420, to: 450, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
-    { from: 450, to: 480, pol:+1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
     // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
-    { from: 480, to: 540, pol:-1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    { from: 480, to: 540, pol:+1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 AM : UP (NYSE open expansion)
-    { from: 540, to: 600, pol:+1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
+    { from: 540, to: 600, pol:-1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
     // 10:00–10:30 AM: DOWN (AM exhaustion / pre-Z10)
-    { from: 600, to: 630, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    { from: 600, to: 630, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 AM: UP ★ VWAP ANCHOR (initial Z10 spike — sell the rip)
-    { from: 630, to: 660, pol:+1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
+    { from: 630, to: 660, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
     // 11:00–12:00 AM: DOWN (Z10 sell momentum / London close)
-    { from: 660, to: 720, pol:-1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
+    { from: 660, to: 720, pol:+1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
     // 12:00–12:30 AM: UP (pre-Z12 stalk)
-    { from: 720, to: 750, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
-    { from: 750, to: 780, pol:-1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
+    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
 
     // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
     // 1:00–1:30 PM  : UP
-    { from: 780, to: 810, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 810, to: 840, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 2:00–3:00 PM  : UP
-    { from: 840, to: 900, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from: 840, to: 900, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 PM  : DOWN
-    { from: 900, to: 960, pol:-1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    { from: 900, to: 960, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
     // 4:00–4:30 PM  : UP
-    { from: 960, to: 990, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 990, to:1020, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 5:00–6:00 PM  : UP
-    { from:1020, to:1080, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    { from:1020, to:1080, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 PM  : DOWN
-    { from:1080, to:1110, pol:-1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    { from:1080, to:1110, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
     // 6:30–7:00 PM  : UP
-    { from:1110, to:1140, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from:1110, to:1140, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 7:00–7:30 PM  : DOWN
-    { from:1140, to:1170, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
-    { from:1170, to:1200, pol:+1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
     // 8:00–9:00 PM  : DOWN
-    { from:1200, to:1260, pol:-1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    { from:1200, to:1260, pol:+1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 PM : UP
-    { from:1260, to:1320, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
+    { from:1260, to:1320, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
     // 10:00–10:30 PM: DOWN
-    { from:1320, to:1350, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 PM: UP ★ VWAP ANCHOR
-    { from:1350, to:1380, pol:+1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
+    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
     // 11:00–12:00 AM: DOWN
-    { from:1380, to:1440, pol:-1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
+    { from:1380, to:1440, pol:+1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
   ];
 
   // ══════════════════════════════════════════════════════════════════════
@@ -2038,28 +2038,25 @@ function App() {
               POLARITY MATH
             </div>
             <div style={{display:"flex",gap:6}}>
-              {/* NEWS card: if no news, fall back to slot polarity */}
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${A}08`,border:`1px solid ${A}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
-                <div style={{fontSize:13,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive" ? "▲ POS" : _newsPol==="negative" ? "▼ NEG" : (polarityState.slotPolarity==="positive" ? "▲ POS" : "▼ NEG")}
-                </div>
-              </div>
-              {/* WINDOW card */}
               <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
                 background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
                 <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
-                <div style={{fontSize:13,fontWeight:900,color:wCol,...mono}}>
-                  {windowMathResult ? (windowMathResult.result==="positive" ? "▲ POS" : "▼ NEG") : (polarityState.slotPolarity==="positive" ? "▲ POS" : "▼ NEG")}
+                <div style={{fontSize:16,fontWeight:900,color:wCol,...mono}}>
+                  {polarityState.slotPolarity==="positive" ? "+" : "-"}
                 </div>
               </div>
-              {/* FINAL SIGNAL card */}
+              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
+                background:`${A}08`,border:`1px solid ${A}22`}}>
+                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
+                <div style={{fontSize:16,fontWeight:900,color:A,...mono}}>
+                  {_newsPol==="positive" ? "+" : _newsPol==="negative" ? "-" : (polarityState.slotPolarity==="positive" ? "+" : "-")}
+                </div>
+              </div>
               <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
                 background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SIGNAL</div>
-                <div style={{fontSize:13,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy" ? "▲ BUY" : "▼ SELL"}
+                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>RESULT</div>
+                <div style={{fontSize:16,fontWeight:900,color:pdCol,...mono}}>
+                  {polarityDirection==="buy" ? "+" : "-"}
                 </div>
               </div>
             </div>
@@ -2067,35 +2064,7 @@ function App() {
         );
       })()}
 
-      
-
-{/* STEP × NEWS EQUATION ROW */}
-{(() => {
-  // Show the step × news equation even if no news. Step sign comes from the internal step
-  // ("buy" becomes +, "sell" becomes -). News sign uses active news polarity when present,
-  // otherwise the slot polarity. The final sign follows simple sign multiplication: same signs
-  // yield + (BUY) and different signs yield − (SELL).
-  const stepSign = internalStep.direction === "buy" ? "+" : "-";
-  const newsSign = _newsPol
-    ? (_newsPol === "positive" ? "+" : "-")
-    : (polarityState.slotPolarity === "positive" ? "+" : "-");
-  const finalSign = stepSign === newsSign ? "+" : "-";
-  const eqLabel  = finalSign === "+" ? "BUY" : "SELL";
-  const eqCol    = finalSign === "+" ? G : R;
-  const eqBorder = "1px solid " + eqCol + "33";
-  return (
-    <div style={{marginBottom:10,borderRadius:14,border:eqBorder,
-      background:"rgba(255,255,255,0.02)",padding:"10px 14px"}}>
-      <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:6}}>
-        STEP × NEWS
-      </div>
-      <div style={{fontSize:22,fontWeight:900,color:eqCol,...mono,lineHeight:1.2}}>
-        {stepSign} × {newsSign} = {finalSign} ({eqLabel})
-      </div>
-    </div>
-  );
-})()}
-{/* FINAL SIGNAL */}
+      {/* FINAL SIGNAL */}
       {(()=>{
         const sig = finalSignal;
         return(
@@ -2903,7 +2872,21 @@ function App() {
           </div>
         )}
 
-        {/* Polarity event log controls removed with replay */}
+        {/* Replay event log controls */}
+        {newsView==="events"&&(
+          <div style={{marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8}}>
+              <div style={{fontSize:12,color:"#888",fontWeight:700,letterSpacing:1.2}}>POLARITY EVENT LOG · {dedupeFeedItems(replayEvents).length} SAVED</div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>setReplayEvents(dedupeFeedItems(replayEvents).slice(0,200))} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#aaa",cursor:"pointer"}}>DEDUPE</button>
+                <button onClick={clearReplayEvents} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,51,85,0.08)",border:"1px solid rgba(255,51,85,0.3)",color:"#ff5570",cursor:"pointer"}}>CLEAR LOG</button>
+              </div>
+            </div>
+            <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
+              Save breaking headlines, calendar events, and speeches here. Replay uses this log for the last 7 days so negative news can flip the base charge.
+            </div>
+          </div>
+        )}
 
         {/* ── LIVE ECO NEWS / EVENTS ── */}
         {newsView==="events"&&(
@@ -3328,12 +3311,12 @@ function App() {
   // ── NAV ──
   const planColor=plan==="elite"?A:plan==="pro"?G:"#bbb";
   // Navigation tabs: remove VWAP and Plan tabs per user request
-  // Navigation tabs: removed Replay per latest user request
   const NAV=[
     {id:"clock",icon:"⏱",l:"CLOCK"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
     {id:"news",icon:"📰",l:"NEWS"},
-    {id:"backtest",icon:"📊",l:"BACKTEST"}
+    {id:"backtest",icon:"📊",l:"BACKTEST"},
+    {id:"replay",icon:"⏪",l:"REPLAY"}
   ];
 
   return(
@@ -3362,7 +3345,7 @@ function App() {
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {/* Replay tab removed per user request */}
+        {tab==="replay" && <ReplayTab/>}
         {/* Plan tab removed per user request */}
       </div>
 
