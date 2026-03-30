@@ -288,8 +288,8 @@ function applyNewsToSlot(polarityState, newsPolarity, calcType) {
   }
 
   // Final rule:
-  // same signs => BUY / positive
-  // opposite signs => SELL / negative
+  // same sign = + BUY
+  // opposite signs = - SELL
   const finalMovement = result === "positive" ? "up" : "down";
 
   return {
