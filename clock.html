@@ -936,43 +936,43 @@ function App() {
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
     // AM cycle
-    [   0,  "sell", "Down"],  // 12:00 AM → down (tail)
-    [  60,  "buy",  "Up"  ],  // 1:00 AM
-    [  90,  "sell", "Down"],  // 1:30 AM
-    [ 120,  "buy",  "Up"  ],  // 2:00 AM
-    [ 180,  "sell", "Down"],  // 3:00 AM
-    [ 240,  "buy",  "Up"  ],  // 4:00 AM
-    [ 270,  "sell", "Down"],  // 4:30 AM
-    [ 300,  "buy",  "Up"  ],  // 5:00 AM
-    [ 360,  "sell", "Down"],  // 6:00 AM
-    [ 390,  "buy",  "Up"  ],  // 6:30 AM
-    [ 420,  "sell", "Down"],  // 7:00 AM
-    [ 450,  "buy",  "Up"  ],  // 7:30 AM
-    [ 480,  "sell", "Down"],  // 8:00 AM
-    [ 540,  "buy",  "Up"  ],  // 9:00 AM
-    [ 600,  "sell", "Down"],  // 10:00 AM
-    [ 630,  "buy",  "Up"  ],  // 10:30 AM
-    [ 660,  "sell", "Down"],  // 11:00 AM
-    [ 720,  "buy",  "Up"  ],  // 12:00 PM
-    [ 750,  "sell", "Down"],  // 12:30 PM
+    [   0,  "sell", "-"],  // 12:00 AM → down (tail)
+    [  60,  "buy",  "+"  ],  // 1:00 AM
+    [  90,  "sell", "-"],  // 1:30 AM
+    [ 120,  "buy",  "+"  ],  // 2:00 AM
+    [ 180,  "sell", "-"],  // 3:00 AM
+    [ 240,  "buy",  "+"  ],  // 4:00 AM
+    [ 270,  "sell", "-"],  // 4:30 AM
+    [ 300,  "buy",  "+"  ],  // 5:00 AM
+    [ 360,  "sell", "-"],  // 6:00 AM
+    [ 390,  "buy",  "+"  ],  // 6:30 AM
+    [ 420,  "sell", "-"],  // 7:00 AM
+    [ 450,  "buy",  "+"  ],  // 7:30 AM
+    [ 480,  "sell", "-"],  // 8:00 AM
+    [ 540,  "buy",  "+"  ],  // 9:00 AM
+    [ 600,  "sell", "-"],  // 10:00 AM
+    [ 630,  "buy",  "+"  ],  // 10:30 AM
+    [ 660,  "sell", "-"],  // 11:00 AM
+    [ 720,  "buy",  "+"  ],  // 12:00 PM
+    [ 750,  "sell", "-"],  // 12:30 PM
     // PM cycle (exact mirror +720)
-    [ 780,  "buy",  "Up"  ],  // 1:00 PM
-    [ 810,  "sell", "Down"],  // 1:30 PM
-    [ 840,  "buy",  "Up"  ],  // 2:00 PM
-    [ 900,  "sell", "Down"],  // 3:00 PM
-    [ 960,  "buy",  "Up"  ],  // 4:00 PM
-    [ 990,  "sell", "Down"],  // 4:30 PM
-    [1020,  "buy",  "Up"  ],  // 5:00 PM
-    [1080,  "sell", "Down"],  // 6:00 PM
-    [1110,  "buy",  "Up"  ],  // 6:30 PM
-    [1140,  "sell", "Down"],  // 7:00 PM
-    [1170,  "buy",  "Up"  ],  // 7:30 PM
-    [1200,  "sell", "Down"],  // 8:00 PM
-    [1260,  "buy",  "Up"  ],  // 9:00 PM
-    [1320,  "sell", "Down"],  // 10:00 PM
-    [1350,  "buy",  "Up"  ],  // 10:30 PM
-    [1380,  "sell", "Down"],  // 11:00 PM
-    [1440,  "buy",  "Up"  ],  // sentinel
+    [ 780,  "buy",  "+"  ],  // 1:00 PM
+    [ 810,  "sell", "-"],  // 1:30 PM
+    [ 840,  "buy",  "+"  ],  // 2:00 PM
+    [ 900,  "sell", "-"],  // 3:00 PM
+    [ 960,  "buy",  "+"  ],  // 4:00 PM
+    [ 990,  "sell", "-"],  // 4:30 PM
+    [1020,  "buy",  "+"  ],  // 5:00 PM
+    [1080,  "sell", "-"],  // 6:00 PM
+    [1110,  "buy",  "+"  ],  // 6:30 PM
+    [1140,  "sell", "-"],  // 7:00 PM
+    [1170,  "buy",  "+"  ],  // 7:30 PM
+    [1200,  "sell", "-"],  // 8:00 PM
+    [1260,  "buy",  "+"  ],  // 9:00 PM
+    [1320,  "sell", "-"],  // 10:00 PM
+    [1350,  "buy",  "+"  ],  // 10:30 PM
+    [1380,  "sell", "-"],  // 11:00 PM
+    [1440,  "buy",  "+"  ],  // sentinel
   ];
 
   function getInternalStep(h24, m) {
@@ -994,7 +994,7 @@ function App() {
         };
       }
     }
-    return { direction:"buy", label:"Up", col:G, minsLeft:0, nextLabel:"Down", nextDir:"sell", nextCol:R };
+    return { direction:"buy", label:"+", col:G, minsLeft:0, nextLabel:"-", nextDir:"sell", nextCol:R };
   }
 
   function getMajorRegimeChange(h24, m) {
@@ -1166,17 +1166,16 @@ function App() {
 
   function getClockPhase(h24, m) {
     const t = h24*60+m;
-    const anchors = [90,270,450,630,810,990,1170,1350];
-    let last = anchors[anchors.length - 1] - 1440;
-    for (const a of anchors) {
-      if (a <= t) last = a;
-      else break;
-    }
-    const delta = t - last;
-    if (delta >= 0 && delta < 30) return { label: 'TRAP', color: A };
-    if (delta >= 30 && delta < 90) return { label: 'EXECUTE', color: G };
-    if (delta >= 90 && delta < 120) return { label: 'RECAL', color: '#88aaff' };
-    return { label: 'LIQUID', color: '#aa88ff' };
+    const inAny = (ranges)=>ranges.some(([a,b]) => a <= t && t < b);
+    const TRAP_RANGES = [[90,120],[270,300],[450,480],[630,660],[810,840],[990,1020],[1170,1200],[1350,1380]];
+    const LIQUID_RANGES = [[60,90],[240,270],[420,450],[600,630],[780,810],[960,990],[1140,1170],[1320,1350]];
+    const RECAL_RANGES = [[30,60],[390,420],[750,780],[1110,1140]]; // 12:30 & 6:30 AM/PM ET
+    const EXECUTE_RANGES = [[120,180],[300,360],[480,540],[660,720],[840,900],[1020,1080],[1200,1260],[1380,1440]];
+    if (inAny(TRAP_RANGES)) return { label: 'TRAP', color: A };
+    if (inAny(LIQUID_RANGES)) return { label: 'LIQUID', color: '#aa88ff' };
+    if (inAny(RECAL_RANGES)) return { label: 'RECAL', color: '#88aaff' };
+    if (inAny(EXECUTE_RANGES)) return { label: 'EXECUTE', color: G };
+    return { label: 'EXECUTE', color: G };
   }
 
   // STAGE 1: EARLY BIAS (max 40 pts)
@@ -2012,7 +2011,7 @@ function App() {
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             {[
               {label:"ZONE",   val:zLabel,             arrow:null,                                    col:zCol},
-              {label:"STEP",   val:internalStep.label, arrow:internalStep.direction==="buy"?"▲":"▼", col:internalStep.col},
+              {label:"STEP",   val:internalStep.label, arrow:null, col:internalStep.col},
               {label:"WINDOW", val:winLabel,            arrow:null,                                    col:winCol},
             ].map(item=>(
               <div key={item.label} style={{flex:1,borderRadius:14,
@@ -2831,7 +2830,7 @@ function App() {
       <div style={{padding:14}}>
 
         {/* Toggle */}
-        <div style={{display:"none",gap:6,marginBottom:14}}>
+        <div style={{display:"flex",gap:6,marginBottom:14}}>
           {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"events",l:"⚡ POLARITY"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
