@@ -836,77 +836,77 @@ function App() {
   const ZONE_WINDOWS = [
     // ─── AM CYCLE ────────────────────────────────────────────────────────────
     // 12:30–1:00 AM : DOWN (tail of previous 12:30 cycle)
-    { from:   0, to:  60, pol:+1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
+    { from:   0, to:  60, pol:-1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
     // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
-    { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from:  60, to:  90, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
-    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from:  90, to: 120, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 2:00–3:00 AM  : UP (counter inside Z1)
-    { from: 120, to: 180, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from: 120, to: 180, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 AM  : DOWN (continuation sell)
-    { from: 180, to: 240, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    { from: 180, to: 240, pol:-1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
     // 4:00–4:30 AM  : UP (pre-anchor stalk)
-    { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 240, to: 270, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
-    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 270, to: 300, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 5:00–6:00 AM  : UP (Z4 recovery buy)
-    { from: 300, to: 360, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    { from: 300, to: 360, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
-    { from: 360, to: 390, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    { from: 360, to: 390, pol:-1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
     // 6:30–7:00 AM  : UP (Z6 counter move)
-    { from: 390, to: 420, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from: 390, to: 420, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 7:00–7:30 AM  : DOWN (final flush before NY open)
-    { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    { from: 420, to: 450, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
-    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    { from: 450, to: 480, pol:+1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
     // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
-    { from: 480, to: 540, pol:+1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    { from: 480, to: 540, pol:-1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 AM : UP (NYSE open expansion)
-    { from: 540, to: 600, pol:-1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
+    { from: 540, to: 600, pol:+1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
     // 10:00–10:30 AM: DOWN (AM exhaustion / pre-Z10)
-    { from: 600, to: 630, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    { from: 600, to: 630, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 AM: UP ★ VWAP ANCHOR (initial Z10 spike — sell the rip)
-    { from: 630, to: 660, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
+    { from: 630, to: 660, pol:+1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
     // 11:00–12:00 AM: DOWN (Z10 sell momentum / London close)
-    { from: 660, to: 720, pol:+1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
+    { from: 660, to: 720, pol:-1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
     // 12:00–12:30 AM: UP (pre-Z12 stalk)
-    { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 720, to: 750, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
-    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
+    { from: 750, to: 780, pol:-1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
 
     // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
     // 1:00–1:30 PM  : UP
-    { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 780, to: 810, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 810, to: 840, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 2:00–3:00 PM  : UP
-    { from: 840, to: 900, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from: 840, to: 900, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 PM  : DOWN
-    { from: 900, to: 960, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    { from: 900, to: 960, pol:-1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
     // 4:00–4:30 PM  : UP
-    { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    { from: 960, to: 990, pol:+1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
+    { from: 990, to:1020, pol:-1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 5:00–6:00 PM  : UP
-    { from:1020, to:1080, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    { from:1020, to:1080, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 PM  : DOWN
-    { from:1080, to:1110, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    { from:1080, to:1110, pol:-1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
     // 6:30–7:00 PM  : UP
-    { from:1110, to:1140, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    { from:1110, to:1140, pol:+1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 7:00–7:30 PM  : DOWN
-    { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    { from:1140, to:1170, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
-    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
+    { from:1170, to:1200, pol:+1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
     // 8:00–9:00 PM  : DOWN
-    { from:1200, to:1260, pol:+1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    { from:1200, to:1260, pol:-1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 PM : UP
-    { from:1260, to:1320, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
+    { from:1260, to:1320, pol:+1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
     // 10:00–10:30 PM: DOWN
-    { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    { from:1320, to:1350, pol:-1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 PM: UP ★ VWAP ANCHOR
-    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
+    { from:1350, to:1380, pol:+1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
     // 11:00–12:00 AM: DOWN
-    { from:1380, to:1440, pol:+1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
+    { from:1380, to:1440, pol:-1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
   ];
 
   // ══════════════════════════════════════════════════════════════════════
