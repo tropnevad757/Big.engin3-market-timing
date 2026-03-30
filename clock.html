@@ -1481,6 +1481,13 @@ function App() {
   const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
   const polarityDirection = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
 
+  // ── FINAL DIRECTION (DISPLAY) — enforce sign rule ───────────────────────────────
+  const finalDirection  = polarityDirection;
+  const finalIsFlipped  = timeMathResult ? (finalDirection !== polarityState.baseDirection) : false;
+  const finalCol        = finalDirection === "buy" ? G : R;
+  const finalArrow      = finalDirection === "buy" ? "▲" : "▼";
+  const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
+
   const appChecks = [
     // 1. DXY — confirms charge direction (not major regime)
     {
@@ -2924,11 +2931,6 @@ function App() {
                             border:`1px solid ${art.bearish?R:G}44`,
                             color:art.bearish?R:G,cursor:"pointer",fontWeight:700}}>
                           ⚡ ANCHOR {art.bearish?"BEAR":"BULL"}
-                        </button>
-                        <button onClick={()=>pushReplayEvent(art,{kind:/powell|speech|remarks|testimony/i.test(art.title||"")?"speech":"breaking"})}
-                          style={{fontSize:14,padding:"2px 8px",borderRadius:6,
-                            background:"rgba(240,160,48,0.12)",border:`1px solid ${A}44`,color:A,cursor:"pointer",fontWeight:700}}>
-                          ＋ LOG
                         </button>
                       </div>
                     </div>
