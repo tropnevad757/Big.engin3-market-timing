@@ -932,69 +932,71 @@ function App() {
     };
   }
 
-  // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
-  // Each entry: [startMins, direction, label]
-  const INTERNAL_STEPS = [
-    // AM cycle
-    [   0,  "sell", "-"],  // 12:00 AM → down (tail)
-    [  60,  "buy",  "+"  ],  // 1:00 AM
-    [  90,  "sell", "-"],  // 1:30 AM
-    [ 120,  "buy",  "+"  ],  // 2:00 AM
-    [ 180,  "sell", "-"],  // 3:00 AM
-    [ 240,  "buy",  "+"  ],  // 4:00 AM
-    [ 270,  "sell", "-"],  // 4:30 AM
-    [ 300,  "buy",  "+"  ],  // 5:00 AM
-    [ 360,  "sell", "-"],  // 6:00 AM
-    [ 390,  "buy",  "+"  ],  // 6:30 AM
-    [ 420,  "sell", "-"],  // 7:00 AM
-    [ 450,  "buy",  "+"  ],  // 7:30 AM
-    [ 480,  "sell", "-"],  // 8:00 AM
-    [ 540,  "buy",  "+"  ],  // 9:00 AM
-    [ 600,  "sell", "-"],  // 10:00 AM
-    [ 630,  "buy",  "+"  ],  // 10:30 AM
-    [ 660,  "sell", "-"],  // 11:00 AM
-    [ 720,  "buy",  "+"  ],  // 12:00 PM
-    [ 750,  "sell", "-"],  // 12:30 PM
-    // PM cycle (exact mirror +720)
-    [ 780,  "buy",  "+"  ],  // 1:00 PM
-    [ 810,  "sell", "-"],  // 1:30 PM
-    [ 840,  "buy",  "+"  ],  // 2:00 PM
-    [ 900,  "sell", "-"],  // 3:00 PM
-    [ 960,  "buy",  "+"  ],  // 4:00 PM
-    [ 990,  "sell", "-"],  // 4:30 PM
-    [1020,  "buy",  "+"  ],  // 5:00 PM
-    [1080,  "sell", "-"],  // 6:00 PM
-    [1110,  "buy",  "+"  ],  // 6:30 PM
-    [1140,  "sell", "-"],  // 7:00 PM
-    [1170,  "buy",  "+"  ],  // 7:30 PM
-    [1200,  "sell", "-"],  // 8:00 PM
-    [1260,  "buy",  "+"  ],  // 9:00 PM
-    [1320,  "sell", "-"],  // 10:00 PM
-    [1350,  "buy",  "+"  ],  // 10:30 PM
-    [1380,  "sell", "-"],  // 11:00 PM
-    [1440,  "buy",  "+"  ],  // sentinel
-  ];
-
+  // LAYER 2 — No-news step sequence
+  // Uses your exact rhythm:
+  // 12:00 up, 12:30 down, 1:00 up, 1:30 down, 2:00 up, 3:00 down, 4:00 up,
+  // 4:30 down, 5:00 up, 6:00 down, 6:30 up, 7:00 down, 7:30 up, 8:00 down,
+  // 9:00 up, 10:00 down, 10:30 up, 11:00 down ... then repeats for PM.
   function getInternalStep(h24, m) {
-    const t = h24*60+m;
-    let current = INTERNAL_STEPS[0];
-    for(let i=0; i<INTERNAL_STEPS.length-1; i++) {
-      if(t >= INTERNAL_STEPS[i][0] && t < INTERNAL_STEPS[i+1][0]) {
-        current = INTERNAL_STEPS[i];
-        const next = INTERNAL_STEPS[i+1];
-        const minsLeft = INTERNAL_STEPS[i+1][0] - t;
-        return {
-          direction: current[1],
-          label:     current[2],
-          col:       current[1]==="buy" ? G : R,
-          minsLeft,
-          nextLabel: next[2],
-          nextDir:   next[1],
-          nextCol:   next[1]==="buy" ? G : R,
-        };
-      }
+    const t = h24*60 + m;
+    const schedule = [
+      { start:   0, sign: "+" }, // 12:00 AM
+      { start:  30, sign: "-" }, // 12:30 AM
+      { start:  60, sign: "+" }, // 1:00 AM
+      { start:  90, sign: "-" }, // 1:30 AM
+      { start: 120, sign: "+" }, // 2:00 AM
+      { start: 180, sign: "-" }, // 3:00 AM
+      { start: 240, sign: "+" }, // 4:00 AM
+      { start: 270, sign: "-" }, // 4:30 AM
+      { start: 300, sign: "+" }, // 5:00 AM
+      { start: 360, sign: "-" }, // 6:00 AM
+      { start: 390, sign: "+" }, // 6:30 AM
+      { start: 420, sign: "-" }, // 7:00 AM
+      { start: 450, sign: "+" }, // 7:30 AM
+      { start: 480, sign: "-" }, // 8:00 AM
+      { start: 540, sign: "+" }, // 9:00 AM
+      { start: 600, sign: "-" }, // 10:00 AM
+      { start: 630, sign: "+" }, // 10:30 AM
+      { start: 660, sign: "-" }, // 11:00 AM
+      { start: 720, sign: "+" }, // 12:00 PM
+      { start: 750, sign: "-" }, // 12:30 PM
+      { start: 780, sign: "+" }, // 1:00 PM
+      { start: 810, sign: "-" }, // 1:30 PM
+      { start: 840, sign: "+" }, // 2:00 PM
+      { start: 900, sign: "-" }, // 3:00 PM
+      { start: 960, sign: "+" }, // 4:00 PM
+      { start: 990, sign: "-" }, // 4:30 PM
+      { start:1020, sign: "+" }, // 5:00 PM
+      { start:1080, sign: "-" }, // 6:00 PM
+      { start:1110, sign: "+" }, // 6:30 PM
+      { start:1140, sign: "-" }, // 7:00 PM
+      { start:1170, sign: "+" }, // 7:30 PM
+      { start:1200, sign: "-" }, // 8:00 PM
+      { start:1260, sign: "+" }, // 9:00 PM
+      { start:1320, sign: "-" }, // 10:00 PM
+      { start:1350, sign: "+" }, // 10:30 PM
+      { start:1380, sign: "-" }, // 11:00 PM
+    ];
+    let idx = 0;
+    for(let i = 0; i < schedule.length; i++) {
+      if(t >= schedule[i].start) idx = i;
+      else break;
     }
-    return { direction:"buy", label:"+", col:G, minsLeft:0, nextLabel:"-", nextDir:"sell", nextCol:R };
+    const cur = schedule[idx];
+    const next = schedule[(idx + 1) % schedule.length];
+    const currentSign = cur.sign;
+    const nextStart = (idx + 1 < schedule.length) ? next.start : schedule[0].start + 1440;
+    const minsLeft = nextStart - t;
+    const isPositive = currentSign === "+";
+    return {
+      direction: isPositive ? "buy" : "sell",
+      label:     currentSign,
+      col:       isPositive ? G : R,
+      minsLeft,
+      nextLabel: next.sign,
+      nextDir:   next.sign === "+" ? "buy" : "sell",
+      nextCol:   next.sign === "+" ? G : R,
+    };
   }
 
   function getMajorRegimeChange(h24, m) {
@@ -1965,6 +1967,7 @@ function App() {
 
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
+    if(newsView==="events") { setNewsView("feed"); return; }
     if(newsView==="feed") {
       // always load eco, news and calendar for unified feed
       ecoLoadedRef.current=false; fetchEcoNews();
@@ -2831,7 +2834,7 @@ function App() {
 
         {/* Toggle */}
         <div style={{display:"flex",gap:6,marginBottom:14}}>
-          {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"events",l:"⚡ POLARITY"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
+          {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
               border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
@@ -2854,22 +2857,6 @@ function App() {
               <div style={{fontSize:14,color:"#aaa",...mono,marginTop:2,lineHeight:1.5}}>{(breakingAnchor.title||"").replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?/gi,"").replace(/↑|↓/g,"").trim().slice(0,70)}</div>
             </div>
             <button onClick={()=>setBreakingAnchor(null)} style={{fontSize:13,color:"#666",background:"none",border:"1px solid #333",borderRadius:6,padding:"3px 10px",cursor:"pointer",flexShrink:0}}>CLEAR</button>
-          </div>
-        )}
-
-        {/* Replay event log controls */}
-        {newsView==="events"&&(
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8}}>
-              <div style={{fontSize:12,color:"#888",fontWeight:700,letterSpacing:1.2}}>POLARITY EVENT LOG · {dedupeFeedItems(replayEvents).length} SAVED</div>
-              <div style={{display:"flex",gap:6}}>
-                <button onClick={()=>setReplayEvents(dedupeFeedItems(replayEvents).slice(0,200))} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#aaa",cursor:"pointer"}}>DEDUPE</button>
-                <button onClick={clearReplayEvents} style={{fontSize:12,padding:"5px 9px",borderRadius:8,background:"rgba(255,51,85,0.08)",border:"1px solid rgba(255,51,85,0.3)",color:"#ff5570",cursor:"pointer"}}>CLEAR LOG</button>
-              </div>
-            </div>
-            <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-              Save breaking headlines, calendar events, and speeches here. Replay uses this log for the last 7 days so negative news can flip the base charge.
-            </div>
           </div>
         )}
 
@@ -2955,8 +2942,10 @@ function App() {
         {/* ── MIXED FEED (events + breaking news together) ── */}
         {newsView==="feed"&&(
           <>
-            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>LIVE FEED</div>
+            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>LIVE FEED + ANCHORS</div>
+              <button onClick={()=>setBreakingAnchor({title:"MANUAL POSITIVE ANCHOR",polarity:1,expiresAt:Date.now()+15*60*1000,stars:3})} style={{padding:"5px 10px",borderRadius:8,fontSize:13,background:`${G}14`,border:`1px solid ${G}44`,color:G,cursor:"pointer",fontWeight:700}}>⚡ ANCHOR +</button>
+              <button onClick={()=>setBreakingAnchor({title:"MANUAL NEGATIVE ANCHOR",polarity:-1,expiresAt:Date.now()+15*60*1000,stars:3})} style={{padding:"5px 10px",borderRadius:8,fontSize:13,background:`${R}14`,border:`1px solid ${R}44`,color:R,cursor:"pointer",fontWeight:700}}>⚡ ANCHOR -</button>
               <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
             </div>
 
@@ -2965,22 +2954,7 @@ function App() {
             )}
 
             {(()=>{
-              // Build unified feed: eco events, breaking news and calendar items
-              const calItems = calArticles.map(a => ({
-                kind: "calendar",
-                title: a.title,
-                link: a.link,
-                // compute pub date from date/time if missing
-                pub: a.pub || (a.date && a.time ? new Date(`${a.date}T${a.time}:00`).toISOString() : ""),
-                desc: a.desc || a.btc || "",
-                // color by stars if present or fallback
-                color: (a.stars===3?"#ff3355":a.stars===2?"#f0a030":a.stars===1?"#88aaff":"#888"),
-                source: a.source || "Calendar",
-                stars: a.stars || 0,
-                bullish: false,
-                bearish: false
-              }));
-              const econItems = ecoArticles.map(a=>({
+              // Build unified feed: eco events + breaking news with polarity anchors              const econItems = ecoArticles.map(a=>({
                 kind: "event",
                 title: a.title,
                 link: a.link,
@@ -3004,7 +2978,7 @@ function App() {
                 bullish: false,
                 bearish: false
               }));
-              const merged = [...econItems, ...newsItems, ...calItems].filter(x=>x.title);
+              const merged = [...econItems, ...newsItems].filter(x=>x.title);
               const seenFeed = new Set();
               const deduped = merged.filter(item => {
                 const key = (item.title||"").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0,40);
@@ -3047,6 +3021,15 @@ function App() {
                             border:`1px solid ${item.bearish?R:G}44`,
                             color:item.bearish?R:G,cursor:"pointer",fontWeight:700}}>
                           ⚡ ANCHOR {item.bearish?"BEAR":"BULL"}
+                        </button>
+                      )}
+                      {item.kind==="news" && (
+                        <button
+                          onClick={(e)=>{e.stopPropagation(); setBreakingAnchor({title:item.title,polarity:-1,expiresAt:Date.now()+15*60*1000,stars:1});}}
+                          style={{fontSize:14,padding:"2px 8px",borderRadius:6,
+                            background:`${R}18`,border:`1px solid ${R}44`,
+                            color:R,cursor:"pointer",fontWeight:700}}>
+                          ⚡ ANCHOR -
                         </button>
                       )}
                       {(item.kind==="event" || item.kind==="news") && (
