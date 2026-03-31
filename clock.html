@@ -2984,7 +2984,7 @@ function App() {
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS + MYFXBOOK</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS + MYFXBOOK</div><div style={{fontSize:11,color:"#555",fontFamily:"'Share Tech Mono',monospace"}}>Latest 20 items</div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
@@ -2992,7 +2992,7 @@ function App() {
               const merged = dedupeFeedItems([
                 ...newsArticles.map(a=>({...a, kind:"news"})),
                 ...calArticles.map(a=>({...a, kind:"event"})),
-              ]).sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+              ]).sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0)).slice(0,20);
 
               return (
                 <>
