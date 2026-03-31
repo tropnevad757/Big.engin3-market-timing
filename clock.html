@@ -1746,13 +1746,12 @@ function App() {
     return {pre:75, post:75};
   }
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, mode="classic"){
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const signed = (activeEvents||[])
       .flatMap(ev=>{
         const pol = Number(ev?.polarity);
         if(pol !== 1 && pol !== -1) return [];
-        // Speeches can act like multiple pieces of news. Keep them weighted heavier.
         const weight = replayEventType(ev)==="speech" ? 2 : 1;
         return Array.from({length:weight},()=>({
           ...ev,
@@ -1767,17 +1766,9 @@ function App() {
     const negativePressure = signed.filter(e=>e._sign===-1).length;
 
     let newsPolarity = null;
-
-    if(mode === "parity"){
-      if(signed.length){
-        const product = signed.reduce((acc,e)=>acc * e._sign, 1);
-        newsPolarity = product === 1 ? "positive" : "negative";
-      }
-    } else {
-      // Classic/simple model:
-      // any negative pressure => negative, else positive if any positive pressure
-      if(negativePressure > 0) newsPolarity = "negative";
-      else if(positivePressure > 0) newsPolarity = "positive";
+    if(signed.length){
+      const product = signed.reduce((acc,e)=>acc * e._sign, 1);
+      newsPolarity = product === 1 ? "positive" : "negative";
     }
 
     if(!newsPolarity){
@@ -1814,12 +1805,13 @@ function App() {
       slotPolarity,
       newsPolarity,
       result,
-      reason: mode==="parity" ? "parity aggregation across multiple events" : "classic negative-pressure aggregation",
+      reason: "parity aggregation across multiple events",
       equation: `${slotPolarity} x ${newsPolarity} = ${result}`,
       equationPlain: `${slotPolarity.toUpperCase()} x ${newsPolarity.toUpperCase()} = ${result.toUpperCase()} → ${finalDirection.toUpperCase()}`,
     };
   }
 
+  function safeJsonParse
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
   }
@@ -1985,11 +1977,19 @@ function App() {
 
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
+    let timer=null;
     if(newsView==="feed") {
-      if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
-      calLoadedRef.current=false; fetchCalendar();
+      timer = setTimeout(()=>{
+        if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
+        calLoadedRef.current=false; fetchCalendar();
+      }, 350);
     }
-    if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
+    if(newsView==="calendar") {
+      timer = setTimeout(()=>{
+        calLoadedRef.current=false; fetchCalendar();
+      }, 350);
+    }
+    return ()=>{ if(timer) clearTimeout(timer); };
   },[newsView,newsSrc]);
 
   // On mount, pre-load default feed
@@ -2419,7 +2419,6 @@ function App() {
     const [error,    setError]    = React.useState("");
     const [playIdx,  setPlayIdx]  = React.useState(0);
     const [playing,  setPlaying]  = React.useState(false);
-    const [replayMode, setReplayMode] = React.useState("classic");
 
     const loggedLastWeek = dedupeFeedItems(replayEvents)
       .filter(ev=>{
@@ -2428,15 +2427,13 @@ function App() {
       })
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
 
-    React.useEffect(()=>{
-      setPlayIdx(0);
-    },[replayMode, results]);
+    React.useEffect(()=>{ setPlayIdx(0); },[results]);
 
     React.useEffect(()=>{
-      if(!playing || !results?.[replayMode]?.sessions?.length) return;
+      if(!playing || !results?.sessions?.length) return;
       const timer = setInterval(()=>{
         setPlayIdx(prev=>{
-          if(prev >= results[replayMode].sessions.length-1){
+          if(prev >= results.sessions.length-1){
             setPlaying(false);
             return prev;
           }
@@ -2444,7 +2441,7 @@ function App() {
         });
       }, 900);
       return ()=>clearInterval(timer);
-    },[playing, results, replayMode]);
+    },[playing, results]);
 
     function getETParts(tsMs){
       const bag = {};
@@ -2499,17 +2496,17 @@ function App() {
       throw new Error("BTC replay data unavailable");
     }
 
-    function replaySignal(h24, m, activeEvents, mode) {
+    function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
       const connectorMode = getConnectorMode(h24, m);
       const slotPol = connectorMode === "aligned" ? "positive" : "negative";
       const polarityState = buildPolarityState(step.direction, slotPol);
-      const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents, mode);
+      const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
       return {
         signal,
         mode: getConnectorMode(h24, m),
-        replayMode: mode,
+        replayMode: "parity",
         flip: applied.finalDirection !== polarityState.baseDirection,
         reason: applied.reason,
         activeEvents,
@@ -2545,67 +2542,51 @@ function App() {
       });
     }
 
-    function summarizeSessions(sessions){
-      const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
-      const wins   = actionable.filter(s=>s.score?.correct===true).length;
-      const losses = actionable.filter(s=>s.score?.correct===false).length;
-      const total  = wins + losses;
-      const wr     = total>0 ? Math.round((wins/total)*100) : 0;
-      return { sessions: actionable, wins, losses, total, wr };
-    }
-
     async function runReplay() {
       setLoading(true); setError(""); setResults(null); setPlayIdx(0); setPlaying(false);
       try {
         const candles = await fetchReplayCandles();
-        const classicSessions = [];
-        const paritySessions  = [];
+        const sessions = [];
         for(const c of candles) {
           const et = getETParts(c.ts);
           const activeEvents = activeEventsFor(c.ts);
-
-          for(const mode of ["classic","parity"]){
-            const replay = replaySignal(et.h24, et.m, activeEvents, mode);
-            const score  = scoreSignal(replay.signal, c.open, c.close);
-            const row = {
-              ts: c.ts,
-              h24: et.h24,
-              m: et.m,
-              dayStr: et.dayStr,
-              timeStr: et.timeStr,
-              open: Math.round(c.open),
-              close: Math.round(c.close),
-              high: Math.round(c.high),
-              low: Math.round(c.low),
-              ...replay,
-              score,
-            };
-            if(mode==="classic") classicSessions.push(row);
-            else paritySessions.push(row);
-          }
+          const replay = replaySignal(et.h24, et.m, activeEvents);
+          const score  = scoreSignal(replay.signal, c.open, c.close);
+          sessions.push({
+            ts: c.ts,
+            h24: et.h24,
+            m: et.m,
+            dayStr: et.dayStr,
+            timeStr: et.timeStr,
+            open: Math.round(c.open),
+            close: Math.round(c.close),
+            high: Math.round(c.high),
+            low: Math.round(c.low),
+            ...replay,
+            score,
+          });
         }
-        const classic = summarizeSessions(classicSessions);
-        const parity  = summarizeSessions(paritySessions);
-        if(!classic.sessions.length && !parity.sessions.length) throw new Error("No replay signals found");
-        setResults({
-          classic: {...classic, eventsUsed: loggedLastWeek.length},
-          parity:  {...parity, eventsUsed: loggedLastWeek.length},
-        });
+        const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
+        const wins   = actionable.filter(s=>s.score?.correct===true).length;
+        const losses = actionable.filter(s=>s.score?.correct===false).length;
+        const total  = wins + losses;
+        const wr     = total>0 ? Math.round((wins/total)*100) : 0;
+        if(!actionable.length) throw new Error("No replay signals found");
+        setResults({ sessions: actionable, wins, losses, total, wr, eventsUsed: loggedLastWeek.length });
       } catch(e) {
         setError("Replay could not load BTC candles. Open the file in a normal browser tab with internet, then run again.");
       }
       setLoading(false);
     }
 
-    const activePack = results?.[replayMode] || null;
     const sigCol = s => s==="BUY"?G:R;
-    const current = activePack?.sessions?.[playIdx] || null;
+    const current = results?.sessions?.[playIdx] || null;
 
     return(
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST WEEK RESULTS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay compares two models side-by-side. Classic keeps the simpler event aggregation. Parity uses your odd/even sign rule for multiple signed events. Star calendar events stay symmetric. Breaking news stays 15 minutes.
+          Replay now uses only your parity model. Same signs = + BUY. Opposite signs = - SELL. Multiple signed news events are aggregated with parity before the final time math is applied.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2615,7 +2596,7 @@ function App() {
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>MODE</div>
-            <div style={{fontSize:18,color:"#ccc",fontWeight:900}}>{replayMode==="classic"?"CLASSIC":"PARITY"}</div>
+            <div style={{fontSize:18,color:A,fontWeight:900}}>PARITY</div>
           </div>
         </div>
 
@@ -2625,52 +2606,22 @@ function App() {
               background:loading?"rgba(255,255,255,0.05)":`${G}1a`,border:`1px solid ${loading?"#333":G}`,color:loading?"#555":G}}>
             {loading?"⏳ RUNNING...":"▶ RUN LAST WEEK"}
           </button>
-          <button onClick={()=>setPlaying(p=>!p)} disabled={!activePack?.sessions?.length}
-            style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:activePack?.sessions?.length?"pointer":"not-allowed"}}>
+          <button onClick={()=>setPlaying(p=>!p)} disabled={!results?.sessions?.length}
+            style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
             {playing?"❚❚":"▶"}
           </button>
-        </div>
-
-        <div style={{display:"flex",gap:8,marginBottom:12}}>
-          {[
-            {id:"classic", label:"CLASSIC"},
-            {id:"parity", label:"PARITY"},
-          ].map(m=>(
-            <button key={m.id} onClick={()=>setReplayMode(m.id)}
-              style={{flex:1,padding:"10px 0",borderRadius:12,fontSize:13,fontWeight:900,letterSpacing:2,cursor:"pointer",
-                background:replayMode===m.id?`${A}14`:"rgba(255,255,255,0.04)",
-                border:`1px solid ${replayMode===m.id?A:"rgba(255,255,255,0.1)"}`,
-                color:replayMode===m.id?A:"#bbb"}}>
-              {m.label}
-            </button>
-          ))}
         </div>
 
         {error&&<div style={{color:R,fontSize:13,...mono,marginBottom:12,padding:"10px 14px",background:`${R}12`,borderRadius:10,border:`1px solid ${R}33`}}>{error}</div>}
 
         {results&&(
           <>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-              {[
-                {key:"classic", title:"CLASSIC WR", color:results.classic.wr>=60?G:results.classic.wr>=45?A:R, wr:results.classic.wr, wins:results.classic.wins, losses:results.classic.losses},
-                {key:"parity",  title:"PARITY WR",  color:results.parity.wr>=60?G:results.parity.wr>=45?A:R, wr:results.parity.wr, wins:results.parity.wins, losses:results.parity.losses},
-              ].map(box=>(
-                <div key={box.key} style={{borderRadius:12,border:`1px solid ${box.color}33`,background:`${box.color}09`,padding:"10px 12px"}}>
-                  <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:6}}>{box.title}</div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                    <div style={{fontSize:22,fontWeight:900,color:box.color}}>{box.wr}%</div>
-                    <div style={{fontSize:12,color:"#999",fontFamily:"'Share Tech Mono',monospace"}}>{box.wins}W / {box.losses}L</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:12}}>
               {[
-                {l:"WIN RATE", v:`${activePack.wr}%`, c:activePack.wr>=60?G:activePack.wr>=45?A:R},
-                {l:"WINS", v:activePack.wins, c:G},
-                {l:"LOSSES", v:activePack.losses, c:R},
-                {l:"SIGNALS", v:activePack.total, c:A},
+                {l:"WIN RATE", v:`${results.wr}%`, c:results.wr>=60?G:results.wr>=45?A:R},
+                {l:"WINS", v:results.wins, c:G},
+                {l:"LOSSES", v:results.losses, c:R},
+                {l:"SIGNALS", v:results.total, c:A},
               ].map(i=>(<div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>))}
             </div>
 
@@ -2689,7 +2640,7 @@ function App() {
             )}
 
             <div style={{display:"grid",gap:8}}>
-              {activePack.sessions.slice(Math.max(0,playIdx-6), Math.max(0,playIdx-6)+12).map((s,idx)=>(
+              {results.sessions.slice(Math.max(0,playIdx-6), Math.max(0,playIdx-6)+12).map((s,idx)=>(
                 <div key={s.ts+"_"+idx} style={{borderRadius:12,border:`1px solid ${sigCol(s.signal)}22`,background:"rgba(255,255,255,0.03)",padding:"10px 12px",position:"relative"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
                     <div>
