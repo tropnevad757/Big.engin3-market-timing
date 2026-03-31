@@ -18,7 +18,7 @@ body{overflow-x:hidden}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 14px #f0a03055)}50%{filter:drop-shadow(0 0 30px #f0a030aa)}}
 input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 #loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .5s}
-#loader .logo{font-size:26px;font-weight:900;letter-spacing:3px;color:#f0a030;margin-bottom:18px;animation:pulse 2.5s ease-in-out infinite}
+#loader img{width:170px;height:170px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
 #spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
 #loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
 </style>
@@ -38,13 +38,6 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 const toAngle = (h,m) => ((h%12)*60+m)*0.5;
 const polar   = (cx,cy,r,d) => ({ x:cx+r*Math.cos(((d-90)*Math.PI)/180), y:cy+r*Math.sin(((d-90)*Math.PI)/180) });
 const arc     = (cx,cy,r,a1,a2) => { const p1=polar(cx,cy,r,a1),p2=polar(cx,cy,r,a2),d=((a2-a1)%360+360)%360; return `M${p1.x} ${p1.y}A${r} ${r} 0 ${d>180?1:0} 1 ${p2.x} ${p2.y}`; };
-
-function scheduleIdle(fn, timeoutMs = 1200) {
-  const ric = typeof window !== "undefined" ? window.requestIdleCallback : null;
-  if (typeof ric === "function") return ric(fn, { timeout: timeoutMs });
-  return setTimeout(() => fn({ timeRemaining: () => 0, didTimeout: true }), 0);
-}
-
 
 function getTZ(tz) {
   try {
@@ -571,8 +564,6 @@ function VWAPBandCard({trap, et, price}) {
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 function App() {
-  const [bootPhase, setBootPhase] = useState("init");
-  const bootRef = useRef({ paintedAt:0, idleAt:0 });
   const [tab,       setTab]       = useState("clock");
   const [plan,      setPlan]      = useState("elite");
   const [tz,        setTZ]        = useState("America/New_York");
@@ -619,22 +610,6 @@ function App() {
   const marketFetchRef = useRef(false);
   const prevRef = useRef([]);
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
-
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        bootRef.current.paintedAt = performance.now();
-        window.__APP_PAINTED_AT = bootRef.current.paintedAt;
-        setBootPhase("painted");
-        scheduleIdle(() => {
-          bootRef.current.idleAt = performance.now();
-          window.__APP_IDLE_AT = bootRef.current.idleAt;
-          setBootPhase("idle");
-        }, 1200);
-      });
-    });
-  }, []);
-
 
   useEffect(()=>{
     try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,400))); }catch(e){}
@@ -811,14 +786,12 @@ function App() {
     }
   }, []);
 
-  // Fetch market only after first paint/idle so page can render first
+  // Fetch on mount + every 90 seconds
   useEffect(()=>{
-    if(bootPhase!=="idle") return;
-    if(!["clock","signals"].includes(tab)) return;
     fetchMarketData();
     const t = setInterval(fetchMarketData, 90000);
     return ()=>clearInterval(t);
-  }, [bootPhase, tab, fetchMarketData]);
+  }, []);
 
 
   const nextZ    = zones.filter(z=>!liveIds.includes(z.id)).map(z=>({...z,mins:minsUntil(z,et.h,et.m)})).sort((a,b)=>a.mins-b.mins)[0];
@@ -1480,11 +1453,11 @@ function App() {
   const appZType    = appLiveZone && appLiveZone.type !== "dead" ? appLiveZone.type : null;
 
   // ── FINAL DIRECTION — always follows zone/polarity, no flip logic ─────────────
-  let finalDirection  = appZType || (polarityEngine.earlyBias.polarity===+1?"buy":"sell");
-  let finalIsFlipped  = false;
-  let finalCol        = finalDirection === "buy" ? G : R;
-  let finalArrow      = finalDirection === "buy" ? "▲" : "▼";
-  let finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
+  const finalDirection  = appZType || (polarityEngine.earlyBias.polarity===+1?"buy":"sell");
+  const finalIsFlipped  = false;
+  const finalCol        = finalDirection === "buy" ? G : R;
+  const finalArrow      = finalDirection === "buy" ? "▲" : "▼";
+  const finalLabel      = finalDirection === "buy" ? "BUY" : "SELL";
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 1: CLOCK STRUCTURE — display only, not scored
@@ -1507,12 +1480,6 @@ function App() {
   const timeMathResult   = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "time")   : null;
   const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
   const polarityDirection = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
-
-  finalDirection = polarityDirection;
-  finalIsFlipped = (finalDirection !== polarityState.baseDirection);
-  finalCol = finalDirection === "buy" ? G : R;
-  finalArrow = finalDirection === "buy" ? "▲" : "▼";
-  finalLabel = finalDirection === "buy" ? "BUY" : "SELL";
 
   const appChecks = [
     // 1. DXY — confirms charge direction (not major regime)
@@ -1782,24 +1749,26 @@ function App() {
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const signed = (activeEvents||[])
-      .map(ev => {
+      .flatMap(ev=>{
         const pol = Number(ev?.polarity);
-        if(pol !== 1 && pol !== -1) return null;
-        return {
+        if(pol !== 1 && pol !== -1) return [];
+        const weight = replayEventType(ev)==="speech" ? 2 : 1;
+        return Array.from({length:weight},()=>({
           ...ev,
-          _pol: pol === 1 ? "positive" : "negative",
+          _sign: pol === 1 ? 1 : -1,
+          _pol:  pol === 1 ? "positive" : "negative",
           _t: Date.parse(ev.pub||0) || 0,
-        };
+        }));
       })
-      .filter(Boolean)
       .sort((a,b)=>(a._t-b._t) || String(a.title||"").localeCompare(String(b.title||"")));
 
-    const positivePressure = signed.filter(e=>e._pol==="positive").length;
-    const negativePressure = signed.filter(e=>e._pol==="negative").length;
+    const positivePressure = signed.filter(e=>e._sign===1).length;
+    const negativePressure = signed.filter(e=>e._sign===-1).length;
 
     let newsPolarity = null;
-    for(const e of signed){
-      newsPolarity = newsPolarity ? resolveWindowMath(newsPolarity, e._pol) : e._pol;
+    if(signed.length){
+      const product = signed.reduce((acc,e)=>acc * e._sign, 1);
+      newsPolarity = product === 1 ? "positive" : "negative";
     }
 
     if(!newsPolarity){
@@ -1836,7 +1805,7 @@ function App() {
       slotPolarity,
       newsPolarity,
       result,
-      reason: "classic aggregation: window math across events, then time math",
+      reason: "parity aggregation across multiple events",
       equation: `${slotPolarity} x ${newsPolarity} = ${result}`,
       equationPlain: `${slotPolarity.toUpperCase()} x ${newsPolarity.toUpperCase()} = ${result.toUpperCase()} → ${finalDirection.toUpperCase()}`,
     };
@@ -2006,33 +1975,25 @@ function App() {
     .finally(()=>setCalLoading(false));
   },[]);
 
-  // ── Auto-load feeds only after render/idle and only on News tab ─────────────
+  // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
-    if(tab!=="news") return;
-    if(bootPhase==="init") return;
     let timer=null;
     if(newsView==="feed") {
       timer = setTimeout(()=>{
-        scheduleIdle(()=>{
-          if(newsLoadedFor.current!==newsSrc){
-            newsLoadedFor.current=newsSrc;
-            fetchNews(newsSrc);
-          }
-          calLoadedRef.current=false;
-          fetchCalendar();
-        }, 1000);
-      }, 40);
+        if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
+        calLoadedRef.current=false; fetchCalendar();
+      }, 350);
     }
     if(newsView==="calendar") {
       timer = setTimeout(()=>{
-        scheduleIdle(()=>{
-          calLoadedRef.current=false;
-          fetchCalendar();
-        }, 1000);
-      }, 40);
+        calLoadedRef.current=false; fetchCalendar();
+      }, 350);
     }
     return ()=>{ if(timer) clearTimeout(timer); };
-  },[tab,bootPhase,newsView,newsSrc,fetchNews,fetchCalendar]);
+  },[newsView,newsSrc]);
+
+  // On mount, pre-load default feed
+  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -2545,7 +2506,7 @@ function App() {
       return {
         signal,
         mode: getConnectorMode(h24, m),
-        replayMode: "classic",
+        replayMode: "parity",
         flip: applied.finalDirection !== polarityState.baseDirection,
         reason: applied.reason,
         activeEvents,
@@ -2623,10 +2584,10 @@ function App() {
 
     return(
       <div style={{padding:14}}>
-        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST WEEK RESULTS</div>{bootPhase!=="idle" ? <div style={{fontSize:12,color:"#777",fontFamily:"\'Share Tech Mono\',monospace",lineHeight:1.7,marginBottom:10}}>Page renders first. Replay wakes up after paint.</div> : null}
+        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST WEEK RESULTS</div>
         {!appReady ? <div style={{fontSize:12,color:"#777",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>Page renders first. Replay wakes up after load.</div> : null}
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses your classic model. Same signs = + BUY. Opposite signs = - SELL. Multiple signed news events are folded with classic window math before the final time math is applied.
+          Replay now uses only your parity model. Same signs = + BUY. Opposite signs = - SELL. Multiple signed news events are aggregated with parity before the final time math is applied.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -3022,7 +2983,8 @@ function App() {
         {/* ── MIXED FEED (events + breaking news together) ── */}
         {newsView==="feed"&&(
           <>
-            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>{bootPhase!=="idle" ? <div style={{fontSize:11,color:"#666",fontFamily:"\'Share Tech Mono\',monospace"}}>Rendering first… feeds wake up after paint.</div> : null}<div style={{fontSize:13,color:"#888",fontFamily:"\'Share Tech Mono\',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS + MYFXBOOK</div><div style={{fontSize:11,color:"#555",fontFamily:"'Share Tech Mono',monospace"}}>Latest 20 items</div>
+            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS + MYFXBOOK</div><div style={{fontSize:11,color:"#555",fontFamily:"'Share Tech Mono',monospace"}}>Latest 20 items</div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
