@@ -1793,7 +1793,7 @@ function App() {
         label: baseStepDirection === "buy" ? "BUY" : "SELL",
         col: baseStepDirection === "buy" ? G : R,
         mode: "base",
-        detail: `No active news — using ${baseStepDirection.toUpperCase()} base step from ${((et.h24 % 12) || 12)} ET.`
+        detail: `No active news — using ${baseStepPolarity === "positive" ? "+" : "-"} base step from ${((et.h24 % 12) || 12)} ET.`
       };
     }
     const resultPol = resolveTimeMath(baseStepPolarity, charge.finalPol);
@@ -1802,7 +1802,7 @@ function App() {
       label: dir === "buy" ? "BUY" : "SELL",
       col: dir === "buy" ? G : R,
       mode: "news",
-      detail: `News active — final equation uses base step ${baseStepPolarity.toUpperCase()} × news charge ${String(charge.finalPol||"").toUpperCase()}.`
+      detail: `News active — final equation uses ${baseStepPolarity === "positive" ? "+" : "-"} step × ${charge.finalPol === "positive" ? "+" : "-"} news charge.`
     };
   })();
     const appReadyColor = finalSignal.col;
@@ -1822,7 +1822,7 @@ function App() {
   // ══════════════════════════════════════════════════════════════════════════════
 
   // ── Feed definitions ──────────────────────────────────────────────────────────
-  // ── MERGED FEED: Google News RSS — mirrors Feedly/FeedLab Reuters & Bloomberg channels ──
+  // ── MYFXBOOK · TRADINGECONOMICS · REUTERS · BLOOMBERG: Google News RSS — mirrors Feedly/FeedLab Reuters & Bloomberg channels ──
   // Uses topic-based queries (more stable than site: queries with rss2json)
   // ── FEED: Reuters Markets + Bloomberg Markets via Google News RSS ────────────
   // Exact same method Feedly/FeedLab uses — Google News search for the channel name
@@ -1833,18 +1833,22 @@ function App() {
   const NEWS_FEEDS = [
     { id:"combo", label:"Reuters + Bloomberg", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+site:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:1d+site:bloomberg.com/markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(site:reuters.com+(markets+OR+business+OR+finance+OR+bitcoin+OR+fed))&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(site:bloomberg.com+(markets+OR+economics+OR+finance+OR+crypto+OR+fed))&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Reuters%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Bloomberg%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"reuters", label:"Reuters", color:"#ff6b35",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+site:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(site:reuters.com+(markets+OR+business+OR+finance+OR+bitcoin+OR+fed))&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Reuters%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+site:bloomberg.com/markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(site:bloomberg.com+(markets+OR+economics+OR+finance+OR+crypto+OR+fed))&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Bloomberg%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
@@ -2085,7 +2089,6 @@ function App() {
       ecoLoadedRef.current=false; fetchEcoNews();
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
     }
-    if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
 
   // On mount, pre-load default feed
@@ -2108,7 +2111,7 @@ function App() {
     const newsActive = newsReaction.active;
     const hasSpeech = newsReaction.hasSpeech;
     const summaryLine = [
-      `Base step: ${baseHour % 2 === 0 ? "EVEN" : "ODD"} hour → ${baseDir.toUpperCase()}`,
+      `Base step: ${baseHour}:00 ET → ${baseStepPolarity === "positive" ? "+" : "-"}`,
       newsActive ? `News charge: ${String(charge.finalPol||"").toUpperCase()}` : "News: None",
       newsActive ? (hasSpeech ? `Speech ×${newsReaction.speechMultiplier}` : newsReaction.hasBreaking ? "Breaking 15m burst" : "Scheduled window active") : "Using base step only"
     ].join("  ·  ");
@@ -2134,7 +2137,7 @@ function App() {
         {/* ── STEP / ZONE / WINDOW — 3 mini tiles ── */}
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           {[
-            {label:"STEP",   val:`${((et.h24 % 12) || 12) % 2 === 0 ? "EVEN" : "ODD"} HOUR`, arrow:baseDir==="buy"?"▲":"▼", col:baseDir==="buy"?G:R},
+            {label:"STEP",   val:`${((et.h24 % 12) || 12)}:00 · ${baseStepPolarity === "positive" ? "+" : "-"}`, arrow:null, col:baseDir==="buy"?G:R},
             {label:"ZONE",   val:zLabel, arrow:null, col:zCol},
             {label:"WINDOW", val:inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE", arrow:null, col:inExecute?G:inTrap?A:"#444"},
           ].map(item=>(
@@ -2203,64 +2206,67 @@ function App() {
   // ── SIGNALS / BIAS CHECKLIST ──
   const SignalsTab = ()=>{
     const stepHour = (et.h24 % 12) || 12;
-    const stepSign = baseStepPolarity;
-    const usingNews = finalSignal.mode === "news";
-    const newsCharge = usingNews ? (charge.finalPol || "negative") : null;
-    const activeNewsLabel = !newsReaction.active
-      ? "No active news"
-      : newsReaction.hasBreaking
-        ? "Reuters/Bloomberg breaking burst active"
-        : newsReaction.hasScheduled
-          ? "Scheduled calendar window active"
-          : "News active";
+    const stepPol = baseStepPolarity;
+    const stepSym = stepPol === "positive" ? "+" : "-";
+    const newsPol = newsReaction.active ? (charge.finalPol || "negative") : null;
+    const newsSym = newsReaction.active ? (newsPol === "positive" ? "+" : "-") : "NONE";
+    const resultPol = newsReaction.active ? resolveTimeMath(stepPol, newsPol) : stepPol;
+    const resultSym = resultPol === "positive" ? "+" : "-";
+    const resultDir = resultPol === "positive" ? "BUY" : "SELL";
+    const resultCol = resultPol === "positive" ? G : R;
+
+    const compactChecks = appChecks.map(c=>({
+      ...c,
+      chip: c.passes===true ? "✓" : c.passes===false ? "✕" : "◆",
+      col: c.passes===true ? G : c.passes===false ? R : "#666"
+    }));
 
     return(
       <div style={{padding:14}}>
-        <div style={{marginBottom:14,borderRadius:16,border:`2px solid ${finalSignal.col}55`,background:`${finalSignal.col}0c`,padding:"22px 16px",textAlign:"center",boxShadow:`0 0 32px ${finalSignal.col}14`}}>
-          <div style={{fontSize:10,letterSpacing:3,color:"#555",...mono,marginBottom:10}}>FINAL SIGNAL</div>
-          <div style={{fontSize:52,fontWeight:900,color:finalSignal.col,letterSpacing:4,...mono,lineHeight:1}}>
-            {finalSignal.label==="BUY"?"▲":"▼"} {finalSignal.label}
-          </div>
-          <div style={{marginTop:12,fontSize:12,color:"#777",...mono,lineHeight:1.8}}>
-            {finalSignal.detail}
-          </div>
-        </div>
-
         <div style={{display:"grid",gap:10,marginBottom:14}}>
           <div style={card({marginBottom:0})}>
-            <div style={lbl("#999",{marginBottom:8})}>TRANSFORMATION</div>
-            <div style={{fontSize:13,color:"#aaa",...mono,lineHeight:1.8}}>
-              1. Base step uses ET hour parity: odd hours are <span style={{color:R,fontWeight:700}}>negative</span>, even hours are <span style={{color:G,fontWeight:700}}>positive</span>.<br/>
-              2. No active news = follow the base step directly.<br/>
-              3. Active scheduled news uses symmetric windows by star level: ★ 15/15, ★★ 45/45, ★★★ 75/75.<br/>
-              4. Reuters/Bloomberg breaking news uses a forward-only 15 minute burst.<br/>
-              5. When multiple news items collide, news charge combines with your charge math first. Then the final equation compares step sign vs news charge.
-            </div>
-          </div>
-
-          <div style={card({marginBottom:0})}>
-            <div style={lbl("#999",{marginBottom:8})}>LIVE READOUT</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <div style={{borderRadius:12,border:`1px solid ${stepSign==="positive"?G:R}33`,background:`${stepSign==="positive"?G:R}08`,padding:"12px 10px",textAlign:"center"}}>
-                <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>BASE STEP</div>
-                <div style={{fontSize:20,fontWeight:900,color:stepSign==="positive"?G:R,...mono}}>{stepHour}:00 · {stepSign.toUpperCase()}</div>
-                <div style={{fontSize:12,color:"#777",...mono,marginTop:5}}>{baseStepDirection.toUpperCase()}</div>
+            <div style={lbl("#999",{marginBottom:8})}>POLARITY MATH</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <div style={{borderRadius:12,border:`1px solid ${A}33`,background:`${A}08`,padding:"12px 10px",textAlign:"center"}}>
+                <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>NEWS</div>
+                <div style={{fontSize:28,fontWeight:900,color:A,...mono,lineHeight:1}}>{newsReaction.active ? newsSym : "Ø"}</div>
+                <div style={{fontSize:12,color:"#777",...mono,marginTop:5}}>{newsReaction.active ? (newsReaction.hasBreaking ? "BREAK" : "SCHED") : "CLEAR"}</div>
               </div>
-              <div style={{borderRadius:12,border:`1px solid ${usingNews?(newsCharge==="positive"?G:R):"#555"}33`,background:`${usingNews?(newsCharge==="positive"?G:R):"#555"}08`,padding:"12px 10px",textAlign:"center"}}>
-                <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>NEWS CHARGE</div>
-                <div style={{fontSize:20,fontWeight:900,color:usingNews?(newsCharge==="positive"?G:R):"#888",...mono}}>{usingNews ? newsCharge.toUpperCase() : "NONE"}</div>
-                <div style={{fontSize:12,color:"#777",...mono,marginTop:5}}>{activeNewsLabel}</div>
+              <div style={{borderRadius:12,border:`1px solid ${(stepPol==="positive"?G:R)}33`,background:`${(stepPol==="positive"?G:R)}08`,padding:"12px 10px",textAlign:"center"}}>
+                <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>WINDOW</div>
+                <div style={{fontSize:28,fontWeight:900,color:stepPol==="positive"?G:R,...mono,lineHeight:1}}>{stepSym}</div>
+                <div style={{fontSize:12,color:"#777",...mono,marginTop:5}}>{stepHour}:00 ET</div>
+              </div>
+              <div style={{borderRadius:12,border:`1px solid ${resultCol}33`,background:`${resultCol}08`,padding:"12px 10px",textAlign:"center"}}>
+                <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>RESULT</div>
+                <div style={{fontSize:28,fontWeight:900,color:resultCol,...mono,lineHeight:1}}>{resultSym}</div>
+                <div style={{fontSize:12,color:resultCol,...mono,marginTop:5,fontWeight:700}}>{resultDir}</div>
               </div>
             </div>
           </div>
 
           <div style={card({marginBottom:0})}>
-            <div style={lbl("#999",{marginBottom:8})}>FINAL EQUATION</div>
+            <div style={lbl("#999",{marginBottom:8})}>FILTERS</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              {compactChecks.map(c=>(
+                <div key={c.label} style={{borderRadius:12,border:`1px solid ${c.col}33`,background:`${c.col}08`,padding:"12px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>{c.label}</div>
+                  <div style={{fontSize:22,fontWeight:900,color:c.col,...mono,lineHeight:1}}>{c.chip}</div>
+                  <div style={{fontSize:12,color:c.col,...mono,marginTop:6,fontWeight:700}}>{c.value || "--"}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={card({marginBottom:0})}>
+            <div style={lbl("#999",{marginBottom:8})}>RULE</div>
             <div style={{fontSize:13,color:"#aaa",...mono,lineHeight:1.9}}>
-              Positive step × Positive news charge = <span style={{color:G,fontWeight:700}}>BUY</span><br/>
-              Positive step × Negative news charge = <span style={{color:R,fontWeight:700}}>SELL</span><br/>
-              Negative step × Negative news charge = <span style={{color:G,fontWeight:700}}>BUY</span><br/>
-              Negative step × Positive news charge = <span style={{color:R,fontWeight:700}}>SELL</span>
+              + step × + news = <span style={{color:G,fontWeight:700}}>+</span>
+              <span style={{color:"#666"}}> · </span>
+              + step × - news = <span style={{color:R,fontWeight:700}}>-</span><br/>
+              - step × - news = <span style={{color:G,fontWeight:700}}>+</span>
+              <span style={{color:"#666"}}> · </span>
+              - step × + news = <span style={{color:R,fontWeight:700}}>-</span>
             </div>
           </div>
         </div>
@@ -2664,11 +2670,10 @@ function App() {
     const CC = {LABOR:"#00aaff", MACRO:"#88aaff", INFLATION:"#ff3355", CRYPTO:A, FED:"#aa88ff"};
 
     const LINKS = [
-      { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
-      { label:"",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
-      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
-      { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
-      { label:"Investing.com",      color:"#ff9500",  url:"https://www.investing.com/news/latest-news",              desc:"Latest financial news" },
+      { label:"Reuters Markets",    color:"#ff6b35",  url:"https://www.reuters.com/markets/",                        desc:"Breaking markets and macro news" },
+      { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                      desc:"Markets, rates & macro news" },
+      { label:"Myfxbook",           color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",       desc:"FX economic calendar" },
+      { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                  desc:"Global economic calendar & data" },
     ];
 
     function fmtDate(s){
@@ -2800,7 +2805,7 @@ function App() {
 
         {/* Toggle */}
         <div style={{display:"flex",gap:6,marginBottom:14}}>
-          {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
+          {[{id:"feed",l:"📰 FEED"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
               border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
@@ -2904,7 +2909,7 @@ function App() {
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>MERGED FEED</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>MYFXBOOK · TRADINGECONOMICS · REUTERS · BLOOMBERG</div>
               <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
             </div>
 
@@ -2935,8 +2940,8 @@ function App() {
                   color:a.color||"#888",
                   source:a.feedLabel||a.source||"News",
                   stars:0,
-                  bullish:false,
-                  bearish:false
+                  bullish:/reuters|bloomberg/i.test((a.feedLabel||a.source||"")) ? /risk-off|selloff|dump|hawkish|inflation|tariff|war|liquidation/i.test((a.title||"")+" "+(a.desc||"")) ? false : true : false,
+                  bearish:/reuters|bloomberg/i.test((a.feedLabel||a.source||"")) ? /risk-off|selloff|dump|hawkish|inflation|tariff|war|liquidation/i.test((a.title||"")+" "+(a.desc||"")) : false,
                 }))
               ].filter(x=>x.title);
 
@@ -2959,7 +2964,7 @@ function App() {
                   <div style={{paddingLeft:12}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"📰 NEWS"}</span>
+                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"⚡ BREAKING"}</span>
                         <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
                         {item.stars>0 && <span style={{fontSize:13,color:item.color}}>{"★".repeat(item.stars)}</span>}
                       </div>
@@ -2969,7 +2974,7 @@ function App() {
                     {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
                     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
                       {item.link&&<span style={{fontSize:14,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
-                      {item.kind==="event" && (item.bullish || item.bearish) && (
+                      {(item.bullish || item.bearish) && (
                         <button
                           onClick={(e)=>{e.stopPropagation(); setBreakingAnchor({title:item.title,polarity:item.bearish?-1:1,expiresAt:Date.now()+15*60*1000,stars:item.stars||3});}}
                           style={{fontSize:14,padding:"2px 8px",borderRadius:6,
@@ -3055,7 +3060,7 @@ function App() {
         )}
 
         {/* ── ECONOMIC EVENTS ── */}
-        {newsView==="calendar"&&(
+        {false&&(
           <>
             {/* Day picker + refresh */}
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
@@ -3181,7 +3186,7 @@ function App() {
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Google-powered Reuters/Bloomberg market searches on-page. Calendar links remain below for Myfxbook and Trading Economics.</div>
+              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Reuters and Bloomberg breaking headlines with Myfxbook and TradingEconomics scheduled events. Breaking items can anchor the 15 minute burst used by the engine.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
