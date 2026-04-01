@@ -1725,7 +1725,7 @@ function App() {
       passes: (()=>{
         const ch = marketData?.dxy?.change;
         if(ch==null) return null;
-        const sigDir = finalSignal.label === "BUY" ? +1 : -1;
+        const sigDir = finalDirection === "buy" ? +1 : -1;
         if(sigDir===+1) return ch<-0.10?true:ch>+0.10?false:null;
         if(sigDir===-1) return ch>+0.10?true:ch<-0.10?false:null;
         return null;
