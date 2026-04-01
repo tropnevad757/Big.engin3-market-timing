@@ -1833,35 +1833,32 @@ function App() {
   const NEWS_FEEDS = [
     { id:"combo", label:"Reuters + Bloomberg", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+(site:reuters.com+(markets+OR+business+OR+finance+OR+bitcoin+OR+fed))&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:1d+(site:bloomberg.com+(markets+OR+economics+OR+finance+OR+crypto+OR+fed))&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=%22Reuters%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=%22Bloomberg%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Reuters%22+markets+OR+economics+OR+finance+OR+bitcoin+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Bloomberg%20Markets%22+OR+%22Bloomberg%22+economics+OR+finance+OR+crypto+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=site:reuters.com+(markets+OR+economics+OR+finance+OR+bitcoin+OR+fed)+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=site:bloomberg.com+(markets+OR+economics+OR+finance+OR+crypto+OR+fed)+when:1d&hl=en-US&gl=US&ceid=US:en"
       ]
     },
     { id:"reuters", label:"Reuters", color:"#ff6b35",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+(site:reuters.com+(markets+OR+business+OR+finance+OR+bitcoin+OR+fed))&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=%22Reuters%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Reuters%22+markets+OR+economics+OR+finance+OR+bitcoin+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=site:reuters.com+(markets+OR+economics+OR+finance+OR+bitcoin+OR+fed)+when:1d&hl=en-US&gl=US&ceid=US:en"
       ]
     },
     { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+(site:bloomberg.com+(markets+OR+economics+OR+finance+OR+crypto+OR+fed))&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=%22Bloomberg%20Markets%22+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=%22Bloomberg%20Markets%22+OR+%22Bloomberg%22+economics+OR+finance+OR+crypto+when:1d&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=site:bloomberg.com+(markets+OR+economics+OR+finance+OR+crypto+OR+fed)+when:1d&hl=en-US&gl=US&ceid=US:en"
       ]
-    },
+    }
   ];
 
     // ── CALENDAR FEEDS ─────────────────────────────────────────────────────────────
   // ForexFactory JSON is the most reliable free cross-origin economic calendar
   // same underlying data Myfxbook and TradingEconomics aggregate
   const CALENDAR_FEEDS = [
-    // Scheduled economic calendar sources only
     { label:"Myfxbook", color:"#00aaff", type:"rss",
-      url:"https://www.myfxbook.com/rss/forex-economic-calendar-events" },
-    { label:"Trading Economics", color:"#f0a030", type:"rss",
-      url:"https://news.google.com/rss/search?q=site:tradingeconomics.com+%22economic+calendar%22&hl=en-US&gl=US&ceid=US:en" },
+      url:"https://www.myfxbook.com/rss/forex-economic-calendar-events" }
   ];
 
   // ECO_KEYWORDS for feed classification
@@ -2107,13 +2104,15 @@ function App() {
 
     // Build a single human-readable polarity chain summary
     const baseDir = baseStepDirection;
-    const baseHour = (et.h24 % 12) || 12;
     const newsActive = newsReaction.active;
     const hasSpeech = newsReaction.hasSpeech;
+    const stepSym = baseStepPolarity === "positive" ? "+" : "-";
+    const newsSym = newsActive ? ((charge.finalPol||"negative") === "positive" ? "+" : "-") : "Ø";
+    const resultSym = finalSignal.label === "BUY" ? "+" : "-";
     const summaryLine = [
-      `Base step: ${baseHour}:00 ET → ${baseStepPolarity === "positive" ? "+" : "-"}`,
-      newsActive ? `News charge: ${String(charge.finalPol||"").toUpperCase()}` : "News: None",
-      newsActive ? (hasSpeech ? `Speech ×${newsReaction.speechMultiplier}` : newsReaction.hasBreaking ? "Breaking 15m burst" : "Scheduled window active") : "Using base step only"
+      `STEP ${stepSym}`,
+      newsActive ? `NEWS ${newsSym}` : "NO NEWS",
+      newsActive ? (hasSpeech ? `SPEECH ×${newsReaction.speechMultiplier}` : newsReaction.hasBreaking ? "BREAKING 15M" : "SCHEDULED ACTIVE") : "BASE STEP ONLY"
     ].join("  ·  ");
 
     const sig = finalSignal;
@@ -2137,13 +2136,13 @@ function App() {
         {/* ── STEP / ZONE / WINDOW — 3 mini tiles ── */}
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           {[
-            {label:"STEP",   val:`${((et.h24 % 12) || 12)}:00 · ${baseStepPolarity === "positive" ? "+" : "-"}`, arrow:null, col:baseDir==="buy"?G:R},
+            {label:"STEP",   val:`${baseStepPolarity === "positive" ? "+" : "-"}`, arrow:null, col:baseDir==="buy"?G:R},
             {label:"ZONE",   val:zLabel, arrow:null, col:zCol},
             {label:"WINDOW", val:inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE", arrow:null, col:inExecute?G:inTrap?A:"#444"},
           ].map(item=>(
             <div key={item.label} style={{flex:1,borderRadius:14,border:`1px solid ${item.col}33`,background:`${item.col}07`,padding:"11px 8px",textAlign:"center"}}>
               <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:5,whiteSpace:"nowrap"}}>{item.label}</div>
-              <div style={{fontSize:20,fontWeight:900,color:item.col,...mono,lineHeight:1,whiteSpace:"nowrap"}}>
+              <div style={{fontSize:24,fontWeight:900,color:item.col,...mono,lineHeight:1,whiteSpace:"nowrap"}}>
                 {item.arrow&&<span style={{marginRight:4}}>{item.arrow}</span>}{item.val}
               </div>
             </div>
@@ -2167,15 +2166,25 @@ function App() {
           ))}
         </div>
 
-        {/* ── FINAL SIGNAL — single, prominent ── */}
-        <div style={{marginBottom:14,borderRadius:16,border:`2px solid ${sig.col}55`,background:`${sig.col}0c`,padding:"22px 16px",textAlign:"center",boxShadow:`0 0 32px ${sig.col}14`}}>
-          <div style={{fontSize:10,letterSpacing:3,color:"#555",...mono,marginBottom:10}}>FINAL SIGNAL</div>
-          <div style={{fontSize:52,fontWeight:900,color:sig.col,letterSpacing:4,...mono,lineHeight:1}}>
-            {sig.label==="BUY"?"▲":"▼"} {sig.label}
+        {/* ── EQUATION — 3 boxes only ── */}
+        <div style={{marginBottom:14,borderRadius:16,border:`1px solid ${sig.col}33`,background:"rgba(255,255,255,0.025)",padding:"14px 12px"}}>
+          <div style={{fontSize:10,letterSpacing:3,color:"#555",...mono,marginBottom:10,textAlign:"center"}}>FINAL EQUATION</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            <div style={{borderRadius:12,border:`1px solid ${(stepSym==="+"?G:R)}33`,background:`${(stepSym==="+"?G:R)}08`,padding:"12px 10px",textAlign:"center"}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>STEP</div>
+              <div style={{fontSize:30,fontWeight:900,color:stepSym==="+"?G:R,...mono,lineHeight:1}}>{stepSym}</div>
+            </div>
+            <div style={{borderRadius:12,border:`1px solid ${newsActive?(newsSym==="+"?G:R):A}33`,background:`${newsActive?(newsSym==="+"?G:R):A}08`,padding:"12px 10px",textAlign:"center"}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>NEWS</div>
+              <div style={{fontSize:30,fontWeight:900,color:newsActive?(newsSym==="+"?G:R):A,...mono,lineHeight:1}}>{newsSym}</div>
+            </div>
+            <div style={{borderRadius:12,border:`1px solid ${sig.col}33`,background:`${sig.col}08`,padding:"12px 10px",textAlign:"center"}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>RESULT</div>
+              <div style={{fontSize:30,fontWeight:900,color:sig.col,...mono,lineHeight:1}}>{resultSym}</div>
+              <div style={{fontSize:12,color:sig.col,...mono,marginTop:6,fontWeight:700}}>{sig.label==="BUY"?"BUY = +":"SELL = -"}</div>
+            </div>
           </div>
-          <div style={{marginTop:14,fontSize:12,color:"#666",...mono,lineHeight:1.8,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:12}}>
-            {summaryLine}
-          </div>
+          <div style={{marginTop:10,fontSize:12,color:"#666",...mono,lineHeight:1.8,textAlign:"center"}}>{summaryLine}</div>
         </div>
 
         {/* ── ACTIVE NEWS BADGE — only if news is live ── */}
@@ -2235,7 +2244,7 @@ function App() {
               <div style={{borderRadius:12,border:`1px solid ${(stepPol==="positive"?G:R)}33`,background:`${(stepPol==="positive"?G:R)}08`,padding:"12px 10px",textAlign:"center"}}>
                 <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>WINDOW</div>
                 <div style={{fontSize:28,fontWeight:900,color:stepPol==="positive"?G:R,...mono,lineHeight:1}}>{stepSym}</div>
-                <div style={{fontSize:12,color:"#777",...mono,marginTop:5}}>{stepHour}:00 ET</div>
+                <div style={{fontSize:12,color:"#777",...mono,marginTop:5}}>STEP ONLY</div>
               </div>
               <div style={{borderRadius:12,border:`1px solid ${resultCol}33`,background:`${resultCol}08`,padding:"12px 10px",textAlign:"center"}}>
                 <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>RESULT</div>
@@ -2803,16 +2812,9 @@ function App() {
           );
         })()}
 
-        {/* Toggle */}
-        <div style={{display:"flex",gap:6,marginBottom:14}}>
-          {[{id:"feed",l:"📰 FEED"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
-            <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
-              background:newsView===v.id?`${A}22`:"transparent",
-              border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
-              color:newsView===v.id?A:"#888",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>
-              {v.l}
-            </button>
-          ))}
+        {/* Feed header */}
+        <div style={{marginBottom:14,borderRadius:10,border:"1px solid #1e1e2e",background:"rgba(255,255,255,0.02)",padding:"9px 12px",textAlign:"center"}}>
+          <div style={{fontSize:13,fontWeight:700,color:A,letterSpacing:1}}>FEED</div>
         </div>
 
         {/* ── BREAKING ANCHOR BANNER (shown on all views) ── */}
@@ -2832,7 +2834,7 @@ function App() {
         )}
 
         {/* ── LIVE ECO NEWS / EVENTS ── */}
-        {newsView==="events"&&(
+        {false&&(
           <div>
             {/* Star filter */}
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
@@ -2909,7 +2911,7 @@ function App() {
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>MYFXBOOK · TRADINGECONOMICS · REUTERS · BLOOMBERG</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>MYFXBOOK · REUTERS · BLOOMBERG</div>
               <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
             </div>
 
@@ -2964,16 +2966,15 @@ function App() {
                   <div style={{paddingLeft:12}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"⚡ BREAKING"}</span>
-                        <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
-                        {item.stars>0 && <span style={{fontSize:13,color:item.color}}>{"★".repeat(item.stars)}</span>}
+                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"⚡ BREAKING 15M"}</span>
+                                                {item.stars>0 && <span style={{fontSize:13,color:item.color}}>{"★".repeat(item.stars)}</span>}
                       </div>
                       <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
                     </div>
                     <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
                     {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
                     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                      {item.link&&<span style={{fontSize:14,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
+                      
                       {(item.bullish || item.bearish) && (
                         <button
                           onClick={(e)=>{e.stopPropagation(); setBreakingAnchor({title:item.title,polarity:item.bearish?-1:1,expiresAt:Date.now()+15*60*1000,stars:item.stars||3});}}
@@ -2993,7 +2994,7 @@ function App() {
         )}
 
 
-        {newsView==="news"&&(
+        {false&&(
           <>
             {/* Source selector */}
             <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
@@ -3025,7 +3026,7 @@ function App() {
               <div style={{padding:"14px 16px",background:"rgba(255,51,85,0.07)",border:"1px solid rgba(255,51,85,0.25)",borderRadius:12,marginBottom:12}}>
                 <div style={{fontSize:14,color:"#ff7788",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>{newsError}</div>
                 <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>
-                  Try switching source or use the SOURCES tab to open sites directly.
+                  Refresh the feed if headlines do not appear yet.
                 </div>
               </div>
             )}
@@ -3183,7 +3184,7 @@ function App() {
 
 
         {/* ── SOURCES ── */}
-        {newsView==="links"&&(
+        {false&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
               <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Reuters and Bloomberg breaking headlines with Myfxbook and TradingEconomics scheduled events. Breaking items can anchor the 15 minute burst used by the engine.</div>
@@ -3224,9 +3225,7 @@ function App() {
   // Navigation tabs: remove VWAP and Plan tabs per user request
   const NAV=[
     {id:"clock",icon:"⏱",l:"CLOCK"},
-    {id:"signals",icon:"📡",l:"SIGNALS"},
-    {id:"news",icon:"📰",l:"NEWS"},
-    {id:"backtest",icon:"📊",l:"BACKTEST"},
+    {id:"news",icon:"📰",l:"FEED"},
     {id:"replay",icon:"⏪",l:"REPLAY"}
   ];
 
@@ -3252,10 +3251,8 @@ function App() {
       {/* CONTENT */}
       <div style={{animation:"fadeUp .3s ease"}}>
         {tab==="clock"    && <ClockTab/>}
-        {tab==="signals"  && <SignalsTab/>}
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
-        {tab==="backtest" && <BacktestTab/>}
         {tab==="replay" && <ReplayTab/>}
         {/* Plan tab removed per user request */}
       </div>
