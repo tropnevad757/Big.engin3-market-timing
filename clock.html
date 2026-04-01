@@ -943,200 +943,62 @@ function App() {
 
 
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════════════════════════════
-  // BiG ENGiN3 POLARITY ENGINE v3 — EARLY SIGNAL FRAMEWORK
-  // Formula: Time Regime × Polarity × Zone Alignment × Market Confirmation
-  //          = Trade Confidence (0–100) + Traffic Light + Setup Type
-  //
-  // TIMING MAP (ET):
-  // 1:30  → SWITCH    Z1 SELL opens. Polarity flips bearish. Stalk shorts.
-  // 4:30  → RESET     Z4 BUY opens. Overnight sell exhausts. Counter reversal.
-  // 6:30  → DANGER    Z6 SELL — 60-min flush only. Transition. High risk.
-  // 7:30  → PRIMARY   Z7 BUY — highest edge. NYSE prep. ICT kill zone.
-  // 10:30 → TRAP/FADE Z10 SELL — AM exhaustion + London close.
-  // 12:30 → REVERSAL  Z12 BUY — post-lunch liquidity grab. Short window.
-  // ══════════════════════════════════════════════════════════════════════════════
-
   const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
 
-  // ── POLARITY CLOCK — exact regime sequence (ET, repeats AM + PM) ─────────────
-  // Source: BiG ENGiN3 time regime without news disruption
-  // VWAP Anchors: 1:30 · 4:30 · 7:30 · 10:30 (AM + PM)
-  // UP = buy | DOWN = sell
-  const ZONE_WINDOWS = [
-    // ─── AM CYCLE ────────────────────────────────────────────────────────────
-    // 12:30–1:00 AM : DOWN (tail of previous 12:30 cycle)
-    { from:   0, to:  60, pol:+1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
-    // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
-    { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
-    // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
-    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
-    // 2:00–3:00 AM  : UP (counter inside Z1)
-    { from: 120, to: 180, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
-    // 3:00–4:00 AM  : DOWN (continuation sell)
-    { from: 180, to: 240, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
-    // 4:00–4:30 AM  : UP (pre-anchor stalk)
-    { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
-    // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
-    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
-    // 5:00–6:00 AM  : UP (Z4 recovery buy)
-    { from: 300, to: 360, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
-    // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
-    { from: 360, to: 390, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
-    // 6:30–7:00 AM  : UP (Z6 counter move)
-    { from: 390, to: 420, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
-    // 7:00–7:30 AM  : DOWN (final flush before NY open)
-    { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
-    // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
-    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
-    // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
-    { from: 480, to: 540, pol:+1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
-    // 9:00–10:00 AM : UP (NYSE open expansion)
-    { from: 540, to: 600, pol:-1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
-    // 10:00–10:30 AM: DOWN (AM exhaustion / pre-Z10)
-    { from: 600, to: 630, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
-    // 10:30–11:00 AM: UP ★ VWAP ANCHOR (initial Z10 spike — sell the rip)
-    { from: 630, to: 660, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
-    // 11:00–12:00 AM: DOWN (Z10 sell momentum / London close)
-    { from: 660, to: 720, pol:+1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
-    // 12:00–12:30 AM: UP (pre-Z12 stalk)
-    { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
-    // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
-    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
-
-    // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
-    // 1:00–1:30 PM  : UP
-    { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
-    // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
-    // 2:00–3:00 PM  : UP
-    { from: 840, to: 900, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
-    // 3:00–4:00 PM  : DOWN
-    { from: 900, to: 960, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
-    // 4:00–4:30 PM  : UP
-    { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
-    // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
-    // 5:00–6:00 PM  : UP
-    { from:1020, to:1080, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
-    // 6:00–6:30 PM  : DOWN
-    { from:1080, to:1110, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
-    // 6:30–7:00 PM  : UP
-    { from:1110, to:1140, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
-    // 7:00–7:30 PM  : DOWN
-    { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
-    // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
-    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
-    // 8:00–9:00 PM  : DOWN
-    { from:1200, to:1260, pol:+1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
-    // 9:00–10:00 PM : UP
-    { from:1260, to:1320, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
-    // 10:00–10:30 PM: DOWN
-    { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
-    // 10:30–11:00 PM: UP ★ VWAP ANCHOR
-    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
-    // 11:00–12:00 AM: DOWN
-    { from:1380, to:1440, pol:+1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
-  ];
-
   // ══════════════════════════════════════════════════════════════════════
-  // TWO-LAYER TIME REGIME (ET)
+  // NEW REGIME ENGINE (ET) — SINGLE SOURCE OF TRUTH
+  // BUY CORE   = mirror
+  // SELL RESET = aligned
+  // No regime times are rendered in the UI.
   // ══════════════════════════════════════════════════════════════════════
-
-  // LAYER 1 — Major regime
-  // 1:30–7:30 ET = BUY zone (both AM and PM)
-  // 7:30–1:30 ET = SELL zone (both AM and PM)
-  function getMajorRegime(h24, m) {
-    const t = h24*60+m;
-    // 1:30 (90) to 7:30 (450) = BUY
-    // 7:30 (450) to 13:30 (810) = SELL
-    // 13:30 (810) to 19:30 (1170) = BUY  (PM repeat)
-    // 19:30 (1170) to 25:30/90 = SELL (PM repeat)
-    const BUY_RANGES  = [[90,450],[810,1170]];
-    const isBuy = BUY_RANGES.some(([s,e]) => t >= s && t < e);
-    // Also handle overnight: 0–90 = tail of SELL, 1170–1440 = SELL
-    return {
-      direction: isBuy ? "buy" : "sell",
-      label:     isBuy ? "BUY" : "SELL",
-      col:       isBuy ? G : R,
-    };
+  function inRangeMins(t, start, end) {
+    return start <= end ? (t >= start && t < end) : (t >= start || t < end);
   }
 
-  // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
-  // Each entry: [startMins, direction, label]
-  const INTERNAL_STEPS = [
-    // AM cycle
-    [   0,  "sell", "Down"],  // 12:00 AM → down (tail)
-    [  60,  "buy",  "Up"  ],  // 1:00 AM
-    [  90,  "sell", "Down"],  // 1:30 AM
-    [ 120,  "buy",  "Up"  ],  // 2:00 AM
-    [ 180,  "sell", "Down"],  // 3:00 AM
-    [ 240,  "buy",  "Up"  ],  // 4:00 AM
-    [ 270,  "sell", "Down"],  // 4:30 AM
-    [ 300,  "buy",  "Up"  ],  // 5:00 AM
-    [ 360,  "sell", "Down"],  // 6:00 AM
-    [ 390,  "buy",  "Up"  ],  // 6:30 AM
-    [ 420,  "sell", "Down"],  // 7:00 AM
-    [ 450,  "buy",  "Up"  ],  // 7:30 AM
-    [ 480,  "sell", "Down"],  // 8:00 AM
-    [ 540,  "buy",  "Up"  ],  // 9:00 AM
-    [ 600,  "sell", "Down"],  // 10:00 AM
-    [ 630,  "buy",  "Up"  ],  // 10:30 AM
-    [ 660,  "sell", "Down"],  // 11:00 AM
-    [ 720,  "buy",  "Up"  ],  // 12:00 PM
-    [ 750,  "sell", "Down"],  // 12:30 PM
-    // PM cycle (exact mirror +720)
-    [ 780,  "buy",  "Up"  ],  // 1:00 PM
-    [ 810,  "sell", "Down"],  // 1:30 PM
-    [ 840,  "buy",  "Up"  ],  // 2:00 PM
-    [ 900,  "sell", "Down"],  // 3:00 PM
-    [ 960,  "buy",  "Up"  ],  // 4:00 PM
-    [ 990,  "sell", "Down"],  // 4:30 PM
-    [1020,  "buy",  "Up"  ],  // 5:00 PM
-    [1080,  "sell", "Down"],  // 6:00 PM
-    [1110,  "buy",  "Up"  ],  // 6:30 PM
-    [1140,  "sell", "Down"],  // 7:00 PM
-    [1170,  "buy",  "Up"  ],  // 7:30 PM
-    [1200,  "sell", "Down"],  // 8:00 PM
-    [1260,  "buy",  "Up"  ],  // 9:00 PM
-    [1320,  "sell", "Down"],  // 10:00 PM
-    [1350,  "buy",  "Up"  ],  // 10:30 PM
-    [1380,  "sell", "Down"],  // 11:00 PM
-    [1440,  "buy",  "Up"  ],  // sentinel
+  function minsUntilBoundary(t, end) {
+    return end >= t ? (end - t) : (1440 - t + end);
+  }
+
+  const REGIME_SEGMENTS = [
+    { from:1350, to:  30, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
+    { from:  30, to:  90, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
+    { from:  90, to: 270, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
+    { from: 270, to: 390, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
+    { from: 390, to: 450, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
+    { from: 450, to: 630, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
+    { from: 630, to: 750, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
+    { from: 750, to: 810, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
+    { from: 810, to: 990, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
+    { from: 990, to:1110, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
+    { from:1110, to:1170, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
+    { from:1170, to:1350, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
   ];
+
+  function getWindowAt(h24, m) {
+    const t = h24*60 + m;
+    const seg = REGIME_SEGMENTS.find(s => inRangeMins(t, s.from, s.to));
+    return seg || REGIME_SEGMENTS[0];
+  }
+
+  function getConnectorMode(h24, m) {
+    return getWindowAt(h24, m).connectorMode;
+  }
 
   function getInternalStep(h24, m) {
-    const t = h24*60+m;
-    let current = INTERNAL_STEPS[0];
-    for(let i=0; i<INTERNAL_STEPS.length-1; i++) {
-      if(t >= INTERNAL_STEPS[i][0] && t < INTERNAL_STEPS[i+1][0]) {
-        current = INTERNAL_STEPS[i];
-        const next = INTERNAL_STEPS[i+1];
-        const minsLeft = INTERNAL_STEPS[i+1][0] - t;
-        return {
-          direction: current[1],
-          label:     current[2],
-          col:       current[1]==="buy" ? G : R,
-          minsLeft,
-          nextLabel: next[2],
-          nextDir:   next[1],
-          nextCol:   next[1]==="buy" ? G : R,
-        };
-      }
-    }
-    return { direction:"buy", label:"Up", col:G, minsLeft:0, nextLabel:"Down", nextDir:"sell", nextCol:R };
+    const t = h24*60 + m;
+    const idx = REGIME_SEGMENTS.findIndex(s => inRangeMins(t, s.from, s.to));
+    const seg = idx >= 0 ? REGIME_SEGMENTS[idx] : REGIME_SEGMENTS[0];
+    const next = REGIME_SEGMENTS[(idx >= 0 ? idx + 1 : 1) % REGIME_SEGMENTS.length];
+    return {
+      direction: seg.direction,
+      label: seg.direction === "buy" ? "Up" : "Down",
+      col: seg.direction === "buy" ? G : R,
+      minsLeft: minsUntilBoundary(t, seg.to),
+      nextLabel: next.direction === "buy" ? "Up" : "Down",
+      nextDir: next.direction,
+      nextCol: next.direction === "buy" ? G : R,
+    };
   }
-
-  function getMajorRegimeChange(h24, m) {
-    const t = h24*60+m;
-    // Next change points: 90(1:30), 450(7:30), 810(1:30pm), 1170(7:30pm)
-    const CHANGES = [90,450,810,1170];
-    const next = CHANGES.find(c => c > t) || (CHANGES[0]+1440);
-    return next - t;
-  }
-
-  // End of two-layer regime functions
 
   // ══════════════════════════════════════════════════════════════════════
   // CONNECTOR + CHARGE ENGINE
@@ -1180,28 +1042,6 @@ function App() {
     { sym:"TWD", rate:2.00  }, // CBC Taiwan — 2.00%
     { sym:"THB", rate:2.00  }, // BOT Thailand — 2.00%
   ];
-
-  // Connector window: which logic applies right now (24h ET minutes)
-  // Mirror (−): 12:30–1:30 · 4:30–6:30  AM + PM
-  // Aligned (+): 6:30–7:30 · 10:30–12:30  AM + PM
-  function getConnectorMode(h24, m) {
-    const t = h24*60+m;
-    const MIRROR = [
-      [30,   90],   // 12:30–1:30 AM
-      [270,  390],  // 4:30–6:30 AM
-      [750,  810],  // 12:30–1:30 PM
-      [990,  1110], // 4:30–6:30 PM
-    ];
-    const ALIGNED = [
-      [390,  450],  // 6:30–7:30 AM
-      [630,  750],  // 10:30 AM–12:30 PM
-      [1110, 1170], // 6:30–7:30 PM
-      [1350, 1440], // 10:30 PM–12:00 AM
-    ];
-    if(MIRROR.some(([s,e]) => t>=s && t<e))  return "mirror";
-    if(ALIGNED.some(([s,e]) => t>=s && t<e)) return "aligned";
-    return "mirror";
-  }
 
   // Charge engine — applies mirror or aligned rules to interest rates
   // ── COUNTRY INFERENCE from news title ────────────────────────────────────────
@@ -1288,32 +1128,6 @@ function App() {
     return {mode,positive:pos,negative:neg,flipTriggered:flip,finalCharge};
   }
 
-  function getWindowAt(h24, m) {
-    const t = h24*60+m;
-    const matches = ZONE_WINDOWS.filter(w => t >= w.from && t < w.to);
-    return matches.reduce((best, w) => (!best || w.tier > best.tier) ? w : best, null)
-           || ZONE_WINDOWS[ZONE_WINDOWS.length-1];
-  }
-
-  function getMinutesToNextZone(h24, m) {
-    const t = h24*60+m;
-    // All 8 zone opens: 1:30, 4:30, 7:30, 10:30 AM and PM
-    const ZONE_OPENS = [90, 270, 450, 630, 810, 990, 1170, 1350];
-    const next = ZONE_OPENS.find(z => z > t) || (ZONE_OPENS[0] + 1440);
-    return next - t;
-  }
-
-  // Execute windows: 30 min after each trap, lasting 60 min
-  // Trap: 1:30,4:30,7:30,10:30 AM+PM → Execute: 2:00-3:00, 5:00-6:00, 8:00-9:00, 11:00-12:00
-  const EXECUTE_WINDOWS = [120,300,480,660,840,1020,1200,1380].map(s=>({from:s, to:s+60}));
-  function getExecuteState(h24, m) {
-    const t = h24*60+m;
-    const inExecute = EXECUTE_WINDOWS.some(w => t >= w.from && t < w.to);
-    const inTrap = [90,270,450,630,810,990,1170,1350].some(tr => t >= tr && t < tr+30);
-    return { inExecute, inTrap };
-  }
-
-  // STAGE 1: EARLY BIAS (max 40 pts)
   function computeEarlyBias(h24, m, zone, zType, inSubWindow) {
     const win = getWindowAt(h24, m);
     const polarity = win.pol;
@@ -1452,7 +1266,7 @@ function App() {
     // Compute zone direction from liveZ state (always available) — appZType is defined later
     const _nrLiveZone = liveZ.find(z => z && z.type !== "dead") || null;
     const zDir = (_nrLiveZone ? _nrLiveZone.type : null) ||
-                 (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
+                 (getWindowAt(et.h24, et.m).direction);
 
     const toMins = (dateStr, timeStr) => {
       if(!dateStr||!timeStr) return null;
@@ -2176,21 +1990,6 @@ function App() {
           })}
         </div>
 
-
-        {/* ── REGIME LIST — NEW WAY ── */}
-        <div style={{marginBottom:12,borderRadius:14,border:`1px solid ${A}22`,background:"rgba(255,255,255,0.02)",padding:"12px 12px"}}>
-          <div style={{fontSize:10,letterSpacing:2,color:"#777",...mono,marginBottom:8,textAlign:"center"}}>REGIME</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8}}>
-            <div style={{borderRadius:12,border:`1px solid ${G}22`,background:`${G}08`,padding:"10px 10px"}}>
-              <div style={{fontSize:11,fontWeight:800,color:G,...mono,marginBottom:4}}>BUY CORE REGIME</div>
-              <div style={{fontSize:11,color:"#aaa",...mono,marginBottom:0}}>Connector: − = mirror</div>
-            </div>
-            <div style={{borderRadius:12,border:`1px solid ${R}22`,background:`${R}08`,padding:"10px 10px"}}>
-              <div style={{fontSize:11,fontWeight:800,color:R,...mono,marginBottom:4}}>SELL RESET REGIME</div>
-              <div style={{fontSize:11,color:"#aaa",...mono,marginBottom:0}}>Connector: + = aligned</div>
-            </div>
-          </div>
-        </div>
 
         {/* ── MODE / EQUATION ── */}
         <div style={{marginBottom:14,borderRadius:16,border:`1px solid ${sig.col}33`,background:"rgba(255,255,255,0.025)",padding:"14px 12px"}}>
