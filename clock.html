@@ -943,191 +943,106 @@ function App() {
 
 
 
+    // ── NEW REGIME ENGINE (ET) ─────────────────────────────────────────────
+  // BUY CORE = mirror
+  // SELL RESET = aligned
+
   const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
 
-  // ══════════════════════════════════════════════════════════════════════
-  // NEW REGIME ENGINE (ET) — SINGLE SOURCE OF TRUTH
-  // BUY CORE   = mirror
-  // SELL RESET = aligned
-  // No regime times are rendered in the UI.
-  // ══════════════════════════════════════════════════════════════════════
-  function inRangeMins(t, start, end) {
-    return start <= end ? (t >= start && t < end) : (t >= start || t < end);
-  }
+const BUY_CORE_ANCHORS_AM = [30, 90, 270, 390];
+  const SELL_RESET_ANCHORS_AM = [390, 450, 630, 750];
 
-  function minsUntilBoundary(t, end) {
-    return end >= t ? (end - t) : (1440 - t + end);
+  function plus720(x){ return (x + 720) % 1440; }
+  function inRangeMins(t, from, to){
+    return from <= to ? (t >= from && t < to) : (t >= from || t < to);
   }
-
+  function buildSegmentsFromAnchors(anchorsAM, meta){
+    const segs = [];
+    const addSegs = (anchors) => {
+      for(let i=0;i<anchors.length-1;i++){
+        segs.push({ ...meta, from: anchors[i], to: anchors[i+1] });
+      }
+    };
+    addSegs(anchorsAM);
+    addSegs(anchorsAM.map(plus720));
+    return segs;
+  }
   const REGIME_SEGMENTS = [
-    { from:1350, to:  30, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
-    { from:  30, to:  90, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
-    { from:  90, to: 270, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
-    { from: 270, to: 390, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
-    { from: 390, to: 450, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
-    { from: 450, to: 630, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
-    { from: 630, to: 750, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
-    { from: 750, to: 810, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
-    { from: 810, to: 990, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
-    { from: 990, to:1110, regimeId:"buy_core",   connectorMode:"mirror",  connectorSign:"-", direction:"buy",  pol:+1, tier:4, role:"CORE",  setup:"train", label:"BUY CORE"   },
-    { from:1110, to:1170, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
-    { from:1170, to:1350, regimeId:"sell_reset", connectorMode:"aligned", connectorSign:"+", direction:"sell", pol:-1, tier:3, role:"RESET", setup:"train", label:"SELL RESET" },
+    ...buildSegmentsFromAnchors(BUY_CORE_ANCHORS_AM, {
+      regimeId:'buy_core', direction:'buy', connectorMode:'mirror', connectorSign:'-',
+      pol:+1, tier:4, role:'CORE', setup:'train', label:'BUY CORE'
+    }),
+    ...buildSegmentsFromAnchors(SELL_RESET_ANCHORS_AM, {
+      regimeId:'sell_reset', direction:'sell', connectorMode:'aligned', connectorSign:'+',
+      pol:-1, tier:4, role:'RESET', setup:'train', label:'SELL RESET'
+    }),
   ];
 
+  const REGIME_CHANGE_POINTS = Array.from(new Set(
+    REGIME_SEGMENTS.flatMap(s => [s.from, s.to]).map(v => ((v % 1440) + 1440) % 1440)
+  )).sort((a,b)=>a-b);
+
+
   function getWindowAt(h24, m) {
-    const t = h24*60 + m;
+    const t = h24*60+m;
     const seg = REGIME_SEGMENTS.find(s => inRangeMins(t, s.from, s.to));
-    return seg || REGIME_SEGMENTS[0];
+    return seg || {
+      regimeId:'buy_core', direction:'buy', connectorMode:'mirror', connectorSign:'-',
+      pol:+1, tier:4, role:'CORE', setup:'train', label:'BUY CORE', from:0, to:1440
+    };
   }
 
   function getConnectorMode(h24, m) {
     return getWindowAt(h24, m).connectorMode;
   }
 
+  function getMajorRegime(h24, m) {
+    const win = getWindowAt(h24, m);
+    const isBuy = win.direction === 'buy';
+    return { direction: win.direction, label: isBuy ? 'BUY' : 'SELL', col: isBuy ? G : R };
+  }
+
   function getInternalStep(h24, m) {
-    const t = h24*60 + m;
-    const idx = REGIME_SEGMENTS.findIndex(s => inRangeMins(t, s.from, s.to));
-    const seg = idx >= 0 ? REGIME_SEGMENTS[idx] : REGIME_SEGMENTS[0];
-    const next = REGIME_SEGMENTS[(idx >= 0 ? idx + 1 : 1) % REGIME_SEGMENTS.length];
+    const t = h24*60+m;
+    const win = getWindowAt(h24, m);
+    const next = REGIME_CHANGE_POINTS.find(c => c > t) || (REGIME_CHANGE_POINTS[0] + 1440);
+    const nextWin = getWindowAt(Math.floor((next % 1440)/60), next % 60);
+    const isBuy = win.direction === 'buy';
+    const nextIsBuy = nextWin.direction === 'buy';
     return {
-      direction: seg.direction,
-      label: seg.direction === "buy" ? "Up" : "Down",
-      col: seg.direction === "buy" ? G : R,
-      minsLeft: minsUntilBoundary(t, seg.to),
-      nextLabel: next.direction === "buy" ? "Up" : "Down",
-      nextDir: next.direction,
-      nextCol: next.direction === "buy" ? G : R,
+      direction: win.direction,
+      label: isBuy ? 'Up' : 'Down',
+      col: isBuy ? G : R,
+      minsLeft: next - t,
+      nextLabel: nextIsBuy ? 'Up' : 'Down',
+      nextDir: nextWin.direction,
+      nextCol: nextIsBuy ? G : R,
     };
   }
 
-  // ══════════════════════════════════════════════════════════════════════
-  // CONNECTOR + CHARGE ENGINE
-  // ══════════════════════════════════════════════════════════════════════
-  // Interest rates — update monthly. USD is the anchor.
-  // USD anchor — Fed funds rate March 2026
-  // Equal-to-USD treated same as below (goes with lower)
-  // USD anchor — Fed funds range 3.50–3.75%, using upper bound
-  // Equal-to-USD treated same as below per system rules
-  const USD_RATE = 3.75;
-  const CHARGE_CURRENCIES = [
-    // G10
-    { sym:"AUD", rate:4.10  }, // RBA — 4.10% (Mar 17 2026)
-    { sym:"NOK", rate:4.00  }, // Norges Bank — 4.00% (Mar 25 2026)
-    { sym:"GBP", rate:3.75  }, // BOE — 3.75% = equal → lower
-    { sym:"EUR", rate:2.15  }, // ECB deposit — 2.15%
-    { sym:"CAD", rate:2.25  }, // BOC — 2.25%
-    { sym:"NZD", rate:2.25  }, // RBNZ — 2.25%
-    { sym:"SEK", rate:2.25  }, // Riksbank — 2.25%
-    { sym:"CHF", rate:0.00  }, // SNB — 0.00%
-    { sym:"JPY", rate:0.75  }, // BOJ — 0.75%
-    // EM / Major Crosses
-    { sym:"BRL", rate:14.75 }, // Banco Central Brasil — 14.75%
-    { sym:"TRY", rate:40.00 }, // CBRT Turkey — ~40%
-    { sym:"MXN", rate:9.00  }, // Banxico Mexico — ~9.00%
-    { sym:"ISK", rate:8.50  }, // Seðlabanki Iceland — 8.50%
-    { sym:"ZAR", rate:7.50  }, // SARB South Africa — 7.50%
-    { sym:"HUF", rate:6.50  }, // MNB Hungary — 6.50%
-    { sym:"RON", rate:6.50  }, // BNR Romania — 6.50%
-    { sym:"INR", rate:6.25  }, // RBI India — 6.25%
-    { sym:"IDR", rate:5.75  }, // BI Indonesia — 5.75%
-    { sym:"PLN", rate:5.75  }, // NBP Poland — 5.75%
-    { sym:"PHP", rate:5.50  }, // BSP Philippines — 5.50%
-    { sym:"ILS", rate:4.50  }, // BOI Israel — 4.50%
-    { sym:"CZK", rate:3.50  }, // CNB Czech Republic — 3.50%
-    { sym:"MYR", rate:3.00  }, // BNM Malaysia — 3.00%
-    { sym:"SGD", rate:3.00  }, // MAS Singapore — 3.00%
-    { sym:"CNY", rate:3.00  }, // PBOC LPR — 3.00%
-    { sym:"KRW", rate:2.75  }, // BOK South Korea — 2.75%
-    { sym:"DKK", rate:2.35  }, // DNB Denmark — 2.35%
-    { sym:"TWD", rate:2.00  }, // CBC Taiwan — 2.00%
-    { sym:"THB", rate:2.00  }, // BOT Thailand — 2.00%
-  ];
-
-  // Charge engine — applies mirror or aligned rules to interest rates
-  // ── COUNTRY INFERENCE from news title ────────────────────────────────────────
-  function inferCountry(title) {
-    if(!title) return null;
-    const t = title.toLowerCase();
-    if(/federal reserve|fomc|powell|nfp|payroll|us cpi|us gdp|us pce|united states/.test(t)) return "USD";
-    if(/ecb|european central bank|eurozone/.test(t)) return "EUR";
-    if(/bank of england|boe|britain|uk |pound sterling/.test(t)) return "GBP";
-    if(/bank of japan|boj|yen |jpy/.test(t)) return "JPY";
-    if(/bank of canada|boc|canada |canadian/.test(t)) return "CAD";
-    if(/reserve bank.*australia|rba|australia /.test(t)) return "AUD";
-    if(/rbnz|new zealand/.test(t)) return "NZD";
-    if(/snb|swiss national|switzerland/.test(t)) return "CHF";
-    if(/norges bank|norway|norwegian/.test(t)) return "NOK";
-    if(/riksbank|sweden|swedish/.test(t)) return "SEK";
-    if(/banco central.*brasil|brazil|brazilian/.test(t)) return "BRL";
-    if(/cbrt|turkey|turkish lira/.test(t)) return "TRY";
-    if(/banxico|mexico |mexican peso/.test(t)) return "MXN";
-    if(/reserve bank.*india|india |rupee/.test(t)) return "INR";
-    if(/pboc|peoples bank.*china|china |yuan|renminbi/.test(t)) return "CNY";
-    if(/sarb|south africa/.test(t)) return "ZAR";
-    if(/nbp|poland|zloty/.test(t)) return "PLN";
-    if(/bank of israel|israel |shekel/.test(t)) return "ILS";
-    if(/bank of korea|south korea|korean won/.test(t)) return "KRW";
-    return null;
+  function getMajorRegimeChange(h24, m) {
+    const t = h24*60+m;
+    const next = REGIME_CHANGE_POINTS.find(c => c > t) || (REGIME_CHANGE_POINTS[0] + 1440);
+    return next - t;
   }
 
-  // ── CHARGE ENGINE V2 — 2-Step Traceable Formula ───────────────────────────
-  // STEP A: Higher-rate events → combine with WINDOW MATH
-  //   pos+pos→neg  neg+neg→pos  pos+neg→neg  neg+pos→neg
-  // STEP B: Rate-group charge vs TIME CHARGE → TIME MATH
-  //   same signs→pos (BUY)  different signs→neg (SELL)
-  function computeChargeV2(connMode, stepDir, activeEvent, nearEvents, usdRate, currencies) {
-    // Time charge
-    const connPol    = connMode === "aligned" ? "positive" : "negative";
-    const stepPol    = stepDir  === "buy"     ? "positive" : "negative";
-    const timeCharge = resolveTimeMath(connPol, stepPol);
-
-    // Build higher-rate group from all active events
-    const allEvts = [];
-    if(activeEvent) allEvts.push(activeEvent);
-    for(const ev of (nearEvents||[])){
-      if(!allEvts.find(e=>e.title===ev.title)) allEvts.push(ev);
-    }
-    const higherGroup = [];
-    for(const ev of allEvts){
-      const sym = ev.currency || inferCountry(ev.title);
-      if(!sym) continue;
-      const cur = currencies.find(c=>c.sym===sym);
-      if(!cur || cur.rate <= usdRate) continue;
-      const evCharge = connMode==="mirror" ? "negative" : "positive";
-      higherGroup.push({sym, rate:cur.rate, charge:evCharge, label:(ev.title||"").slice(0,35)});
-    }
-
-    // Step A: Combine higher-rate group with WINDOW MATH
-    let rateGroupCharge = null;
-    if(higherGroup.length===1) rateGroupCharge = higherGroup[0].charge;
-    else if(higherGroup.length>=2)
-      rateGroupCharge = higherGroup.slice(1).reduce((acc,ev)=>resolveWindowMath(acc,ev.charge), higherGroup[0].charge);
-
-    // Step B: Time vs rate-group with TIME MATH
-    const finalPol    = rateGroupCharge ? resolveTimeMath(timeCharge, rateGroupCharge) : timeCharge;
-    const finalCharge = finalPol==="positive" ? +1 : -1;
-
-    return { mode:connMode, connPol, stepPol, timeCharge,
-             higherGroup, rateGroupCharge, finalPol, finalCharge,
-             hasRateInput:higherGroup.length>0,
-             stepAMath:higherGroup.length>=2?"window":"direct",
-             flipTriggered:false, positive:0, negative:0 };
+  function getMinutesToNextZone(h24, m) {
+    const t = h24*60+m;
+    const next = REGIME_CHANGE_POINTS.find(c => c > t) || (REGIME_CHANGE_POINTS[0] + 1440);
+    return next - t;
   }
 
-  // Legacy computeCharge — used in ReplayTab (no news context)
-  function computeCharge(mode, usdRate, currencies) {
-    let pos=0, neg=0;
-    for(const cur of currencies){
-      const ab=cur.rate>usdRate;
-      const chg=mode==="mirror"?(ab?-1:+1):(ab?+1:-1);
-      if(chg>0)pos++;else neg++;
-    }
-    let flip=false, finalCharge;
-    if(mode==="mirror"){if(neg>=2){flip=true;finalCharge=+1;}else finalCharge=pos>=neg?+1:-1;}
-    else{if(pos>=2){flip=true;finalCharge=-1;}else finalCharge=neg>=pos?-1:+1;}
-    return {mode,positive:pos,negative:neg,flipTriggered:flip,finalCharge};
+  // Execute windows: 30 min after each trap, lasting 60 min
+  // Trap: 1:30,4:30,7:30,10:30 AM+PM → Execute: 2:00-3:00, 5:00-6:00, 8:00-9:00, 11:00-12:00
+  const EXECUTE_WINDOWS = [120,300,480,660,840,1020,1200,1380].map(s=>({from:s, to:s+60}));
+  function getExecuteState(h24, m) {
+    const t = h24*60+m;
+    const inExecute = EXECUTE_WINDOWS.some(w => t >= w.from && t < w.to);
+    const inTrap = [90,270,450,630,810,990,1170,1350].some(tr => t >= tr && t < tr+30);
+    return { inExecute, inTrap };
   }
 
+  // STAGE 1: EARLY BIAS (max 40 pts)
   function computeEarlyBias(h24, m, zone, zType, inSubWindow) {
     const win = getWindowAt(h24, m);
     const polarity = win.pol;
@@ -1989,8 +1904,6 @@ function App() {
             );
           })}
         </div>
-
-
         {/* ── MODE / EQUATION ── */}
         <div style={{marginBottom:14,borderRadius:16,border:`1px solid ${sig.col}33`,background:"rgba(255,255,255,0.025)",padding:"14px 12px"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
@@ -2000,7 +1913,7 @@ function App() {
             </div>
             <div style={{borderRadius:12,border:`1px solid ${A}22`,background:`${A}08`,padding:"10px 8px",textAlign:"center"}}>
               <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>WINDOW</div>
-              <div style={{fontSize:18,fontWeight:900,color:A,...mono,lineHeight:1}}>{appZType ? appZType.toUpperCase() : "TREND"}</div>
+              <div style={{fontSize:18,fontWeight:900,color:A,...mono,lineHeight:1}}>{appZType && appZType.toUpperCase()==="STALK" ? "TREND" : (appZType ? appZType.toUpperCase() : "TREND")}</div>
             </div>
           </div>
           <div style={{fontSize:10,letterSpacing:3,color:"#555",...mono,marginBottom:10,textAlign:"center"}}>FINAL EQUATION</div>
