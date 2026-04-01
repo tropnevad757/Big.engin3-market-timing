@@ -748,7 +748,7 @@ function App() {
   const [newsLoading,  setNewsLoading]  = useState(false);
   const [newsError,    setNewsError]    = useState("");
   const [newsSrc,      setNewsSrc]      = useState("combo");
-  const [newsView,     setNewsView]     = useState("feed");
+  const [newsView,     setNewsView]     = useState("calendar");
   const [newsExpanded, setNewsExpanded] = useState(null);
   // Breaking news anchor — polarity override for high-impact events
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
@@ -2166,8 +2166,33 @@ function App() {
           ))}
         </div>
 
-        {/* ── EQUATION — 3 boxes only ── */}
+        {/* ── DXY / NEWS / DAY CONTEXT ── */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+          {appChecks.map((c,i)=>{
+            const col = c.passes===true ? G : c.passes===false ? R : "#666";
+            const chip = c.passes===true ? "•" : c.passes===false ? "×" : "◆";
+            return (
+              <div key={i} style={{borderRadius:12,border:`1px solid ${col}33`,background:`${col}08`,padding:"10px 8px",textAlign:"center"}}>
+                <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>{c.label}</div>
+                <div style={{fontSize:18,fontWeight:900,color:col,...mono,lineHeight:1}}>{chip}</div>
+                <div style={{fontSize:11,color:col,...mono,marginTop:6,fontWeight:700}}>{(c.value||"--").toString().slice(0,18)}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── MODE / EQUATION ── */}
         <div style={{marginBottom:14,borderRadius:16,border:`1px solid ${sig.col}33`,background:"rgba(255,255,255,0.025)",padding:"14px 12px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+            <div style={{borderRadius:12,border:`1px solid ${(newsActive?A:"#666")}33`,background:`${(newsActive?A:"#666")}08`,padding:"10px 8px",textAlign:"center"}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>MODE</div>
+              <div style={{fontSize:18,fontWeight:900,color:newsActive?A:"#888",...mono,lineHeight:1}}>{newsActive?"NEWS":"STEP"}</div>
+            </div>
+            <div style={{borderRadius:12,border:`1px solid ${A}22`,background:`${A}08`,padding:"10px 8px",textAlign:"center"}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>WINDOW</div>
+              <div style={{fontSize:18,fontWeight:900,color:A,...mono,lineHeight:1}}>{appZType ? appZType.toUpperCase() : "TREND"}</div>
+            </div>
+          </div>
           <div style={{fontSize:10,letterSpacing:3,color:"#555",...mono,marginBottom:10,textAlign:"center"}}>FINAL EQUATION</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
             <div style={{borderRadius:12,border:`1px solid ${(stepSym==="+"?G:R)}33`,background:`${(stepSym==="+"?G:R)}08`,padding:"12px 10px",textAlign:"center"}}>
@@ -2181,10 +2206,8 @@ function App() {
             <div style={{borderRadius:12,border:`1px solid ${sig.col}33`,background:`${sig.col}08`,padding:"12px 10px",textAlign:"center"}}>
               <div style={{fontSize:10,letterSpacing:2,color:"#555",...mono,marginBottom:6}}>RESULT</div>
               <div style={{fontSize:30,fontWeight:900,color:sig.col,...mono,lineHeight:1}}>{resultSym}</div>
-              <div style={{fontSize:12,color:sig.col,...mono,marginTop:6,fontWeight:700}}>{sig.label==="BUY"?"BUY = +":"SELL = -"}</div>
             </div>
           </div>
-          <div style={{marginTop:10,fontSize:12,color:"#666",...mono,lineHeight:1.8,textAlign:"center"}}>{summaryLine}</div>
         </div>
 
         {/* ── ACTIVE NEWS BADGE — only if news is live ── */}
@@ -2231,7 +2254,7 @@ function App() {
     }));
 
     return(
-      <div style={{padding:14}}>
+      <div style={{padding:14,paddingBottom:120}}>
         <div style={{display:"grid",gap:10,marginBottom:14}}>
           <div style={card({marginBottom:0})}>
             <div style={lbl("#999",{marginBottom:8})}>POLARITY MATH</div>
@@ -2285,9 +2308,12 @@ function App() {
 
   const ReplayTab = ()=>{
     const [loading,  setLoading]  = React.useState(false);
-    const [results,  setResults]  = React.useState(null);
+    const [results,  setResults]  = React.useState(()=>{ try{ const raw=localStorage.getItem("engin3_replay_results_v1"); return raw?JSON.parse(raw):null; }catch(e){ return null; } });
     const [error,    setError]    = React.useState("");
     const [weekOffset, setWeekOffset] = React.useState(0); // 0=last week, 1=2 weeks ago
+
+    React.useEffect(()=>{ try{ if(results) localStorage.setItem("engin3_replay_results_v1", JSON.stringify(results)); }catch(e){} },[results]);
+    React.useEffect(()=>{ if(!results) { setTimeout(()=>{ runReplay(); }, 10); } },[]);
 
     const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -2385,7 +2411,7 @@ function App() {
       s==="BUY FADE"?"#00cc66":s==="SELL FADE"?"#cc2244":"#555";
 
     return(
-      <div style={{padding:14}}>
+      <div style={{padding:14,paddingBottom:120}}>
         <div style={lbl("#999",{marginBottom:12})}>SIGNAL REPLAY — LAST 7 DAYS</div>
 
         {/* Controls */}
@@ -2812,9 +2838,16 @@ function App() {
           );
         })()}
 
-        {/* Feed header */}
-        <div style={{marginBottom:14,borderRadius:10,border:"1px solid #1e1e2e",background:"rgba(255,255,255,0.02)",padding:"9px 12px",textAlign:"center"}}>
-          <div style={{fontSize:13,fontWeight:700,color:A,letterSpacing:1}}>FEED</div>
+        {/* News section tabs */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+          <button onClick={()=>setNewsView("calendar")} style={{padding:"10px 12px",borderRadius:12,fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:1,
+            background:newsView==="calendar"?`${A}1c`:"transparent",border:`1px solid ${newsView==="calendar"?A:"#1e1e2e"}`,color:newsView==="calendar"?A:"#aaa"}}>
+            📅 ECONOMIC CALENDAR
+          </button>
+          <button onClick={()=>setNewsView("feed")} style={{padding:"10px 12px",borderRadius:12,fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:1,
+            background:newsView==="feed"?`${A}1c`:"transparent",border:`1px solid ${newsView==="feed"?A:"#1e1e2e"}`,color:newsView==="feed"?A:"#aaa"}}>
+            📰 FEED
+          </button>
         </div>
 
         {/* ── BREAKING ANCHOR BANNER (shown on all views) ── */}
@@ -2911,28 +2944,16 @@ function App() {
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>MYFXBOOK · REUTERS · BLOOMBERG</div>
-              <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS · BLOOMBERG</div>
+              <button onClick={()=>{ newsLoadedFor.current=""; fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
             </div>
 
-            {(ecoLoading || newsLoading)&&(
+            {newsLoading&&(
               <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing feed...</div>
             )}
 
             {(()=>{
               const mixed = [
-                ...ecoArticles.map(a=>({
-                  kind:"event",
-                  title:a.title,
-                  link:a.link,
-                  pub:a.pub,
-                  desc:a.desc,
-                  color:a.stars===3?"#ff3355":a.stars===2?"#f0a030":"#88aaff",
-                  source:(a.source||"Event"),
-                  stars:a.stars||0,
-                  bullish:!!a.bullish,
-                  bearish:!!a.bearish
-                })),
                 ...newsArticles.map(a=>({
                   kind:"news",
                   title:a.title,
@@ -2945,13 +2966,13 @@ function App() {
                   bullish:/reuters|bloomberg/i.test((a.feedLabel||a.source||"")) ? /risk-off|selloff|dump|hawkish|inflation|tariff|war|liquidation/i.test((a.title||"")+" "+(a.desc||"")) ? false : true : false,
                   bearish:/reuters|bloomberg/i.test((a.feedLabel||a.source||"")) ? /risk-off|selloff|dump|hawkish|inflation|tariff|war|liquidation/i.test((a.title||"")+" "+(a.desc||"")) : false,
                 }))
-              ].filter(x=>x.title);
+              ].filter(x=>x.title && /reuters|bloomberg/i.test((x.source||"")+" "+(x.title||"")+" "+(x.desc||"")));
 
               mixed.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
               const rows = mixed.slice(0, 40);
 
               if(!rows.length && !ecoLoading && !newsLoading){
-                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No feed items yet — tap refresh.</div>;
+                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No Reuters or Bloomberg feed items yet — tap refresh.</div>;
               }
 
               return rows.map((item,i)=>(
@@ -2966,8 +2987,8 @@ function App() {
                   <div style={{paddingLeft:12}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"⚡ BREAKING 15M"}</span>
-                                                {item.stars>0 && <span style={{fontSize:13,color:item.color}}>{"★".repeat(item.stars)}</span>}
+                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>⚡ BREAKING 15M</span>
+                                                
                       </div>
                       <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
                     </div>
@@ -3061,7 +3082,7 @@ function App() {
         )}
 
         {/* ── ECONOMIC EVENTS ── */}
-        {false&&(
+        {newsView==="calendar"&&(
           <>
             {/* Day picker + refresh */}
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
@@ -3098,7 +3119,7 @@ function App() {
                 .slice(0,30)
                 .map(e=>({
                   title:e.l, pub:e.d+"T"+e.t+":00", link:"",
-                  source:"Calendar", color:IC[e.imp]||"#888",
+                  source:"Myfxbook", color:IC[e.imp]||"#888",
                   stars:e.imp==="high"?3:e.imp==="med"?2:1,
                   cat:e.cat, btc:e.btc, date:e.d, time:e.t, isStatic:true,
                 }));
@@ -3182,7 +3203,6 @@ function App() {
           </>
         )}
 
-
         {/* ── SOURCES ── */}
         {false&&(
           <>
@@ -3230,7 +3250,7 @@ function App() {
   ];
 
   return(
-    <div style={{minHeight:"100vh",maxWidth:480,margin:"0 auto",background:`linear-gradient(180deg,${BG} 0%,#090920 100%)`,fontFamily:"'Orbitron',monospace",color:"#fff",paddingBottom:72}}>
+    <div style={{minHeight:"100vh",maxWidth:480,margin:"0 auto",background:`linear-gradient(180deg,${BG} 0%,#090920 100%)`,fontFamily:"'Orbitron',monospace",color:"#fff",paddingBottom:96}}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0;}body{background:${BG};}input,textarea,select{font-family:'Share Tech Mono',monospace;outline:none;}button{font-family:'Orbitron',monospace;}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#08081e}::-webkit-scrollbar-thumb{background:#222;border-radius:2px}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* HEADER */}
