@@ -1182,24 +1182,19 @@ function App() {
   ];
 
   // Connector window: which logic applies right now (24h ET minutes)
-  // Mirror (−): 12:30–1:30 · 4:30–6:30 · 7:30–10:30  AM + PM
-  // Aligned (+): 1:30–4:30 · 6:30–7:30 · 10:30–12:30  AM + PM
+  // Mirror (−): 12:30–1:30 · 4:30–6:30  AM + PM
+  // Aligned (+): 6:30–7:30 · 10:30–12:30  AM + PM
   function getConnectorMode(h24, m) {
     const t = h24*60+m;
     const MIRROR = [
       [30,   90],   // 12:30–1:30 AM
       [270,  390],  // 4:30–6:30 AM
-      [450,  630],  // 7:30–10:30 AM
       [750,  810],  // 12:30–1:30 PM
       [990,  1110], // 4:30–6:30 PM
-      [1170, 1350], // 7:30–10:30 PM
     ];
     const ALIGNED = [
-      [0,    30],   // 12:00–12:30 AM
-      [90,   270],  // 1:30–4:30 AM
       [390,  450],  // 6:30–7:30 AM
       [630,  750],  // 10:30 AM–12:30 PM
-      [810,  990],  // 1:30–4:30 PM
       [1110, 1170], // 6:30–7:30 PM
       [1350, 1440], // 10:30 PM–12:00 AM
     ];
@@ -2179,6 +2174,24 @@ function App() {
               </div>
             );
           })}
+        </div>
+
+
+        {/* ── REGIME LIST — NEW WAY ── */}
+        <div style={{marginBottom:12,borderRadius:14,border:`1px solid ${A}22`,background:"rgba(255,255,255,0.02)",padding:"12px 12px"}}>
+          <div style={{fontSize:10,letterSpacing:2,color:"#777",...mono,marginBottom:8,textAlign:"center"}}>REGIME LIST · NEW WAY</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8}}>
+            <div style={{borderRadius:12,border:`1px solid ${G}22`,background:`${G}08`,padding:"10px 10px"}}>
+              <div style={{fontSize:11,fontWeight:800,color:G,...mono,marginBottom:4}}>BUY CORE REGIME</div>
+              <div style={{fontSize:11,color:"#aaa",...mono,marginBottom:4}}>Connector: − = mirror</div>
+              <div style={{fontSize:12,color:"#fff",...mono,lineHeight:1.45}}>12:30-1:30 + 4:30-6:30</div>
+            </div>
+            <div style={{borderRadius:12,border:`1px solid ${R}22`,background:`${R}08`,padding:"10px 10px"}}>
+              <div style={{fontSize:11,fontWeight:800,color:R,...mono,marginBottom:4}}>SELL RESET REGIME</div>
+              <div style={{fontSize:11,color:"#aaa",...mono,marginBottom:4}}>Connector: + = aligned</div>
+              <div style={{fontSize:12,color:"#fff",...mono,lineHeight:1.45}}>6:30+7:30 - 10:30+12:30</div>
+            </div>
+          </div>
         </div>
 
         {/* ── MODE / EQUATION ── */}
