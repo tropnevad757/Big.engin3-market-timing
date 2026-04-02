@@ -2567,7 +2567,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses the new polarity engine. Scheduled events use symmetric windows (±15m / ±45m / ±75m), Reuters/Bloomberg breaking news uses 15-minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle. Reassess and trail after 15m unless expansion is clean.
+          Replay is now using the replay-engine structure from replay.html, but the signal results are driven by your new polarity/news logic. Scheduled events use symmetric windows (±15m / ±45m / ±75m), Reuters/Bloomberg breaking news uses 15-minute bursts, and replay scores TP1 / TP2 / TP3 against BTC replay candles.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2675,7 +2675,7 @@ function App() {
         {!results&&!loading&&(
           <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
             Log news and calendar items in the polarity tab, then run replay.<br/>
-            Replay uses the new logic only and scores the last 7 days of BTC signals.
+            Replay uses the replay.html replay flow with your new logic only and scores the last 7 days of BTC signals.
           </div>
         )}
       </div>
