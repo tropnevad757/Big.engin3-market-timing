@@ -2395,7 +2395,7 @@ function App() {
   // ── SIGNAL REPLAY — fetches real BTC OHLC + replays engine against last week ──
   const ReplayTab = ()=>{
     const [loading,  setLoading]  = React.useState(false);
-    const [results,  setResults]  = React.useState(()=>safeJsonParse(safeLocalGet("engin3_replay_results_v2", null), null));
+    const [results,  setResults]  = React.useState(null);
     const [error,    setError]    = React.useState("");
     const [playIdx,  setPlayIdx]  = React.useState(0);
     const [playing,  setPlaying]  = React.useState(false);
@@ -2406,19 +2406,6 @@ function App() {
         return t && !Number.isNaN(t) && (Date.now()-t) <= 7*24*60*60*1000;
       })
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
-
-    React.useEffect(()=>{
-      try{
-        if(results) localStorage.setItem("engin3_replay_results_v2", JSON.stringify(results));
-        else localStorage.removeItem("engin3_replay_results_v2");
-      }catch(e){}
-    },[results]);
-
-    React.useEffect(()=>{
-      if(results || loading) return;
-      const t = setTimeout(()=>{ runReplay(); }, 10);
-      return ()=>clearTimeout(t);
-    },[]);
 
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
@@ -2460,15 +2447,35 @@ function App() {
     }
 
     async function fetchReplayCandles(){
+      const cacheKey = "engin3ReplayCandles";
+      const persist = (candles)=>{
+        try{ localStorage.setItem(cacheKey, JSON.stringify(candles)); }catch(e){}
+        return candles;
+      };
+      const fromCache = ()=>{
+        try{
+          const raw = JSON.parse(localStorage.getItem(cacheKey) || "null");
+          return Array.isArray(raw) && raw.length ? raw : null;
+        }catch(e){ return null; }
+      };
+      const normalize = (raw, mode)=>{
+        if(!Array.isArray(raw) || !raw.length) return null;
+        if(mode === "binance") {
+          return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
+                    .filter(k=>Number.isFinite(k.ts) && Number.isFinite(k.open) && Number.isFinite(k.high) && Number.isFinite(k.low) && Number.isFinite(k.close));
+        }
+        return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
+                  .filter(k=>Number.isFinite(k.ts) && Number.isFinite(k.open) && Number.isFinite(k.high) && Number.isFinite(k.low) && Number.isFinite(k.close));
+      };
+
       const binance = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
       for(const url of [binance, `https://corsproxy.io/?${encodeURIComponent(binance)}`]){
         try{
           const res = await fetch(url, {cache:"no-cache"});
           if(!res.ok) continue;
           const raw = await res.json();
-          if(Array.isArray(raw) && raw.length){
-            return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }));
-          }
+          const candles = normalize(raw, "binance");
+          if(candles && candles.length) return persist(candles);
         }catch(e){}
       }
       const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7`;
@@ -2477,11 +2484,12 @@ function App() {
           const res = await fetch(url, {cache:"no-cache"});
           if(!res.ok) continue;
           const raw = await res.json();
-          if(Array.isArray(raw) && raw.length){
-            return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }));
-          }
+          const candles = normalize(raw, "coingecko");
+          if(candles && candles.length) return persist(candles);
         }catch(e){}
       }
+      const cached = fromCache();
+      if(cached) return cached;
       throw new Error("BTC replay data unavailable");
     }
 
@@ -2561,14 +2569,21 @@ function App() {
           });
         }
         const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
-        const wins   = actionable.filter(s=>s.score?.correct===true).length;
-        const losses = actionable.filter(s=>s.score?.correct===false).length;
+        const replayRows = actionable.length ? actionable : sessions;
+        const scoredRows = replayRows.filter(s=>typeof s.score?.correct === "boolean");
+        const wins   = scoredRows.filter(s=>s.score.correct===true).length;
+        const losses = scoredRows.filter(s=>s.score.correct===false).length;
         const total  = wins + losses;
         const wr     = total>0 ? Math.round((wins/total)*100) : 0;
-        if(!actionable.length) throw new Error("No replay signals found");
-        setResults({ sessions: actionable, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, byType: actionable });
+        if(!actionable.length) {
+          setError("Replay ran, but that week produced no BUY/SELL actions from the current rules. Showing all replay sessions instead.");
+        }
+        setResults({ sessions: replayRows, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, byType: actionable.length ? actionable : replayRows });
       } catch(e) {
-        setError("Replay could not load BTC candles. Open the file in a normal browser tab with internet, then run again.");
+        const msg = (e && e.message) ? String(e.message) : "Replay unavailable";
+        setError(msg.includes("BTC replay data unavailable")
+          ? "Replay could not fetch BTC candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles."
+          : `Replay error: ${msg}`);
       }
       setLoading(false);
     }
@@ -2580,7 +2595,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses the A1-style results shell with the new polarity engine. Scheduled events use symmetric windows (20m / 50m / 80m), Reuters/Bloomberg breaking news uses 20-minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
+          Replay now uses the new polarity engine. Scheduled events use symmetric windows, Reuters/Bloomberg breaking news uses 15-minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
