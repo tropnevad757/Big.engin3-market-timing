@@ -1,305 +1,610 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>BiG ENGiN3 · Zone Clock Pro</title>
-  <meta name="theme-color" content="#06071a" />
-  <style>
-    :root{
-      --bg:#06071a;
-      --panel:#0b0e28;
-      --panel2:#0d1130;
-      --line:#1b2358;
-      --text:#d9defc;
-      --muted:#7f86a8;
-      --amber:#f0a030;
-      --green:#00ff9c;
-      --red:#ff3c6e;
-      --blue:#6ba6ff;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
-    body{min-height:100vh}
-    .app{max-width:760px;margin:0 auto;padding:18px 14px 40px}
-    .brand{display:flex;justify-content:space-between;align-items:center;padding:8px 4px 18px}
-    .title{font-size:18px;font-weight:800;letter-spacing:2px;color:var(--amber)}
-    .subtitle{font-size:12px;letter-spacing:4px;color:#9aa1bf;margin-top:6px}
-    .clock{font-size:28px;font-weight:800;color:#fff}
-    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 18px}
-    .tab-btn{background:var(--panel);border:1px solid var(--line);color:#afb7da;border-radius:16px;padding:14px 12px;font-weight:700;letter-spacing:2px}
-    .tab-btn.active{border-color:var(--amber);color:var(--amber);box-shadow:0 0 0 1px rgba(240,160,48,.12) inset}
-    .tab{display:none}
-    .tab.active{display:block}
-    .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:22px;padding:18px;margin-bottom:14px}
-    .label{font-size:11px;letter-spacing:4px;color:var(--muted);margin-bottom:10px}
-    .value-big{font-size:42px;font-weight:900;letter-spacing:2px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    .mini{padding:16px;border:1px solid var(--line);border-radius:18px;background:#091025}
-    .mini .mini-value{font-size:30px;font-weight:900}
-    .mini .mini-sub{margin-top:8px;color:var(--muted);font-size:12px;letter-spacing:2px}
-    .equation{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-    .eq-box{padding:16px;border-radius:18px;border:1px solid var(--line);background:#091025;text-align:center;min-height:142px;display:flex;flex-direction:column;justify-content:center}
-    .eq-title{font-size:11px;letter-spacing:4px;color:var(--muted);margin-bottom:14px}
-    .eq-sign{font-size:56px;line-height:1;font-weight:900}
-    .eq-caption{margin-top:12px;font-size:14px;letter-spacing:2px}
-    .green{color:var(--green)}
-    .red{color:var(--red)}
-    .amber{color:var(--amber)}
-    .blue{color:var(--blue)}
-    .status-line{margin-top:14px;text-align:center;color:#a4abca;font-size:13px;letter-spacing:2px}
-    .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .select, .toggle, .buttonish{width:100%;background:#091025;border:1px solid var(--line);color:var(--text);border-radius:14px;padding:14px;font:inherit}
-    .hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px}
-    .pill{display:inline-block;border:1px solid var(--line);padding:8px 12px;border-radius:999px;color:#b9c0df;background:#091025;font-size:12px;letter-spacing:2px}
-    .footer-note{font-size:12px;color:var(--muted);line-height:1.6}
-    @media (max-width:640px){
-      .value-big{font-size:34px}
-      .equation{grid-template-columns:1fr}
-      .row,.controls{grid-template-columns:1fr}
-    }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>BiG ENGiN3 · Zone Clock Pro</title>
+<meta name="theme-color" content="#06071a"/>
+<style>
+:root{
+  --bg:#06071a;
+  --bg2:#090b20;
+  --panel:#0b0e28;
+  --panel2:#0d1130;
+  --line:#1b2358;
+  --text:#e6ebff;
+  --muted:#8a92b6;
+  --amber:#f0a030;
+  --amber2:#ffbf5b;
+  --green:#00ff9c;
+  --red:#ff4d7c;
+  --blue:#6ba6ff;
+  --purple:#a68cff;
+  --shadow:0 18px 40px rgba(0,0,0,.32);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:radial-gradient(circle at top,#0c0f2c 0%, #06071a 45%, #040512 100%);color:var(--text);font-family:Orbitron,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+body{overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#08081e}::-webkit-scrollbar-thumb{background:#222c66;border-radius:3px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+@keyframes glow{0%,100%{box-shadow:0 0 0 rgba(240,160,48,0)}50%{box-shadow:0 0 26px rgba(240,160,48,.2)}}
+#loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s}
+#loader .orb{width:128px;height:128px;border-radius:24px;border:1px solid rgba(240,160,48,.3);background:linear-gradient(180deg,#11173b,#090c1d);display:flex;align-items:center;justify-content:center;color:var(--amber);font-weight:900;font-size:34px;letter-spacing:3px;animation:pulse 2.2s ease-in-out infinite, glow 3s ease-in-out infinite}
+#spinner{width:38px;height:38px;border:2px solid #1a1a2e;border-top:2px solid var(--amber);border-radius:50%;animation:spin .85s linear infinite;margin-top:22px}
+#loader p{margin-top:12px;font-size:10px;letter-spacing:4px;color:#8d7447}
+.app{max-width:780px;margin:0 auto;padding:16px 14px 42px;animation:fadeUp .35s ease}
+.brand{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:8px 2px 18px}
+.brand-left{display:flex;flex-direction:column;gap:6px}
+.title{font-size:22px;font-weight:900;letter-spacing:2px;color:var(--amber)}
+.subtitle{font-size:11px;letter-spacing:4px;color:#9aa1bf}
+.meta{font-size:12px;line-height:1.55;color:#c8d0f3}
+.meta strong{color:#fff}
+.brand-right{text-align:right;min-width:150px}
+.clock{font-size:30px;font-weight:900;color:#fff;letter-spacing:2px}
+.date-line{font-size:11px;letter-spacing:2px;color:#98a0c2;margin-top:6px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 18px}
+.tab-btn{background:linear-gradient(180deg,#0b0e28,#0a0d22);border:1px solid var(--line);color:#b7bfdf;border-radius:18px;padding:14px 12px;font-weight:800;letter-spacing:2px;box-shadow:var(--shadow)}
+.tab-btn.active{border-color:rgba(240,160,48,.55);color:var(--amber);box-shadow:0 0 0 1px rgba(240,160,48,.14) inset,var(--shadow)}
+.tab{display:none}.tab.active{display:block}
+.card{background:linear-gradient(180deg,rgba(13,17,48,.96),rgba(8,10,28,.98));border:1px solid rgba(40,58,128,.8);border-radius:24px;padding:18px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.label{font-size:10px;letter-spacing:4px;color:var(--muted);margin-bottom:10px;text-transform:uppercase}
+.value-big{font-size:42px;font-weight:900;letter-spacing:1px;color:#fff;line-height:1.05}
+.value-big.amber{color:var(--amber)}
+.hint{font-size:12px;line-height:1.55;color:#aab2d6;margin-top:10px}
+.row-2,.row-3{display:grid;gap:12px}
+.row-2{grid-template-columns:1fr 1fr}
+.row-3{grid-template-columns:repeat(3,1fr)}
+.mini{padding:16px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#091025,#070b18)}
+.mini-value{font-size:27px;font-weight:900;letter-spacing:1px}
+.mini-sub{margin-top:8px;color:var(--muted);font-size:11px;letter-spacing:2px;line-height:1.4}
+.equation{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.eq-box{padding:16px;border-radius:20px;border:1px solid var(--line);background:linear-gradient(180deg,#091025,#070b18);text-align:center;min-height:150px;display:flex;flex-direction:column;justify-content:center}
+.eq-title{font-size:10px;letter-spacing:4px;color:var(--muted);margin-bottom:14px}
+.eq-sign{font-size:62px;line-height:1;font-weight:900}
+.eq-caption{margin-top:12px;font-size:13px;letter-spacing:2px;line-height:1.4}
+.status-line{margin-top:14px;text-align:center;color:#a4abca;font-size:12px;letter-spacing:2px;line-height:1.5}
+.green{color:var(--green)} .red{color:var(--red)} .amberTxt{color:var(--amber)} .blue{color:var(--blue)} .purple{color:var(--purple)}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.select,.buttonish{width:100%;background:#091025;border:1px solid var(--line);color:var(--text);border-radius:16px;padding:14px;font:inherit}
+.buttonish{cursor:pointer}
+.buttonish:active{transform:translateY(1px)}
+.table-wrap{overflow:auto;border-radius:18px;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;background:#08101f}
+th,td{padding:11px 10px;border-bottom:1px solid rgba(34,46,99,.75);font-size:12px;line-height:1.45;text-align:left;vertical-align:top}
+th{color:#fff;background:#0d1430;letter-spacing:1px}
+tr:last-child td{border-bottom:none}
+.list-block{white-space:pre-line;font-size:12px;line-height:1.8;color:#d8def8}
+.kicker{display:inline-block;border:1px solid rgba(240,160,48,.25);background:rgba(240,160,48,.08);padding:7px 10px;border-radius:999px;color:var(--amber2);font-size:11px;letter-spacing:2px;margin:0 8px 8px 0}
+.rule{border-left:3px solid rgba(240,160,48,.55);padding-left:12px;margin:10px 0;color:#dce3ff;font-size:12px;line-height:1.65}
+.footer-note{font-size:12px;color:#9ca5cb;line-height:1.65}
+hr.sep{border:none;height:1px;background:linear-gradient(90deg,transparent,rgba(240,160,48,.35),transparent);margin:14px 0}
+@media (max-width:700px){
+  .tabs{grid-template-columns:1fr 1fr 1fr}
+  .equation,.row-3{grid-template-columns:1fr}
+  .row-2,.controls{grid-template-columns:1fr}
+  .value-big{font-size:34px}
+  .clock{font-size:26px}
+}
+</style>
 </head>
 <body>
-  <div class="app">
-    <div class="brand">
-      <div>
-        <div class="title">BiG ENGiN3</div>
-        <div class="subtitle">ZONE CLOCK PRO</div>
-      </div>
+<div id="loader"><div class="orb">E3</div><div id="spinner"></div><p>LOADING ENGINE</p></div>
+<div class="app">
+  <div class="brand">
+    <div class="brand-left">
+      <div class="title">ENGiN3🕕BTC</div>
+      <div class="meta"><strong>5M</strong> = Reaction<br><strong>15M</strong> = Intent</div>
+      <div class="subtitle">ZONE CLOCK PRO</div>
+    </div>
+    <div class="brand-right">
       <div class="clock" id="timeNow">--:--</div>
+      <div class="date-line" id="dateNow">ET</div>
     </div>
-
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="clockTab">CLOCK</button>
-      <button class="tab-btn" data-tab="signalsTab">SIGNALS</button>
-    </div>
-
-    <section class="tab active" id="clockTab">
-      <div class="card">
-        <div class="label">CURRENT ET WINDOW</div>
-        <div class="value-big" id="windowName">TREND</div>
-        <div class="hint">Vanilla HTML build. No React, no Babel, no external runtime dependency.</div>
-      </div>
-
-      <div class="row">
-        <div class="mini">
-          <div class="label">ZONE</div>
-          <div class="mini-value" id="zoneName">BUY CORE</div>
-          <div class="mini-sub" id="connectorMode">MIRROR</div>
-        </div>
-        <div class="mini">
-          <div class="label">STEP</div>
-          <div class="mini-value" id="stepPolarity">+</div>
-          <div class="mini-sub" id="stepText">POSITIVE</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="tab" id="signalsTab">
-      <div class="card">
-        <div class="label">FINAL EQUATION</div>
-        <div class="equation">
-          <div class="eq-box">
-            <div class="eq-title">STEP</div>
-            <div class="eq-sign green" id="eqStep">+</div>
-            <div class="eq-caption" id="eqStepText">POSITIVE</div>
-          </div>
-          <div class="eq-box">
-            <div class="eq-title">NEWS</div>
-            <div class="eq-sign amber" id="eqNews">Ø</div>
-            <div class="eq-caption" id="eqNewsText">NO NEWS</div>
-          </div>
-          <div class="eq-box">
-            <div class="eq-title">RESULT</div>
-            <div class="eq-sign green" id="eqResult">+</div>
-            <div class="eq-caption" id="eqResultText">BUY</div>
-          </div>
-        </div>
-        <div class="status-line" id="statusLine">BASE STEP ONLY</div>
-      </div>
-
-      <div class="card">
-        <div class="label">MANUAL NEWS TEST</div>
-        <div class="controls">
-          <select class="select" id="newsState">
-            <option value="none">NO NEWS</option>
-            <option value="positive">POSITIVE NEWS</option>
-            <option value="negative">NEGATIVE NEWS</option>
-          </select>
-          <button class="buttonish" id="resetNews">RESET TO NO NEWS</button>
-        </div>
-        <div class="hint">This scratch build keeps the logic clean. News combines only when active. No hidden legacy timing tables.</div>
-      </div>
-
-      <div class="card">
-        <div class="label">WINDOW LEGEND</div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px">
-          <span class="pill">TREND</span>
-          <span class="pill">RECAL</span>
-          <span class="pill">LIQUID</span>
-          <span class="pill">TRAP</span>
-          <span class="pill">EXCUTE</span>
-        </div>
-        <div class="hint">Uses TREND instead of stalk/train. Uses RECAL, LIQUID, TRAP, and EXCUTE exactly as requested.</div>
-      </div>
-    </section>
   </div>
 
-  <script>
-    const tabs = document.querySelectorAll('.tab-btn');
-    tabs.forEach(btn => btn.addEventListener('click', () => {
-      tabs.forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(btn.dataset.tab).classList.add('active');
-    }));
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="clockTab">CLOCK</button>
+    <button class="tab-btn" data-tab="signalsTab">SIGNALS</button>
+    <button class="tab-btn" data-tab="playbookTab">PLAYBOOK</button>
+  </div>
 
-    // New regime logic only.
-    // BUY CORE = mirror
-    // SELL RESET = aligned
-    function mins(h, m){ return h * 60 + m; }
-    function inRange(t, start, end){
-      if(start <= end) return t >= start && t < end;
-      return t >= start || t < end;
-    }
+  <section class="tab active" id="clockTab">
+    <div class="card">
+      <div class="label">CURRENT ET WINDOW</div>
+      <div class="value-big amber" id="windowName">TREND</div>
+      <div class="hint" id="windowSub">Base phase active.</div>
+    </div>
 
-    const BUY_CORE_WINDOWS = [
-      [mins(0,30), mins(1,30)],
-      [mins(4,30), mins(6,30)],
-      [mins(12,30), mins(13,30)],
-      [mins(16,30), mins(18,30)]
-    ];
+    <div class="row-3">
+      <div class="mini">
+        <div class="label">ZONE</div>
+        <div class="mini-value" id="zoneName">BUY CORE</div>
+        <div class="mini-sub" id="connectorMode">MIRROR</div>
+      </div>
+      <div class="mini">
+        <div class="label">MODE</div>
+        <div class="mini-value" id="modeName">NO NEWS</div>
+        <div class="mini-sub" id="modeSub">Rhythm phase</div>
+      </div>
+      <div class="mini">
+        <div class="label">STEP</div>
+        <div class="mini-value" id="stepPolarity">−</div>
+        <div class="mini-sub" id="stepText">NEGATIVE</div>
+      </div>
+    </div>
 
-    const SELL_RESET_WINDOWS = [
-      [mins(6,30), mins(7,30)],
-      [mins(10,30), mins(12,30)],
-      [mins(18,30), mins(19,30)],
-      [mins(22,30), mins(0,30)]
-    ];
+    <div class="card">
+      <div class="label">FINAL EQUATION</div>
+      <div class="equation">
+        <div class="eq-box">
+          <div class="eq-title">STEP</div>
+          <div class="eq-sign" id="eqStep">−</div>
+          <div class="eq-caption" id="eqStepText">NEGATIVE</div>
+        </div>
+        <div class="eq-box">
+          <div class="eq-title">NEWS</div>
+          <div class="eq-sign amberTxt" id="eqNews">Ø</div>
+          <div class="eq-caption" id="eqNewsText">NO NEWS</div>
+        </div>
+        <div class="eq-box">
+          <div class="eq-title">RESULT</div>
+          <div class="eq-sign" id="eqResult">−</div>
+          <div class="eq-caption" id="eqResultText">SELL</div>
+        </div>
+      </div>
+      <div class="status-line" id="statusLine">NO NEWS = GO OFF BASE STEP DIRECTION</div>
+    </div>
 
-    function getRegime(t){
-      if(BUY_CORE_WINDOWS.some(([s,e]) => inRange(t,s,e))){
-        return { zone: 'BUY CORE', connector: 'MIRROR', sign: '-', direction: 'buy' };
-      }
-      if(SELL_RESET_WINDOWS.some(([s,e]) => inRange(t,s,e))){
-        return { zone: 'SELL RESET', connector: 'ALIGNED', sign: '+', direction: 'sell' };
-      }
-      return { zone: 'BUY CORE', connector: 'MIRROR', sign: '-', direction: 'buy' };
-    }
+    <div class="card">
+      <div class="label">MANUAL NEWS CONTROL</div>
+      <div class="controls">
+        <select class="select" id="newsState">
+          <option value="none">NO NEWS</option>
+          <option value="positive">POSITIVE NEWS</option>
+          <option value="negative">NEGATIVE NEWS</option>
+        </select>
+        <button class="buttonish" id="resetNews">RESET TO NO NEWS</button>
+      </div>
+      <div class="hint">This build is from scratch. It keeps the A1-style visual feel while avoiding the old runtime stack that was failing on phone.</div>
+    </div>
+  </section>
 
-    // Window labels requested by user.
-    function getWindowName(h24, m){
-      const hm = `${h24}:${String(m).padStart(2,'0')}`;
-      const exact = new Set([
-        '0:30','6:30','12:30','18:30'
-      ]);
-      if(exact.has(hm)) return 'RECAL';
+  <section class="tab" id="signalsTab">
+    <div class="card">
+      <div class="label">NEWS REACTION</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Impact</th><th>Window</th><th>Target</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>News break</td><td>0–15</td><td>61.8–78.6</td></tr>
+            <tr><td>⭐</td><td>15m before/after</td><td>100–127</td></tr>
+            <tr><td>⭐⭐</td><td>45m before/after</td><td>161–200</td></tr>
+            <tr><td>⭐⭐⭐</td><td>75m before/after</td><td>261–300</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">TP1 0.3% 100–127 &nbsp; • &nbsp; TP2 0.6% 161–200 &nbsp; • &nbsp; TP3 0.9% 261–300</div>
+      <div class="footer-note">Reassess at 15m unless expansion is clean.</div>
+    </div>
 
-      const liquidHours = new Set([1,4,7,10,13,16,19,22]);
-      if(liquidHours.has(h24) && m < 30) return 'LIQUID';
+    <div class="row-2">
+      <div class="card">
+        <div class="label">BIAS · BUY CORE REGIME</div>
+        <div class="list-block">Connector: − = mirror
+12:30 - 1:30 - 4:30 - 6:30
+AOA−
+AUD−
+USD− (interest rate% Anchor)
+GBP+
+JPY+</div>
+      </div>
+      <div class="card">
+        <div class="label">BIAS · SELL RESET REGIME</div>
+        <div class="list-block">Connector: + = aligned
+6:30 + 7:30 + 10:30 + 12:30
+AOA+
+AUD+
+USD+ (interest rate% Anchor)
+GBP−
+JPY−</div>
+      </div>
+    </div>
 
-      const trapHours = new Set([1,4,7,10,13,16,19,22]);
-      if(trapHours.has(h24) && m >= 30) return 'TRAP';
+    <div class="card">
+      <div class="label">POLARITY ENGINE · NEWS CHARGE</div>
+      <div class="list-block">Anchor = USD interest rate %
+Symbols / Symbols = Value
 
-      const excuteHours = new Set([2,5,8,11,14,17,20,23]);
-      if(excuteHours.has(h24) && m < 30) return 'EXCUTE';
+-/- = +
++/+ = -
+-/+ = -
 
-      return 'TREND';
-    }
+If Regime Symbol = News Symbol
+→ Continuation Bias (Higher Conviction) buy +
 
-    function getETParts(){
-      const now = new Date();
-      const fmt = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-      });
-      const parts = fmt.formatToParts(now);
-      const hour12 = Number(parts.find(p => p.type === 'hour').value);
-      const minute = Number(parts.find(p => p.type === 'minute').value);
-      const second = Number(parts.find(p => p.type === 'second').value);
-      const dayPeriod = parts.find(p => p.type === 'dayPeriod').value.toUpperCase();
-      let h24 = hour12 % 12;
-      if(dayPeriod === 'PM') h24 += 12;
-      return { hour12, minute, second, h24, dayPeriod };
-    }
+If Regime Symbol ≠ News Symbol
+→ Inversion Risk (Require Displacement Confirmation) sell -</div>
+      <hr class="sep">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Time</th><th>Value</th><th>Signal</th></tr></thead>
+          <tbody>
+            <tr><td>even hour +</td><td>+ news</td><td>Buy</td></tr>
+            <tr><td>even hour +</td><td>− news</td><td>Sell</td></tr>
+            <tr><td>odd hour −</td><td>− news</td><td>Buy</td></tr>
+            <tr><td>odd hour −</td><td>+ news</td><td>Sell</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">Give each news event 5 mins of its own time before execution.</div>
+      <div class="rule">If no displacement occurs within the news window, the event is considered absorbed.</div>
+      <div class="footer-note">Rules: Polarity never triggers trades. Polarity only adjusts conviction. Price action is final authority.</div>
+    </div>
 
-    // Base step parity from prior rules: odd negative, even positive.
-    function getBaseStepSign(h24){
-      return (h24 % 2 === 0) ? '+' : '-';
-    }
+    <div class="card">
+      <div class="label">MONEY RHYTHM</div>
+      <div class="row-2">
+        <div class="mini">
+          <div class="label">WHEN IT'S NO NEWS</div>
+          <div class="list-block">12:30 down
+1:00 up
+1:30 down
+2:00 up
+3:00 down
+4:00 up
+4:30 down
+5:00 up
+6:00 down
+6:30 up
+7:00 down
+7:30 up
+8:00 down
+9:00 up
+10:00 down
+10:30 up
+11:00 down
+12:00 up</div>
+        </div>
+        <div class="mini">
+          <div class="label">WHEN IT'S NEWS</div>
+          <div class="list-block">12:30 +
+1:00 -
+1:30 -
+2:00 +
+3:00 -
+4:00 +
+4:30 +
+5:00 -
+6:00 +
+6:30 +
+7:00 -
+7:30 -
+8:00 +
+9:00 -
+10:00 +
+10:30 +
+11:00 -
+12:00 +</div>
+        </div>
+      </div>
+    </div>
 
-    function resultFrom(stepSign, newsSign){
-      if(newsSign === 'Ø') return stepSign;
-      return stepSign === newsSign ? '+' : '-';
-    }
+    <div class="card">
+      <div class="label">DYNAMIC RANGE ENGINE</div>
+      <div class="list-block">VWAP TRAP
+EXECUTE
+7:30 → 8:00
+10:30 → 11:00
+1:30 → 2:00
+4:30 → 5:00
 
-    const timeNow = document.getElementById('timeNow');
-    const windowName = document.getElementById('windowName');
-    const zoneName = document.getElementById('zoneName');
-    const connectorMode = document.getElementById('connectorMode');
-    const stepPolarity = document.getElementById('stepPolarity');
-    const stepText = document.getElementById('stepText');
-    const eqStep = document.getElementById('eqStep');
-    const eqStepText = document.getElementById('eqStepText');
-    const eqNews = document.getElementById('eqNews');
-    const eqNewsText = document.getElementById('eqNewsText');
-    const eqResult = document.getElementById('eqResult');
-    const eqResultText = document.getElementById('eqResultText');
-    const statusLine = document.getElementById('statusLine');
-    const newsState = document.getElementById('newsState');
-    const resetNews = document.getElementById('resetNews');
+During:
+7:30–10:30
+1:30–4:30
 
-    function setSignStyles(el, sign){
-      el.classList.remove('green','red','amber');
-      if(sign === '+') el.classList.add('green');
-      else if(sign === '-') el.classList.add('red');
-      else el.classList.add('amber');
-    }
+Do NOT fade first ±3σ touch.
 
-    function render(){
-      const et = getETParts();
-      const t = mins(et.h24, et.minute);
-      const regime = getRegime(t);
-      const stepSign = getBaseStepSign(et.h24);
-      const newsVal = newsState.value;
-      const newsSign = newsVal === 'positive' ? '+' : newsVal === 'negative' ? '-' : 'Ø';
-      const resultSign = resultFrom(stepSign, newsSign);
+Require:
+Touch → reaction → failure → entry
 
-      timeNow.textContent = `${et.hour12}:${String(et.minute).padStart(2,'0')}`;
-      windowName.textContent = getWindowName(et.h24, et.minute);
-      zoneName.textContent = regime.zone;
-      connectorMode.textContent = regime.connector;
-      stepPolarity.textContent = stepSign;
-      stepText.textContent = stepSign === '+' ? 'POSITIVE' : 'NEGATIVE';
+Between 1:30AM–4:30AM
+Only trade if:
+✔ Sweep
+✔ 2σ or 3σ
+✔ Regime aligned
+✔ News present
 
-      eqStep.textContent = stepSign;
-      eqStepText.textContent = stepSign === '+' ? 'POSITIVE' : 'NEGATIVE';
-      setSignStyles(eqStep, stepSign);
+Otherwise skip.
 
-      eqNews.textContent = newsSign;
-      eqNewsText.textContent = newsVal === 'none' ? 'NO NEWS' : newsVal === 'positive' ? 'POSITIVE' : 'NEGATIVE';
-      setSignStyles(eqNews, newsSign);
+This keeps value aligned with the trade horizon.
+VWAP defines WHERE.
+TRAP defines WHEN.</div>
+    </div>
 
-      eqResult.textContent = resultSign;
-      eqResultText.textContent = resultSign === '+' ? 'BUY' : 'SELL';
-      setSignStyles(eqResult, resultSign);
+    <div class="row-2">
+      <div class="card">
+        <div class="label">TRIGGER (5M ONLY)</div>
+        <div class="list-block">Wait for:
+• Liquidity Sweep
+• Displacement
+• First 5M Close
 
-      if(newsVal === 'none') {
-        statusLine.textContent = 'BASE STEP ONLY';
-      } else {
-        statusLine.textContent = `${regime.connector} · NEWS ACTIVE`;
-      }
-    }
+Enter on the close.
 
-    newsState.addEventListener('change', render);
-    resetNews.addEventListener('click', () => {
-      newsState.value = 'none';
-      render();
-    });
+No sweep → No trade
+No displacement → No trade
+Close inside range → No trade</div>
+      </div>
+      <div class="card">
+        <div class="label">RISK</div>
+        <div class="list-block">Stop → Below last 5M flat body
+Trail → Below new structure
 
-    render();
-    setInterval(render, 1000);
-  </script>
+Exit at:
+• % target
+• 15m reassess
+• Structure break
+
+2 trades max per execution window</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab" id="playbookTab">
+    <div class="card">
+      <div class="label">ENTRY (5M ONLY)</div>
+      <div class="list-block">1️⃣ Time Window active (rhythm phase)
+2️⃣ Liquidity Sweep (high/low taken)
+
+3️⃣ VWAP Rule (2 modes):
+EXTREME MODE (±2σ/±3σ): mean reversion back toward VWAP after confirmation.
+Allowed only if ALL are true:
+• touch ±2σ or ±3σ
+• sweep
+• reaction
+• failure (can't make new extreme / rejection candle)
+• then displacement close
+
+If any missing → no EXTREME MODE, only VALUE BREAK.
+
+VALUE BREAK MODE (VWAP reclaim/lose): continuation away from VWAP after displacement
+
+4️⃣ Bias (Regime alignment ± Polarity conviction) ✅
+5️⃣ Fuel (news) ✅
+
+6️⃣ 5M Displacement Close → ENTRY ✅
+• Candle body must close beyond the liquidity sweep level
+• Candle body must be >60% of total candle range
+• Volume must expand relative to previous 3 candles
+
+7️⃣ Manage:
+61.8 = Stay/Kill decision
+100+ = Get Paid</div>
+    </div>
+
+    <div class="row-2">
+      <div class="card">
+        <div class="label">SESSION FLOW</div>
+        <div class="list-block">Recalibration 12:30–1:30
+Continuation 1:30–4:30
+Accumulation 4:30–6:30
+Recalibration 6:30–7:30
+Expansion 7:30–10:30
+Distribution 10:30–12:30</div>
+      </div>
+      <div class="card">
+        <div class="label">REGIME LOGIC</div>
+        <div class="list-block">RESET
+(+) normal
+
+CORE
+(−) mirror</div>
+      </div>
+    </div>
+
+    <div class="row-3">
+      <div class="card">
+        <div class="label">WEEK CHARACTER</div>
+        <div class="list-block">Mon → Build
+Tue → Expand
+Wed → Continue
+Thu → Distribute
+Fri → Square
+Sat → Pause (3–7am)
+Sun → Drift</div>
+      </div>
+      <div class="card">
+        <div class="label">MONTH CHARACTER</div>
+        <div class="list-block">Week 1 = Accumulation Normal
+Week 2 = Expansion Normal
+Week 3 = Distribution ⚠️ 50%
+Week 4 = Recalibration Normal</div>
+      </div>
+      <div class="card">
+        <div class="label">SEASONAL</div>
+        <div class="list-block">Jan–Mar → Volatility Hotzone</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">TOOLS</div>
+      <span class="kicker">VWAP</span>
+      <span class="kicker">Interest Currency meter</span>
+      <span class="kicker">AeroGrid Timer</span>
+      <span class="kicker">Fibonacci Extension</span>
+      <span class="kicker">Google search</span>
+      <span class="kicker">Reuters</span>
+      <span class="kicker">Bloomberg Markets</span>
+      <span class="kicker">Myfxbook.com (google)</span>
+      <span class="kicker">Tradingeconomics.com (google)</span>
+    </div>
+
+    <div class="card">
+      <div class="label">FINAL RULES</div>
+      <div class="list-block">Wicks lie. Closes confirm.
+Regime = Direction
+Liquidity = Location
+Close = Permission
+We don't predict. We execute.</div>
+      <hr class="sep">
+      <div class="label">PARTICIPATION TEMPO (CONTEXT ONLY)</div>
+      <div class="list-block">• 2 AM ET → Impulse-friendly (thin liquidity)
+• 8 AM ET → Compression / trap formation
+• 2 PM ET → Repricing / continuation check
+• 8 PM ET → Risk-off / decay
+
+This layer NEVER overrides:
+• VWAP location
+• Regime alignment
+• Displacement confirmation
+
+It only affects EXPECTATION, not DIRECTION.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+const tabs = document.querySelectorAll('.tab-btn');
+for (const btn of tabs) {
+  btn.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+}
+
+function mins(h,m){ return h*60+m; }
+function inRange(t,start,end){ return start<=end ? (t>=start && t<end) : (t>=start || t<end); }
+
+const BUY_CORE_WINDOWS = [
+  [mins(0,30), mins(1,30)],
+  [mins(4,30), mins(6,30)],
+  [mins(12,30), mins(13,30)],
+  [mins(16,30), mins(18,30)]
+];
+const SELL_RESET_WINDOWS = [
+  [mins(6,30), mins(7,30)],
+  [mins(10,30), mins(12,30)],
+  [mins(18,30), mins(19,30)],
+  [mins(22,30), mins(0,30)]
+];
+
+function getETParts(){
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
+  const parts = fmt.formatToParts(now);
+  const hour12 = Number(parts.find(p=>p.type==='hour').value);
+  const minute = Number(parts.find(p=>p.type==='minute').value);
+  const second = Number(parts.find(p=>p.type==='second').value);
+  const dayPeriod = parts.find(p=>p.type==='dayPeriod').value.toUpperCase();
+  const weekday = parts.find(p=>p.type==='weekday').value;
+  const month = parts.find(p=>p.type==='month').value;
+  const day = parts.find(p=>p.type==='day').value;
+  let h24 = hour12 % 12;
+  if(dayPeriod === 'PM') h24 += 12;
+  return {hour12,minute,second,dayPeriod,h24,weekday,month,day};
+}
+
+function getRegime(t){
+  if(BUY_CORE_WINDOWS.some(([s,e])=>inRange(t,s,e))) return {zone:'BUY CORE', connector:'MIRROR', sign:'−', direction:'buy'};
+  if(SELL_RESET_WINDOWS.some(([s,e])=>inRange(t,s,e))) return {zone:'SELL RESET', connector:'ALIGNED', sign:'+', direction:'sell'};
+  return {zone:'BUY CORE', connector:'MIRROR', sign:'−', direction:'buy'};
+}
+
+function getWindowName(h24,m){
+  const hm = `${h24}:${String(m).padStart(2,'0')}`;
+  if(['0:30','6:30','12:30','18:30'].includes(hm)) return 'RECAL';
+  const liquidHours = new Set([1,4,7,10,13,16,19,22]);
+  if(liquidHours.has(h24) && m < 30) return 'LIQUID';
+  const trapHours = new Set([1,4,7,10,13,16,19,22]);
+  if(trapHours.has(h24) && m >= 30) return 'TRAP';
+  const excuteHours = new Set([2,5,8,11,14,17,20,23]);
+  if(excuteHours.has(h24) && m < 30) return 'EXCUTE';
+  return 'TREND';
+}
+
+function getNoNewsStepSign(h24,m){
+  const hm = `${(h24%12)||12}:${String(m).padStart(2,'0')}`;
+  const down = new Set(['12:30','1:30','3:00','4:30','6:00','7:00','8:00','10:00','11:00']);
+  return down.has(hm) ? '−' : '+';
+}
+function getNewsStepSign(h24,m){
+  const hm = `${(h24%12)||12}:${String(m).padStart(2,'0')}`;
+  const positive = new Set(['12:30','2:00','4:00','4:30','6:00','6:30','8:00','10:00','10:30','12:00']);
+  return positive.has(hm) ? '+' : '−';
+}
+
+function resultFrom(stepSign, newsSign){
+  if(newsSign === 'Ø') return stepSign;
+  return stepSign === newsSign ? '+' : '−';
+}
+function signWord(sign){ return sign === '+' ? 'POSITIVE' : sign === '−' ? 'NEGATIVE' : 'NO NEWS'; }
+function tradeWord(sign){ return sign === '+' ? 'BUY' : 'SELL'; }
+function setSignStyles(el, sign){
+  el.classList.remove('green','red','amberTxt');
+  if(sign === '+') el.classList.add('green');
+  else if(sign === '−') el.classList.add('red');
+  else el.classList.add('amberTxt');
+}
+
+const ids = id => document.getElementById(id);
+const timeNow = ids('timeNow'), dateNow = ids('dateNow'), windowName = ids('windowName'), windowSub = ids('windowSub');
+const zoneName = ids('zoneName'), connectorMode = ids('connectorMode'), modeName = ids('modeName'), modeSub = ids('modeSub');
+const stepPolarity = ids('stepPolarity'), stepText = ids('stepText');
+const eqStep = ids('eqStep'), eqStepText = ids('eqStepText'), eqNews = ids('eqNews'), eqNewsText = ids('eqNewsText');
+const eqResult = ids('eqResult'), eqResultText = ids('eqResultText'), statusLine = ids('statusLine');
+const newsState = ids('newsState'), resetNews = ids('resetNews');
+
+function render(){
+  const et = getETParts();
+  const t = mins(et.h24, et.minute);
+  const regime = getRegime(t);
+  const newsVal = newsState.value;
+  const isNews = newsVal !== 'none';
+  const stepSign = isNews ? getNewsStepSign(et.h24, et.minute) : getNoNewsStepSign(et.h24, et.minute);
+  const newsSign = newsVal === 'positive' ? '+' : newsVal === 'negative' ? '−' : 'Ø';
+  const resultSign = resultFrom(stepSign, newsSign);
+  const window = getWindowName(et.h24, et.minute);
+
+  timeNow.textContent = `${et.hour12}:${String(et.minute).padStart(2,'0')}`;
+  dateNow.textContent = `${et.weekday} ${et.month} ${et.day} · ${et.dayPeriod} ET`;
+  windowName.textContent = window;
+  windowSub.textContent = isNews ? 'News-active rhythm phase.' : 'Base rhythm phase.';
+  zoneName.textContent = regime.zone;
+  connectorMode.textContent = regime.connector;
+  modeName.textContent = isNews ? 'NEWS' : 'NO NEWS';
+  modeSub.textContent = isNews ? 'Charge math active' : 'Base step direction';
+  stepPolarity.textContent = stepSign;
+  stepText.textContent = signWord(stepSign);
+
+  eqStep.textContent = stepSign;
+  eqStepText.textContent = signWord(stepSign);
+  setSignStyles(eqStep, stepSign);
+  eqNews.textContent = newsSign;
+  eqNewsText.textContent = newsVal === 'none' ? 'NO NEWS' : newsVal === 'positive' ? 'POSITIVE NEWS' : 'NEGATIVE NEWS';
+  setSignStyles(eqNews, newsSign);
+  eqResult.textContent = resultSign;
+  eqResultText.textContent = tradeWord(resultSign);
+  setSignStyles(eqResult, resultSign);
+  statusLine.textContent = isNews
+    ? `NEWS ACTIVE · ${regime.connector} · ${tradeWord(resultSign)} (${resultSign})`
+    : `NO NEWS · BASE STEP ONLY · ${tradeWord(resultSign)} (${resultSign})`;
+}
+
+newsState.addEventListener('change', render);
+resetNews.addEventListener('click', ()=>{ newsState.value='none'; render(); });
+
+setTimeout(()=>{
+  const l = document.getElementById('loader');
+  if(l){ l.style.opacity='0'; setTimeout(()=> l.remove(), 450); }
+}, 500);
+render();
+setInterval(render, 1000);
+</script>
 </body>
 </html>
