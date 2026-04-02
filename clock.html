@@ -201,11 +201,12 @@ const REGIME_CURRENCIES = {
 
 // NEWS REACTION WINDOWS — symmetric (before AND after event)
 // Stars → window in mins, TP targets as % move from entry
+// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
 const NEWS_REACTION = {
-  break: { window: 15,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
-  1:     { window: 15,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
-  2:     { window: 45,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
-  3:     { window: 75,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
+  break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
+  1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
+  2:     { window: 50,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
+  3:     { window: 80,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -301,11 +302,6 @@ function applyNewsToSlot(polarityState, newsPolarity, calcType) {
 }
 
 // Legacy sign function kept for backward compat — not used in new logic
-function getNewsHourPolarity(h24) {
-  const hour12 = ((h24 + 11) % 12) + 1;
-  return hour12 % 2 === 0 ? "positive" : "negative";
-}
-
 function polaritySign(timeSign, valueSign) {
   if(timeSign > 0 && valueSign > 0) return -1;
   if(timeSign > 0 && valueSign < 0) return +1;
@@ -325,7 +321,7 @@ const PLANS = [
     perks:["VWAP Anchor + Accumulation","Recalibration Phase","Sigma Target Levels","Zone Clock Access"],
     locked:["Action Phases","Regime Engine","Currency Meter","Full Checklist","Backtesting"] },
   { id:"core",    name:"CORE",    price:29,  color:G,
-    perks:["Expansion + Distribution","Money Rhythm","LIQUID → TRAP → EXECUTE Cadence","Zone Clock — Full Access","All Timezones","Sound Alerts","All Instruments","VWAP Bands"],
+    perks:["Expansion + Distribution","Money Rhythm","TRAP → EXECUTE Cadence","Zone Clock — Full Access","All Timezones","Sound Alerts","All Instruments","VWAP Bands"],
     locked:["Regime Engine","Currency Meter","Full 6-Step Checklist","Backtesting"] },
   { id:"pro",     name:"PRO",     price:59,  color:A,
     perks:["Everything in CORE","Recalibration · Continuation","BUY CORE vs SELL RESET Logic","Currency Meter + Polarity","6-Step Entry Checklist","Zone Backtesting"],
@@ -647,41 +643,41 @@ function App() {
   // VWAP anchors (★★★) + key session flips (★★) + minor flips (★)
   const TRANSITION_ANCHORS = [
     // ─── AM ──────────────────────────────────────────────────────────────────
-    { mins:  60, label:"LIQUID ↑",       polarity:-1, stars:2 }, // pre-VWAP stalk long
+    { mins:  60, label:"TRAP ↑",         polarity:-1, stars:2 }, // pre-VWAP stalk long
     { mins:  90, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★ switch to sell
-    { mins: 120, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins: 120, label:"LIQUID ↑",             polarity:-1, stars:1 },
     { mins: 180, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins: 240, label:"LIQUID ↑",       polarity:-1, stars:2 }, // stalk long pre-VWAP
+    { mins: 240, label:"TRAP ↑",         polarity:-1, stars:2 }, // stalk long pre-VWAP
     { mins: 270, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★
-    { mins: 300, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins: 300, label:"LIQUID ↑",             polarity:-1, stars:1 },
     { mins: 360, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins: 390, label:"RECAL ↑",        polarity:-1, stars:2 },
-    { mins: 420, label:"LIQUID ↓",       polarity:+1, stars:2 }, // dip before Z7
+    { mins: 390, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins: 420, label:"TRAP ↓",   polarity:+1, stars:2 }, // dip before Z7
     { mins: 450, label:"TRAP ↑", polarity:-1, stars:3 }, // ★★★ Z7 primary
-    { mins: 480, label:"EXECUTE ↑",     polarity:-1, stars:2 },
+    { mins: 480, label:"LIQUID ↓",    polarity:+1, stars:2 },
     { mins: 540, label:"EXECUTE ↑",   polarity:-1, stars:3 }, // ★★★ highest expansion
-    { mins: 600, label:"LIQUID ↓",       polarity:+1, stars:2 },
-    { mins: 630, label:"TRAP ↑",         polarity:-1, stars:3 }, // fade the spike
-    { mins: 660, label:"EXECUTE ↓",      polarity:+1, stars:2 }, // ★★★ sell momentum
-    { mins: 720, label:"OVERNIGHT ↑",    polarity:-1, stars:2 },
+    { mins: 600, label:"TRAP ↓", polarity:+1, stars:2 },
+    { mins: 630, label:"VWAP FADE ↑",  polarity:-1, stars:2 }, // fade the spike
+    { mins: 660, label:"SELL MOMENTUM ↓",   polarity:+1, stars:3 }, // ★★★ sell momentum
+    { mins: 720, label:"TRAP ↑",      polarity:-1, stars:2 },
     { mins: 750, label:"RECAL ↓", polarity:+1, stars:3 }, // ★★★
     // ─── PM (exact mirror) ───────────────────────────────────────────────────
-    { mins: 780, label:"LIQUID ↑",       polarity:-1, stars:2 },
+    { mins: 780, label:"TRAP ↑",         polarity:-1, stars:2 },
     { mins: 810, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★ was missing
-    { mins: 840, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins: 840, label:"LIQUID ↑",             polarity:-1, stars:1 },
     { mins: 900, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins: 960, label:"LIQUID ↑",       polarity:-1, stars:2 },
+    { mins: 960, label:"TRAP ↑",             polarity:-1, stars:2 },
     { mins: 990, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★
-    { mins:1020, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins:1020, label:"LIQUID ↑",             polarity:-1, stars:1 },
     { mins:1080, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins:1110, label:"RECAL ↑",        polarity:-1, stars:2 },
-    { mins:1140, label:"LIQUID ↓",       polarity:+1, stars:2 },
+    { mins:1110, label:"LIQUID ↑",             polarity:-1, stars:1 },
+    { mins:1140, label:"TRAP ↓",   polarity:+1, stars:2 },
     { mins:1170, label:"TRAP ↑", polarity:-1, stars:3 }, // ★★★
-    { mins:1200, label:"EXECUTE ↑",     polarity:-1, stars:2 },
-    { mins:1260, label:"OVERNIGHT ↑",    polarity:-1, stars:2 },
-    { mins:1320, label:"LIQUID ↓",       polarity:+1, stars:2 },
+    { mins:1200, label:"LIQUID ↓",             polarity:+1, stars:2 },
+    { mins:1260, label:"SESSION CONTINUATION ↑",             polarity:-1, stars:2 },
+    { mins:1320, label:"TRAP ↓",            polarity:+1, stars:2 },
     { mins:1350, label:"TRAP ↑",polarity:-1, stars:3 }, // ★★★
-    { mins:1380, label:"EXECUTE ↑",     polarity:-1, stars:2 },
+    { mins:1380, label:"OVERNIGHT ↓",            polarity:+1, stars:2 },
   ];
 
   useEffect(()=>{
@@ -819,7 +815,7 @@ function App() {
   //          = Trade Confidence (0–100) + Traffic Light + Setup Type
   //
   // TIMING MAP (ET):
-  // 1:30  → SWITCH    Z1 SELL opens. Polarity flips bearish. Trend shorts.
+  // 1:30  → SWITCH    Z1 SELL opens. Polarity flips bearish. Stalk shorts.
   // 4:30  → RESET     Z4 BUY opens. Overnight sell exhausts. Counter reversal.
   // 6:30  → DANGER    Z6 SELL — 60-min flush only. Transition. High risk.
   // 7:30  → PRIMARY   Z7 BUY — highest edge. NYSE prep. ICT kill zone.
@@ -838,7 +834,7 @@ function App() {
     // 12:30–1:00 AM : DOWN (tail of previous 12:30 cycle)
     { from:   0, to:  60, pol:+1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
     // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
-    { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"TREND LONG" },
+    { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
     { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 2:00–3:00 AM  : UP (counter inside Z1)
@@ -846,7 +842,7 @@ function App() {
     // 3:00–4:00 AM  : DOWN (continuation sell)
     { from: 180, to: 240, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
     // 4:00–4:30 AM  : UP (pre-anchor stalk)
-    { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"TREND LONG" },
+    { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
     { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 5:00–6:00 AM  : UP (Z4 recovery buy)
@@ -856,7 +852,7 @@ function App() {
     // 6:30–7:00 AM  : UP (Z6 counter move)
     { from: 390, to: 420, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 7:00–7:30 AM  : DOWN (final flush before NY open)
-    { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"TREND BUY DIP" },
+    { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
     { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"TRAP ↑" },
     // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
@@ -864,19 +860,19 @@ function App() {
     // 9:00–10:00 AM : UP (NYSE open expansion)
     { from: 540, to: 600, pol:-1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
     // 10:00–10:30 AM: DOWN (AM exhaustion / pre-Z10)
-    { from: 600, to: 630, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"TREND SELL" },
+    { from: 600, to: 630, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 AM: UP ★ VWAP ANCHOR (initial Z10 spike — sell the rip)
     { from: 630, to: 660, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
     // 11:00–12:00 AM: DOWN (Z10 sell momentum / London close)
     { from: 660, to: 720, pol:+1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
     // 12:00–12:30 AM: UP (pre-Z12 stalk)
-    { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"TREND LONG" },
+    { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
     { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"RECAL ↓" },
 
     // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
     // 1:00–1:30 PM  : UP
-    { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"TREND LONG" },
+    { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
     { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 2:00–3:00 PM  : UP
@@ -884,7 +880,7 @@ function App() {
     // 3:00–4:00 PM  : DOWN
     { from: 900, to: 960, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
     // 4:00–4:30 PM  : UP
-    { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"TREND LONG" },
+    { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
     { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
     // 5:00–6:00 PM  : UP
@@ -894,7 +890,7 @@ function App() {
     // 6:30–7:00 PM  : UP
     { from:1110, to:1140, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 7:00–7:30 PM  : DOWN
-    { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"TREND BUY DIP" },
+    { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
     { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"TRAP ↑" },
     // 8:00–9:00 PM  : DOWN
@@ -902,7 +898,7 @@ function App() {
     // 9:00–10:00 PM : UP
     { from:1260, to:1320, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
     // 10:00–10:30 PM: DOWN
-    { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"TREND SELL" },
+    { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 PM: UP ★ VWAP ANCHOR
     { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"TRAP ↑" },
     // 11:00–12:00 AM: DOWN
@@ -1157,17 +1153,11 @@ function App() {
   // Execute windows: 30 min after each trap, lasting 60 min
   // Trap: 1:30,4:30,7:30,10:30 AM+PM → Execute: 2:00-3:00, 5:00-6:00, 8:00-9:00, 11:00-12:00
   const EXECUTE_WINDOWS = [120,300,480,660,840,1020,1200,1380].map(s=>({from:s, to:s+60}));
-  const TRAP_WINDOWS    = [90,270,450,630,810,990,1170,1350].map(s=>({from:s, to:s+30}));
-  const LIQUID_WINDOWS  = [60,240,420,600,780,960,1140,1320].map(s=>({from:s, to:s+30}));
-  const RECAL_WINDOWS   = [30,390,750,1110].map(s=>({from:s, to:s+30}));
   function getExecuteState(h24, m) {
     const t = h24*60+m;
     const inExecute = EXECUTE_WINDOWS.some(w => t >= w.from && t < w.to);
-    const inTrap = TRAP_WINDOWS.some(w => t >= w.from && t < w.to);
-    const inLiquid = LIQUID_WINDOWS.some(w => t >= w.from && t < w.to);
-    const inRecal = RECAL_WINDOWS.some(w => t >= w.from && t < w.to);
-    const phase = inExecute ? "EXECUTE" : inTrap ? "TRAP" : inLiquid ? "LIQUID" : inRecal ? "RECAL" : "OBSERVE";
-    return { inExecute, inTrap, inLiquid, inRecal, phase };
+    const inTrap = [90,270,450,630,810,990,1170,1350].some(tr => t >= tr && t < tr+30);
+    return { inExecute, inTrap };
   }
 
   // STAGE 1: EARLY BIAS (max 40 pts)
@@ -1293,9 +1283,9 @@ function App() {
 
     let light, action;
     if(penalties>=12||!eb.zonePolMatch){ light="red";    action="AVOID"; }
-    else if(eb.stalkMode&&totalScore>=55){ light="yellow"; action="TREND"; }
+    else if(eb.stalkMode&&totalScore>=55){ light="yellow"; action="STALK"; }
     else if(totalScore>=72&&eb.window.tier>=3){ light="green"; action=inSubWindow?"ENTER NOW":"ENTER — PRIME"; }
-    else if(totalScore>=50){ light="yellow"; action="TREND"; }
+    else if(totalScore>=50){ light="yellow"; action="STALK"; }
     else { light="gray"; action="WAIT"; }
 
     return {blocked:false,light,action,totalScore,contextPts,penalties,blockedReasons:blocked};
@@ -1322,6 +1312,13 @@ function App() {
         stars: ev.stars||1,
         minsUntil: toMins(ev.date, ev.time),
         source: ev.source||"Calendar",
+        isBreaking: false,
+      })),
+      ...ecoArticles.map(ev=>({
+        title: ev.title||"",
+        stars: ev.stars||1,
+        minsUntil: ev.pub ? Math.round((new Date(ev.pub)-new Date())/60000) : null,
+        source: ev.source||"Eco",
         isBreaking: false,
       })),
       // Breaking news = any Reuters/Bloomberg article in the feed
@@ -1466,21 +1463,20 @@ function App() {
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 1: CLOCK STRUCTURE — display only, not scored
   // ═══════════════════════════════════════════════════════════════════════════
-  const { inExecute, inTrap, inLiquid, inRecal, phase } = getExecuteState(et.h24, et.m);
+  const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
   const connectorMode      = getConnectorMode(et.h24, et.m);
   // Charge engine removed from signal + replay path per latest logic update.
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
-  const activeSlotPolarity = newsReaction.active ? getNewsHourPolarity(et.h24) : (connectorMode === "aligned" ? "positive" : "negative");
-  const polarityState = buildPolarityState(_stepDir, activeSlotPolarity);
+  const polarityState = buildPolarityState(_stepDir, connectorMode === "aligned" ? "positive" : "negative");
   const _newsPol = (()=>{
-    if(!newsReaction.active || !newsReaction.activeEvent) return null;
-    const ev = newsReaction.activeEvent;
-    if(typeof ev.polarity === "number") return ev.polarity > 0 ? "positive" : "negative";
+    if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
-    return "positive";
+    if(newsReaction.activeEvent.isBreaking) return _stepDir==="sell"?"negative":"positive";
+    if(newsReaction.activeEvent.isAfter) return newsReaction.conflict?"negative":"positive";
+    return null;
   })();
   const timeMathResult   = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "time")   : null;
   const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
@@ -1611,10 +1607,20 @@ function App() {
   // ForexFactory JSON is the most reliable free cross-origin economic calendar
   // same underlying data Myfxbook and TradingEconomics aggregate
   const CALENDAR_FEEDS = [
-    { label:"Myfxbook",           color:"#00aaff", type:"rss",
+    // ForexFactory this-week JSON — free, no auth, reliable CORS
+    { label:"ForexFactory",      color:"#ff6b35",  type:"ff_json",
+      url:"https://nfs.faireconomy.media/ff_calendar_thisweek.json?version=1" },
+    // Myfxbook RSS via proxy
+    { label:"Myfxbook",          color:"#00aaff",  type:"rss",
       url:"https://www.myfxbook.com/rss/forex-economic-calendar-events" },
-    { label:"TradingEconomics",   color:"#f0a030", type:"rss",
-      url:"https://news.google.com/rss/search?q=site:tradingeconomics.com+(calendar+OR+economic+calendar+OR+CPI+OR+NFP+OR+FOMC+OR+GDP+OR+PMI+OR+rates)&hl=en-US&gl=US&ceid=US:en" },
+    // Trading Economics Google News (their own content indexed by Google)
+    { label:"Trading Economics",  color:"#f0a030",  type:"rss",
+      url:"https://news.google.com/rss/search?q=%22trading+economics%22+OR+%22economic+calendar%22+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22&hl=en-US&gl=US&ceid=US:en" },
+    // Reuters + Bloomberg economic news for breaking events not on static calendar
+    { label:"Reuters Econ",       color:"#ff6b35",  type:"rss",
+      url:"https://news.google.com/rss/search?q=Reuters+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22&hl=en-US&gl=US&ceid=US:en" },
+    { label:"Bloomberg Econ",     color:"#f0a030",  type:"rss",
+      url:"https://news.google.com/rss/search?q=Bloomberg+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22rates%22&hl=en-US&gl=US&ceid=US:en" },
   ];
 
   // ECO_KEYWORDS for feed classification
@@ -1734,11 +1740,11 @@ function App() {
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
-    if(type === "breaking") return {pre:0, post:15};
+    if(type === "breaking") return {pre:0, post:20};
     if(type === "speech") return {pre:0, post:45};
-    if(stars === 1) return {pre:15, post:15};
-    if(stars === 2) return {pre:45, post:45};
-    return {pre:75, post:75};
+    if(stars === 1) return {pre:20, post:20};
+    if(stars === 2) return {pre:50, post:50};
+    return {pre:80, post:80};
   }
 
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
@@ -1775,18 +1781,42 @@ function App() {
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
   }
 
+  function inferCountryCode(rawText="", fallback="") {
+    const t = String(rawText||" ").toUpperCase();
+    if(fallback) return String(fallback).toUpperCase().slice(0,3);
+    const checks = [
+      [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
+      [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
+      [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/, "GBP"],
+      [/(^|\W)(JPY|JAPAN|BOJ)(\W|$)/, "JPY"],
+      [/(^|\W)(AUD|AUSTRALIA|RBA)(\W|$)/, "AUD"],
+      [/(^|\W)(CAD|CANADA|BOC)(\W|$)/, "CAD"],
+      [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/, "CHF"],
+      [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/, "NZD"],
+      [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
+    ];
+    for (const [rx, code] of checks) if (rx.test(t)) return code;
+    return "";
+  }
+
   // Normalize any RSS item into a consistent shape
   function normalizeItem(item, source, color) {
+    const title = ((item.title||"")).trim().replace(/\s*[-|]\s*(Reuters|Bloomberg|CNBC|WSJ|FT|Myfxbook|Trading Economics|AP|MarketWatch).*$/i,"").trim();
+    const desc = ((item.description||item.content||"")).replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200);
+    const country = inferCountryCode(`${title} ${desc}`);
     return {
+      title,
+      link:  item.link||item.guid||"",
+      pub:   item.pubDate||item.pub||item.published||"",
+      desc,
+      source, color, country,
+    };
+  }
       title: ((item.title||"")).trim().replace(/\s*[-|]\s*(Reuters|Bloomberg|CNBC|WSJ|FT|Myfxbook|Trading Economics|AP|MarketWatch).*$/i,"").trim(),
       link:  item.link||item.guid||"",
       pub:   item.pubDate||item.pub||item.published||"",
       desc:  ((item.description||item.content||"")).replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200),
       source, color,
-      polarity: /hotter inflation|rate hike|misses|worse than expected|downside|weak|crash|halt|emergency/i.test(((item.title||"")+" "+(item.description||item.content||""))) ? -1
-        : /beats|better than expected|upside|strong|lower inflation|rate cut/i.test(((item.title||"")+" "+(item.description||item.content||""))) ? 1
-        : 1,
-      kind: "breaking",
     };
   }
 
@@ -1827,67 +1857,130 @@ function App() {
   // ── fetchEcoNews — eco classification for FEED tab ───────────────────────────
   const fetchEcoNews = useCallback(()=>{
     if(ecoLoadedRef.current) return;
-    ecoLoadedRef.current = true;
+    ecoLoadedRef.current=true;
     setEcoLoading(true);
-    setEcoArticles([]);
-    setTimeout(()=>setEcoLoading(false), 0);
-  },[]);
+    const ECO_URLS = [
+      {url:"https://news.google.com/rss/search?q=CPI+OR+NFP+OR+FOMC+OR+GDP+OR+PCE+OR+PMI+OR+%22jobless+claims%22+OR+%22interest+rate%22+OR+%22non-farm+payrolls%22&hl=en-US&gl=US&ceid=US:en", label:"Google Econ", color:"#00aaff"},
+      {url:"https://news.google.com/rss/search?q=Federal+Reserve+OR+Powell+OR+%22rate+decision%22+OR+%22rate+hike%22+OR+%22rate+cut%22&hl=en-US&gl=US&ceid=US:en", label:"Google Fed", color:"#aa88ff"},
+    ];
+    Promise.all(ECO_URLS.map(f=>
+      fetchRSS(f.url).then(items=>items.map(item=>{
+        const norm=normalizeItem(item,f.label,f.color);
+        return {...norm,...classifyEcoArticle(norm.title,norm.desc)};
+      }).filter(a=>a.title&&a.title.length>3&&a.stars>0)).catch(()=>[])
+    )).then(results=>{
+      const all=results.flat();
+      const seen=new Set();
+      const deduped=all.filter(a=>{ const k=a.title.slice(0,40).toLowerCase(); if(seen.has(k))return false; seen.add(k); return true; });
+      deduped.sort((a,b)=>(b.stars-a.stars)||new Date(b.pub)-new Date(a.pub));
+      setEcoArticles(deduped);
+      const recent3=deduped.find(a=>a.stars===3&&!breakingAnchor&&(Date.now()-new Date(a.pub).getTime())<30*60000);
+      if(recent3){ const pol=recent3.bearish?-1:recent3.bullish?1:0; if(pol!==0) setBreakingAnchor({title:recent3.title,polarity:pol,expiresAt:Date.now()+15*60*1000,stars:3,auto:true}); }
+    }).finally(()=>setEcoLoading(false));
+  },[breakingAnchor]);
 
   // ── fetchCalendar — ForexFactory JSON (primary) + Myfxbook/Reuters/Bloomberg RSS (fallback) ──
   const fetchCalendar = useCallback(()=>{
     if(calLoadedRef.current) return;
-    calLoadedRef.current = true;
+    calLoadedRef.current=true;
     setCalLoading(true);
+    const todayStr     = new Date().toISOString().slice(0,10);
     const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
 
+    // Impact map for ForexFactory: Low/Medium/High → 1/2/3 stars
+    function ffStars(impact){
+      if(!impact) return 1;
+      const i = impact.toLowerCase();
+      if(i==="high") return 3;
+      if(i==="medium"||i==="med") return 2;
+      return 1;
+    }
+
+    // Fetch ForexFactory JSON (primary — free, no CORS issues, same data as Myfxbook/TE)
+    function fetchFF(){
+      const feeds = CALENDAR_FEEDS.filter(f=>f.type==="ff_json");
+      if(!feeds.length) return Promise.resolve([]);
+      return Promise.race([
+        fetch(feeds[0].url,{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()),
+        new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),8000))
+      ]).then(data=>{
+        if(!Array.isArray(data)) return [];
+        return data
+          .filter(ev=>ev.date&&ev.date.slice(0,10)>=yesterdayStr)
+          .map(ev=>({
+            title: (ev.title||ev.name||"").trim(),
+            pub: ev.date,
+            link: "",
+            source: "ForexFactory",
+            color: "#ff6b35",
+            stars: ffStars(ev.impact),
+            currency: ev.currency||"",
+            country: inferCountryCode(ev.currency||"", ev.currency||""),
+            forecast: ev.forecast||"",
+            previous: ev.previous||"",
+            date: ev.date.slice(0,10),
+            time: ev.date.slice(11,16)||"",
+            isLive: true,
+          }))
+          .filter(ev=>ev.title&&ev.title.length>2&&ev.stars>=1);
+      }).catch(()=>[]);
+    }
+
+    // Fetch RSS-based feeds (Myfxbook, Reuters Econ, Bloomberg Econ)
     function fetchRSSFeeds(){
-      return Promise.all(CALENDAR_FEEDS.map(f=>
+      const rssFeeds = CALENDAR_FEEDS.filter(f=>f.type==="rss"||f.type==="rss_proxy");
+      return Promise.all(rssFeeds.map(f=>
         fetchRSS(f.url).then(items=>
           items.map(item=>{
             const norm = normalizeItem(item, f.label, f.color);
             const d = norm.pub ? new Date(norm.pub) : null;
             const dateStr = d && !isNaN(d) ? d.toISOString().slice(0,10) : "";
-            const timeStr = d && !isNaN(d)
-              ? d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false})
-              : "";
-            const cls = classifyEcoArticle(norm.title, norm.desc);
             return {
               ...norm,
-              stars: cls.stars || calStars(norm.title) || 1,
-              polarity: cls.bearish ? -1 : cls.bullish ? 1 : 1,
+              stars: classifyEcoArticle(norm.title, norm.desc).stars || calStars(norm.title) || 1,
+              country: norm.country || inferCountryCode(`${norm.title} ${norm.desc}`),
               date: dateStr,
-              time: timeStr,
+              time: d && !isNaN(d) ? d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}) : "",
               isLive: true,
-              kind: "event",
             };
-          }).filter(a=>a.title && a.title.length>3 && a.stars>=1 && (a.date>=yesterdayStr || !a.date))
+          }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=yesterdayStr||!a.date))
         ).catch(()=>[])
       )).then(groups=>groups.flat());
     }
 
-    fetchRSSFeeds()
-      .then(items=>{
-        const deduped = dedupeFeedItems(items.map(a=>({...a, kind:"event"})));
-        deduped.sort((a,b)=>{
-          const at = Date.parse((a.date&&a.time)?`${a.date}T${a.time}:00`:a.pub||0) || 0;
-          const bt = Date.parse((b.date&&b.time)?`${b.date}T${b.time}:00`:b.pub||0) || 0;
-          return at - bt;
-        });
-        setCalArticles(deduped.slice(0,80));
-      })
-      .finally(()=>setCalLoading(false));
+    // Run both in parallel, merge, dedupe, sort
+    Promise.all([fetchFF(), fetchRSSFeeds()])
+    .then(([ffItems, rssItems])=>{
+      const all = [...ffItems, ...rssItems];
+      const seen = new Set();
+      const deduped = all.filter(a=>{
+        // Fingerprint = first 40 chars of title + date — catches cross-source duplicates
+        const title = (a.title||"").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,40);
+        const k = title + (a.date||"");
+        if(!title||seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+      // Sort: today first (by time), then upcoming by date
+      deduped.sort((a,b)=>{
+        if(a.date===b.date) return (a.time||"").localeCompare(b.time||"");
+        return (a.date||"9999").localeCompare(b.date||"9999");
+      });
+      setCalArticles(deduped);
+    })
+    .finally(()=>setCalLoading(false));
   },[]);
 
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
     if(newsView==="feed") {
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
+      if(!calLoadedRef.current) fetchCalendar();
     }
     if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
 
-  // On mount, pre-load default feed
-  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; },[]);
+  // On mount, pre-load default feed + calendar
+  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -1916,8 +2009,8 @@ function App() {
         const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
         const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
         const zLabel = z ? z.label : "—";
-        const winLabel = phase;
-        const winCol   = inExecute?G:inTrap?A:inLiquid?"#55aaff":inRecal?"#ff9955":"#444";
+        const winLabel = inExecute?"EXECUTE":inTrap?"TRAP":"OBSERVE";
+        const winCol   = inExecute?G:inTrap?A:"#444";
         return(
           <div style={{display:"flex",gap:8,marginBottom:10}}>
             {[
@@ -2361,7 +2454,6 @@ function App() {
     }
 
     async function fetchReplayCandles(){
-      const out = [];
       const binance = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
       for(const url of [binance, `https://corsproxy.io/?${encodeURIComponent(binance)}`]){
         try{
@@ -2369,9 +2461,7 @@ function App() {
           if(!res.ok) continue;
           const raw = await res.json();
           if(Array.isArray(raw) && raw.length){
-            return raw.map(k=>(
-              { ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }
-            ));
+            return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }));
           }
         }catch(e){}
       }
@@ -2391,7 +2481,6 @@ function App() {
 
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
-      const slot = getWindowAt(h24, m);
       const connectorMode = getConnectorMode(h24, m);
       const slotPol = connectorMode === "aligned" ? "positive" : "negative";
       const polarityState = buildPolarityState(step.direction, slotPol);
@@ -2399,7 +2488,7 @@ function App() {
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
       return {
         signal,
-        mode: getConnectorMode(h24, m),
+        mode: connectorMode,
         flip: applied.finalDirection !== polarityState.baseDirection,
         reason: applied.reason,
         activeEvents,
@@ -2416,11 +2505,19 @@ function App() {
       };
     }
 
-    function scoreSignal(signal, openPrice, closePrice) {
-      const priceDiff = closePrice - openPrice;
-      const pctMove   = ((closePrice - openPrice) / openPrice) * 100;
-      if(signal==="BUY")  return { correct: priceDiff > 0, pct: pctMove };
-      if(signal==="SELL") return { correct: priceDiff < 0, pct: pctMove };
+    function scoreSignal(signal, openPrice, highPrice, lowPrice) {
+      const tp1 = 0.003, tp2 = 0.006, tp3 = 0.009;
+      if(!openPrice) return null;
+      if(signal === "BUY") {
+        const h1 = openPrice * (1 + tp1), h2 = openPrice * (1 + tp2), h3 = openPrice * (1 + tp3);
+        const t1 = highPrice >= h1, t2 = highPrice >= h2, t3 = highPrice >= h3;
+        return { correct:t1, tp1Hit:t1, tp2Hit:t2, tp3Hit:t3, label:t3?"TP3":t2?"TP2":t1?"TP1":"MISS" };
+      }
+      if(signal === "SELL") {
+        const l1 = openPrice * (1 - tp1), l2 = openPrice * (1 - tp2), l3 = openPrice * (1 - tp3);
+        const t1 = lowPrice <= l1, t2 = lowPrice <= l2, t3 = lowPrice <= l3;
+        return { correct:t1, tp1Hit:t1, tp2Hit:t2, tp3Hit:t3, label:t3?"TP3":t2?"TP2":t1?"TP1":"MISS" };
+      }
       return null;
     }
 
@@ -2442,7 +2539,7 @@ function App() {
           const et = getETParts(c.ts);
           const activeEvents = activeEventsFor(c.ts);
           const replay = replaySignal(et.h24, et.m, activeEvents);
-          const score  = scoreSignal(replay.signal, c.open, c.close);
+          const score  = scoreSignal(replay.signal, c.open, c.high, c.low);
           sessions.push({
             ts: c.ts,
             h24: et.h24,
@@ -2463,7 +2560,7 @@ function App() {
         const total  = wins + losses;
         const wr     = total>0 ? Math.round((wins/total)*100) : 0;
         if(!actionable.length) throw new Error("No replay signals found");
-        setResults({ sessions: actionable, wins, losses, total, wr, eventsUsed: loggedLastWeek.length });
+        setResults({ sessions: actionable, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, byType: actionable });
       } catch(e) {
         setError("Replay could not load BTC candles. Open the file in a normal browser tab with internet, then run again.");
       }
@@ -2475,9 +2572,9 @@ function App() {
 
     return(
       <div style={{padding:14}}>
-        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST WEEK RESULTS</div>
+        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses your saved polarity event log from the last 7 days. Scheduled events use symmetric windows, breaking news uses 15 minutes, and speeches stack as multiple negative pieces of news when applicable.
+          Replay now uses the new polarity engine. Scheduled events use symmetric windows, Reuters/Bloomberg breaking news uses 15-minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2486,8 +2583,8 @@ function App() {
             <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.length}</div>
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
-            <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>DEDUPED</div>
-            <div style={{fontSize:22,color:"#ccc",fontWeight:900}}>{dedupeFeedItems(loggedLastWeek).length}</div>
+            <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
+            <div style={{fontSize:22,color:"#ccc",fontWeight:900}}>7D</div>
           </div>
         </div>
 
@@ -2495,7 +2592,7 @@ function App() {
           <button onClick={runReplay} disabled={loading}
             style={{flex:1,padding:"12px 0",borderRadius:12,fontSize:14,fontWeight:900,cursor:loading?"not-allowed":"pointer",letterSpacing:2,
               background:loading?"rgba(255,255,255,0.05)":`${G}1a`,border:`1px solid ${loading?"#333":G}`,color:loading?"#555":G}}>
-            {loading?"⏳ RUNNING...":"▶ RUN LAST WEEK"}
+            {loading?"⏳ RUNNING...":"▶ RUN REPLAY"}
           </button>
           <button onClick={()=>setPlaying(p=>!p)} disabled={!results?.sessions?.length}
             style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
@@ -2516,24 +2613,45 @@ function App() {
               ].map(i=>(<div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>))}
             </div>
 
+            <div style={{marginBottom:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.02)",padding:"12px 14px"}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:10}}>BY SIGNAL TYPE</div>
+              {["BUY","SELL"].map(t=>{
+                const tw = results.sessions.filter(s=>s.signal===t&&s.score?.correct===true).length;
+                const tl = results.sessions.filter(s=>s.signal===t&&s.score?.correct===false).length;
+                const tt = tw+tl;
+                if(!tt) return null;
+                const twr = Math.round((tw/tt)*100);
+                const sc = sigCol(t);
+                return(
+                  <div key={t} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                    <div style={{width:80,fontSize:12,fontWeight:900,color:sc,...mono}}>{t}</div>
+                    <div style={{flex:1,height:6,background:"rgba(255,255,255,0.05)",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${twr}%`,background:sc,borderRadius:3}}/>
+                    </div>
+                    <div style={{fontSize:13,fontWeight:900,color:twr>=60?G:twr>=45?A:R,...mono,width:40,textAlign:"right"}}>{twr}%</div>
+                    <div style={{fontSize:11,color:"#444",...mono,width:40,textAlign:"right"}}>{tw}/{tt}</div>
+                  </div>
+                );
+              })}
+            </div>
+
             {current && (
               <div style={{borderRadius:12,border:`1px solid ${sigCol(current.signal)}33`,background:`${sigCol(current.signal)}09`,padding:"12px 14px",marginBottom:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:6,alignItems:"center"}}>
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} ET</div>
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.signal}</div>
                 </div>
-                <div style={{fontSize:12,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8}}>{current.score?.correct?"✓ WIN":"✗ LOSS"}</div>
+                <div style={{fontSize:12,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8}}>{current.score?.correct?`✓ ${current.score?.label || "WIN"}`:`✗ ${current.score?.label || "LOSS"}`}</div>
                 <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
                   Base: {current.baseDirection.toUpperCase()} ({current.baseCharge>0?"+1":"-1"}) · News flip: {current.newsFlip>0?"+1":"-1"} · Final: {current.finalCharge>0?"+1":"-1"}
                 </div>
-                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  {current.equation}
-                </div>
-                <div style={{fontSize:13,color:"#fff",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  {current.equationPlain}
-                </div>
+                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equation}</div>
+                <div style={{fontSize:13,color:"#fff",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equationPlain}</div>
                 <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
                   Slot polarity: {current.slotPolarity} · Active events: {current.activeCount} · Negative pressure: {current.negativePressure} · Positive pressure: {current.positivePressure}
+                </div>
+                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
+                  Open ${current.open.toLocaleString()} · High ${current.high.toLocaleString()} · Low ${current.low.toLocaleString()} · Close ${current.close.toLocaleString()}
                 </div>
                 <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>setPlayIdx(Number(e.target.value)||0)} style={{width:"100%",marginTop:10}}/>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:8,gap:8}}>
@@ -2543,16 +2661,17 @@ function App() {
               </div>
             )}
 
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST WEEK SESSION LOG</div>
+            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 7 DAYS SESSION LOG</div>
             {results.sessions.slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
+              const tagCol = s.score?.tp3Hit ? G : s.score?.tp2Hit ? A : s.score?.tp1Hit ? "#66ccff" : R;
               return(
                 <div key={i} onClick={()=>setPlayIdx(results.sessions.findIndex(x=>x.ts===s.ts))} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
                   <div style={{fontSize:10,color:"#444",...mono,minWidth:68}}>{s.dayStr}</div>
                   <div style={{fontSize:11,color:"#aaa",...mono,minWidth:72}}>{s.timeStr}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
                   <div style={{fontSize:11,color:"#777",...mono,minWidth:56,textAlign:"right"}}>{s.finalCharge>0?"+1":"-1"}</div>
-                  <div style={{fontSize:11,color:"#777",...mono,minWidth:52,textAlign:"right"}}>{s.activeCount} ev</div>
+                  <div style={{fontSize:11,color:tagCol,...mono,minWidth:44,textAlign:"right"}}>{s.score?.label || "MISS"}</div>
                   <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
               );
@@ -2563,14 +2682,15 @@ function App() {
         {!results&&!loading&&(
           <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
             Log news and calendar items in the polarity tab, then run replay.<br/>
-            The engine will show the polarity equation and final BUY or SELL result for each replay candle.
+            Replay uses the new logic only and scores the last 7 days of BTC signals.
           </div>
         )}
       </div>
     );
   };
 
-  const BacktestTab = ()=>{
+  
+const BacktestTab = ()=>{
     if(!can("backtest_full")) return(
       <div style={{padding:32,textAlign:"center"}}>
         <div style={{fontSize:44,marginBottom:14}}>📊</div>
@@ -2756,7 +2876,8 @@ function App() {
 
     const LINKS = [
       { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
-            { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
+      { label:"Myfxbook News",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
+      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
       { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
     ];
 
@@ -2888,12 +3009,12 @@ function App() {
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>REUTERS + BLOOMBERG MARKETS</div>
-              <button onClick={()=>{ newsLoadedFor.current=""; fetchNews("combo"); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR + BREAKING NEWS</div>
+              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
-            {newsLoading&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing feed...</div>
+            {(newsLoading||calLoading)&&(
+              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing timeline...</div>
             )}
 
             {!newsLoading && newsError && (
@@ -2902,43 +3023,67 @@ function App() {
               </div>
             )}
 
-            {!newsLoading&&!newsError&&newsArticles.length===0&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No Reuters/Bloomberg/Myfxbook/TradingEconomics items yet — tap refresh.</div>
-            )}
-
-            {newsArticles.map((item,i)=>(
-              <div key={i}
-                onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
-                style={{
-                  background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
-                  borderRadius:12,padding:"12px 14px",marginBottom:8,
-                  cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
-                }}>
-                <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
-                <div style={{paddingLeft:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
-                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{fontSize:13,color:item.color||"#888",fontWeight:700,letterSpacing:1}}>📰 NEWS</span>
-                      <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+            {(()=>{
+              const timeline = dedupeFeedItems([
+                ...calArticles.map(item=>({
+                  ...item,
+                  kind:"event",
+                  isUnified:true,
+                  pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
+                  country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
+                  feedType:"calendar"
+                })),
+                ...newsArticles.map(item=>({
+                  ...item,
+                  kind:"breaking",
+                  isUnified:true,
+                  country: item.country || inferCountryCode(`${item.title||""} ${item.desc||""}`),
+                  feedType:"breaking"
+                }))
+              ]).sort((a,b)=>{
+                const ta = Date.parse(a.pub||0) || 0;
+                const tb = Date.parse(b.pub||0) || 0;
+                return ta - tb;
+              });
+              if(!newsLoading && !calLoading && timeline.length===0){
+                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
+              }
+              return timeline.map((item,i)=>(
+                <div key={i}
+                  onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
+                  style={{
+                    background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
+                    borderRadius:12,padding:"12px 14px",marginBottom:8,
+                    cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
+                  }}>
+                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
+                  <div style={{paddingLeft:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        <span style={{fontSize:13,color:item.feedType==="calendar"?"#6fcf97":(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 BREAK"}</span>
+                        <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                        {!!item.country && <span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
+                        {item.feedType==="calendar" && <span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1, Math.min(3, Number(item.stars||1))))}</span>}
+                      </div>
+                      <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
                     </div>
-                    <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
-                  </div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
-                  {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
-                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                    {item.link&&<span style={{fontSize:14,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
+                    <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
+                    {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
+                      {item.feedType==="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>WINDOW ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TP {Number(item.stars||1)===3?"261–300":Number(item.stars||1)===2?"161–200":"100–127"}</span>}
+                      {item.feedType!=="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>BURST 0–20m · 61.8–78.6</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ));
+            })()}
           </>
         )}
 
 
 
 
-
-        {newsView==="news"&&(
+{newsView==="news"&&(
           <>
             {/* Source selector */}
             <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
@@ -3131,7 +3276,7 @@ function App() {
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Merged feed uses Reuters + Bloomberg Markets for breaking news and Myfxbook + TradingEconomics for scheduled calendar data with duplicate cleanup.</div>
+              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Myfxbook + Trading Economics calendar events with Reuters + Bloomberg breaking news in one on-page timeline, including country codes.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
