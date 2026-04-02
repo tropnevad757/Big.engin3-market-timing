@@ -3337,7 +3337,8 @@ const BacktestTab = ()=>{
     {id:"clock",icon:"⏱",l:"CLOCK"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
     {id:"news",icon:"📰",l:"NEWS"},
-    {id:"backtest",icon:"📊",l:"BACKTEST"}
+    {id:"backtest",icon:"📊",l:"BACKTEST"},
+    {id:"replay",icon:"⏪",l:"REPLAY"}
   ];
 
   return(
@@ -3366,13 +3367,13 @@ const BacktestTab = ()=>{
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {/* replay removed */}
+        {tab==="replay"   && <ReplayTab/>}
         {/* Plan tab removed per user request */}
       </div>
 
       {/* NAV */}
       <nav style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#07071c",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",zIndex:200}}>
-        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,padding:"9px 2px 7px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?A:"#aaa",fontSize:13,fontWeight:700,letterSpacing:.4,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s"}}>
+        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,padding:"9px 1px 7px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?A:"#aaa",fontSize:11,fontWeight:700,letterSpacing:.3,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s",minWidth:0}}>
           <span style={{fontSize:15}}>{n.icon}</span>{n.l}
         </button>)}
       </nav>
