@@ -1293,107 +1293,60 @@ function App() {
 
   // MASTER ENGINE
 
-  // ── NEWS REACTION ENGINE — symmetric windows, TP levels, conflict detection ───
-  // Windows are BEFORE and AFTER events. News break = RSS article from Reuters/Bloomberg.
+  // ── NEWS REACTION ENGINE — unified feeds, symmetric windows, TP levels ──────
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell"); // zone/polarity baseline
-
-    const toMins = (dateStr, timeStr) => {
-      if(!dateStr||!timeStr) return null;
-      try { return Math.round((new Date(dateStr+'T'+timeStr+':00') - new Date()) / 60000); }
-      catch(e){ return null; }
-    };
-
-    // Gather all events — calendar + eco news — with absolute distance from now
-    const allEvents = [
-      ...calArticles.map(ev=>({
-        title: ev.title||"",
-        stars: ev.stars||1,
-        minsUntil: toMins(ev.date, ev.time),
-        source: ev.source||"Calendar",
-        isBreaking: false,
-      })),
-      ...ecoArticles.map(ev=>({
-        title: ev.title||"",
-        stars: ev.stars||1,
-        minsUntil: ev.pub ? Math.round((new Date(ev.pub)-new Date())/60000) : null,
-        source: ev.source||"Eco",
-        isBreaking: false,
-      })),
-      // Breaking news = any Reuters/Bloomberg article in the feed
-      // No age gate — if it's in the feed it's live news, 15-min window applies
-      ...newsArticles
-        .filter(a=>a.pub)
-        .map(a=>({
-          title: a.title||"",
-          stars: 0,
-          minsUntil: -Math.round((new Date()-new Date(a.pub))/60000), // negative = post-event
-          source: a.feedLabel||"News",
-          isBreaking: true,
-        })),
-    ];
-
-    // Find the closest event within any window (symmetric: abs(minsUntil) <= window)
-    let activeEvent = null;
-    let suppressPts = 0;
-    const nearEvents = [];
-
-    for(const ev of allEvents) {
-      if(ev.minsUntil === null || isNaN(ev.minsUntil)) continue;
-      const absMins = Math.abs(ev.minsUntil);
-      const cfg = ev.isBreaking ? NEWS_REACTION.break : NEWS_REACTION[ev.stars] || NEWS_REACTION[1];
-      if(absMins > cfg.window) continue;
-
-      // Proximity 0=edge of window, 1=at event
-      const prox = 1 - (absMins / cfg.window);
-      // Score impact: suppress before, amplify after if direction known
-      const isAfter = ev.minsUntil < 0;
+    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
+    const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
+    const nowMs = Date.now();
+    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
+      const t = Date.parse(ev.pub||0);
+      if(!t || Number.isNaN(t)) return null;
+      const minsUntil = Math.round((t - nowMs)/60000);
+      const win = eventWindowMinutes(ev);
+      const isBreaking = replayEventType(ev) === "breaking";
+      const isSpeech = replayEventType(ev) === "speech";
+      const isAfter = minsUntil < 0;
+      const active = isBreaking || isSpeech
+        ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
+        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
+      if(!active) return null;
+      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
+      const absMins = Math.abs(minsUntil);
+      const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
+      const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
       let pts = 0;
-      if(!isAfter) {
-        // Before: suppress proportionally
-        pts = ev.stars===3 ? Math.round(-18*prox) : ev.stars===2 ? Math.round(-10*prox) : Math.round(-5*prox);
-      } else {
-        // After: check if news direction agrees with zone
-        pts = ev.stars===3 ? Math.round(+10*prox) : ev.stars===2 ? Math.round(+6*prox) : Math.round(+3*prox);
-      }
+      if(isBreaking) pts = Math.round((Number(ev.polarity||0)===-1 ? -8 : 4) * prox);
+      else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
+      else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
+      return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
+    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
 
-      suppressPts += pts;
-      nearEvents.push({...ev, absMins, prox, pts, cfg, isAfter});
+    const activeEvent = allEvents[0] || null;
+    const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
+    const negativeDirectional = allEvents.some(ev=>Number(ev.polarity) === -1);
+    const positiveDirectional = allEvents.some(ev=>Number(ev.polarity) === 1);
+    const conflict = negativeDirectional && positiveDirectional ? true : (activeEvent && Number(activeEvent.polarity||0)!==0 ? Number(activeEvent.polarity)!==slotCharge : false);
 
-      if(!activeEvent || absMins < activeEvent.absMins) activeEvent = {...ev, absMins, prox, pts, cfg, isAfter};
-    }
-
-    nearEvents.sort((a,b)=>a.absMins-b.absMins);
-    const total = Math.max(-30, Math.min(15, suppressPts));
-
-    // TP levels from BTC price
     let tpLevels = null;
     if(btcPrice && activeEvent) {
-      const tps = activeEvent.cfg.tps.filter(t=>t>0);
-      const fibs = activeEvent.cfg.fibs;
+      const tps = (activeEvent.cfg?.tps || []).filter(t=>t>0);
+      const fibs = activeEvent.cfg?.fibs || [];
       const dir = zDir === "buy" ? 1 : -1;
       tpLevels = {
         fibs: fibs.map(f=>({ pct: f/100, price: Math.round(btcPrice*(1+dir*(f/1000))) })),
-        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct: t, price: Math.round(btcPrice*(1+dir*t/100)) })),
+        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct:t, price: Math.round(btcPrice*(1+dir*t/100)) })),
       };
     }
 
-    // Conflict: news source conflicts zone direction
-    // (if a bearish eco article fires during a BUY zone — or vice versa)
-    const conflict = activeEvent && !activeEvent.isBreaking && activeEvent.isAfter
-      ? (zDir==="buy" && ecoArticles.find(a=>a.bearish&&a.title===activeEvent.title))
-        || (zDir==="sell" && ecoArticles.find(a=>a.bullish&&a.title===activeEvent.title))
-      : false;
-
     return {
-      active: nearEvents.length > 0,
-      suppressPts: total,
+      active: allEvents.length > 0,
+      suppressPts,
       activeEvent,
-      nearEvents,
+      nearEvents: allEvents,
       tpLevels,
-      conflict: !!conflict,
-      level: activeEvent?.stars===3?"high":activeEvent?.stars===2?"med":activeEvent?.isBreaking?"break":"low",
+      conflict,
+      level: activeEvent?.isBreaking ? "break" : activeEvent?.stars===3 ? "high" : activeEvent?.stars===2 ? "med" : activeEvent ? "low" : "none",
     };
   })();
 
@@ -1747,32 +1700,77 @@ function App() {
     return {pre:80, post:80};
   }
 
+
+  function buildUnifiedNewsEvents(nowMs = Date.now()){
+    const toEvent = (raw, overrides={})=>{
+      const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
+      if(!title) return null;
+      const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
+      const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
+      const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
+      const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
+      const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
+      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
+      const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
+      return { title, source, stars, polarity, kind, pub, country, note };
+    };
+
+    const scheduled = [
+      ...(calArticles||[]).map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"event"})),
+      ...(ecoArticles||[]).map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"event"})),
+    ].filter(Boolean);
+
+    const breaking = (newsArticles||[])
+      .map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"breaking"}))
+      .filter(Boolean);
+
+    const manual = (replayEvents||[]).map(ev=>toEvent(ev)).filter(Boolean);
+
+    return dedupeFeedItems([...scheduled, ...breaking, ...manual])
+      .filter(ev=>{
+        const t = Date.parse(ev.pub||0);
+        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
+      })
+      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+  }
+
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
+    const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
     const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
     const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
-    const negativePressure = negatives + speeches;
-    const newsFlip = negativePressure > 0 ? -1 : 1;
-    const finalCharge = baseCharge * newsFlip;
-    const finalDirection = finalCharge === 1 ? "buy" : "sell";
-    const eqBase = baseCharge === 1 ? "+1" : "-1";
-    const eqFlip = newsFlip === 1 ? "+1" : "-1";
-    const eqFinal = finalCharge === 1 ? "+1" : "-1";
-    const equation = `Base charge ${eqBase} × news flip ${eqFlip} = final charge ${eqFinal}`;
-    const equationPlain = negativePressure > 0
-      ? `${baseDirection.toUpperCase()} + NEGATIVE NEWS(${negativePressure}) = ${finalDirection.toUpperCase()}`
-      : `${baseDirection.toUpperCase()} + NO NEGATIVE NEWS = ${finalDirection.toUpperCase()}`;
+    const activeCount = (activeEvents||[]).length;
+
+    let newsCharge = 0;
+    if(negatives > 0 && positives === 0) newsCharge = -1;
+    else if(positives > 0 && negatives === 0) newsCharge = 1;
+    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict defaults defensive
+
+    const hadNews = activeCount > 0;
+    const finalDirection = !hadNews
+      ? baseDirection
+      : (newsCharge === 0
+          ? baseDirection
+          : (newsCharge === slotCharge ? "buy" : "sell"));
+    const finalCharge = finalDirection === "buy" ? 1 : -1;
+    const newsFlip = hadNews && finalDirection !== baseDirection;
+    const equationPlain = !hadNews
+      ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
+      : newsCharge === 0
+        ? `${baseDirection.toUpperCase()} + NEWS(NEUTRAL) = ${finalDirection.toUpperCase()}`
+        : `${slotCharge===1?'+':'-'} TIME + ${newsCharge===1?'+':'-'} NEWS = ${finalDirection.toUpperCase()}`;
+
     return {
       finalDirection,
       baseCharge,
       finalCharge,
-      newsFlip,
-      negativePressure,
+      newsFlip: newsFlip ? -1 : 1,
+      negativePressure: negatives + speeches,
       positivePressure: positives,
-      activeCount: (activeEvents||[]).length,
-      reason: negativePressure>0 ? "negative news pressure flipped base charge" : "base polarity held",
-      equation,
+      activeCount,
+      reason: !hadNews ? "base polarity held" : newsCharge===0 ? "news active but no directional polarity" : (newsCharge===slotCharge ? "time sign matched news sign" : "time sign conflicted with news sign"),
+      equation: equationPlain,
       equationPlain,
     };
   }
@@ -1834,7 +1832,7 @@ function App() {
       if(/reuters/i.test(url)) src="Reuters Markets";
       if(/bloomberg/i.test(url)) src="Bloomberg Markets";
       if(/coindesk/i.test(url)) src="CoinDesk";
-      return fetchRSS(url).then(items=>items.map(item=>normalizeItem(item,src,feed.color)));
+      return fetchRSS(url).then(items=>items.map(item=>{ const norm=normalizeItem(item,src,feed.color); return {...norm, ...classifyEcoArticle(norm.title, norm.desc), kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"breaking", feedType:"news", country:norm.country||inferCountryCode(`${norm.title} ${norm.desc}`)}; }));
     }))
     .then(groups=>{
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
@@ -1859,7 +1857,7 @@ function App() {
     Promise.all(ECO_URLS.map(f=>
       fetchRSS(f.url).then(items=>items.map(item=>{
         const norm=normalizeItem(item,f.label,f.color);
-        return {...norm,...classifyEcoArticle(norm.title,norm.desc)};
+        const cls=classifyEcoArticle(norm.title,norm.desc); return {...norm,...cls, polarity: cls.bearish?-1:cls.bullish?1:0, kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event", feedType:"eco"};
       }).filter(a=>a.title&&a.title.length>3&&a.stars>0)).catch(()=>[])
     )).then(results=>{
       const all=results.flat();
@@ -1913,7 +1911,7 @@ function App() {
             previous: ev.previous||"",
             date: ev.date.slice(0,10),
             time: ev.date.slice(11,16)||"",
-            isLive: true,
+            isLive: true, feedType:"calendar", kind:/powell|speech|remarks|testimony|presser|press conference/i.test((ev.title||ev.name||""))?"speech":"event", polarity:0,
           }))
           .filter(ev=>ev.title&&ev.title.length>2&&ev.stars>=1);
       }).catch(()=>[]);
@@ -1935,6 +1933,9 @@ function App() {
               date: dateStr,
               time: d && !isNaN(d) ? d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}) : "",
               isLive: true,
+              feedType:"calendar",
+              kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
+              polarity:Number(norm?.polarity ?? (norm?.bearish ? -1 : norm?.bullish ? 1 : 0)),
             };
           }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=yesterdayStr||!a.date))
         ).catch(()=>[])
@@ -2400,12 +2401,7 @@ function App() {
     const [playIdx,  setPlayIdx]  = React.useState(0);
     const [playing,  setPlaying]  = React.useState(false);
 
-    const loggedLastWeek = dedupeFeedItems(replayEvents)
-      .filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t) && (Date.now()-t) <= 7*24*60*60*1000;
-      })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+    const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
 
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
@@ -2595,7 +2591,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses the new polarity engine. Scheduled events use symmetric windows, Reuters/Bloomberg breaking news uses 15-minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
+          Replay now uses the new polarity engine. Scheduled events use symmetric ±20/±50/±80 minute windows, Reuters/Bloomberg breaking news uses 0–20 minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2861,6 +2857,12 @@ const BacktestTab = ()=>{
   };
 
   // ─── NEWS TAB ─────────────────────────────────────────────────────────────────
+  React.useEffect(()=>{
+    const unified = buildUnifiedNewsEvents(Date.now());
+    if(!unified.length) return;
+    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(unified.slice(0,400))); }catch(e){}
+  },[newsArticles, calArticles, ecoArticles]);
+
   const NewsTab = ()=>{
     // Uses App-level state: newsArticles, newsLoading, newsError, newsSrc, newsView, newsExpanded
     // This means news persists through clock ticks and never resets.
@@ -3337,8 +3339,7 @@ const BacktestTab = ()=>{
     {id:"clock",icon:"⏱",l:"CLOCK"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
     {id:"news",icon:"📰",l:"NEWS"},
-    {id:"backtest",icon:"📊",l:"BACKTEST"},
-    {id:"replay",icon:"⏪",l:"REPLAY"}
+    {id:"backtest",icon:"📊",l:"BACKTEST"}
   ];
 
   return(
@@ -3367,13 +3368,13 @@ const BacktestTab = ()=>{
         {/* VWAP tab removed per user request */}
         {tab==="news"     && <NewsTab/>}
         {tab==="backtest" && <BacktestTab/>}
-        {tab==="replay"   && <ReplayTab/>}
+        {/* replay removed */}
         {/* Plan tab removed per user request */}
       </div>
 
       {/* NAV */}
       <nav style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#07071c",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex",zIndex:200}}>
-        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,padding:"9px 1px 7px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?A:"#aaa",fontSize:11,fontWeight:700,letterSpacing:.3,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s",minWidth:0}}>
+        {NAV.map(n=><button key={n.id} onClick={()=>setTab(n.id)} style={{flex:1,padding:"9px 2px 7px",background:"none",border:"none",cursor:"pointer",color:tab===n.id?A:"#aaa",fontSize:13,fontWeight:700,letterSpacing:.4,display:"flex",flexDirection:"column",alignItems:"center",gap:2.5,transition:"color .2s"}}>
           <span style={{fontSize:15}}>{n.icon}</span>{n.l}
         </button>)}
       </nav>
