@@ -596,7 +596,6 @@ function App() {
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
   // Sweep confirmed — manual tap when liquidity sweep seen at VWAP anchor
   const [sweepSeen, setSweepSeen] = useState(null); // {at: timestamp, dir: "buy"|"sell", expiresAt}
-  const [vwapTrap, setVwapTrap] = useState({ band:"", reaction:false, failure:false, displacement:false, firstTouch3:false, tradeCounts:{} });
   // Live calendar state
   const [calArticles,  setCalArticles]  = useState([]);
   const [calLoading,   setCalLoading]   = useState(false);
@@ -638,23 +637,6 @@ function App() {
   // Track previous polarity window to detect flips
   const prevPolarityRef = useRef(null);
   const prevWindowRef   = useRef(null);
-
-  const VWAP_EXECUTE_POINTS = [90,120,270,300,450,480,630,660,810,840,990,1020,1170,1200,1350,1380];
-  const VWAP_EXECUTION_WINDOWS = [
-    { key:"am_0130_0430", from:90,  to:270,  label:"1:30–4:30 AM", overnight:true },
-    { key:"am_0730_1030", from:450, to:630,  label:"7:30–10:30 AM", overnight:false },
-    { key:"pm_0130_0430", from:810, to:990,  label:"1:30–4:30 PM", overnight:false },
-    { key:"pm_0730_1030", from:1170,to:1350, label:"7:30–10:30 PM", overnight:false },
-  ];
-  function getVwapExecutionWindow(h24,m){
-    const mins=h24*60+m;
-    return VWAP_EXECUTION_WINDOWS.find(w=>mins>=w.from&&mins<w.to)||null;
-  }
-  function isVwapExecutePoint(h24,m){ return VWAP_EXECUTE_POINTS.includes(h24*60+m); }
-  function getTradeCountForWindow(state, win){
-    if(!win) return 0;
-    return Number((state?.tradeCounts||{})[win.key]||0);
-  }
 
   // Zone transition anchor map — fires auto anchor at each zone open
   // All polarity flip points — fires auto-anchor at each transition
@@ -1265,22 +1247,15 @@ function App() {
   }
 
   // STAGE 3: EXECUTION + HARD GATES
-  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone, sweepSeen, newsActive) {
+  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone, sweepSeen) {
     let contextPts=0, penalties=0;
     const blocked=[];
-    const vwapWindow = getVwapExecutionWindow(et.h24, et.m);
-    const executeNow = isVwapExecutePoint(et.h24, et.m);
-    const tradeCount = getTradeCountForWindow(vwapTrap, vwapWindow);
-    const bandOk = vwapTrap.band==="2" || vwapTrap.band==="3";
-    const hasSequence = bandOk && vwapTrap.reaction && vwapTrap.failure && vwapTrap.displacement;
 
-    if(!zone)                   return {blocked:true,reason:"No active zone",light:"gray",action:"WAIT",contextPts:0,penalties:0,blockedReasons:["No active zone"]};
-    if(eb.isDanger)             return {blocked:true,reason:"Z6 danger window",light:"gray",action:"NO TRADE",contextPts:0,penalties:0,blockedReasons:["Z6 danger window"]};
+    if(!zone)                   return {blocked:true,reason:"No active zone",light:"gray",action:"WAIT",contextPts:0,penalties:0};
+    if(eb.isDanger)             return {blocked:true,reason:"Z6 danger window",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
     // No DEAD zones in v3 — every window has a polarity direction
 
     if(inSubWindow)  contextPts+=8;
-    if(vwapWindow)   contextPts+=4;
-    if(executeNow)   contextPts+=5;
     if(hotTraps.length) contextPts+=5;
     if(btd.best  && TODAYday===btd.best)  contextPts+=4;
     if(btd.worst && TODAYday===btd.worst) contextPts-=8;
@@ -1300,21 +1275,6 @@ function App() {
       if(agrees) contextPts+=5; else penalties+=6;
     }
 
-    if(bandOk) contextPts += vwapTrap.band==="3" ? 6 : 4;
-    else if(vwapWindow) penalties += 6;
-    if(vwapTrap.reaction)     contextPts += 3;
-    if(vwapTrap.failure)      contextPts += 3;
-    if(vwapTrap.displacement) contextPts += 4;
-
-    if(vwapWindow && tradeCount>=2) blocked.push("2 trades already used in this VWAP window");
-    if(vwapTrap.band==="3" && vwapTrap.firstTouch3 && !hasSequence) blocked.push("Do not fade first ±3σ touch");
-    if((executeNow || (vwapWindow && vwapWindow.overnight)) && !hasSequence) blocked.push("Need touch → reaction → failure → entry");
-    if(vwapWindow && vwapWindow.overnight){
-      if(!bandOk) blocked.push("Overnight VWAP trap needs 2σ or 3σ touch");
-      if(!eb.zonePolMatch) blocked.push("Overnight VWAP trap needs regime aligned");
-      if(!newsActive) blocked.push("Overnight VWAP trap needs news present");
-    }
-
     if(!eb.zonePolMatch)       penalties+=12;
     if(val.atrClass==="low")   penalties+=5;
     if(eb.window.tier<=1)      penalties+=8;
@@ -1322,75 +1282,118 @@ function App() {
     const totalScore = Math.min(100,Math.max(0, eb.biasScore+val.score+contextPts-penalties));
 
     let light, action;
-    if(blocked.length){
-      light="red";
-      action=vwapWindow?"WAIT FOR NEXT TRAP":"AVOID";
-    }
-    else if(penalties>=12||!eb.zonePolMatch){ light="red";    action="AVOID"; }
-    else if((eb.stalkMode || (vwapWindow && !executeNow))&&totalScore>=55){ light="yellow"; action="STALK"; }
-    else if(totalScore>=72&&eb.window.tier>=3){ light="green"; action=(inSubWindow||executeNow)?"ENTER NOW":"ENTER — PRIME"; }
+    if(penalties>=12||!eb.zonePolMatch){ light="red";    action="AVOID"; }
+    else if(eb.stalkMode&&totalScore>=55){ light="yellow"; action="STALK"; }
+    else if(totalScore>=72&&eb.window.tier>=3){ light="green"; action=inSubWindow?"ENTER NOW":"ENTER — PRIME"; }
     else if(totalScore>=50){ light="yellow"; action="STALK"; }
     else { light="gray"; action="WAIT"; }
 
-    return {blocked:blocked.length>0,reason:blocked[0]||"",light,action,totalScore,contextPts,penalties,blockedReasons:blocked,vwapWindow,tradeCount,executeNow};
+    return {blocked:false,light,action,totalScore,contextPts,penalties,blockedReasons:blocked};
   }
 
   // MASTER ENGINE
 
-  // ── NEWS REACTION ENGINE — unified feeds, symmetric windows, TP levels ──────
+  // ── NEWS REACTION ENGINE — symmetric windows, TP levels, conflict detection ───
+  // Windows are BEFORE and AFTER events. News break = RSS article from Reuters/Bloomberg.
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
-    const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
-    const nowMs = Date.now();
-    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
-      const t = Date.parse(ev.pub||0);
-      if(!t || Number.isNaN(t)) return null;
-      const minsUntil = Math.round((t - nowMs)/60000);
-      const win = eventWindowMinutes(ev);
-      const isBreaking = replayEventType(ev) === "breaking";
-      const isSpeech = replayEventType(ev) === "speech";
-      const isAfter = minsUntil < 0;
-      const active = isBreaking || isSpeech
-        ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
-        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
-      if(!active) return null;
-      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
-      const absMins = Math.abs(minsUntil);
-      const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
-      const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
+    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell"); // zone/polarity baseline
+
+    const toMins = (dateStr, timeStr) => {
+      if(!dateStr||!timeStr) return null;
+      try { return Math.round((new Date(dateStr+'T'+timeStr+':00') - new Date()) / 60000); }
+      catch(e){ return null; }
+    };
+
+    // Gather all events — calendar + eco news — with absolute distance from now
+    const allEvents = [
+      ...calArticles.map(ev=>({
+        title: ev.title||"",
+        stars: ev.stars||1,
+        minsUntil: toMins(ev.date, ev.time),
+        source: ev.source||"Calendar",
+        isBreaking: false,
+      })),
+      ...ecoArticles.map(ev=>({
+        title: ev.title||"",
+        stars: ev.stars||1,
+        minsUntil: ev.pub ? Math.round((new Date(ev.pub)-new Date())/60000) : null,
+        source: ev.source||"Eco",
+        isBreaking: false,
+      })),
+      // Breaking news = any Reuters/Bloomberg article in the feed
+      // No age gate — if it's in the feed it's live news, 15-min window applies
+      ...newsArticles
+        .filter(a=>a.pub)
+        .map(a=>({
+          title: a.title||"",
+          stars: 0,
+          minsUntil: -Math.round((new Date()-new Date(a.pub))/60000), // negative = post-event
+          source: a.feedLabel||"News",
+          isBreaking: true,
+        })),
+    ];
+
+    // Find the closest event within any window (symmetric: abs(minsUntil) <= window)
+    let activeEvent = null;
+    let suppressPts = 0;
+    const nearEvents = [];
+
+    for(const ev of allEvents) {
+      if(ev.minsUntil === null || isNaN(ev.minsUntil)) continue;
+      const absMins = Math.abs(ev.minsUntil);
+      const cfg = ev.isBreaking ? NEWS_REACTION.break : NEWS_REACTION[ev.stars] || NEWS_REACTION[1];
+      if(absMins > cfg.window) continue;
+
+      // Proximity 0=edge of window, 1=at event
+      const prox = 1 - (absMins / cfg.window);
+      // Score impact: suppress before, amplify after if direction known
+      const isAfter = ev.minsUntil < 0;
       let pts = 0;
-      if(isBreaking) pts = Math.round((Number(ev.polarity||0)===-1 ? -8 : 4) * prox);
-      else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
-      else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
-      return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
-    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
+      if(!isAfter) {
+        // Before: suppress proportionally
+        pts = ev.stars===3 ? Math.round(-18*prox) : ev.stars===2 ? Math.round(-10*prox) : Math.round(-5*prox);
+      } else {
+        // After: check if news direction agrees with zone
+        pts = ev.stars===3 ? Math.round(+10*prox) : ev.stars===2 ? Math.round(+6*prox) : Math.round(+3*prox);
+      }
 
-    const activeEvent = allEvents[0] || null;
-    const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
-    const negativeDirectional = allEvents.some(ev=>Number(ev.polarity) === -1);
-    const positiveDirectional = allEvents.some(ev=>Number(ev.polarity) === 1);
-    const conflict = negativeDirectional && positiveDirectional ? true : (activeEvent && Number(activeEvent.polarity||0)!==0 ? Number(activeEvent.polarity)!==slotCharge : false);
+      suppressPts += pts;
+      nearEvents.push({...ev, absMins, prox, pts, cfg, isAfter});
 
+      if(!activeEvent || absMins < activeEvent.absMins) activeEvent = {...ev, absMins, prox, pts, cfg, isAfter};
+    }
+
+    nearEvents.sort((a,b)=>a.absMins-b.absMins);
+    const total = Math.max(-30, Math.min(15, suppressPts));
+
+    // TP levels from BTC price
     let tpLevels = null;
     if(btcPrice && activeEvent) {
-      const tps = (activeEvent.cfg?.tps || []).filter(t=>t>0);
-      const fibs = activeEvent.cfg?.fibs || [];
+      const tps = activeEvent.cfg.tps.filter(t=>t>0);
+      const fibs = activeEvent.cfg.fibs;
       const dir = zDir === "buy" ? 1 : -1;
       tpLevels = {
         fibs: fibs.map(f=>({ pct: f/100, price: Math.round(btcPrice*(1+dir*(f/1000))) })),
-        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct:t, price: Math.round(btcPrice*(1+dir*t/100)) })),
+        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct: t, price: Math.round(btcPrice*(1+dir*t/100)) })),
       };
     }
 
+    // Conflict: news source conflicts zone direction
+    // (if a bearish eco article fires during a BUY zone — or vice versa)
+    const conflict = activeEvent && !activeEvent.isBreaking && activeEvent.isAfter
+      ? (zDir==="buy" && ecoArticles.find(a=>a.bearish&&a.title===activeEvent.title))
+        || (zDir==="sell" && ecoArticles.find(a=>a.bullish&&a.title===activeEvent.title))
+      : false;
+
     return {
-      active: allEvents.length > 0,
-      suppressPts,
+      active: nearEvents.length > 0,
+      suppressPts: total,
       activeEvent,
-      nearEvents: allEvents,
+      nearEvents,
       tpLevels,
-      conflict,
-      level: activeEvent?.isBreaking ? "break" : activeEvent?.stars===3 ? "high" : activeEvent?.stars===2 ? "med" : activeEvent ? "low" : "none",
+      conflict: !!conflict,
+      level: activeEvent?.stars===3?"high":activeEvent?.stars===2?"med":activeEvent?.isBreaking?"break":"low",
     };
   })();
 
@@ -1403,7 +1406,7 @@ function App() {
 
     const eb  = computeEarlyBias(et.h24, et.m, zone, zType, inSub);
     const val = computeValidation(zType, md, inSub, hotTraps, overall, btd, breakingAnchor, eb);
-    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone, sweepSeen, newsReaction.active);
+    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone, sweepSeen);
 
     const totalScore = exe.blocked ? 0 : Math.max(0, exe.totalScore + newsReaction.suppressPts);
     const light = exe.light || "gray";
@@ -1744,77 +1747,32 @@ function App() {
     return {pre:80, post:80};
   }
 
-
-  function buildUnifiedNewsEvents(nowMs = Date.now()){
-    const toEvent = (raw, overrides={})=>{
-      const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
-      if(!title) return null;
-      const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
-      const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
-      const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
-      const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
-      const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
-      const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note };
-    };
-
-    const scheduled = [
-      ...(calArticles||[]).map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"event"})),
-      ...(ecoArticles||[]).map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"event"})),
-    ].filter(Boolean);
-
-    const breaking = (newsArticles||[])
-      .map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"breaking"}))
-      .filter(Boolean);
-
-    const manual = (replayEvents||[]).map(ev=>toEvent(ev)).filter(Boolean);
-
-    return dedupeFeedItems([...scheduled, ...breaking, ...manual])
-      .filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
-      })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
-  }
-
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
-    const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
     const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
     const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
-    const activeCount = (activeEvents||[]).length;
-
-    let newsCharge = 0;
-    if(negatives > 0 && positives === 0) newsCharge = -1;
-    else if(positives > 0 && negatives === 0) newsCharge = 1;
-    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict defaults defensive
-
-    const hadNews = activeCount > 0;
-    const finalDirection = !hadNews
-      ? baseDirection
-      : (newsCharge === 0
-          ? baseDirection
-          : (newsCharge === slotCharge ? "buy" : "sell"));
-    const finalCharge = finalDirection === "buy" ? 1 : -1;
-    const newsFlip = hadNews && finalDirection !== baseDirection;
-    const equationPlain = !hadNews
-      ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
-      : newsCharge === 0
-        ? `${baseDirection.toUpperCase()} + NEWS(NEUTRAL) = ${finalDirection.toUpperCase()}`
-        : `${slotCharge===1?'+':'-'} TIME + ${newsCharge===1?'+':'-'} NEWS = ${finalDirection.toUpperCase()}`;
-
+    const negativePressure = negatives + speeches;
+    const newsFlip = negativePressure > 0 ? -1 : 1;
+    const finalCharge = baseCharge * newsFlip;
+    const finalDirection = finalCharge === 1 ? "buy" : "sell";
+    const eqBase = baseCharge === 1 ? "+1" : "-1";
+    const eqFlip = newsFlip === 1 ? "+1" : "-1";
+    const eqFinal = finalCharge === 1 ? "+1" : "-1";
+    const equation = `Base charge ${eqBase} × news flip ${eqFlip} = final charge ${eqFinal}`;
+    const equationPlain = negativePressure > 0
+      ? `${baseDirection.toUpperCase()} + NEGATIVE NEWS(${negativePressure}) = ${finalDirection.toUpperCase()}`
+      : `${baseDirection.toUpperCase()} + NO NEGATIVE NEWS = ${finalDirection.toUpperCase()}`;
     return {
       finalDirection,
       baseCharge,
       finalCharge,
-      newsFlip: newsFlip ? -1 : 1,
-      negativePressure: negatives + speeches,
+      newsFlip,
+      negativePressure,
       positivePressure: positives,
-      activeCount,
-      reason: !hadNews ? "base polarity held" : newsCharge===0 ? "news active but no directional polarity" : (newsCharge===slotCharge ? "time sign matched news sign" : "time sign conflicted with news sign"),
-      equation: equationPlain,
+      activeCount: (activeEvents||[]).length,
+      reason: negativePressure>0 ? "negative news pressure flipped base charge" : "base polarity held",
+      equation,
       equationPlain,
     };
   }
@@ -1876,7 +1834,7 @@ function App() {
       if(/reuters/i.test(url)) src="Reuters Markets";
       if(/bloomberg/i.test(url)) src="Bloomberg Markets";
       if(/coindesk/i.test(url)) src="CoinDesk";
-      return fetchRSS(url).then(items=>items.map(item=>{ const norm=normalizeItem(item,src,feed.color); return {...norm, ...classifyEcoArticle(norm.title, norm.desc), kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"breaking", feedType:"news", country:norm.country||inferCountryCode(`${norm.title} ${norm.desc}`)}; }));
+      return fetchRSS(url).then(items=>items.map(item=>normalizeItem(item,src,feed.color)));
     }))
     .then(groups=>{
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
@@ -1901,7 +1859,7 @@ function App() {
     Promise.all(ECO_URLS.map(f=>
       fetchRSS(f.url).then(items=>items.map(item=>{
         const norm=normalizeItem(item,f.label,f.color);
-        const cls=classifyEcoArticle(norm.title,norm.desc); return {...norm,...cls, polarity: cls.bearish?-1:cls.bullish?1:0, kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event", feedType:"eco"};
+        return {...norm,...classifyEcoArticle(norm.title,norm.desc)};
       }).filter(a=>a.title&&a.title.length>3&&a.stars>0)).catch(()=>[])
     )).then(results=>{
       const all=results.flat();
@@ -1955,7 +1913,7 @@ function App() {
             previous: ev.previous||"",
             date: ev.date.slice(0,10),
             time: ev.date.slice(11,16)||"",
-            isLive: true, feedType:"calendar", kind:/powell|speech|remarks|testimony|presser|press conference/i.test((ev.title||ev.name||""))?"speech":"event", polarity:0,
+            isLive: true,
           }))
           .filter(ev=>ev.title&&ev.title.length>2&&ev.stars>=1);
       }).catch(()=>[]);
@@ -1977,9 +1935,6 @@ function App() {
               date: dateStr,
               time: d && !isNaN(d) ? d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}) : "",
               isLive: true,
-              feedType:"calendar",
-              kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
-              polarity:Number(norm?.polarity ?? (norm?.bearish ? -1 : norm?.bullish ? 1 : 0)),
             };
           }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=yesterdayStr||!a.date))
         ).catch(()=>[])
@@ -2212,9 +2167,6 @@ function App() {
     const nBull    = actives.filter(i=>i.bias==="bull").length;
     const nBear    = actives.filter(i=>i.bias==="bear").length;
     const overall  = nBull>nBear?"bull":nBear>nBull?"bear":"neutral";
-    const vwapWindowNow = getVwapExecutionWindow(et.h24, et.m);
-    const vwapTradeCount = getTradeCountForWindow(vwapTrap, vwapWindowNow);
-    const executeNow = isVwapExecutePoint(et.h24, et.m);
 
     function chk(passes){
       if(passes===null) return {icon:"○", color:"#888"};
@@ -2258,39 +2210,6 @@ function App() {
                dxyDir==="bull"?"Dollar rising = risk-off selling = BTC dumps":
                "Set DXY direction above to get the BTC signal"}
             </div>
-          </div>
-        </div>
-
-        <div style={card({border:`1px solid ${A}33`,background:`${A}08`,marginBottom:12})}>
-          <div style={lbl(A,{marginBottom:8})}>VWAP TRAP ENGINE</div>
-          <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.8,marginBottom:10}}>
-            Execute: 7:30 · 8:00 · 10:30 · 11:00 · 1:30 · 2:00 · 4:30 · 5:00.
-            Do not fade first ±3σ touch. Need touch → reaction → failure → entry.
-          </div>
-          <div style={{display:"grid",gap:8,marginBottom:10}}>
-            <div style={{fontSize:13,color:"#ddd",...mono}}>Current window: <span style={{color:A,fontWeight:700}}>{vwapWindowNow?vwapWindowNow.label:"Outside VWAP execution window"}</span></div>
-            <div style={{fontSize:13,color:"#ddd",...mono}}>Execute now: <span style={{color:executeNow?G:"#888",fontWeight:700}}>{executeNow?"YES":"NO"}</span> · Trades used: <span style={{color:vwapTradeCount>=2?R:A,fontWeight:700}}>{vwapTradeCount}/2</span></div>
-            <div style={{fontSize:13,color:"#ddd",...mono}}>News present: <span style={{color:(breakingAnchor||newsReaction.active)?G:"#888",fontWeight:700}}>{(breakingAnchor||newsReaction.active)?"YES":"NO"}</span></div>
-          </div>
-          <div style={{display:"flex",gap:6,marginBottom:8}}>
-            {[['','No touch'],['2','2σ'],['3','3σ']].map(([v,l])=>(
-              <button key={l} onClick={()=>setVwapTrap(prev=>({...prev,band:v}))} style={{flex:1,padding:'10px 0',borderRadius:10,background:vwapTrap.band===v?`${A}22`:'transparent',border:`1px solid ${vwapTrap.band===v?A:'#2a2a3a'}`,color:vwapTrap.band===v?A:'#aaa',fontSize:13,fontWeight:700,cursor:'pointer'}}>{l}</button>
-            ))}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:6,marginBottom:8}}>
-            {[
-              ['reaction','Reaction'],
-              ['failure','Failure'],
-              ['displacement','Displacement'],
-              ['firstTouch3','1st ±3σ'],
-            ].map(([k,l])=>(
-              <button key={k} onClick={()=>setVwapTrap(prev=>({...prev,[k]:!prev[k]}))} style={{padding:'10px 0',borderRadius:10,background:vwapTrap[k]?`${G}18`:'transparent',border:`1px solid ${vwapTrap[k]?G:'#2a2a3a'}`,color:vwapTrap[k]?G:'#aaa',fontSize:13,fontWeight:700,cursor:'pointer'}}>{vwapTrap[k]?'✓ ':'○ '}{l}</button>
-            ))}
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>{ if(!vwapWindowNow) return; setVwapTrap(prev=>({ ...prev, tradeCounts:{ ...(prev.tradeCounts||{}), [vwapWindowNow.key]: Math.min(2, getTradeCountForWindow(prev, vwapWindowNow)+1) } })); }} style={{flex:1,padding:'10px 0',borderRadius:10,background:`${G}16`,border:`1px solid ${G}55`,color:G,fontSize:13,fontWeight:700,cursor:'pointer'}}>LOG TRADE</button>
-            <button onClick={()=>{ if(!vwapWindowNow) return; setVwapTrap(prev=>({ ...prev, tradeCounts:{ ...(prev.tradeCounts||{}), [vwapWindowNow.key]: 0 } })); }} style={{flex:1,padding:'10px 0',borderRadius:10,background:'transparent',border:'1px solid #2a2a3a',color:'#aaa',fontSize:13,fontWeight:700,cursor:'pointer'}}>RESET WINDOW</button>
-            <button onClick={()=>setVwapTrap(prev=>({ ...prev, band:'', reaction:false, failure:false, displacement:false, firstTouch3:false }))} style={{flex:1,padding:'10px 0',borderRadius:10,background:'transparent',border:'1px solid #2a2a3a',color:'#aaa',fontSize:13,fontWeight:700,cursor:'pointer'}}>CLEAR</button>
           </div>
         </div>
 
@@ -2476,12 +2395,30 @@ function App() {
   // ── SIGNAL REPLAY — fetches real BTC OHLC + replays engine against last week ──
   const ReplayTab = ()=>{
     const [loading,  setLoading]  = React.useState(false);
-    const [results,  setResults]  = React.useState(null);
+    const [results,  setResults]  = React.useState(()=>safeJsonParse(safeLocalGet("engin3_replay_results_v2", null), null));
     const [error,    setError]    = React.useState("");
     const [playIdx,  setPlayIdx]  = React.useState(0);
     const [playing,  setPlaying]  = React.useState(false);
 
-    const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
+    const loggedLastWeek = dedupeFeedItems(replayEvents)
+      .filter(ev=>{
+        const t = Date.parse(ev.pub||0);
+        return t && !Number.isNaN(t) && (Date.now()-t) <= 7*24*60*60*1000;
+      })
+      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+
+    React.useEffect(()=>{
+      try{
+        if(results) localStorage.setItem("engin3_replay_results_v2", JSON.stringify(results));
+        else localStorage.removeItem("engin3_replay_results_v2");
+      }catch(e){}
+    },[results]);
+
+    React.useEffect(()=>{
+      if(results || loading) return;
+      const t = setTimeout(()=>{ runReplay(); }, 10);
+      return ()=>clearTimeout(t);
+    },[]);
 
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
@@ -2523,35 +2460,15 @@ function App() {
     }
 
     async function fetchReplayCandles(){
-      const cacheKey = "engin3ReplayCandles";
-      const persist = (candles)=>{
-        try{ localStorage.setItem(cacheKey, JSON.stringify(candles)); }catch(e){}
-        return candles;
-      };
-      const fromCache = ()=>{
-        try{
-          const raw = JSON.parse(localStorage.getItem(cacheKey) || "null");
-          return Array.isArray(raw) && raw.length ? raw : null;
-        }catch(e){ return null; }
-      };
-      const normalize = (raw, mode)=>{
-        if(!Array.isArray(raw) || !raw.length) return null;
-        if(mode === "binance") {
-          return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
-                    .filter(k=>Number.isFinite(k.ts) && Number.isFinite(k.open) && Number.isFinite(k.high) && Number.isFinite(k.low) && Number.isFinite(k.close));
-        }
-        return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
-                  .filter(k=>Number.isFinite(k.ts) && Number.isFinite(k.open) && Number.isFinite(k.high) && Number.isFinite(k.low) && Number.isFinite(k.close));
-      };
-
       const binance = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
       for(const url of [binance, `https://corsproxy.io/?${encodeURIComponent(binance)}`]){
         try{
           const res = await fetch(url, {cache:"no-cache"});
           if(!res.ok) continue;
           const raw = await res.json();
-          const candles = normalize(raw, "binance");
-          if(candles && candles.length) return persist(candles);
+          if(Array.isArray(raw) && raw.length){
+            return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }));
+          }
         }catch(e){}
       }
       const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7`;
@@ -2560,12 +2477,11 @@ function App() {
           const res = await fetch(url, {cache:"no-cache"});
           if(!res.ok) continue;
           const raw = await res.json();
-          const candles = normalize(raw, "coingecko");
-          if(candles && candles.length) return persist(candles);
+          if(Array.isArray(raw) && raw.length){
+            return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }));
+          }
         }catch(e){}
       }
-      const cached = fromCache();
-      if(cached) return cached;
       throw new Error("BTC replay data unavailable");
     }
 
@@ -2645,21 +2561,14 @@ function App() {
           });
         }
         const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
-        const replayRows = actionable.length ? actionable : sessions;
-        const scoredRows = replayRows.filter(s=>typeof s.score?.correct === "boolean");
-        const wins   = scoredRows.filter(s=>s.score.correct===true).length;
-        const losses = scoredRows.filter(s=>s.score.correct===false).length;
+        const wins   = actionable.filter(s=>s.score?.correct===true).length;
+        const losses = actionable.filter(s=>s.score?.correct===false).length;
         const total  = wins + losses;
         const wr     = total>0 ? Math.round((wins/total)*100) : 0;
-        if(!actionable.length) {
-          setError("Replay ran, but that week produced no BUY/SELL actions from the current rules. Showing all replay sessions instead.");
-        }
-        setResults({ sessions: replayRows, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, byType: actionable.length ? actionable : replayRows });
+        if(!actionable.length) throw new Error("No replay signals found");
+        setResults({ sessions: actionable, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, byType: actionable });
       } catch(e) {
-        const msg = (e && e.message) ? String(e.message) : "Replay unavailable";
-        setError(msg.includes("BTC replay data unavailable")
-          ? "Replay could not fetch BTC candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles."
-          : `Replay error: ${msg}`);
+        setError("Replay could not load BTC candles. Open the file in a normal browser tab with internet, then run again.");
       }
       setLoading(false);
     }
@@ -2671,7 +2580,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses the new polarity engine. Scheduled events use symmetric ±20/±50/±80 minute windows, Reuters/Bloomberg breaking news uses 0–20 minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
+          Replay now uses the A1-style results shell with the new polarity engine. Scheduled events use symmetric windows (20m / 50m / 80m), Reuters/Bloomberg breaking news uses 20-minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2937,12 +2846,6 @@ const BacktestTab = ()=>{
   };
 
   // ─── NEWS TAB ─────────────────────────────────────────────────────────────────
-  React.useEffect(()=>{
-    const unified = buildUnifiedNewsEvents(Date.now());
-    if(!unified.length) return;
-    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(unified.slice(0,400))); }catch(e){}
-  },[newsArticles, calArticles, ecoArticles]);
-
   const NewsTab = ()=>{
     // Uses App-level state: newsArticles, newsLoading, newsError, newsSrc, newsView, newsExpanded
     // This means news persists through clock ticks and never resets.
@@ -3417,9 +3320,9 @@ const BacktestTab = ()=>{
   // Navigation tabs: remove VWAP and Plan tabs per user request
   const NAV=[
     {id:"clock",icon:"⏱",l:"CLOCK"},
-    {id:"news",icon:"📰",l:"NEWS"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
-    {id:"replay",icon:"📊",l:"REPLAY"}
+    {id:"news",icon:"📰",l:"NEWS"},
+    {id:"backtest",icon:"📊",l:"BACKTEST"}
   ];
 
   return(
@@ -3444,9 +3347,11 @@ const BacktestTab = ()=>{
       {/* CONTENT */}
       <div style={{animation:"fadeUp .3s ease"}}>
         {tab==="clock"    && <ClockTab/>}
-        {tab==="news"     && <NewsTab/>}
         {tab==="signals"  && <SignalsTab/>}
-        {tab==="replay"   && <div style={{display:"grid",gap:14}}><ReplayTab/><BacktestTab/></div>}
+        {/* VWAP tab removed per user request */}
+        {tab==="news"     && <NewsTab/>}
+        {tab==="backtest" && <BacktestTab/>}
+        {/* replay removed */}
         {/* Plan tab removed per user request */}
       </div>
 
