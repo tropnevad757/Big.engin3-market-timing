@@ -2586,13 +2586,27 @@ function App() {
     // ── BACKTEST ──
   // ── SIGNAL REPLAY — fetches real BTC OHLC + replays engine against last week ──
   const ReplayTab = ()=>{
+    const REPLAY_CACHE_KEY = "engin3ReplayUiState_v2";
+    const loadReplayUiState = ()=>{
+      try{
+        const raw = JSON.parse(localStorage.getItem(REPLAY_CACHE_KEY) || "null");
+        if(raw && typeof raw === "object") return raw;
+      }catch(e){}
+      return null;
+    };
+    const cachedReplay = loadReplayUiState();
     const [loading,  setLoading]  = React.useState(false);
-    const [results,  setResults]  = React.useState(null);
-    const [error,    setError]    = React.useState("");
-    const [playIdx,  setPlayIdx]  = React.useState(0);
+    const [results,  setResults]  = React.useState(cachedReplay?.results || null);
+    const [error,    setError]    = React.useState(cachedReplay?.error || "");
+    const [playIdx,  setPlayIdx]  = React.useState(Number.isFinite(cachedReplay?.playIdx) ? cachedReplay.playIdx : 0);
     const [playing,  setPlaying]  = React.useState(false);
 
     const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
+
+    React.useEffect(()=>{
+      if(!results?.sessions?.length) return;
+      setPlayIdx(prev=>Math.max(0, Math.min(prev, results.sessions.length-1)));
+    },[results]);
 
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
@@ -2607,6 +2621,12 @@ function App() {
       }, 900);
       return ()=>clearInterval(timer);
     },[playing, results]);
+
+    React.useEffect(()=>{
+      try{
+        localStorage.setItem(REPLAY_CACHE_KEY, JSON.stringify({ results, error, playIdx }));
+      }catch(e){}
+    },[results, error, playIdx]);
 
     function getETParts(tsMs){
       const bag = {};
@@ -2776,7 +2796,9 @@ function App() {
     }
 
     const sigCol = s => s==="BUY"?G:R;
-    const current = results?.sessions?.[playIdx] || null;
+    const current = results?.sessions?.length
+      ? (results.sessions[Math.max(0, Math.min(playIdx, results.sessions.length-1))] || results.sessions[results.sessions.length-1] || null)
+      : null;
 
     return(
       <div style={{padding:14}}>
@@ -2805,6 +2827,10 @@ function App() {
           <button onClick={()=>setPlaying(p=>!p)} disabled={!results?.sessions?.length}
             style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
             {playing?"❚❚":"▶"}
+          </button>
+          <button onClick={()=>{ setPlaying(false); if(results?.sessions?.length) setPlayIdx(results.sessions.length-1); }} disabled={!results?.sessions?.length}
+            style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
+            PIN
           </button>
         </div>
 
@@ -2844,7 +2870,7 @@ function App() {
             </div>
 
             {current && (
-              <div style={{borderRadius:12,border:`1px solid ${sigCol(current.signal)}33`,background:`${sigCol(current.signal)}09`,padding:"12px 14px",marginBottom:12}}>
+              <div style={{position:"sticky",top:10,zIndex:5,borderRadius:12,border:`1px solid ${sigCol(current.signal)}33`,background:`linear-gradient(180deg, ${sigCol(current.signal)}12, rgba(6,7,26,0.98))`,backdropFilter:"blur(4px)",padding:"12px 14px",marginBottom:12,boxShadow:"0 10px 28px rgba(0,0,0,0.28)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:6,alignItems:"center"}}>
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} ET</div>
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.signal}</div>
