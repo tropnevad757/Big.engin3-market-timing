@@ -2594,12 +2594,20 @@ function App() {
     const [holdMins, setHoldMins] = React.useState(()=>{
       try{ return Math.max(1, Number(localStorage.getItem('engin3ReplayHoldMins')||1)); }catch(e){ return 1; }
     });
+    const [diag, setDiag] = React.useState(null);
 
     const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
 
     React.useEffect(()=>{
       try{ localStorage.setItem('engin3ReplayHoldMins', String(holdMins)); }catch(e){}
     },[holdMins]);
+
+    React.useEffect(()=>{
+      try{
+        const raw = JSON.parse(localStorage.getItem('engin3ReplayLastResults')||'null');
+        if(raw && Array.isArray(raw.sessions) && raw.sessions.length) setResults(raw);
+      }catch(e){}
+    },[]);
 
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
@@ -2742,16 +2750,20 @@ function App() {
     }
 
     async function runReplay() {
-      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false);
+      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag(null);
       try {
         const candles = await fetchReplayCandles();
+        if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
+
         const sessions = [];
         const horizon = Math.max(1, Number(holdMins||1));
+        const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
+
         for(let i=0; i<candles.length-horizon; i++) {
           const c = candles[i];
           const future = candles.slice(i+1, i+1+horizon);
           const et = getETParts(c.ts);
-          const activeEvents = activeEventsFor(c.ts);
+          const activeEvents = activeEventsFor(c.ts) || [];
           const replay = replaySignal(et.h24, et.m, activeEvents);
           const score  = scoreSignalWindow(replay.signal, c.open, future);
           const confirmations = buildConfirmationTags(replay, score);
@@ -2771,32 +2783,44 @@ function App() {
             confirmations,
           });
         }
+
         const replayRows = sessions.filter(s=>['BUY','SELL'].includes(s.signal));
-        const wins   = replayRows.filter(s=>s.score?.correct===true).length;
-        const losses = replayRows.filter(s=>s.score?.correct===false).length;
+        const scoredRows = replayRows.filter(s=>s.score && typeof s.score.correct === 'boolean');
+        const wins   = scoredRows.filter(s=>s.score.correct===true).length;
+        const losses = scoredRows.filter(s=>s.score.correct===false).length;
         const total  = wins + losses;
         const wr     = total>0 ? Math.round((wins/total)*100) : 0;
 
         const bySignal = ['BUY','SELL'].map(sig=>{
-          const rows = replayRows.filter(s=>s.signal===sig);
+          const rows = scoredRows.filter(s=>s.signal===sig);
           const w = rows.filter(s=>s.score?.correct===true).length;
           const l = rows.filter(s=>s.score?.correct===false).length;
           const t = w+l;
           return { key:sig, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
         }).filter(x=>x.total>0);
 
-        const allTags = [...new Set(replayRows.flatMap(s=>s.confirmations||[]))];
+        const allTags = [...new Set(scoredRows.flatMap(s=>s.confirmations||[]))];
         const byConfirm = allTags.map(tag=>{
-          const rows = replayRows.filter(s=>(s.confirmations||[]).includes(tag));
+          const rows = scoredRows.filter(s=>(s.confirmations||[]).includes(tag));
           const w = rows.filter(s=>s.score?.correct===true).length;
           const l = rows.filter(s=>s.score?.correct===false).length;
           const t = w+l;
           return { key:tag, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
         }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
 
-        setResults({ sessions: replayRows, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, bySignal, byConfirm, holdMins:horizon });
+        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: eventCount, bySignal, byConfirm, holdMins:horizon };
+        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon });
+
+        if(!replayRows.length){
+          setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
+          setResults({ ...payload, sessions: sessions.slice(-120).reverse() });
+        } else {
+          setResults(payload);
+          try{ localStorage.setItem('engin3ReplayLastResults', JSON.stringify(payload)); }catch(e){}
+        }
       } catch(e) {
         const msg = (e && e.message) ? String(e.message) : 'Replay unavailable';
+        setDiag(null);
         setError(msg.includes('minute data unavailable')
           ? 'Replay could not fetch BTC 1-minute candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles.'
           : `Replay error: ${msg}`);
@@ -3163,6 +3187,16 @@ const BacktestTab = ()=>{
     const todayStr = new Date().toISOString().slice(0,10);
     const upcoming = (()=>{ const sameDay = ECON.filter(e=>e.d===todayStr); return sameDay.length ? sameDay : ECON.filter(e=>e.d>=todayStr); })();
 
+    React.useEffect(()=>{
+      const refreshAll = ()=>{
+        try{ newsLoadedFor.current = ""; calLoadedRef.current = false; }catch(e){}
+        try{ fetchNews(newsSrc || "combo"); }catch(e){}
+        try{ fetchCalendar(); }catch(e){}
+      };
+      const t = setInterval(refreshAll, 60000);
+      return ()=>clearInterval(t);
+    }, [newsSrc]);
+
     return (
       <div style={{padding:14}}>
 
@@ -3279,7 +3313,7 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR + BREAKING NEWS</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · NEWEST FIRST</div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
@@ -3313,7 +3347,7 @@ const BacktestTab = ()=>{
               ]).sort((a,b)=>{
                 const ta = Date.parse(a.pub||0) || 0;
                 const tb = Date.parse(b.pub||0) || 0;
-                return ta - tb;
+                return tb - ta;
               });
               if(!newsLoading && !calLoading && timeline.length===0){
                 return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
@@ -3396,7 +3430,7 @@ const BacktestTab = ()=>{
               </div>
             )}
 
-            {newsArticles.map((art,i)=>(
+            {[...newsArticles].sort((a,b)=>((Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0))).map((art,i)=>(
               <div key={i}
                 onClick={()=>{ if(art.link) window.open(art.link,"_blank","noopener,noreferrer"); }}
                 style={{
