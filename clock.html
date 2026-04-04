@@ -1982,27 +1982,17 @@ function App() {
   const ecoLoadedRef  = useRef(false);
   const calLoadedRef  = useRef(false);
 
-  const bustUrl = (url)=>{
-    try{
-      const u = new URL(url, window.location.href);
-      u.searchParams.set('_ts', String(Date.now()));
-      return u.toString();
-    }catch(e){
-      return url + (url.includes('?') ? '&' : '?') + '_ts=' + Date.now();
-    }
-  };
-
   // ── fetchNews — Reuters/Bloomberg via Google News RSS ────────────────────────
   const fetchNews = useCallback((feedId)=>{
     const feed = NEWS_FEEDS.find(f=>f.id===feedId)||NEWS_FEEDS[0];
     if(!feed||fetchNewsRef.current) return;
     fetchNewsRef.current=true;
-    setNewsLoading(true); setNewsError("");
+    setNewsLoading(true); setNewsError(""); setNewsArticles([]);
 
     const urls=feed.urls||(feed.url?[feed.url]:[]);
     if(!urls.length){ setNewsError("Feed unavailable."); setNewsLoading(false); fetchNewsRef.current=false; return; }
 
-    Promise.all(urls.map(rawUrl=>{ const url=bustUrl(rawUrl);
+    Promise.all(urls.map(url=>{
       let src=feed.label;
       if(/reuters/i.test(url)) src="Reuters Markets";
       if(/bloomberg/i.test(url)) src="Bloomberg Markets";
@@ -2030,7 +2020,7 @@ function App() {
       {url:"https://news.google.com/rss/search?q=Federal+Reserve+OR+Powell+OR+%22rate+decision%22+OR+%22rate+hike%22+OR+%22rate+cut%22&hl=en-US&gl=US&ceid=US:en", label:"Google Fed", color:"#aa88ff"},
     ];
     Promise.all(ECO_URLS.map(f=>
-      fetchRSS(bustUrl(f.url)).then(items=>items.map(item=>{
+      fetchRSS(f.url).then(items=>items.map(item=>{
         const norm=normalizeItem(item,f.label,f.color);
         const cls=classifyEcoArticle(norm.title,norm.desc); return {...norm,...cls, polarity: cls.bearish?-1:cls.bullish?1:0, kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event", feedType:"eco"};
       }).filter(a=>a.title&&a.title.length>3&&a.stars>0)).catch(()=>[])
@@ -2067,7 +2057,7 @@ function App() {
       const feeds = CALENDAR_FEEDS.filter(f=>f.type==="ff_json");
       if(!feeds.length) return Promise.resolve([]);
       return Promise.race([
-        fetch(bustUrl(feeds[0].url),{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()),
+        fetch(feeds[0].url,{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()),
         new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),8000))
       ]).then(data=>{
         if(!Array.isArray(data)) return [];
@@ -2096,7 +2086,7 @@ function App() {
     function fetchRSSFeeds(){
       const rssFeeds = CALENDAR_FEEDS.filter(f=>f.type==="rss"||f.type==="rss_proxy");
       return Promise.all(rssFeeds.map(f=>
-        fetchRSS(bustUrl(f.url)).then(items=>
+        fetchRSS(f.url).then(items=>
           items.map(item=>{
             const norm = normalizeItem(item, f.label, f.color);
             const d = norm.pub ? new Date(norm.pub) : null;
@@ -2392,6 +2382,7 @@ function App() {
           );
         })()}
 
+
         {/* ── DXY LEADS BITCOIN ── */}
         <div style={card({border:`1px solid ${dxyCol}44`,background:`${dxyCol}07`,marginBottom:12})}>
           <div style={lbl(dxyCol,{marginBottom:8})}>DXY LEADS BITCOIN</div>
@@ -2647,21 +2638,9 @@ function App() {
       return { h24, m: minute, dayStr: `${bag.weekday} ${bag.month} ${bag.day}`, timeStr: `${bag.hour}:${bag.minute} ${dp}` };
     }
 
+
     async function fetchReplayCandles(){
-      const cacheKey = 'engin3ReplayCandles1m';
-      const now = Date.now();
-      const weekAgo = now - 7*24*60*60*1000;
-
-      const normalizeBinance = raw => Array.isArray(raw)
-        ? raw.map(r=>({
-            ts:+r[0],
-            open:+r[1],
-            high:+r[2],
-            low:+r[3],
-            close:+r[4],
-          })).filter(c=>Number.isFinite(c.ts)&&Number.isFinite(c.open))
-        : [];
-
+      const cacheKey = 'engin3ReplayCandles_1m_7d';
       const persist = candles => {
         try{ localStorage.setItem(cacheKey, JSON.stringify(candles)); }catch(e){}
         return candles;
@@ -2669,32 +2648,73 @@ function App() {
       const fromCache = ()=>{
         try{
           const raw = JSON.parse(localStorage.getItem(cacheKey)||'null');
-          return Array.isArray(raw)&&raw.length ? raw : null;
+          return Array.isArray(raw)&&raw.length?raw:null;
         }catch(e){ return null; }
       };
+      const dedupeSort = rows => Object.values((rows||[]).reduce((acc,c)=>{
+        if(c && Number.isFinite(c.ts)) acc[c.ts]=c;
+        return acc;
+      }, {})).sort((a,b)=>a.ts-b.ts);
 
-      async function fetchBinanceWeek(){
+      const normalizeBinance = raw => Array.isArray(raw)
+        ? raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
+             .filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close))
+        : null;
+
+      const normalizeCryptoCompare = raw => {
+        const arr = raw?.Data?.Data || raw?.Data || [];
+        return Array.isArray(arr)
+          ? arr.map(k=>({
+              ts:Number(k.time)*1000,
+              open:Number(k.open),
+              high:Number(k.high),
+              low:Number(k.low),
+              close:Number(k.close)
+            })).filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close))
+          : null;
+      };
+
+      const now = Date.now();
+      const weekAgo = now - 7*24*60*60*1000;
+
+      // Fast fallback 1: CryptoCompare backwards chunks
+      try{
+        let toTs = Math.floor(now/1000);
+        const merged = [];
+        for(let i=0;i<6;i++){
+          const url = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=2000&toTs=${toTs}&cacheBust=${Date.now()}_${i}`;
+          const res = await fetch(url, {cache:'no-cache'});
+          if(!res.ok) throw new Error('cryptocompare unavailable');
+          const raw = await res.json();
+          const candles = normalizeCryptoCompare(raw);
+          if(candles && candles.length){
+            merged.push(...candles);
+            toTs = Math.floor((candles[0].ts/1000) - 60);
+          }
+        }
+        const rows = dedupeSort(merged).filter(c=>c.ts>=weekAgo);
+        if(rows.length >= 3000) return persist(rows);
+      }catch(e){}
+
+      // Fast fallback 2: Binance direct + proxy in larger batches
+      try{
         const batchMs = 1000 * 60 * 1000;
-        const hosts = [
-          'https://data-api.binance.vision/api/v3/klines',
-          'https://api.binance.com/api/v3/klines',
-          'https://api.binance.us/api/v3/klines'
-        ];
-        const urlsFor = (startTs,endTs)=> hosts.flatMap(base=>{
-          const direct = `${base}?symbol=BTCUSDT&interval=1m&limit=1000&startTime=${startTs}&endTime=${endTs}`;
+        const urlsFor = (startTs,endTs)=>{
+          const base = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000&startTime=${startTs}&endTime=${endTs}&cacheBust=${Date.now()}`;
           return [
-            direct,
-            `https://corsproxy.io/?${encodeURIComponent(direct)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(direct)}`
+            base,
+            `https://api.binance.us/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000&startTime=${startTs}&endTime=${endTs}&cacheBust=${Date.now()}`,
+            `https://corsproxy.io/?${encodeURIComponent(base)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`
           ];
-        });
+        };
         const merged = [];
         for(let cursor=weekAgo; cursor<now; cursor+=batchMs){
           const endTs = Math.min(now, cursor + batchMs - 60000);
           let got = null;
           for(const url of urlsFor(cursor,endTs)){
             try{
-              const res = await fetch(url + (url.includes('?')?'&':'?') + '_ts=' + Date.now(), {cache:'no-cache'});
+              const res = await fetch(url, {cache:'no-cache'});
               if(!res.ok) continue;
               const raw = await res.json();
               const candles = normalizeBinance(raw);
@@ -2703,55 +2723,15 @@ function App() {
           }
           if(got && got.length) merged.push(...got);
         }
-        const deduped = Object.values(merged.reduce((acc,c)=>{ acc[c.ts]=c; return acc; }, {})).sort((a,b)=>a.ts-b.ts);
-        return deduped.length >= 1000 ? deduped : null;
-      }
-
-      async function fetchCryptoCompareWeek(){
-        const merged=[];
-        let toTs = Math.floor(now/1000);
-        let guard = 0;
-        while(toTs*1000 > weekAgo && guard < 12){
-          guard += 1;
-          const base = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=2000&toTs=${toTs}`;
-          const urls = [
-            base,
-            `https://corsproxy.io/?${encodeURIComponent(base)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`
-          ];
-          let data = null;
-          for(const url of urls){
-            try{
-              const res = await fetch(url + (url.includes('?')?'&':'?') + '_ts=' + Date.now(), {cache:'no-cache'});
-              if(!res.ok) continue;
-              const raw = await res.json();
-              const arr = raw?.Data?.Data;
-              if(Array.isArray(arr) && arr.length){ data = arr.map(r=>({ts:(+r.time)*1000, open:+r.open, high:+r.high, low:+r.low, close:+r.close})); break; }
-            }catch(e){}
-          }
-          if(!data || !data.length) break;
-          merged.push(...data);
-          const oldest = data[0]?.ts;
-          if(!oldest) break;
-          toTs = Math.floor(oldest/1000) - 60;
-        }
-        const deduped = Object.values(merged.reduce((acc,c)=>{ if(c.ts>=weekAgo&&c.ts<=now) acc[c.ts]=c; return acc; }, {})).sort((a,b)=>a.ts-b.ts);
-        return deduped.length >= 500 ? deduped : null;
-      }
-
-      try{
-        const binance = await fetchBinanceWeek();
-        if(binance && binance.length) return persist(binance);
+        const rows = dedupeSort(merged);
+        if(rows.length) return persist(rows);
       }catch(e){}
-      try{
-        const cc = await fetchCryptoCompareWeek();
-        if(cc && cc.length) return persist(cc);
-      }catch(e){}
+
       const cached = fromCache();
       if(cached) return cached;
+
       throw new Error('BTC replay minute data unavailable');
     }
-
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
       const connectorMode = getConnectorMode(h24, m);
@@ -2825,7 +2805,7 @@ function App() {
     }
 
     async function runReplay() {
-      setLoading(true); setError(''); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(1, Number(holdMins||1)), stage:'loading' });
+      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(1, Number(holdMins||1)) });
       try {
         const candles = await fetchReplayCandles();
         if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
@@ -2833,9 +2813,6 @@ function App() {
         const sessions = [];
         const horizon = Math.max(1, Number(holdMins||1));
         const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
-        if(!eventCount){
-          setDiag(d=>({...(d||{}), candlesLoaded:candles.length, stage:'no-events'}));
-        }
 
         for(let i=0; i<candles.length-horizon; i++) {
           const c = candles[i];
@@ -2892,20 +2869,15 @@ function App() {
         if(!replayRows.length){
           setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
           setResults({ ...payload, sessions: sessions.slice(-120).reverse() });
-        } else if(!scoredRows.length){
-          setError('Replay generated signals, but none could be scored inside the selected hold window. Try a longer hold window.');
-          setResults(payload);
         } else {
           setResults(payload);
-          setTimeout(()=>{ try{ document.getElementById('replay-results-anchor')?.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} }, 50);
           try{ localStorage.setItem('engin3ReplayLastResults', JSON.stringify(payload)); }catch(e){}
         }
       } catch(e) {
         const msg = (e && e.message) ? String(e.message) : 'Replay unavailable';
         setDiag(null);
-        const hasCached = !!(results && Array.isArray(results.sessions) && results.sessions.length);
         setError(msg.includes('minute data unavailable')
-          ? (hasCached ? 'Live replay data fetch failed. Showing your last saved replay results instead.' : 'Replay could not fetch BTC 1-minute candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles.')
+          ? 'Replay could not fetch BTC 1-minute candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles.'
           : `Replay error: ${msg}`);
       }
       setLoading(false);
@@ -2961,11 +2933,8 @@ function App() {
 
         {error&&<div style={{color:R,fontSize:13,...mono,marginBottom:12,padding:'10px 14px',background:`${R}12`,borderRadius:10,border:`1px solid ${R}33`}}>{error}</div>}
 
-        {diag&&<div style={{color:'#8aa',fontSize:12,...mono,marginBottom:12,padding:'10px 14px',background:'rgba(102,204,255,0.07)',borderRadius:10,border:'1px solid rgba(102,204,255,0.18)'}}>{diag.stage==='loading'?'Loading replay data… ':''}Candles: {diag.candlesLoaded} · Built: {diag.sessionsBuilt} · Signals: {diag.replaySignals} · Scored: {diag.scoredSignals} · Events: {diag.eventsUsed} · Hold: {diag.holdMins}m</div>}
-
         {results&&(
           <>
-            <div id='replay-results-anchor' />
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:8,marginBottom:12}}>
               {[
                 {l:'WIN RATE', v:`${results.wr}%`, c:results.wr>=60?G:results.wr>=45?A:R},
@@ -3275,10 +3244,9 @@ const BacktestTab = ()=>{
 
     React.useEffect(()=>{
       const refreshAll = ()=>{
-        try{ newsLoadedFor.current = ""; calLoadedRef.current = false; ecoLoadedRef.current = false; }catch(e){}
-        try{ fetchNews(newsSrc||"combo"); }catch(e){}
+        try{ newsLoadedFor.current = ""; calLoadedRef.current = false; }catch(e){}
+        try{ fetchNews(newsSrc || "combo"); }catch(e){}
         try{ fetchCalendar(); }catch(e){}
-        try{ fetchEcoNews(); }catch(e){}
       };
       const t = setInterval(refreshAll, 45000);
       return ()=>clearInterval(t);
@@ -3400,12 +3368,12 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR FIRST · NEWEST NEWS</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LAST 4</div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
             {(newsLoading||calLoading)&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing timeline...</div>
+              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing latest timeline...</div>
             )}
 
             {!newsLoading && newsError && (
@@ -3415,35 +3383,27 @@ const BacktestTab = ()=>{
             )}
 
             {(()=>{
-              const nowTs = Date.now();
-              const upcomingCalendar = calArticles.map(item=>({
+              const timeline = dedupeFeedItems([
+                ...calArticles.map(item=>({
                   ...item,
                   kind:"event",
                   isUnified:true,
                   pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
                   feedType:"calendar"
-                })).filter(item=>{
-                  const ts = Date.parse(item.pub||0) || 0;
-                  const post = Number(eventWindowMinutes(item).post||20) * 60000;
-                  return !ts || (ts + post) >= nowTs;
-                }).sort((a,b)=>{
-                  const ta = Date.parse(a.pub||0) || 0;
-                  const tb = Date.parse(b.pub||0) || 0;
-                  return ta - tb;
-                });
-              const latestBreaking = [...newsArticles].map(item=>({
+                })),
+                ...newsArticles.map(item=>({
                   ...item,
                   kind:"breaking",
                   isUnified:true,
                   country: item.country || inferCountryCode(`${item.title||""} ${item.desc||""}`),
                   feedType:"breaking"
-                })).sort((a,b)=>{
-                  const ta = Date.parse(a.pub||0) || 0;
-                  const tb = Date.parse(b.pub||0) || 0;
-                  return tb - ta;
-                });
-              const timeline = dedupeFeedItems([...upcomingCalendar, ...latestBreaking]);
+                }))
+              ]).sort((a,b)=>{
+                const ta = Date.parse(a.pub||0) || 0;
+                const tb = Date.parse(b.pub||0) || 0;
+                return ta - tb;
+              }).slice(-4);
               if(!newsLoading && !calLoading && timeline.length===0){
                 return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
               }
