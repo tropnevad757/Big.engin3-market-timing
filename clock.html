@@ -836,7 +836,7 @@ function App() {
       setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
       // Expire sweep confirmation (lasts 20 minutes)
       setSweepSeen(prev => prev && Date.now() > prev.expiresAt ? null : prev);
-    },1000);
+    },15000);
     return()=>clearInterval(t);
   },[zones,soundOn,plan,tz]);
 
@@ -2813,12 +2813,17 @@ function App() {
         const sessions = [];
         const horizon = Math.max(1, Number(holdMins||1));
         const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
+        const events = (Array.isArray(loggedLastWeek) ? loggedLastWeek : []).filter(ev=>ev && ev.pub && !Number.isNaN(Date.parse(ev.pub)));
 
-        for(let i=0; i<candles.length-horizon; i++) {
+        for(let j=0; j<events.length; j++) {
+          const ev = events[j];
+          const t = Date.parse(ev.pub);
+          const i = candles.findIndex(c=>c.ts >= t);
+          if(i < 0 || i >= candles.length-horizon) continue;
           const c = candles[i];
           const future = candles.slice(i+1, i+1+horizon);
           const et = getETParts(c.ts);
-          const activeEvents = activeEventsFor(c.ts) || [];
+          const activeEvents = [ev];
           const replay = replaySignal(et.h24, et.m, activeEvents);
           const score  = scoreSignalWindow(replay.signal, c.open, future);
           const confirmations = buildConfirmationTags(replay, score);
@@ -2833,6 +2838,8 @@ function App() {
             high: Math.round(c.high),
             low: Math.round(c.low),
             holdMins: horizon,
+            eventTitle: ev.title || '',
+            eventSource: ev.source || '',
             ...replay,
             score,
             confirmations,
@@ -2867,7 +2874,7 @@ function App() {
         setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon });
 
         if(!replayRows.length){
-          setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
+          setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated from the event timestamps in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
           setResults({ ...payload, sessions: sessions.slice(-120).reverse() });
         } else {
           setResults(payload);
@@ -2891,7 +2898,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl('#999',{marginBottom:10})}>REPLAY — BTC 1M ENGINE</div>
         <div style={{fontSize:12,color:'#666',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window. This lets you test every signal by minutes instead of holding trades for hours.
+          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window. This scores event timestamps on BTC 1-minute candles so replay is not firing a new trade every minute.
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
@@ -2993,6 +3000,11 @@ function App() {
                 <div style={{fontSize:12,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
                   {current.confirmations.join(' · ')}
                 </div>
+                {current.eventTitle && (
+                  <div style={{fontSize:11,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
+                    Event: {current.eventTitle}
+                  </div>
+                )}
                 <div style={{fontSize:12,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
                   Open ${current.open.toLocaleString()} · High ${current.high.toLocaleString()} · Low ${current.low.toLocaleString()} · Close ${current.close.toLocaleString()}
                 </div>
