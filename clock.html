@@ -1894,9 +1894,13 @@ function App() {
     return dedupeFeedItems([...scheduled, ...breaking, ...manual])
       .filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
+        if(!t || Number.isNaN(t)) return false;
+        const type = replayEventType(ev);
+        if(type === "breaking") return Math.abs(nowMs - t) <= 7*24*60*60*1000;
+        const w = eventWindowMinutes(ev);
+        return nowMs >= (t - w.pre*60000) && nowMs <= t;
       })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+      .sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
   }
 
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
@@ -2366,12 +2370,11 @@ function App() {
           <div style={card({border:`1px solid ${autoCol}33`,background:`${autoCol}08`,marginBottom:12})}>
             <div style={lbl(autoCol,{marginBottom:8})}>VWAP BAND CONFIRMATION</div>
             <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.8,marginBottom:10}}>
-              Quiet confirmation only. Times are hidden. This checks whether price is pressing the lower bands for buys or the upper bands for sells.
+              Quiet confirmation only. VWAP is context, not the decision-maker. This checks whether price is pressing the lower bands for buys or the upper bands for sells.
             </div>
             <div style={{padding:"12px 14px",borderRadius:12,background:`${autoCol}12`,border:`1px solid ${autoCol}44`,marginBottom:8}}>
               <div style={{fontSize:15,fontWeight:900,color:autoCol,letterSpacing:1.5,marginBottom:4}}>{autoVwap.title}</div>
               <div style={{fontSize:13,color:"#ddd",...mono,lineHeight:1.7}}>{autoVwap.note}</div>
-              {autoVwap.anchor&&<div style={{fontSize:13,color:"#888",...mono,marginTop:6}}>Active anchor: <span style={{color:"#ddd"}}>{autoVwap.anchor}</span></div>}
             </div>
             <div style={{display:"grid",gap:6}}>
               <div style={{fontSize:13,color:"#ddd",...mono}}>Instrument: <span style={{color:autoCol,fontWeight:700}}>{vwapInst}</span></div>
@@ -2804,29 +2807,96 @@ function App() {
       return tags;
     }
 
+    function replayEventQuality(ev){
+      const type = replayEventType(ev);
+      const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
+      const pol = Math.abs(Number(ev?.polarity||0));
+      const src = String(ev?.source||'').toLowerCase();
+      let q = stars * 2 + pol * 3;
+      if(type === 'event') q += 3;
+      else if(type === 'speech') q += 2;
+      if(/reuters|bloomberg|forexfactory|forex factory|myfxbook|trading economics/.test(src)) q += 1;
+      if(type === 'breaking' && pol === 0 && stars < 2) q -= 5;
+      return q;
+    }
+
+    function replayClusterGapMinutes(ev){
+      const type = replayEventType(ev);
+      const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
+      if(type === 'breaking') return 20;
+      if(type === 'speech') return 45;
+      return stars === 3 ? 80 : stars === 2 ? 50 : 20;
+    }
+
+    function buildReplayCandidates(events){
+      const ordered = (Array.isArray(events)?events:[])
+        .filter(ev=>ev && ev.pub && !Number.isNaN(Date.parse(ev.pub)))
+        .map(ev=>({ ...ev, __ts: Date.parse(ev.pub), __quality: replayEventQuality(ev) }))
+        .sort((a,b)=>a.__ts-b.__ts);
+
+      const candidates = [];
+      const rejected = { invalidTime:0, weak:0, duplicateCluster:0, weakContext:0, noFuture:0, noActive:0 };
+
+      for(const ev of ordered){
+        if(!ev.__ts || Number.isNaN(ev.__ts)){ rejected.invalidTime++; continue; }
+        const type = replayEventType(ev);
+        const directional = Math.abs(Number(ev.polarity||0)) > 0;
+        const strongScheduled = type !== 'breaking' && Number(ev.stars||1) >= 2;
+        const strongBreaking = type === 'breaking' && (directional || Number(ev.stars||1) >= 2);
+        if(!(strongScheduled || strongBreaking)){ rejected.weak++; continue; }
+
+        const prev = candidates[candidates.length-1];
+        const gapMs = replayClusterGapMinutes(ev) * 60000;
+        if(prev && Math.abs(ev.__ts - prev.ts) <= Math.max(gapMs, replayClusterGapMinutes(prev.primary)*60000)){
+          prev.members.push(ev);
+          if(ev.__quality > prev.primary.__quality){
+            prev.primary = ev;
+            prev.ts = ev.__ts;
+          }
+          rejected.duplicateCluster++;
+          continue;
+        }
+        candidates.push({ ts: ev.__ts, primary: ev, members: [ev] });
+      }
+      return { candidates, rejected };
+    }
+
     async function runReplay() {
-      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(1, Number(holdMins||1)) });
+      const hold = Math.max(1, Number(holdMins||1));
+      const rawEvents = Array.isArray(loggedLastWeek) ? loggedLastWeek : [];
+      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false);
+      setDiag({ candlesLoaded:0, candidateSessions:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsLoaded:rawEvents.length, eventsUsed:0, rejectedWeak:0, rejectedDuplicate:0, rejectedContext:0, rejectedNoFuture:0, holdMins:hold });
       try {
         const candles = await fetchReplayCandles();
         if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
 
+        const horizon = hold;
+        const { candidates, rejected } = buildReplayCandidates(rawEvents);
         const sessions = [];
-        const horizon = Math.max(1, Number(holdMins||1));
-        const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
-        const events = (Array.isArray(loggedLastWeek) ? loggedLastWeek : []).filter(ev=>ev && ev.pub && !Number.isNaN(Date.parse(ev.pub)));
+        let accepted = 0;
 
-        for(let j=0; j<events.length; j++) {
-          const ev = events[j];
-          const t = Date.parse(ev.pub);
+        for(let j=0; j<candidates.length; j++) {
+          const cand = candidates[j];
+          const t = cand.ts;
           const i = candles.findIndex(c=>c.ts >= t);
-          if(i < 0 || i >= candles.length-horizon) continue;
+          if(i < 0 || i >= candles.length-horizon){ rejected.noFuture++; continue; }
           const c = candles[i];
           const future = candles.slice(i+1, i+1+horizon);
+          if(!future.length){ rejected.noFuture++; continue; }
+
+          const activePool = dedupeFeedItems([...(cand.members||[]), ...activeEventsFor(c.ts)]);
+          if(!activePool.length){ rejected.noActive++; continue; }
+
+          const hasDirectional = activePool.some(ev=>Math.abs(Number(ev?.polarity||0)) > 0);
+          const hasScheduledWeight = activePool.some(ev=>replayEventType(ev) !== 'breaking' && Number(ev?.stars||1) >= 2);
+          const hasTrustedBreaking = activePool.some(ev=>replayEventType(ev) === 'breaking' && (Math.abs(Number(ev?.polarity||0)) > 0 || Number(ev?.stars||1) >= 2));
+          if(!(hasDirectional || hasScheduledWeight || hasTrustedBreaking)){ rejected.weakContext++; continue; }
+
           const et = getETParts(c.ts);
-          const activeEvents = [ev];
-          const replay = replaySignal(et.h24, et.m, activeEvents);
+          const replay = replaySignal(et.h24, et.m, activePool);
           const score  = scoreSignalWindow(replay.signal, c.open, future);
           const confirmations = buildConfirmationTags(replay, score);
+          accepted++;
           sessions.push({
             ts: c.ts,
             h24: et.h24,
@@ -2838,8 +2908,9 @@ function App() {
             high: Math.round(c.high),
             low: Math.round(c.low),
             holdMins: horizon,
-            eventTitle: ev.title || '',
-            eventSource: ev.source || '',
+            eventTitle: cand.primary?.title || '',
+            eventSource: cand.primary?.source || '',
+            clusterSize: (cand.members||[]).length,
             ...replay,
             score,
             confirmations,
@@ -2870,11 +2941,11 @@ function App() {
           return { key:tag, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
         }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
 
-        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: eventCount, bySignal, byConfirm, holdMins:horizon };
-        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon });
+        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed:accepted, bySignal, byConfirm, holdMins:horizon };
+        setDiag({ candlesLoaded:candles.length, candidateSessions:candidates.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsLoaded:rawEvents.length, eventsUsed:accepted, rejectedWeak:rejected.weak, rejectedDuplicate:rejected.duplicateCluster, rejectedContext:rejected.weakContext + rejected.noActive, rejectedNoFuture:rejected.noFuture, holdMins:horizon });
 
         if(!replayRows.length){
-          setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated from the event timestamps in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
+          setError(candidates.length ? 'Replay ran, but all candidate events were rejected by the stricter confirmation stack or had no usable BTC candle window.' : 'Replay ran, but no actionable historical events were loaded into the event log yet.');
           setResults({ ...payload, sessions: sessions.slice(-120).reverse() });
         } else {
           setResults(payload);
@@ -2898,7 +2969,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl('#999',{marginBottom:10})}>REPLAY — BTC 1M ENGINE</div>
         <div style={{fontSize:12,color:'#666',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window. This scores event timestamps on BTC 1-minute candles so replay is not firing a new trade every minute.
+          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window. This replay is event-based, clusters overlapping headlines, and rejects weak setups so it is not firing a new trade every minute.
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
@@ -2939,6 +3010,26 @@ function App() {
         </div>
 
         {error&&<div style={{color:R,fontSize:13,...mono,marginBottom:12,padding:'10px 14px',background:`${R}12`,borderRadius:10,border:`1px solid ${R}33`}}>{error}</div>}
+
+        {diag&&(
+          <div style={{marginBottom:12,borderRadius:12,border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.02)',padding:'12px 14px'}}>
+            <div style={{fontSize:10,letterSpacing:2,color:'#444',fontWeight:700,...mono,marginBottom:10}}>REPLAY DIAGNOSTICS</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[
+                ['CANDLES', diag.candlesLoaded||0],
+                ['EVENTS LOADED', diag.eventsLoaded||0],
+                ['CANDIDATES', diag.candidateSessions||0],
+                ['EVENTS USED', diag.eventsUsed||0],
+                ['SCORED', diag.scoredSignals||0],
+                ['REJECTED WEAK', diag.rejectedWeak||0],
+                ['REJECTED DUPES', diag.rejectedDuplicate||0],
+                ['REJECTED CONTEXT', diag.rejectedContext||0],
+                ['REJECTED NO FUTURE', diag.rejectedNoFuture||0],
+                ['HOLD', `${diag.holdMins||holdMins}m`],
+              ].map(([k,v])=>(<div key={k} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'6px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}><div style={{fontSize:11,color:'#777',...mono}}>{k}</div><div style={{fontSize:11,color:'#ddd',fontWeight:900,...mono}}>{v}</div></div>))}
+            </div>
+          </div>
+        )}
 
         {results&&(
           <>
@@ -3395,6 +3486,7 @@ const BacktestTab = ()=>{
             )}
 
             {(()=>{
+              const nowTs = Date.now();
               const timeline = dedupeFeedItems([
                 ...calArticles.map(item=>({
                   ...item,
@@ -3403,7 +3495,13 @@ const BacktestTab = ()=>{
                   pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
                   feedType:"calendar"
-                })),
+                })).filter(item=>{
+                  const t = Date.parse(item.pub||0);
+                  if(!t || Number.isNaN(t)) return false;
+                  const stars = Math.max(1, Math.min(3, Number(item.stars||1)));
+                  const pre = stars===3?80:stars===2?50:20;
+                  return nowTs >= (t - pre*60000) && nowTs <= t;
+                }),
                 ...newsArticles.map(item=>({
                   ...item,
                   kind:"breaking",
@@ -3414,8 +3512,8 @@ const BacktestTab = ()=>{
               ]).sort((a,b)=>{
                 const ta = Date.parse(a.pub||0) || 0;
                 const tb = Date.parse(b.pub||0) || 0;
-                return ta - tb;
-              }).slice(-4);
+                return tb - ta;
+              }).slice(0,4);
               if(!newsLoading && !calLoading && timeline.length===0){
                 return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
               }
