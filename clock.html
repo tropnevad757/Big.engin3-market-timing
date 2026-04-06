@@ -1110,6 +1110,66 @@ function App() {
     [1440,  "buy",  "Up"  ],  // sentinel
   ];
 
+  const NEWS_TIME_SIGNS = [
+    [0,    "positive", "+"],  // 12:00 AM
+    [30,   "positive", "+"],  // 12:30 AM
+    [60,   "negative", "-"],  // 1:00 AM
+    [90,   "negative", "-"],  // 1:30 AM
+    [120,  "positive", "+"],  // 2:00 AM
+    [180,  "negative", "-"],  // 3:00 AM
+    [240,  "positive", "+"],  // 4:00 AM
+    [270,  "positive", "+"],  // 4:30 AM
+    [300,  "negative", "-"],  // 5:00 AM
+    [360,  "positive", "+"],  // 6:00 AM
+    [390,  "positive", "+"],  // 6:30 AM
+    [420,  "negative", "-"],  // 7:00 AM
+    [450,  "negative", "-"],  // 7:30 AM
+    [480,  "positive", "+"],  // 8:00 AM
+    [540,  "negative", "-"],  // 9:00 AM
+    [600,  "positive", "+"],  // 10:00 AM
+    [630,  "positive", "+"],  // 10:30 AM
+    [660,  "negative", "-"],  // 11:00 AM
+    [720,  "positive", "+"],  // 12:00 PM
+    [750,  "positive", "+"],  // 12:30 PM
+    [780,  "negative", "-"],  // 1:00 PM
+    [810,  "negative", "-"],  // 1:30 PM
+    [840,  "positive", "+"],  // 2:00 PM
+    [900,  "negative", "-"],  // 3:00 PM
+    [960,  "positive", "+"],  // 4:00 PM
+    [990,  "positive", "+"],  // 4:30 PM
+    [1020, "negative", "-"],  // 5:00 PM
+    [1080, "positive", "+"],  // 6:00 PM
+    [1110, "positive", "+"],  // 6:30 PM
+    [1140, "negative", "-"],  // 7:00 PM
+    [1170, "negative", "-"],  // 7:30 PM
+    [1200, "positive", "+"],  // 8:00 PM
+    [1260, "negative", "-"],  // 9:00 PM
+    [1320, "positive", "+"],  // 10:00 PM
+    [1350, "positive", "+"],  // 10:30 PM
+    [1380, "negative", "-"],  // 11:00 PM
+    [1440, "positive", "+"],  // sentinel
+  ];
+
+  function getNewsTimeSign(h24, m) {
+    const t = h24*60+m;
+    let current = NEWS_TIME_SIGNS[0];
+    for(let i=0; i<NEWS_TIME_SIGNS.length-1; i++) {
+      if(t >= NEWS_TIME_SIGNS[i][0] && t < NEWS_TIME_SIGNS[i+1][0]) {
+        current = NEWS_TIME_SIGNS[i];
+        const next = NEWS_TIME_SIGNS[i+1];
+        return {
+          polarity: current[1],
+          label: current[2],
+          charge: current[1] === "positive" ? 1 : -1,
+          minsLeft: NEWS_TIME_SIGNS[i+1][0] - t,
+          nextLabel: next[2],
+          nextPolarity: next[1],
+        };
+      }
+    }
+    return { polarity:"positive", label:"+", charge:1, minsLeft:0, nextLabel:"+", nextPolarity:"positive" };
+  }
+
   function getInternalStep(h24, m) {
     const t = h24*60+m;
     let current = INTERNAL_STEPS[0];
@@ -1899,53 +1959,60 @@ function App() {
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24, m){
-    const events = Array.isArray(activeEvents) ? activeEvents : [];
-    const negatives = events.filter(ev=>Number(ev.polarity) === -1).length;
-    const positives = events.filter(ev=>Number(ev.polarity) === 1).length;
-    const activeCount = events.length;
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
+    const baseCharge = baseDirection === "buy" ? 1 : -1;
+    const normalized = (activeEvents||[]).map(ev=>({
+      ...ev,
+      charge: Number(ev?.polarity) === 1 ? 1 : Number(ev?.polarity) === -1 ? -1 : 0,
+      type: replayEventType(ev)
+    }));
+    const directional = normalized.filter(ev=>ev.charge !== 0);
+    const negatives = directional.filter(ev=>ev.charge === -1).length;
+    const positives = directional.filter(ev=>ev.charge === 1).length;
+    const speeches  = normalized.filter(ev=>ev.type === "speech").length;
+    const activeCount = normalized.length;
+    const hadNews = activeCount > 0;
 
     let newsCharge = 0;
-    if(positives > negatives) newsCharge = 1;
-    else if(negatives > positives) newsCharge = -1;
+    if(directional.length === 1){
+      newsCharge = directional[0].charge;
+    }else if(directional.length > 1){
+      let running = directional[0].charge;
+      for(let i=1;i<directional.length;i++) running = stackCharges(running, directional[i].charge);
+      newsCharge = running;
+    }
 
-    const hourCharge = (Number(h24) % 2 === 0) ? 1 : -1;
-    const hadNews = activeCount > 0 && newsCharge !== 0;
-
+    const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const finalDirection = !hadNews
       ? baseDirection
-      : ((hourCharge * newsCharge) > 0 ? "buy" : "sell");
-
+      : (newsCharge === 0 ? baseDirection : (slotCharge === newsCharge ? "buy" : "sell"));
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = hadNews && finalDirection !== baseDirection;
-
     const equationPlain = !hadNews
       ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
-      : `${hourCharge>0?'EVEN(+)':'ODD(-)'} × ${newsCharge>0?'POSITIVE NEWS':'NEGATIVE NEWS'} = ${finalDirection.toUpperCase()}`;
-
-    const equation = !hadNews
-      ? `${baseDirection.toUpperCase()} + NO NEWS = <b>${finalDirection.toUpperCase()}</b>`
-      : `${hourCharge>0?'EVEN(+)':'ODD(-)'} × ${newsCharge>0?'POSITIVE NEWS':'NEGATIVE NEWS'} = <b>${finalDirection.toUpperCase()}</b>`;
+      : newsCharge === 0
+        ? `${slotCharge===1?'+':'-'} NEWS SLOT + 0 NEWS VALUE = ${finalDirection.toUpperCase()}`
+        : `${slotCharge===1?'+':'-'} NEWS SLOT × ${newsCharge===1?'+':'-'} NEWS VALUE = ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
-      activeCount,
-      negativePressure: negatives,
-      positivePressure: positives,
-      baseCharge: baseDirection === "buy" ? 1 : -1,
+      baseCharge,
       finalCharge,
-      newsFlip,
+      newsFlip: newsFlip ? -1 : 1,
+      negativePressure: negatives + speeches,
+      positivePressure: positives,
+      activeCount,
       reason: !hadNews
-        ? `No directional news → replay falls back to step direction (${baseDirection.toUpperCase()})`
-        : `Replay uses time/news math only: ${equationPlain}`,
-      equation,
+        ? "no news, step direction holds"
+        : newsCharge===0
+          ? "news present but no directional news value"
+          : (slotCharge===newsCharge ? "news slot sign matched news value" : "news slot sign conflicted with news value"),
+      equation: equationPlain,
       equationPlain,
-      hasNews: hadNews,
       newsCharge,
-      hourCharge,
-      dedupedEvents: events
+      slotCharge,
     };
-  },[]);
+  }
 
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
@@ -2600,23 +2667,22 @@ function App() {
     const [playIdx,  setPlayIdx]  = React.useState(0);
     const [playing,  setPlaying]  = React.useState(false);
     const [holdMins, setHoldMins] = React.useState(()=>{
-      try{ return Math.max(50, Number(localStorage.getItem('engin3ReplayHoldMins')||50)); }catch(e){ return 50; }
+      try{ return Math.max(1, Number(localStorage.getItem('engin3ReplayHoldMins')||1)); }catch(e){ return 1; }
     });
     const [diag, setDiag] = React.useState(null);
 
-    const loggedLastWeek = React.useMemo(()=> (typeof tab !== 'undefined' ? (tab==="replay" ? buildUnifiedNewsEvents(Date.now()) : []) : buildUnifiedNewsEvents(Date.now())), [typeof tab !== 'undefined' ? tab : null, newsArticles, calArticles, ecoArticles, replayEvents]);
+    const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
 
     React.useEffect(()=>{
       try{ localStorage.setItem('engin3ReplayHoldMins', String(holdMins)); }catch(e){}
     },[holdMins]);
 
     React.useEffect(()=>{
-      if(typeof tab !== 'undefined' && tab !== "replay") return;
       try{
         const raw = JSON.parse(localStorage.getItem('engin3ReplayLastResults')||'null');
         if(raw && Array.isArray(raw.sessions) && raw.sessions.length) setResults(raw);
       }catch(e){}
-    },[typeof tab !== 'undefined' ? tab : null]);
+    },[]);
 
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
@@ -2742,32 +2808,29 @@ function App() {
     }
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
-      const connectorMode = getConnectorMode(h24, m);
-      const slotPol = connectorMode === 'aligned' ? 'positive' : 'negative';
-      const baseDirection = step.direction;
-      const applied = computeReplayPolarity(baseDirection, slotPol, activeEvents, h24, m);
+      const newsSlot = getNewsTimeSign(h24, m);
+      const hadNews = Array.isArray(activeEvents) && activeEvents.length > 0;
+      const applied = computeReplayPolarity(step.direction, newsSlot.polarity, activeEvents);
       const signal = applied.finalDirection === 'buy' ? 'BUY' : 'SELL';
       return {
         signal,
-        mode: connectorMode,
-        flip: applied.finalDirection !== baseDirection,
+        mode: hadNews ? 'news' : 'step',
+        flip: applied.finalDirection !== step.direction,
         reason: applied.reason,
-        activeEvents: applied.dedupedEvents,
+        activeEvents,
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection,
+        baseDirection: step.direction,
         baseCharge: applied.baseCharge,
         finalCharge: applied.finalCharge,
         newsFlip: applied.newsFlip,
-        slotPolarity: slotPol,
+        slotPolarity: hadNews ? newsSlot.polarity : 'none',
+        stepLabel: step.label,
+        newsSlotLabel: newsSlot.label,
         equation: applied.equation,
         equationPlain: applied.equationPlain,
-        hasNews: applied.hasNews,
-        hourCharge: applied.hourCharge,
-        newsCharge: applied.newsCharge,
       };
-    };
     }
 
     function scoreSignalWindow(signal, openPrice, futureCandles) {
@@ -2805,50 +2868,41 @@ function App() {
 
     function buildConfirmationTags(replay, score){
       const tags = [];
-      tags.push(replay.hasNews ? 'NEWS MATH' : 'STEP FALLBACK');
+      tags.push(replay.activeCount>0 ? 'NEWS PRESENT' : 'NO NEWS');
       tags.push(replay.signal);
-      tags.push((replay.hourCharge||0) > 0 ? 'EVEN HOUR +' : 'ODD HOUR -');
-      if(replay.hasNews) tags.push((replay.newsCharge||0) > 0 ? 'POSITIVE NEWS' : 'NEGATIVE NEWS');
-      else tags.push('NO DIRECTIONAL NEWS');
+      tags.push(replay.mode === 'news' ? 'NEWS SLOT' : 'STEP SLOT');
+      tags.push(replay.flip ? 'NEWS FLIPPED' : 'BASE HELD');
       if(score?.tp3Hit) tags.push('TP3 HIT');
       else if(score?.tp2Hit) tags.push('TP2 HIT');
       else if(score?.tp1Hit) tags.push('TP1 HIT');
       else tags.push('MISS');
       return tags;
     }
-    function isReplayExecuteWindow(h24, m){
-      const hh = Number(h24||0);
-      const mm = Number(m||0);
-      if(mm !== 0) return false;
-      return hh===2 || hh===5 || hh===8 || hh===11 || hh===14 || hh===17 || hh===20 || hh===23;
-    }
-
 
     async function runReplay() {
-      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(50, Number(holdMins||50)) });
+      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(1, Number(holdMins||1)) });
       try {
         const candles = await fetchReplayCandles();
         if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
 
         const sessions = [];
-        let rejectedNonExecute = 0;
-        const horizon = Math.max(50, Number(holdMins||50));
+        const horizon = Math.max(1, Number(holdMins||1));
         const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
-        const events = (Array.isArray(loggedLastWeek) ? loggedLastWeek : []).filter(ev=>ev && ev.pub && !Number.isNaN(Date.parse(ev.pub)));
+        const scheduleSet = new Set(INTERNAL_STEPS.map(x=>x[0]).filter(v=>v >= 0 && v < 1440));
 
-        for(let j=0; j<events.length; j++) {
-          const ev = events[j];
-          const t = Date.parse(ev.pub);
-          const i = candles.findIndex(c=>c.ts >= t);
-          if(i < 0 || i >= candles.length-horizon) continue;
+        for(let i=0; i<candles.length-horizon; i++) {
           const c = candles[i];
           const future = candles.slice(i+1, i+1+horizon);
           const et = getETParts(c.ts);
+          const t = et.h24*60 + et.m;
+          if(!scheduleSet.has(t)) continue;
           const activeEvents = activeEventsFor(c.ts);
-          if(!isReplayExecuteWindow(et.h24, et.m)) { rejectedNonExecute++; continue; }
           const replay = replaySignal(et.h24, et.m, activeEvents);
           const score  = scoreSignalWindow(replay.signal, c.open, future);
           const confirmations = buildConfirmationTags(replay, score);
+          const eventTitle = activeEvents.length
+            ? activeEvents.map(ev=>ev.title||'').filter(Boolean).slice(0,2).join(' · ')
+            : 'NO NEWS / STEP';
           sessions.push({
             ts: c.ts,
             h24: et.h24,
@@ -2860,16 +2914,15 @@ function App() {
             high: Math.round(c.high),
             low: Math.round(c.low),
             holdMins: horizon,
-            eventTitle: ev.title || '',
-            eventSource: ev.source || '',
+            eventTitle,
+            eventSource: activeEvents.length ? 'UNIFIED' : 'STEP',
             ...replay,
             score,
             confirmations,
           });
         }
 
-        const uniqueSessions = dedupeReplaySessions(sessions);
-        const replayRows = uniqueSessions.filter(s=>['BUY','SELL'].includes(s.signal));
+        const replayRows = sessions.filter(s=>['BUY','SELL'].includes(s.signal));
         const scoredRows = replayRows.filter(s=>s.score && typeof s.score.correct === 'boolean');
         const wins   = scoredRows.filter(s=>s.score.correct===true).length;
         const losses = scoredRows.filter(s=>s.score.correct===false).length;
@@ -2884,6 +2937,14 @@ function App() {
           return { key:sig, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
         }).filter(x=>x.total>0);
 
+        const byNewsState = ['NO NEWS','NEWS'].map(label=>{
+          const rows = scoredRows.filter(s=>(s.activeCount>0 ? 'NEWS' : 'NO NEWS')===label);
+          const w = rows.filter(s=>s.score?.correct===true).length;
+          const l = rows.filter(s=>s.score?.correct===false).length;
+          const t = w+l;
+          return { key:label, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
+        }).filter(x=>x.total>0);
+
         const allTags = [...new Set(scoredRows.flatMap(s=>s.confirmations||[]))];
         const byConfirm = allTags.map(tag=>{
           const rows = scoredRows.filter(s=>(s.confirmations||[]).includes(tag));
@@ -2893,12 +2954,12 @@ function App() {
           return { key:tag, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
         }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
 
-        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: eventCount, bySignal, byConfirm, holdMins:horizon };
-        setDiag({ candlesLoaded:candles.length, sessionsBuilt:uniqueSessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon, rejectedNonExecute });
+        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: eventCount, bySignal, byNewsState, byConfirm, holdMins:horizon };
+        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon });
 
         if(!replayRows.length){
-          setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated from the event timestamps in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
-          setResults({ ...payload, sessions: uniqueSessions.slice(-120).reverse() });
+          setError('Replay ran, but no scheduled slots were scored in the loaded window.');
+          setResults({ ...payload, sessions: sessions.slice(-120).reverse() });
         } else {
           setResults(payload);
           try{ localStorage.setItem('engin3ReplayLastResults', JSON.stringify(payload)); }catch(e){}
@@ -2913,23 +2974,6 @@ function App() {
       setLoading(false);
     }
 
-    function dedupeReplaySessions(rows){
-      const map = new Map();
-      (rows||[]).forEach(row=>{
-        if(!row) return;
-        const key = [row.ts||'', row.signal||'', row.open||'', cleanReplayText(row.eventTitle||'').slice(0,120)].join('|');
-        if(!map.has(key)){
-          map.set(key, row);
-          return;
-        }
-        const prev = map.get(key);
-        const prevRank = prev?.score?.tp3Hit ? 3 : prev?.score?.tp2Hit ? 2 : prev?.score?.tp1Hit ? 1 : 0;
-        const nextRank = row?.score?.tp3Hit ? 3 : row?.score?.tp2Hit ? 2 : row?.score?.tp1Hit ? 1 : 0;
-        if(nextRank > prevRank) map.set(key, row);
-      });
-      return Array.from(map.values()).sort((a,b)=> (b.ts||0) - (a.ts||0));
-    }
-
     const sigCol = s => s==='BUY'?G:R;
     const current = results?.sessions?.[playIdx] || null;
     const visibleLog = React.useMemo(()=> results?.sessions ? results.sessions.slice(-300).reverse() : [], [results]);
@@ -2938,7 +2982,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl('#999',{marginBottom:10})}>REPLAY — BTC 1M ENGINE</div>
         <div style={{fontSize:12,color:'#666',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window. This scores event timestamps on BTC 1-minute candles so replay is not firing a new trade every minute.
+          Replay now scores BTC on 1-minute candles at your exact schedule points. No news uses step direction. Active news uses your news-slot sign plus news-value math. A replay win means TP1 or better was reached inside the selected hold window.
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
@@ -3086,87 +3130,79 @@ function App() {
   };
 
 const BacktestTab = ()=>{
-    if(!can("backtest_full")) return(
-      <div style={{padding:32,textAlign:"center"}}>
-        <div style={{fontSize:44,marginBottom:14}}>📊</div>
-        <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:8,letterSpacing:2}}>₿ FEATURE</div>
-        <div style={{fontSize:14,color:"#999",...mono,lineHeight:1.9,marginBottom:20}}>Full 12-month backtesting.<br/>Avg points · flip logs · sub-window win rates.</div>
-        <button onClick={()=>setSubOpen(true)} style={{background:`${A}1a`,border:`1px solid ${A}`,color:A,borderRadius:12,padding:"12px 26px",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:2}}>UPGRADE TO ₿ →</button>
+    const replaySummary = React.useMemo(()=>{
+      try{ return JSON.parse(localStorage.getItem('engin3ReplayLastResults')||'null'); }catch(e){ return null; }
+    },[]);
+    const rows = replaySummary?.sessions || [];
+    const scored = rows.filter(r=>r?.score && typeof r.score.correct === 'boolean');
+    const newsRows = scored.filter(r=>r.activeCount>0);
+    const noNewsRows = scored.filter(r=>!r.activeCount);
+    const stat = arr=>{
+      const wins = arr.filter(r=>r.score?.correct===true).length;
+      const losses = arr.filter(r=>r.score?.correct===false).length;
+      const total = wins + losses;
+      return { wins, losses, total, wr: total?Math.round((wins/total)*100):0 };
+    };
+    const all = stat(scored), news = stat(newsRows), noNews = stat(noNewsRows);
+    const buy = stat(scored.filter(r=>r.signal==='BUY'));
+    const sell = stat(scored.filter(r=>r.signal==='SELL'));
+
+    if(!rows.length) return(
+      <div style={{padding:14}}>
+        <div style={{background:"rgba(240,160,48,0.07)",border:"1px solid rgba(240,160,48,0.25)",borderRadius:10,padding:"12px 14px"}}>
+          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:6}}>BACKTEST READY</div>
+          <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.8}}>Run Replay first. Backtest will summarize the same real results by overall, news, no-news, buy, and sell.</div>
+        </div>
       </div>
     );
-    const data=bt[btZone]||bt["z1_am"]||Object.values(bt)[0]||{wins:70,avgPts:10,best:"Tue",worst:"Mon",months:[70,70,70,70,70,70,70,70,70,70,70,70],peak:80};
-    const zone=zones.find(z=>z.id===btZone), zCol=(zone&&zone.type)==="buy"?G:(zone&&zone.type)==="sell"?R:D;
+
     return(
       <div style={{padding:14}}>
-        <div style={{background:"rgba(240,160,48,0.07)",border:"1px solid rgba(240,160,48,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ REFERENCE DATA — NOT INDEPENDENTLY BACKTESTED</div>
-          <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>Win rates are simulated zone reference data. Real results vary by instrument, session, and market regime. Track your own trades.</div>
+        <div style={{background:"rgba(102,204,255,0.07)",border:"1px solid rgba(102,204,255,0.24)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
+          <div style={{fontSize:13,letterSpacing:1.5,color:'#66ccff',fontWeight:700,marginBottom:4}}>REAL REPLAY BACKTEST</div>
+          <div style={{fontSize:13,color:'#bbb',...mono,lineHeight:1.7}}>No-news uses step direction. News uses your exact news-slot sign plus stacked news value math.</div>
         </div>
-        <div style={lbl("#999",{marginBottom:12,textAlign:"center"})}>ZONE WIN RATE REFERENCE</div>
-        <div style={{marginBottom:14}}>
-        {[["_am","SESSION 1"],["_pm","SESSION 2"]].map(([suffix,sessionLabel])=>(
-          <div key={suffix} style={{marginBottom:10,textAlign:"center"}}>
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:6}}>{sessionLabel}</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
-              {[...zones].filter(z=>BACKTEST[z.id]&&z.id.endsWith(suffix))
-                .sort((a,b)=>{
-                  const n=s=>parseInt((s.label||"").replace(/[^0-9]/g,""))||0;
-                  return n(a)-n(b);
-                }).map(z=>{
-                  const c=z.type==="buy"?G:z.type==="sell"?R:D;
-                  return <button key={z.id} onClick={()=>setBtZone(z.id)} style={{padding:"6px 14px",borderRadius:18,background:btZone===z.id?`${c}20`:"transparent",border:`1px solid ${btZone===z.id?c:"#1e1e1e"}`,color:btZone===z.id?c:"#3a3a3a",fontSize:13,fontWeight:700,cursor:"pointer"}}>{z.label} {z.type==="buy"?"▲":"▼"}</button>;
-                })}
-            </div>
-          </div>
-        ))}
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:12}}>
-          {[{l:"WIN RATE",v:`${data.wins}%`,c:data.wins>=75?G:data.wins>=60?A:R},{l:"AVG POINTS",v:`+${data.avgPts}`,c:A},{l:"BEST DAY",v:data.best,c:G},{l:"WORST DAY",v:data.worst,c:R}].map(i=>(
-            <div key={i.l} style={card({textAlign:"center",padding:"13px 10px",marginBottom:0})}>
-              <div style={lbl("#888",{marginBottom:6})}>{i.l}</div>
-              <div style={{fontSize:22,fontWeight:900,color:i.c}}>{i.v}</div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+          {[
+            {l:'OVERALL',v:`${all.wr}%`,s:`${all.wins}/${all.total}`,c:all.wr>=60?G:all.wr>=45?A:R},
+            {l:'NO NEWS',v:`${noNews.wr}%`,s:`${noNews.wins}/${noNews.total}`,c:noNews.wr>=60?G:noNews.wr>=45?A:R},
+            {l:'NEWS',v:`${news.wr}%`,s:`${news.wins}/${news.total}`,c:news.wr>=60?G:news.wr>=45?A:R},
+          ].map(i=>(
+            <div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:'10px 8px',textAlign:'center'}}>
+              <div style={{fontSize:9,color:'#555',letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div>
+              <div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div>
+              <div style={{fontSize:11,color:'#777',...mono}}>{i.s}</div>
             </div>
           ))}
         </div>
-        <div style={card({marginBottom:10})}>
-          <div style={lbl("#888",{marginBottom:10})}>12-MONTH WIN RATE</div>
-          <MiniBar months={data.months}/>
-        </div>
-        <div style={card({border:`1px solid ${zCol}33`,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10})}>
-          <div>
-            <div style={{fontSize:13,fontWeight:700,color:zCol}}>{(zone&&zone.type)==="buy"?"▲ BUY":"▼ SELL"} · {(zone&&zone.label)}</div>
-            {can("sub_pocket")&&<div style={{fontSize:13,color:"#aaa",marginTop:3,...mono}}>★ {(zone&&zone.pocket&&zone.pocket.label)}</div>}
-            <div style={{fontSize:13,color:data.wins>=75?G:data.wins>=65?A:R,marginTop:6}}>
-              {data.wins>=75?"✓ ₿ WINDOW":data.wins>=65?"✓ HIGH CONFIDENCE":data.wins>=55?"◆ MODERATE":"⚠ LOW — USE FILTER"}
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9,marginBottom:12}}>
+          {[
+            {l:'BUY WR',v:`${buy.wr}%`,s:`${buy.wins}/${buy.total}`,c:G},
+            {l:'SELL WR',v:`${sell.wr}%`,s:`${sell.wins}/${sell.total}`,c:R},
+            {l:'SIGNALS',v:all.total,s:`hold ${replaySummary?.holdMins||1}m`,c:A},
+            {l:'EVENT LOG',v:replaySummary?.eventsUsed||0,s:'calendar + feed',c:'#66ccff'},
+          ].map(i=>(
+            <div key={i.l} style={card({textAlign:'center',padding:'13px 10px',marginBottom:0})}>
+              <div style={lbl('#888',{marginBottom:6})}>{i.l}</div>
+              <div style={{fontSize:22,fontWeight:900,color:i.c}}>{i.v}</div>
+              <div style={{fontSize:11,color:'#666',...mono,marginTop:4}}>{i.s}</div>
             </div>
-          </div>
-          <svg width={64} height={64}>
-            <circle cx={32} cy={32} r={26} fill="none" stroke="#1a1a2e" strokeWidth="8"/>
-            <circle cx={32} cy={32} r={26} fill="none" stroke={zCol} strokeWidth="8" strokeDasharray={`${data.wins*1.633} 163.3`} strokeDashoffset="40.8" style={{filter:`drop-shadow(0 0 6px ${zCol}66)`}}/>
-            <text x={32} y={32} textAnchor="middle" dominantBaseline="central" fill={zCol} fontSize="11" fontWeight="900" fontFamily="'Orbitron',monospace">{data.wins}%</text>
-          </svg>
+          ))}
         </div>
-        {can("sub_pocket")&&<div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
-          <div style={lbl(A,{marginBottom:6})}>PRIME POCKET</div>
-          <div style={{fontSize:14,color:A,fontWeight:900,letterSpacing:1,marginBottom:6}}>{""}</div>
-          
-          <div style={{fontSize:14,color:"#888",...mono,lineHeight:1.8}}>{(zone&&zone.pocket&&zone.pocket.note)}</div>
-          <div style={{fontSize:13,color:"#aaa",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
-        </div>}
-        <div style={card()}>
-          <div style={lbl("#999",{marginBottom:8})}>ADD NOTE · {(zone&&zone.label)}</div>
-          <div style={{display:"flex",gap:8}}>
-            <input value={btNote} onChange={e=>setBtNote(e.target.value)} placeholder="e.g. Zone sold 3 days in a row..." style={{flex:1,background:"rgba(255,255,255,0.05)",border:`1px solid rgba(255,255,255,0.08)`,borderRadius:8,padding:"8px 11px",color:"#ddd",...mono,fontSize:14}}/>
-            <button onClick={()=>{if(btNote.trim()){setBT(p=>({...p,[btZone]:{...p[btZone],flipHistory:[...(p[btZone].flipHistory||[]),{date:new Date().toLocaleDateString(),note:btNote.trim()}]}}));setBtNote("");}}} style={{padding:"8px 14px",borderRadius:8,background:`${A}1a`,border:`1px solid ${A}`,color:A,fontSize:13,fontWeight:700,cursor:"pointer"}}>ADD</button>
-          </div>
+
+        <div style={card({marginBottom:10})}>
+          <div style={lbl('#999',{marginBottom:8})}>SEGMENT BREAKDOWN</div>
+          {[{k:'NO NEWS',row:noNews,c:'#66ccff'},{k:'NEWS',row:news,c:A},{k:'BUY',row:buy,c:G},{k:'SELL',row:sell,c:R}].map(item=>(
+            <div key={item.k} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+              <div style={{width:90,fontSize:12,fontWeight:900,color:item.c,...mono}}>{item.k}</div>
+              <div style={{flex:1,height:6,background:'rgba(255,255,255,0.05)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${item.row.wr}%`,background:item.c,borderRadius:3}}/></div>
+              <div style={{fontSize:13,fontWeight:900,color:item.row.wr>=60?G:item.row.wr>=45?A:R,...mono,width:44,textAlign:'right'}}>{item.row.wr}%</div>
+              <div style={{fontSize:11,color:'#444',...mono,width:46,textAlign:'right'}}>{item.row.wins}/{item.row.total}</div>
+            </div>
+          ))}
         </div>
-        {(data.flipHistory&&data.flipHistory.length)>0&&<div style={card()}>
-          <div style={lbl("#999",{marginBottom:8})}>FLIP LOG</div>
-          {data.flipHistory.map((f,i)=><div key={i} style={{display:"flex",gap:10,padding:"7px 0",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-            <span style={{fontSize:13,color:A,...mono,flexShrink:0}}>{f.date}</span>
-            <span style={{fontSize:13,color:"#bbb",...mono}}>{f.note}</span>
-          </div>)}
-        </div>}
       </div>
     );
   };
