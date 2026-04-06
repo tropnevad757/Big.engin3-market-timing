@@ -19,7 +19,7 @@ body{overflow-x:hidden}
 input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 #loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .25s}
 #loader img{width:96px;height:96px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
-#spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
+#spinner{width:30px;height:30px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
 #loader p{margin-top:10px;font-size:6px;letter-spacing:3px;color:#2a2a2a}
 </style>
 </head>
@@ -2564,11 +2564,12 @@ function App() {
     },[holdMins]);
 
     React.useEffect(()=>{
+      if(tab !== "replay") return;
       try{
         const raw = JSON.parse(localStorage.getItem('engin3ReplayLastResults')||'null');
         if(raw && Array.isArray(raw.sessions) && raw.sessions.length) setResults(raw);
       }catch(e){}
-    },[]);
+    },[tab]);
 
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
