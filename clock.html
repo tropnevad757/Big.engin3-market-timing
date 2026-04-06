@@ -766,41 +766,41 @@ function App() {
   // VWAP anchors (★★★) + key session flips (★★) + minor flips (★)
   const TRANSITION_ANCHORS = [
     // ─── AM ──────────────────────────────────────────────────────────────────
-    { mins:  60, label:"STALK LONG ↑",         polarity:-1, stars:2 }, // pre-VWAP stalk long
-    { mins:  90, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★ switch to sell
-    { mins: 120, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins: 180, label:"CONTINUATION ↓",             polarity:+1, stars:2 },
-    { mins: 240, label:"STALK LONG ↑",         polarity:-1, stars:2 }, // stalk long pre-VWAP
-    { mins: 270, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★
-    { mins: 300, label:"RECOVERY ↑",             polarity:-1, stars:1 },
-    { mins: 360, label:"FLUSH ↓",             polarity:+1, stars:2 },
-    { mins: 390, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins: 420, label:"STALK BUY DIP ↓",   polarity:+1, stars:2 }, // dip before Z7
-    { mins: 450, label:"VWAP ANCHOR ↑", polarity:-1, stars:3 }, // ★★★ Z7 primary
-    { mins: 480, label:"PULLBACK ↓",    polarity:+1, stars:2 },
-    { mins: 540, label:"SESSION OPEN ↑",   polarity:-1, stars:3 }, // ★★★ highest expansion
-    { mins: 600, label:"STALK SELL ↓", polarity:+1, stars:2 },
-    { mins: 630, label:"VWAP FADE ↑",  polarity:-1, stars:2 }, // fade the spike
-    { mins: 660, label:"SELL MOMENTUM ↓",   polarity:+1, stars:3 }, // ★★★ sell momentum
-    { mins: 720, label:"STALK LONG ↑",      polarity:-1, stars:2 },
-    { mins: 750, label:"REGIME SWITCH ↓", polarity:+1, stars:3 }, // ★★★
-    // ─── PM (exact mirror) ───────────────────────────────────────────────────
-    { mins: 780, label:"STALK LONG ↑",         polarity:-1, stars:2 },
-    { mins: 810, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★ was missing
-    { mins: 840, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins: 900, label:"CONTINUATION ↓",             polarity:+1, stars:2 },
-    { mins: 960, label:"STALK LONG ↑",             polarity:-1, stars:2 },
-    { mins: 990, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★
-    { mins:1020, label:"RECOVERY ↑",             polarity:-1, stars:1 },
-    { mins:1080, label:"FLUSH ↓",             polarity:+1, stars:2 },
-    { mins:1110, label:"COUNTER ↑",             polarity:-1, stars:1 },
-    { mins:1140, label:"STALK BUY DIP ↓",   polarity:+1, stars:2 },
-    { mins:1170, label:"VWAP ANCHOR ↑", polarity:-1, stars:3 }, // ★★★
-    { mins:1200, label:"PULLBACK ↓",             polarity:+1, stars:2 },
-    { mins:1260, label:"SESSION CONTINUATION ↑",             polarity:-1, stars:2 },
-    { mins:1320, label:"STALK SELL ↓",            polarity:+1, stars:2 },
-    { mins:1350, label:"VWAP ANCHOR ↑",polarity:-1, stars:3 }, // ★★★
-    { mins:1380, label:"OVERNIGHT ↓",            polarity:+1, stars:2 },
+    { mins:  60, label:"TRAP ↑",         polarity:-1, stars:2 },
+    { mins:  90, label:"TRAP ↓",         polarity:+1, stars:3 },
+    { mins: 120, label:"LIQUID ↑",       polarity:-1, stars:1 },
+    { mins: 180, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins: 240, label:"TRAP ↑",         polarity:-1, stars:2 },
+    { mins: 270, label:"TRAP ↓",         polarity:+1, stars:3 },
+    { mins: 300, label:"LIQUID ↑",       polarity:-1, stars:1 },
+    { mins: 360, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins: 390, label:"LIQUID ↑",       polarity:-1, stars:1 },
+    { mins: 420, label:"TRAP ↓",         polarity:+1, stars:2 },
+    { mins: 450, label:"TRAP ↑",         polarity:-1, stars:3 },
+    { mins: 480, label:"LIQUID ↓",       polarity:+1, stars:2 },
+    { mins: 540, label:"EXECUTE ↑",      polarity:-1, stars:3 },
+    { mins: 600, label:"TRAP ↓",         polarity:+1, stars:2 },
+    { mins: 630, label:"TRAP ↑",         polarity:-1, stars:2 },
+    { mins: 660, label:"EXECUTE ↓",      polarity:+1, stars:3 },
+    { mins: 720, label:"TRAP ↑",         polarity:-1, stars:2 },
+    { mins: 750, label:"RECAL ↓",        polarity:+1, stars:3 },
+    // ─── PM ──────────────────────────────────────────────────────────────────
+    { mins: 780, label:"TRAP ↑",         polarity:-1, stars:2 },
+    { mins: 810, label:"TRAP ↓",         polarity:+1, stars:3 },
+    { mins: 840, label:"LIQUID ↑",       polarity:-1, stars:1 },
+    { mins: 900, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins: 960, label:"TRAP ↑",         polarity:-1, stars:2 },
+    { mins: 990, label:"TRAP ↓",         polarity:+1, stars:3 },
+    { mins:1020, label:"LIQUID ↑",       polarity:-1, stars:1 },
+    { mins:1080, label:"EXECUTE ↓",      polarity:+1, stars:2 },
+    { mins:1110, label:"LIQUID ↑",       polarity:-1, stars:1 },
+    { mins:1140, label:"TRAP ↓",         polarity:+1, stars:2 },
+    { mins:1170, label:"TRAP ↑",         polarity:-1, stars:3 },
+    { mins:1200, label:"LIQUID ↓",       polarity:+1, stars:2 },
+    { mins:1260, label:"EXECUTE ↑",      polarity:-1, stars:2 },
+    { mins:1320, label:"TRAP ↓",         polarity:+1, stars:2 },
+    { mins:1350, label:"TRAP ↑",         polarity:-1, stars:3 },
+    { mins:1380, label:"RECAL ↓",        polarity:+1, stars:2 },
   ];
 
   useEffect(()=>{
@@ -2148,12 +2148,47 @@ function App() {
           ))}
         </div>
 
-        {/* ── ANALOG CLOCK ── */}
-        <div style={{display:"flex",justifyContent:"center",margin:"4px 0 10px"}}>
-          <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
-            <ClockFace size={270} zones={zones} et={et}/>
-          </div>
-        </div>
+        {/* ── ANALOG CLOCK + LEFT RAIL ── */}
+        {(()=>{
+          const nowMins = et.h24*60 + et.m;
+          const nearestByWord = word => {
+            const list = (TRANSITION_ANCHORS||[]).filter(t => String(t.label||'').includes(word));
+            if(!list.length) return null;
+            return list.map(t=>({ ...t, diff: ((t.mins - nowMins) + 1440) % 1440 })).sort((a,b)=>a.diff-b.diff)[0];
+          };
+          const trapTag = nearestByWord('TRAP');
+          const liquidTag = nearestByWord('LIQUID');
+          const executeTag = nearestByWord('EXECUTE');
+          const recalTag = nearestByWord('RECAL');
+          const trendText = finalDirection === 'buy' ? 'BULLISH' : 'BEARISH';
+          const trendCol = finalDirection === 'buy' ? G : R;
+          const leftRows = [
+            {k:'ZONE', v:zLabel, c:zCol},
+            {k:'TREND', v:trendText, c:trendCol},
+            {k:'TRAP', v:trapTag ? trapTag.label : '—', c:A},
+            {k:'LIQUID', v:liquidTag ? liquidTag.label : '—', c:'#7fd1ff'},
+            {k:'EXECUTE', v:inExecute ? 'LIVE' : (executeTag ? executeTag.label : 'WAIT'), c:inExecute?G:A},
+            {k:'RECAL', v:recalTag ? recalTag.label : '—', c:'#ff88aa'},
+            {k:'LABELS', v:'ON', c:'#bbb'},
+          ];
+          return (
+            <div style={{display:'flex',alignItems:'center',gap:10,margin:'4px 0 10px'}}>
+              <div style={{width:110,alignSelf:'stretch',borderRadius:16,border:'1px solid rgba(255,255,255,0.08)',background:'rgba(255,255,255,0.02)',padding:'10px 8px',display:'flex',flexDirection:'column',justifyContent:'center',gap:7}}>
+                {leftRows.map(row => (
+                  <div key={row.k} style={{borderRadius:10,padding:'6px 7px',background:`${row.c}12`,border:`1px solid ${row.c}22`}}>
+                    <div style={{fontSize:8,letterSpacing:2,color:'#555',fontWeight:700,...mono,marginBottom:2}}>{row.k}</div>
+                    <div style={{fontSize:11,color:row.c,fontWeight:700,...mono,lineHeight:1.2}}>{row.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{flex:1,display:'flex',justifyContent:'center'}}>
+                <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
+                  <ClockFace size={250} zones={zones} et={et}/>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── LEGEND ── */}
         <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
@@ -2650,25 +2685,55 @@ function App() {
       };
     }
     function scoreSignalWindow(signal, openPrice, futureCandles) {
-      const tp1 = 0.003, tp2 = 0.006, tp3 = 0.009;
+      const tp1 = 0.003, tp2 = 0.006, tp3 = 0.009, stop = 0.003;
       if(!openPrice || !Array.isArray(futureCandles) || !futureCandles.length) return null;
+
       if(signal === 'BUY') {
         const h1 = openPrice * (1 + tp1), h2 = openPrice * (1 + tp2), h3 = openPrice * (1 + tp3);
-        const hit1 = futureCandles.findIndex(c=>c.high >= h1);
-        const hit2 = futureCandles.findIndex(c=>c.high >= h2);
-        const hit3 = futureCandles.findIndex(c=>c.high >= h3);
-        const tp1Hit = hit1 >= 0, tp2Hit = hit2 >= 0, tp3Hit = hit3 >= 0;
-        const firstHitMins = tp3Hit ? hit3+1 : tp2Hit ? hit2+1 : tp1Hit ? hit1+1 : null;
-        return { correct:tp1Hit, tp1Hit, tp2Hit, tp3Hit, label:tp3Hit?'TP3':tp2Hit?'TP2':tp1Hit?'TP1':'MISS', firstHitMins };
+        const stopPx = openPrice * (1 - stop);
+        let tp1Hit = false, tp2Hit = false, tp3Hit = false;
+        let stoppedOut = false, firstHitMins = null;
+        for(let i=0; i<futureCandles.length; i++) {
+          const c = futureCandles[i] || {};
+          const stopHit = Number(c.low||0) <= stopPx;
+          const hit3 = Number(c.high||0) >= h3;
+          const hit2 = Number(c.high||0) >= h2;
+          const hit1 = Number(c.high||0) >= h1;
+          if(stopHit && (hit1 || hit2 || hit3)) { stoppedOut = true; firstHitMins = i+1; break; }
+          if(stopHit) { stoppedOut = true; firstHitMins = i+1; break; }
+          if(hit3 || hit2 || hit1) {
+            tp1Hit = hit1 || hit2 || hit3;
+            tp2Hit = hit2 || hit3;
+            tp3Hit = hit3;
+            firstHitMins = i+1;
+            break;
+          }
+        }
+        return { correct:tp1Hit && !stoppedOut, tp1Hit, tp2Hit, tp3Hit, stoppedOut, label:stoppedOut?'STOP':tp3Hit?'TP3':tp2Hit?'TP2':tp1Hit?'TP1':'MISS', firstHitMins };
       }
+
       if(signal === 'SELL') {
         const l1 = openPrice * (1 - tp1), l2 = openPrice * (1 - tp2), l3 = openPrice * (1 - tp3);
-        const hit1 = futureCandles.findIndex(c=>c.low <= l1);
-        const hit2 = futureCandles.findIndex(c=>c.low <= l2);
-        const hit3 = futureCandles.findIndex(c=>c.low <= l3);
-        const tp1Hit = hit1 >= 0, tp2Hit = hit2 >= 0, tp3Hit = hit3 >= 0;
-        const firstHitMins = tp3Hit ? hit3+1 : tp2Hit ? hit2+1 : tp1Hit ? hit1+1 : null;
-        return { correct:tp1Hit, tp1Hit, tp2Hit, tp3Hit, label:tp3Hit?'TP3':tp2Hit?'TP2':tp1Hit?'TP1':'MISS', firstHitMins };
+        const stopPx = openPrice * (1 + stop);
+        let tp1Hit = false, tp2Hit = false, tp3Hit = false;
+        let stoppedOut = false, firstHitMins = null;
+        for(let i=0; i<futureCandles.length; i++) {
+          const c = futureCandles[i] || {};
+          const stopHit = Number(c.high||0) >= stopPx;
+          const hit3 = Number(c.low||0) <= l3;
+          const hit2 = Number(c.low||0) <= l2;
+          const hit1 = Number(c.low||0) <= l1;
+          if(stopHit && (hit1 || hit2 || hit3)) { stoppedOut = true; firstHitMins = i+1; break; }
+          if(stopHit) { stoppedOut = true; firstHitMins = i+1; break; }
+          if(hit3 || hit2 || hit1) {
+            tp1Hit = hit1 || hit2 || hit3;
+            tp2Hit = hit2 || hit3;
+            tp3Hit = hit3;
+            firstHitMins = i+1;
+            break;
+          }
+        }
+        return { correct:tp1Hit && !stoppedOut, tp1Hit, tp2Hit, tp3Hit, stoppedOut, label:stoppedOut?'STOP':tp3Hit?'TP3':tp2Hit?'TP2':tp1Hit?'TP1':'MISS', firstHitMins };
       }
       return null;
     }
@@ -2679,7 +2744,8 @@ function App() {
       tags.push((replay.hourCharge||0) > 0 ? 'EVEN HOUR +' : 'ODD HOUR -');
       if(replay.hasNews) tags.push((replay.newsCharge||0) > 0 ? 'POSITIVE NEWS' : 'NEGATIVE NEWS');
       else tags.push('NO DIRECTIONAL NEWS');
-      if(score?.tp3Hit) tags.push('TP3 HIT');
+      if(score?.stoppedOut) tags.push('STOP FIRST');
+      else if(score?.tp3Hit) tags.push('TP3 HIT');
       else if(score?.tp2Hit) tags.push('TP2 HIT');
       else if(score?.tp1Hit) tags.push('TP1 HIT');
       else tags.push('MISS');
@@ -2693,13 +2759,15 @@ function App() {
 
     async function runReplay() {
       setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false);
-      setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Number(holdMins||50), rejectedNonExecute:0 });
+      setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Number(holdMins||50), rejectedNonExecute:0, rejectedDuplicate:0 });
       try {
         const candles = await fetchReplayCandles();
         if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
 
         const sessions = [];
+        const scoredKeys = new Set();
         let rejectedNonExecute = 0;
+        let rejectedDuplicate = 0;
         const horizon = Math.max(50, Number(holdMins||50));
         const events = (Array.isArray(loggedLastWeek) ? loggedLastWeek : []).filter(ev=>ev && ev.pub && !Number.isNaN(Date.parse(ev.pub)));
 
@@ -2714,6 +2782,9 @@ function App() {
           const activeEvents = activeEventsFor(c.ts);
           if(!isReplayExecuteWindow(et.h24, et.m)) { rejectedNonExecute++; continue; }
           const replay = replaySignal(et.h24, et.m, activeEvents);
+          const scoreKey = [c.ts, et.h24, et.m, replay.signal].join('|');
+          if(scoredKeys.has(scoreKey)) { rejectedDuplicate++; continue; }
+          scoredKeys.add(scoreKey);
           const score  = scoreSignalWindow(replay.signal, c.open, future);
           const confirmations = buildConfirmationTags(replay, score);
           sessions.push({
@@ -2787,7 +2858,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl('#999',{marginBottom:10})}>REPLAY — BTC 1M ENGINE</div>
         <div style={{fontSize:12,color:'#666',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window, and it only scores timestamps that land in the execution hours from Code2.
+          Replay now scores BTC on 1-minute candles. A replay win Strict replay scores only when TP is hit before stop and only at execution hours.
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -3215,7 +3286,7 @@ function App() {
 
         {/* Toggle */}
         <div style={{display:"flex",gap:6,marginBottom:14}}>
-          {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
+          {[{id:"feed",l:"📰 FEED"},{id:"news",l:"⚡ BREAKING"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
               border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
