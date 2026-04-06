@@ -2553,11 +2553,11 @@ function App() {
     const [playIdx,  setPlayIdx]  = React.useState(0);
     const [playing,  setPlaying]  = React.useState(false);
     const [holdMins, setHoldMins] = React.useState(()=>{
-      try{ return Math.max(1, Number(localStorage.getItem('engin3ReplayHoldMins')||1)); }catch(e){ return 1; }
+      try{ return Math.max(50, Number(localStorage.getItem('engin3ReplayHoldMins')||50)); }catch(e){ return 50; }
     });
     const [diag, setDiag] = React.useState(null);
 
-    const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
+    const loggedLastWeek = React.useMemo(()=> tab==="replay" ? buildUnifiedNewsEvents(Date.now()) : [], [tab, newsArticles, calArticles, ecoArticles, replayEvents]);
 
     React.useEffect(()=>{
       try{ localStorage.setItem('engin3ReplayHoldMins', String(holdMins)); }catch(e){}
@@ -2769,15 +2769,23 @@ function App() {
       else tags.push('MISS');
       return tags;
     }
+    function isReplayExecuteWindow(h24, m){
+      const hh = Number(h24||0);
+      const mm = Number(m||0);
+      if(mm !== 0) return false;
+      return hh===2 || hh===5 || hh===8 || hh===11 || hh===14 || hh===17 || hh===20 || hh===23;
+    }
+
 
     async function runReplay() {
-      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(1, Number(holdMins||1)) });
+      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(50, Number(holdMins||50)) });
       try {
         const candles = await fetchReplayCandles();
         if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
 
         const sessions = [];
-        const horizon = Math.max(1, Number(holdMins||1));
+        let rejectedNonExecute = 0;
+        const horizon = Math.max(50, Number(holdMins||50));
         const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
         const events = (Array.isArray(loggedLastWeek) ? loggedLastWeek : []).filter(ev=>ev && ev.pub && !Number.isNaN(Date.parse(ev.pub)));
 
@@ -2790,6 +2798,7 @@ function App() {
           const future = candles.slice(i+1, i+1+horizon);
           const et = getETParts(c.ts);
           const activeEvents = activeEventsFor(c.ts);
+          if(!isReplayExecuteWindow(et.h24, et.m)) { rejectedNonExecute++; continue; }
           const replay = replaySignal(et.h24, et.m, activeEvents);
           const score  = scoreSignalWindow(replay.signal, c.open, future);
           const confirmations = buildConfirmationTags(replay, score);
@@ -2837,7 +2846,7 @@ function App() {
         }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
 
         const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: eventCount, bySignal, byConfirm, holdMins:horizon };
-        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon });
+        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon, rejectedNonExecute });
 
         if(!replayRows.length){
           setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated from the event timestamps in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
