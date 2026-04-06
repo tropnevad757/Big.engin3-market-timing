@@ -17,10 +17,10 @@ body{overflow-x:hidden}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 14px #f0a03055)}50%{filter:drop-shadow(0 0 30px #f0a030aa)}}
 input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
-#loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .5s}
-#loader img{width:170px;height:170px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
+#loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .25s}
+#loader img{width:96px;height:96px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
 #spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
-#loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
+#loader p{margin-top:10px;font-size:6px;letter-spacing:3px;color:#2a2a2a}
 </style>
 </head>
 <body>
@@ -901,9 +901,16 @@ function App() {
     }
   }, []);
 
-  // Fetch on mount + every 90 seconds
+  // Fetch market only after first paint/idle so page can render first
   useEffect(()=>{
-    fetchMarketData();
+    const start = ()=>{
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(()=>fetchMarketData(), { timeout: 1200 });
+      } else {
+        setTimeout(()=>fetchMarketData(), 350);
+      }
+    };
+    start();
     const t = setInterval(fetchMarketData, 90000);
     return ()=>clearInterval(t);
   }, []);
@@ -2076,7 +2083,23 @@ function App() {
   },[newsView,newsSrc]);
 
   // On mount, pre-load default feed + calendar
-  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); },[]);
+  useEffect(()=>{
+    const boot = ()=>{
+      newsLoadedFor.current = newsSrc;
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(()=>{
+          try{ fetchNews(newsSrc); }catch(e){}
+          try{ fetchCalendar(); }catch(e){}
+        }, { timeout: 1500 });
+      } else {
+        setTimeout(()=>{
+          try{ fetchNews(newsSrc); }catch(e){}
+          try{ fetchCalendar(); }catch(e){}
+        }, 500);
+      }
+    };
+    boot();
+  },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -3202,7 +3225,7 @@ const BacktestTab = ()=>{
         try{ fetchNews(newsSrc || "combo"); }catch(e){}
         try{ fetchCalendar(); }catch(e){}
       };
-      const t = setInterval(refreshAll, 45000);
+      const t = setInterval(refreshAll, 90000);
       return ()=>clearInterval(t);
     }, [newsSrc]);
 
