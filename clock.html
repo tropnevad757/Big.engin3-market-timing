@@ -30,8 +30,8 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>ZONE CLOCK</p>
 </div>
 <div id="root"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
 <script type="text/babel">
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ function getTZ(tz) {
     const p=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"numeric",minute:"numeric",second:"numeric",hour12:false}).formatToParts(new Date());
     const g=t=>parseInt((p.find(x=>x.type===t)||{value:0}).value|| 0);
     const h24=g("hour")%24; return {h:h24%12,m:g("minute"),s:g("second"),h24};
-  } catch (e) { const d=new Date(); return {h:d.getHours()%12,m:d.getMinutes(),s:d.getSeconds(),h24:d.getHours()}; }
+  } catch { const d=new Date(); return {h:d.getHours()%12,m:d.getMinutes(),s:d.getSeconds(),h24:d.getHours()}; }
 }
 
 function fmt(h24,m,s) {
@@ -72,7 +72,7 @@ function convertTime(z,localTZ) {
     const et=getTZ("America/New_York"),lc=getTZ(localTZ),off=(lc.h24*60+lc.m)-(et.h24*60+et.m);
     const cvt=(h,mn)=>{ const t=(((h%12)*60+mn+off)%(24*60)+24*60)%(24*60); return fmt(Math.floor(t/60),t%60); };
     return cvt(z.h1,z.m1)+" – "+cvt(z.h2,z.m2);
-  } catch (e) { return "–"; }
+  } catch { return "–"; }
 }
 
 const { useState, useEffect, useRef, useCallback } = React;
@@ -103,41 +103,41 @@ const TRAP_TIMES = [
 const BASE_ZONES = [
   // ── AM ZONES ──────────────────────────────────────────────────────────────
   { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
-    pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Asian session momentum." },
+    pocket:{ label:"OVERNIGHT SELL", note:"1:30 AM anchor. Asian session momentum." },
     subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
   { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
-    pocket:{ label:"PRE-MARKET BUY", note:"Anchor. London open overlap." },
+    pocket:{ label:"PRE-MARKET BUY", note:"4:30 AM anchor. London open overlap." },
     subStart:{ h:5, m:0 }, subEnd:{ h:6, m:0 }, starRating:4 },
   { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
-    pocket:{ label:"TRANSITION FLUSH", note:"Anchor. Short flush before NY open." },
+    pocket:{ label:"TRANSITION FLUSH", note:"6:30 AM anchor. Short flush before NY open." },
     subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
   { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
-    pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open. Highest institutional volume." },
+    pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open 9:30. Highest institutional volume." },
     subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
   { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
-    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close. AM trend exhausts." },
+    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close 11:00–11:30. AM trend exhausts." },
     subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 }, starRating:4 },
   { id:"z12_am", type:"buy",  h1:12, m1:30, h2:1,  m2:30, label:"Z12",
-    pocket:{ label:"LUNCH REVERSAL", note:"Regime switch. Post-lunch liquidity grab." },
+    pocket:{ label:"LUNCH REVERSAL", note:"12:30 PM regime switch. Post-lunch liquidity grab." },
     subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
   // ── PM ZONES ──────────────────────────────────────────────────────────────
   { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1",
-    pocket:{ label:"POWER HOUR CLOSE", note:"Fund rebalancing. CME close." },
+    pocket:{ label:"POWER HOUR CLOSE", note:"3:00–4:15 PM. Fund rebalancing + CME close 4:15." },
     subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
   { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
-    pocket:{ label:"DAILY CLOSE TRAP", note:"Bank reset. Forex stops run before close." },
+    pocket:{ label:"DAILY CLOSE TRAP", note:"5:00 PM ET bank reset. Forex stops run before close." },
     subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 }, starRating:3 },
   { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6",
-    pocket:{ label:"EVENING TRANSITION", note:"Anchor. Short flush — thin volume." },
+    pocket:{ label:"EVENING TRANSITION", note:"6:30 PM anchor. Short flush — thin volume." },
     subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
   { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
-    pocket:{ label:"ASIAN PRE-MARKET", note:"Overnight levels set here." },
+    pocket:{ label:"ASIAN PRE-MARKET", note:"7:30–10:30 PM. Overnight levels set here." },
     subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
   { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
-    pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Late Asia sell into midnight." },
+    pocket:{ label:"OVERNIGHT SELL", note:"10:30 PM anchor. Late Asia sell into midnight." },
     subStart:{ h:23, m:0 }, subEnd:{ h:0, m:0 }, starRating:2 },
   { id:"z12_pm", type:"buy",  h1:0,  m1:30, h2:1,  m2:30, label:"Z12",
-    pocket:{ label:"PRE-DAWN BUY", note:"Counter move before anchor fires." },
+    pocket:{ label:"PRE-DAWN BUY", note:"12:30 AM counter move before 1:30 anchor fires." },
     subStart:{ h:0, m:45 }, subEnd:{ h:1, m:15 }, starRating:1 },
 ];
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
@@ -201,107 +201,87 @@ const REGIME_CURRENCIES = {
 
 // NEWS REACTION WINDOWS — symmetric (before AND after event)
 // Stars → window in mins, TP targets as % move from entry
-// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
 const NEWS_REACTION = {
-  break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
-  1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
-  2:     { window: 50,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
-  3:     { window: 80,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
+  break: { window: 15,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
+  1:     { window: 15,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
+  2:     { window: 45,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
+  3:     { window: 75,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NEWS WINDOW CONFIG — separates SCHEDULED (symmetric) / BREAKING (forward-only)
+//                      / SPEECH (forward-only, multiplier ×3)
+//
+// SCHEDULED ECONOMIC CALENDAR:
+//   1★ = ±15 min before AND after event (symmetric)
+//   2★ = ±45 min before AND after event (symmetric)
+//   3★ = ±75 min before AND after event (symmetric)
+//
+// BREAKING NEWS (Reuters/Bloomberg style):
+//   Forward-only: pre=0, post=15 min
+//   Negative breaking event can flip/override active charge when it conflicts
+//   Positive breaking event reinforces existing positive state
+//
+// SPEECH (Powell, press conference, testimony etc.):
+//   Forward-only: pre=0, post=60 min
+//   multiplier=3 — counts as 3 news hits in polarity math
+//   Each relevant update in speech = additional negative/positive pressure unit
+// ══════════════════════════════════════════════════════════════════════════════
+function getNewsWindowConfig(ev) {
+  const title = (ev.title||"").toLowerCase();
+  // SPEECH detection: forward-only, long window, multiplier ×3
+  if(ev.kind==="speech" || /powell|speech|remarks|testimony|presser|press conference|statement/.test(title)) {
+    return { pre:0, post:60, multiplier:3, type:"speech", label:"SPEECH ×3",
+             stars: ev.stars||2, tps:[0.3,0.6,0.9], fibs:[161,200] };
+  }
+  // BREAKING NEWS: forward-only 15-min window — no pre-event suppression
+  // Negative breaking can OVERRIDE charge; positive only REINFORCES
+  if(ev.isBreaking || ev.kind==="breaking") {
+    return { pre:0, post:15, multiplier:1, type:"breaking", label:"BREAKING",
+             stars:0, tps:[0,0,0], fibs:[61.8,78.6] };
+  }
+  // SCHEDULED ECONOMIC CALENDAR: symmetric pre/post windows by star rating
+  const stars = Math.max(1, Math.min(3, Number(ev.stars||1)));
+  if(stars===3) return { pre:75, post:75, multiplier:1, type:"scheduled", label:"★★★", stars:3, tps:[0.3,0.6,0.9], fibs:[261,300] };
+  if(stars===2) return { pre:45, post:45, multiplier:1, type:"scheduled", label:"★★",  stars:2, tps:[0.3,0.6,0],   fibs:[161,200] };
+  return              { pre:15, post:15, multiplier:1, type:"scheduled", label:"★",   stars:1, tps:[0.3,0,0],     fibs:[100,127] };
+}
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
 // +/+ = − (sell)  +/− = + (buy)  −/− = + (buy)  −/+ = − (sell)
-// ══════════════════════════════════════════════════════════════════════════════
-// TWO-MODE POLARITY MATH ENGINE
-// ══════════════════════════════════════════════════════════════════════════════
-//
-// MODE 1 — WINDOW MATH  (window-vs-window or news-vs-news)
-//   pos + pos => neg
-//   neg + neg => pos   ← only this case flips to positive
-//   pos + neg => neg
-//   neg + pos => neg
-//
-// MODE 2 — TIME MATH  (time-slot-vs-news)
-//   same signs  => pos   (like sign multiplication)
-//   diff signs  => neg
-//   positive result in a positive/up window => move UP
-//
-// IMPORTANT: movement direction and slot polarity are stored separately.
-// Do not assume up=positive or down=negative across the whole system.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ── WINDOW MATH ───────────────────────────────────────────────────────────────
-// Used for: window-vs-window, news-vs-news calculations
+// ── WINDOW MATH: window-vs-window / news-vs-news ──────────────────────────────
+// pos+pos→neg  neg+neg→pos  pos+neg→neg  neg+pos→neg
 function resolveWindowMath(a, b) {
-  // Only neg+neg flips to positive — everything else resolves negative
   if(a === "negative" && b === "negative") return "positive";
   return "negative";
 }
 
-// ── TIME MATH ─────────────────────────────────────────────────────────────────
-// Used for: time-slot-vs-news, timetable interactions
+// ── TIME MATH: time-slot-vs-news (sign multiplication) ────────────────────────
+// same signs→pos  different signs→neg
 function resolveTimeMath(a, b) {
-  // Same signs = positive, opposite signs = negative (sign multiplication)
   if(a === b) return "positive";
   return "negative";
 }
 
-// ── POLARITY STATE BUILDER ────────────────────────────────────────────────────
-// Builds the full polarity state for a given slot, separating:
-//   baseDirection  — natural scheduled movement without news
-//   slotPolarity   — polarity label for time-based math
-//   movement       — "up" | "down" (resolved from base)
-//
-// baseDir: "buy" | "sell" (from INTERNAL_STEPS)
-// slotPol: "positive" | "negative" (from ZONE_WINDOWS pol field)
+// ── POLARITY STATE ─────────────────────────────────────────────────────────────
 function buildPolarityState(baseDir, slotPol) {
-  return {
-    baseDirection: baseDir,          // "buy" | "sell" — natural movement, no news
-    slotPolarity:  slotPol,          // "positive" | "negative" — used in time math
-    movement:      baseDir === "buy" ? "up" : "down",  // display direction
-  };
+  return { baseDirection:baseDir, slotPolarity:slotPol,
+           movement: baseDir==="buy"?"up":"down" };
 }
-
-// ── APPLY NEWS TO SLOT ────────────────────────────────────────────────────────
-// Given a polarity state and a news polarity, applies the right math mode
-// and returns the final movement direction
-//
-// newsPolarity: "positive" | "negative" | null
-// calcType: "time"   → TIME MATH  (slot vs news)
-//           "window" → WINDOW MATH (news vs news)
-//           null     → no news, return baseDirection as-is
 function applyNewsToSlot(polarityState, newsPolarity, calcType) {
-  if(!newsPolarity || !calcType) {
-    // No news — natural base direction wins
-    return {
-      finalDirection: polarityState.baseDirection,
-      finalMovement:  polarityState.movement,
-      mathUsed: "none",
-      result: null,
-    };
-  }
-
-  let result;
-  if(calcType === "time") {
-    result = resolveTimeMath(polarityState.slotPolarity, newsPolarity);
-  } else {
-    result = resolveWindowMath(polarityState.slotPolarity, newsPolarity);
-  }
-
-  // Final rule:
-  // same signs = + BUY
-  // opposite signs = - SELL
-  const finalMovement = result === "positive" ? "up" : "down";
-
-  return {
-    finalDirection: result === "positive" ? "buy" : "sell",
-    finalMovement,
-    mathUsed: calcType,
-    result,
-  };
+  if(!newsPolarity || !calcType) return {
+    finalDirection:polarityState.baseDirection,
+    finalMovement:polarityState.movement, mathUsed:"none", result:null };
+  const result = calcType==="time"
+    ? resolveTimeMath(polarityState.slotPolarity, newsPolarity)
+    : resolveWindowMath(polarityState.slotPolarity, newsPolarity);
+  const isPositiveWindow = polarityState.slotPolarity === "positive";
+  const finalMovement = result==="positive" ? (isPositiveWindow?"up":"down") : (isPositiveWindow?"down":"up");
+  return { finalDirection:finalMovement==="up"?"buy":"sell",
+           finalMovement, mathUsed:calcType, result };
 }
 
-// Legacy sign function kept for backward compat — not used in new logic
+// Legacy sign function
 function polaritySign(timeSign, valueSign) {
   if(timeSign > 0 && valueSign > 0) return -1;
   if(timeSign > 0 && valueSign < 0) return +1;
@@ -363,99 +343,11 @@ function getTrapAnchorStatus(et) {
   });
 }
 
-function getDateKeyInTZ(tz){
-  try{
-    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
-    const g=t=>(parts.find(x=>x.type===t)||{value:'00'}).value;
-    return `${g('year')}-${g('month')}-${g('day')}`;
-  }catch(e){
-    const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0');
-    return `${d.getFullYear()}-${m}-${day}`;
-  }
-}
-
-function marketKeyForInstrument(inst){
-  const s=String(inst||'').toUpperCase();
-  if(s==='BTC') return 'btc';
-  if(s==='ES') return 'es';
-  if(s==='NQ') return 'nq';
-  if(s==='GC' || s==='GOLD') return 'gc';
-  if(s==='DXY' || s==='USD') return 'dxy';
-  return null;
-}
-
-function getLiveInstrumentPrice(inst, manualPrice, marketData){
-  const mp = parseFloat(manualPrice);
-  if(mp>0) return mp;
-  const mk = marketKeyForInstrument(inst);
-  const live = mk && marketData && marketData[mk] && Number(marketData[mk].price);
-  return Number.isFinite(live) ? live : 0;
-}
-
-function deriveVwapBands(anchorPrice, elapsed){
-  const p = Number(anchorPrice)||0;
-  const e = Number(elapsed)||0;
-  const bf = 1 + (Math.min(180, Math.max(0,e))/180)*0.6;
-  if(!(p>0)) return {vwap:0, ub2:0, ub3:0, lb2:0, lb3:0, bf};
-  return {
-    vwap:p,
-    ub2:p*(1+0.0016*bf),
-    ub3:p*(1+0.0026*bf),
-    lb2:p*(1-0.0016*bf),
-    lb3:p*(1-0.0026*bf),
-    bf
-  };
-}
-
-function getAnchorSnapshot(trap, anchors, inst){
-  if(!trap || !anchors) return null;
-  const today = getDateKeyInTZ('America/New_York');
-  const prev = getDateKeyInTZ('UTC'); // fallback key only
-  const keys = [`${trap.id}_${today}`, `${trap.id}_${prev}`];
-  for(const k of keys){
-    const snap = anchors[k];
-    if(snap && snap.prices){
-      const v = Number(snap.prices[inst]);
-      if(Number.isFinite(v) && v>0) return { ...snap, anchorPrice:v };
-    }
-  }
-  const any = Object.values(anchors).filter(x=>x && x.id===trap.id).sort((a,b)=>String(b.capturedAt||'').localeCompare(String(a.capturedAt||'')))[0];
-  if(any && any.prices){
-    const v = Number(any.prices[inst]);
-    if(Number.isFinite(v) && v>0) return { ...any, anchorPrice:v };
-  }
-  return null;
-}
-
-function getAutoVwapConfirmation({inst, manualPrice, marketData, trapStatus, anchors, zoneType}){
-  const livePrice = getLiveInstrumentPrice(inst, manualPrice, marketData);
-  if(!(livePrice>0)) return {status:'neutral', title:'VWAP waiting', note:'Needs a live price or manual price input.'};
-  const active = (trapStatus||[]).filter(t=>t.active);
-  if(!active.length) return {status:'neutral', title:'VWAP neutral', note:'No active anchor.'};
-  const enriched = active.map(t=>{
-    const snap = getAnchorSnapshot(t, anchors, inst);
-    if(!snap || !(snap.anchorPrice>0)) return null;
-    const bands = deriveVwapBands(snap.anchorPrice, t.elapsed);
-    return { ...t, anchorPrice:snap.anchorPrice, ...bands };
-  }).filter(Boolean);
-  if(!enriched.length) return {status:'neutral', title:'VWAP neutral', note:'Anchor is active, but no captured anchor price is available yet.'};
-  const closest = enriched.map(t=>{
-    const d = Math.min(Math.abs(livePrice-t.lb2), Math.abs(livePrice-t.lb3), Math.abs(livePrice-t.ub2), Math.abs(livePrice-t.ub3));
-    return {...t, distance:d};
-  }).sort((a,b)=>a.distance-b.distance)[0];
-  if(livePrice <= closest.lb3) return {status:'buy', title:'Lower 3 band hit', note:'Supports BUY confirmation.', anchor:closest.label};
-  if(livePrice <= closest.lb2) return {status:'buy', title:'Lower band area hit', note:'Supports BUY confirmation.', anchor:closest.label};
-  if(livePrice >= closest.ub3) return {status:'sell', title:'Upper 3 band hit', note:'Supports SELL confirmation.', anchor:closest.label};
-  if(livePrice >= closest.ub2) return {status:'sell', title:'Upper band area hit', note:'Supports SELL confirmation.', anchor:closest.label};
-  const base = zoneType==='buy' ? 'Watching lower bands for buy support.' : zoneType==='sell' ? 'Watching upper bands for sell support.' : 'Waiting for band touch.';
-  return {status:'neutral', title:'VWAP neutral', note:base, anchor:closest.label};
-}
-
 // Audio
 function useAudio() {
   const ctx = useRef(null);
   const go  = () => { if(!ctx.current) ctx.current=new(window.AudioContext||window.webkitAudioContext)(); return ctx.current; };
-  const tone = (f,d,v=0.18) => { try { const c=go(),o=c.createOscillator(),g=c.createGain(); o.connect(g);g.connect(c.destination); o.frequency.value=f; g.gain.setValueAtTime(v,c.currentTime); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d); o.start(c.currentTime); o.stop(c.currentTime+d); } catch (err) {} };
+  const tone = (f,d,v=0.18) => { try { const c=go(),o=c.createOscillator(),g=c.createGain(); o.connect(g);g.connect(c.destination); o.frequency.value=f; g.gain.setValueAtTime(v,c.currentTime); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d); o.start(c.currentTime); o.stop(c.currentTime+d); } catch {} };
   return {
     buy:  ()=>{tone(440,.07);setTimeout(()=>tone(523,.07),80);setTimeout(()=>tone(659,.07),160);setTimeout(()=>tone(784,.4),240);},
     sell: ()=>{tone(784,.07);setTimeout(()=>tone(659,.07),80);setTimeout(()=>tone(523,.07),160);setTimeout(()=>tone(440,.4),240);},
@@ -484,6 +376,170 @@ const TZ_LIST = [
 ];
 
 // ─── CLOCK FACE ───────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// NEWS STATUS PANEL — shows active scheduled + breaking news windows
+// Displays: event type, stars, source/country, time-left countdown,
+//           whether event is affecting polarity (reinforcing or overriding)
+// ══════════════════════════════════════════════════════════════════════════════
+function NewsStatusPanel({ newsReaction }) {
+  if(!newsReaction || !newsReaction.active || !newsReaction.activeWindows?.length) return null;
+
+  const G = "#00ff88", R = "#ff3355", A = "#f0a030";
+  const mono = {fontFamily:"'Share Tech Mono',monospace"};
+
+  const typeColor = (t) => t==="speech"?"#aa88ff":t==="breaking"?R:A;
+  const typeIcon  = (t) => t==="speech"?"🎤":t==="breaking"?"⚡":"📅";
+
+  // Group: scheduled first, then speeches, then breaking
+  const sorted = [...newsReaction.activeWindows].sort((a,b)=>{
+    const order = {scheduled:0, speech:1, breaking:2};
+    return (order[a.type]||3)-(order[b.type]||3);
+  });
+
+  return(
+    <div style={{
+      background:"rgba(255,255,255,0.03)",
+      border:"1px solid rgba(255,255,255,0.08)",
+      borderRadius:12, padding:"11px 14px", marginBottom:10
+    }}>
+      {/* Header row */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{fontSize:10,letterSpacing:2,color:"#888",fontWeight:700,...mono}}>
+          NEWS ACTIVE
+        </div>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+          {newsReaction.hasScheduled && <span style={{fontSize:12,color:A,background:`${A}18`,borderRadius:4,padding:"1px 7px",...mono}}>📅 {newsReaction.scheduledCount}</span>}
+          {newsReaction.hasSpeech    && <span style={{fontSize:12,color:"#aa88ff",background:"rgba(170,136,255,0.18)",borderRadius:4,padding:"1px 7px",...mono}}>🎤 ×{newsReaction.speechMultiplier}</span>}
+          {newsReaction.hasBreaking  && <span style={{fontSize:12,color:R,background:`${R}18`,borderRadius:4,padding:"1px 7px",...mono}}>⚡ {newsReaction.breakingCount}</span>}
+        </div>
+      </div>
+
+      {/* Event rows */}
+      {sorted.slice(0,4).map((w,i)=>{
+        const tc  = typeColor(w.type);
+        const pct = w.minsLeft > 0 ? Math.round((w.minsLeft / (w.type==="breaking"?15:w.type==="speech"?60:w.stars===3?75:w.stars===2?45:15))*100) : 0;
+        return(
+          <div key={i} style={{
+            borderTop: i>0 ? "1px solid rgba(255,255,255,0.05)" : "none",
+            paddingTop: i>0 ? 7 : 0,
+            paddingBottom:5,
+          }}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:"#ddd",fontWeight:700,marginBottom:2,
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {typeIcon(w.type)} {w.title.slice(0,48)}{w.title.length>48?"…":""}
+                </div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:tc,fontWeight:700,background:`${tc}18`,borderRadius:4,padding:"1px 6px",...mono}}>
+                    {w.label}
+                  </span>
+                  {w.country && <span style={{fontSize:12,color:"#aaa",...mono}}>{w.country}</span>}
+                  <span style={{fontSize:12,color:"#888",...mono}}>{w.source}</span>
+                  {w.isOverride    && <span style={{fontSize:12,color:R,fontWeight:700}}>OVERRIDE</span>}
+                  {w.isReinforcing && !w.isOverride && <span style={{fontSize:12,color:G,fontWeight:700}}>REINFORCE</span>}
+                </div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:14,fontWeight:900,color:tc,...mono}}>{w.minsLeft}m</div>
+                <div style={{fontSize:10,color:"#555",...mono}}>LEFT</div>
+              </div>
+            </div>
+            {/* Countdown bar */}
+            <div style={{height:2,background:"rgba(255,255,255,0.05)",borderRadius:1,overflow:"hidden",marginTop:5}}>
+              <div style={{height:"100%",width:`${pct}%`,background:tc,borderRadius:1,transition:"width 1s"}}/>
+            </div>
+          </div>
+        );
+      })}
+
+      {sorted.length > 4 && (
+        <div style={{fontSize:12,color:"#555",...mono,marginTop:5}}>
+          +{sorted.length-4} more events in window
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SIGNAL STATE PANEL — shows step-by-step polarity calculation
+// BASE CHARGE → CONNECTOR MODE → NEWS IMPACT → SPEECH MULTIPLIER → FINAL SIGNAL
+// ══════════════════════════════════════════════════════════════════════════════
+function SignalStatePanel({ internalStep, connectorMode, newsReaction, polarityState, timeMathResult, finalSignal }) {
+  const G = "#00ff88", R = "#ff3355", A = "#f0a030";
+  const mono = {fontFamily:"'Share Tech Mono',monospace"};
+
+  const sd  = internalStep?.direction || "buy";
+  const sdC = sd==="buy" ? G : R;
+  const cm  = connectorMode || "aligned";
+  const cmC = cm==="mirror" ? R : G;
+  const fS  = finalSignal?.label || (sd==="buy"?"BUY":"SELL");
+  const fC  = finalSignal?.col   || (sd==="buy" ? G : R);
+
+  // News summary for display
+  const nActive = newsReaction?.active || false;
+  const nLevel  = newsReaction?.level  || "none";
+  const nSup    = newsReaction?.suppressPts || 0;
+  const nCol    = nSup > 0 ? G : nSup < 0 ? R : "#888";
+  const nLabel  = !nActive ? "CLEAR" : newsReaction?.hasBreaking ? "BREAKING" : newsReaction?.hasSpeech ? `SPEECH ×${newsReaction.speechMultiplier}` : `${newsReaction.scheduledCount} SCHEDULED`;
+
+  // Polarity math result
+  const pmResult = timeMathResult ? timeMathResult.finalDirection : sd;
+  const pmCol    = pmResult==="buy" ? G : R;
+  const pmLabel  = timeMathResult ? (timeMathResult.mathUsed==="time"?"TIME MATH":"WINDOW MATH") : "BASE ONLY";
+
+  const rows = [
+    { label:"BASE STEP",      val:sd.toUpperCase(), arrow:sd==="buy"?"▲":"▼", col:sdC,
+      note:`Internal step: ${sd} direction` },
+    { label:"CONNECTOR",      val:cm.toUpperCase(),  arrow:null,               col:cmC,
+      note:cm==="mirror"?"Mirror window — neg×neg→pos":"Aligned window — same sign→pos" },
+    { label:"NEWS IMPACT",    val:nLabel,           arrow:nSup>=0?"+":"−",    col:nCol,
+      note:nActive?`${nLabel} · ${Math.abs(nSup)}pts`:"No active news windows" },
+    ...(newsReaction?.hasSpeech ? [{
+      label:"SPEECH ×3",      val:`×${newsReaction.speechMultiplier} HITS`,  arrow:null, col:"#aa88ff",
+      note:"Speech counts as multiple news events stacked"
+    }] : []),
+    { label:"POLARITY MATH",  val:pmLabel,          arrow:null,               col:A,
+      note:`${polarityState?.slotPolarity||"?"} + ${newsReaction?.active?"news":"base"} → ${pmResult}` },
+    { label:"FINAL SIGNAL",   val:fS,               arrow:fS==="BUY"?"▲":"▼", col:fC,
+      note:"Charge engine output", isFinal:true },
+  ];
+
+  return(
+    <div style={{
+      background:"rgba(255,255,255,0.025)",
+      border:`1px solid rgba(255,255,255,0.07)`,
+      borderRadius:12, padding:"11px 14px", marginBottom:10
+    }}>
+      <div style={{fontSize:10,letterSpacing:2,color:"#888",fontWeight:700,...mono,marginBottom:8}}>
+        SIGNAL STATE
+      </div>
+      {rows.map((row,i)=>(
+        <div key={i} style={{
+          display:"flex",alignItems:"center",gap:10,
+          padding:"5px 0",
+          borderTop: i>0?"1px solid rgba(255,255,255,0.04)":"none",
+          background: row.isFinal?`${row.col}08`:"transparent",
+          borderRadius: row.isFinal?6:0,
+          paddingLeft: row.isFinal?6:0, paddingRight: row.isFinal?6:0,
+        }}>
+          <div style={{fontSize:9,color:"#444",letterSpacing:1.5,fontWeight:700,...mono,minWidth:88,flexShrink:0}}>
+            {row.label}
+          </div>
+          <div style={{flex:1,fontSize:row.isFinal?16:14,fontWeight:row.isFinal?900:700,color:row.col,...mono}}>
+            {row.arrow&&<span style={{marginRight:3}}>{row.arrow}</span>}{row.val}
+          </div>
+          <div style={{fontSize:11,color:"#555",...mono,textAlign:"right",maxWidth:140,
+            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {row.note}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ClockFace({size=272, zones, et, hideTimes=true}) {
   const cx=size/2, cy=size/2, OR=size*.46, ZR=size*.38, SR=size*.32, TR=size*.41, NR=size*.33;
   const {h,m,s}=et;
@@ -551,21 +607,18 @@ function MiniBar({months}) {
 }
 
 // ─── VWAP BAND CARD — Band 2 only, clear trade signals ───────────────────────
-function VWAPBandCard({trap, et, price, marketData, inst, anchors}) {
+function VWAPBandCard({trap, et, price}) {
   const nowMins    = et.h24*60+et.m;
   const anchorMins = trap.h*60+trap.m;
   const elapsed    = ((nowMins - anchorMins)+1440)%1440;
   const active     = elapsed < 180;
   const pct        = Math.min(100, (elapsed/180)*100);
-  const livePrice  = getLiveInstrumentPrice(inst, price, marketData);
-  const snap       = getAnchorSnapshot(trap, anchors, inst);
-  const anchorBase = Number((snap && snap.anchorPrice) || livePrice || 0);
-  const bands      = deriveVwapBands(anchorBase, elapsed);
-  const ub2        = anchorBase>0 ? bands.ub2.toFixed(2) : "–";
-  const ub3        = anchorBase>0 ? bands.ub3.toFixed(2) : "–";
-  const lb2        = anchorBase>0 ? bands.lb2.toFixed(2) : "–";
-  const lb3        = anchorBase>0 ? bands.lb3.toFixed(2) : "–";
-  const vwapLine   = anchorBase>0 ? bands.vwap.toFixed(2) : "–";
+  const spread     = parseFloat(price)||0;
+  const bf         = active ? (1 + (elapsed/180)*0.6) : 0.5;
+  // Band 2 only — upper and lower
+  const ub2        = spread>0 ? (spread*(1+0.0016*bf)).toFixed(2) : "–";
+  const lb2        = spread>0 ? (spread*(1-0.0016*bf)).toFixed(2) : "–";
+  const vwapLine   = spread>0 ? spread.toFixed(2) : "–";
   const borderCol  = active ? A : "#1e1e2e";
   const mono       = {fontFamily:"'Share Tech Mono',monospace"};
 
@@ -596,9 +649,9 @@ function VWAPBandCard({trap, et, price, marketData, inst, anchors}) {
           display:"flex",justifyContent:"space-between",alignItems:"center"
         }}>
           <div>
-            <div style={{fontSize:13,letterSpacing:1.5,color:R,fontWeight:700,marginBottom:2}}>UPPER BANDS</div>
-            <div style={{fontSize:13,color:"#888",...mono}}>UB2 {ub2} · UB3 {ub3}</div>
-            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>Upper bands support sell confirmation.</div>
+            <div style={{fontSize:13,letterSpacing:1.5,color:R,fontWeight:700,marginBottom:2}}>UB2 — UPPER BAND</div>
+            <div style={{fontSize:13,color:"#888",...mono}}>Touch here → <span style={{color:R,fontWeight:700}}>LOOK FOR SELLS</span></div>
+            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>Signal: price reverses back toward VWAP</div>
           </div>
           <div style={{fontSize:16,fontWeight:900,color:R,...mono,textAlign:"right"}}>
             {ub2}
@@ -629,9 +682,9 @@ function VWAPBandCard({trap, et, price, marketData, inst, anchors}) {
           display:"flex",justifyContent:"space-between",alignItems:"center"
         }}>
           <div>
-            <div style={{fontSize:13,letterSpacing:1.5,color:G,fontWeight:700,marginBottom:2}}>LOWER BANDS</div>
-            <div style={{fontSize:13,color:"#888",...mono}}>LB2 {lb2} · LB3 {lb3}</div>
-            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>Lower bands support buy confirmation.</div>
+            <div style={{fontSize:13,letterSpacing:1.5,color:G,fontWeight:700,marginBottom:2}}>LB2 — LOWER BAND</div>
+            <div style={{fontSize:13,color:"#888",...mono}}>Touch here → <span style={{color:G,fontWeight:700}}>LOOK FOR BUYS</span></div>
+            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>Signal: price reverses back toward VWAP</div>
           </div>
           <div style={{fontSize:16,fontWeight:900,color:G,...mono,textAlign:"right"}}>
             {lb2}
@@ -646,7 +699,7 @@ function VWAPBandCard({trap, et, price, marketData, inst, anchors}) {
             <div style={{height:"100%",width:`${100-pct}%`,background:`${A}88`,borderRadius:2,transition:"width 1s"}}/>
           </div>
           <div style={{fontSize:14,color:"#888",...mono,marginTop:4,textAlign:"center",letterSpacing:1}}>
-            ANCHOR STRENGTH
+            ANCHOR STRENGTH · FADES OVER 3 HOURS
           </div>
         </div>
       )}
@@ -686,8 +739,7 @@ function App() {
   // Breaking news anchor — polarity override for high-impact events
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
   // Sweep confirmed — manual tap when liquidity sweep seen at VWAP anchor
-  const [sweepSeen, setSweepSeen] = useState(null); // {at: timestamp, dir: "buy"|"sell", expiresAt}
-  const [vwapTrap, setVwapTrap] = useState({ band:"", reaction:false, failure:false, displacement:false, firstTouch3:false, tradeCounts:{} });
+  
   // Live calendar state
   const [calArticles,  setCalArticles]  = useState([]);
   const [calLoading,   setCalLoading]   = useState(false);
@@ -697,36 +749,10 @@ function App() {
   const [ecoStarFilter,setEcoStarFilter]= useState(0); // 0=all, 1/2/3=min stars
   // ── Live market data for real-time correlation engine ────────────────────────
   const [marketData,   setMarketData]   = useState(null);
-  const safeLocalGet = (k,d=null)=>{ try{ return localStorage.getItem(k) ?? d; }catch(_){ return d; } };
-  const [replayEvents, setReplayEvents] = useState(()=>safeJsonParse(safeLocalGet("engin3ReplayEvents", null), []));
-  const [vwapAnchors, setVwapAnchors] = useState(()=>safeJsonParse(safeLocalGet("engin3VwapAnchors", null), {}));
   // {btc:{price,change24h,high24h,low24h}, dxy:{price,change}, es:{price,change}, nq:{price,change}}
   const marketFetchRef = useRef(false);
   const prevRef = useRef([]);
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
-
-  useEffect(()=>{
-    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,400))); }catch(e){}
-  },[replayEvents]);
-
-  useEffect(()=>{
-    try{ localStorage.setItem("engin3VwapAnchors", JSON.stringify(vwapAnchors||{})); }catch(e){}
-  },[vwapAnchors]);
-
-  const pushReplayEvent = useCallback((raw, overrides={})=>{
-    const nowIso = new Date().toISOString();
-    const title = (raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
-    const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
-    const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
-    const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
-    const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "manual";
-    const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : nowIso);
-    const event = { title, source, stars, polarity, kind, pub, country: raw?.country || overrides.country || "", note: raw?.desc || raw?.btc || overrides.note || "" };
-    if(!event.title) return;
-    setReplayEvents(prev=> dedupeFeedItems([event, ...prev]).slice(0,400));
-  },[]);
-
-  const clearReplayEvents = useCallback(()=>setReplayEvents([]),[]);
 
   const can = f => plan==="elite"||( plan==="pro"&&f!=="backtest_full"&&f!=="sub_pocket")||( plan==="free"&&["clock","news"].includes(f));
   const gate = (f,cb) => { if(can(f))cb(); else setSubOpen(true); };
@@ -735,62 +761,45 @@ function App() {
   const prevPolarityRef = useRef(null);
   const prevWindowRef   = useRef(null);
 
-  const VWAP_EXECUTE_POINTS = [90,120,270,300,450,480,630,660,810,840,990,1020,1170,1200,1350,1380];
-  const VWAP_EXECUTION_WINDOWS = [
-    { key:"am_0130_0430", from:90,  to:270,  label:"1:30–4:30 AM", overnight:true },
-    { key:"am_0730_1030", from:450, to:630,  label:"7:30–10:30 AM", overnight:false },
-    { key:"pm_0130_0430", from:810, to:990,  label:"1:30–4:30 PM", overnight:false },
-    { key:"pm_0730_1030", from:1170,to:1350, label:"7:30–10:30 PM", overnight:false },
-  ];
-  function getVwapExecutionWindow(h24,m){
-    const mins=h24*60+m;
-    return VWAP_EXECUTION_WINDOWS.find(w=>mins>=w.from&&mins<w.to)||null;
-  }
-  function isVwapExecutePoint(h24,m){ return VWAP_EXECUTE_POINTS.includes(h24*60+m); }
-  function getTradeCountForWindow(state, win){
-    if(!win) return 0;
-    return Number((state?.tradeCounts||{})[win.key]||0);
-  }
-
   // Zone transition anchor map — fires auto anchor at each zone open
   // All polarity flip points — fires auto-anchor at each transition
   // VWAP anchors (★★★) + key session flips (★★) + minor flips (★)
   const TRANSITION_ANCHORS = [
     // ─── AM ──────────────────────────────────────────────────────────────────
-    { mins:  60, label:"TRAP ↑",         polarity:-1, stars:2 }, // pre-VWAP stalk long
-    { mins:  90, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★ switch to sell
-    { mins: 120, label:"LIQUID ↑",             polarity:-1, stars:1 },
-    { mins: 180, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins: 240, label:"TRAP ↑",         polarity:-1, stars:2 }, // stalk long pre-VWAP
-    { mins: 270, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★
-    { mins: 300, label:"LIQUID ↑",             polarity:-1, stars:1 },
-    { mins: 360, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins: 390, label:"LIQUID ↑",             polarity:-1, stars:1 },
-    { mins: 420, label:"TRAP ↓",   polarity:+1, stars:2 }, // dip before Z7
-    { mins: 450, label:"TRAP ↑", polarity:-1, stars:3 }, // ★★★ Z7 primary
-    { mins: 480, label:"LIQUID ↓",    polarity:+1, stars:2 },
-    { mins: 540, label:"EXECUTE ↑",   polarity:-1, stars:3 }, // ★★★ highest expansion
-    { mins: 600, label:"TRAP ↓", polarity:+1, stars:2 },
+    { mins:  60, label:"STALK LONG ↑",         polarity:-1, stars:2 }, // pre-VWAP stalk long
+    { mins:  90, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★ switch to sell
+    { mins: 120, label:"COUNTER ↑",             polarity:-1, stars:1 },
+    { mins: 180, label:"CONTINUATION ↓",             polarity:+1, stars:2 },
+    { mins: 240, label:"STALK LONG ↑",         polarity:-1, stars:2 }, // stalk long pre-VWAP
+    { mins: 270, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★
+    { mins: 300, label:"RECOVERY ↑",             polarity:-1, stars:1 },
+    { mins: 360, label:"FLUSH ↓",             polarity:+1, stars:2 },
+    { mins: 390, label:"COUNTER ↑",             polarity:-1, stars:1 },
+    { mins: 420, label:"STALK BUY DIP ↓",   polarity:+1, stars:2 }, // dip before Z7
+    { mins: 450, label:"VWAP ANCHOR ↑", polarity:-1, stars:3 }, // ★★★ Z7 primary
+    { mins: 480, label:"PULLBACK ↓",    polarity:+1, stars:2 },
+    { mins: 540, label:"SESSION OPEN ↑",   polarity:-1, stars:3 }, // ★★★ highest expansion
+    { mins: 600, label:"STALK SELL ↓", polarity:+1, stars:2 },
     { mins: 630, label:"VWAP FADE ↑",  polarity:-1, stars:2 }, // fade the spike
     { mins: 660, label:"SELL MOMENTUM ↓",   polarity:+1, stars:3 }, // ★★★ sell momentum
-    { mins: 720, label:"TRAP ↑",      polarity:-1, stars:2 },
-    { mins: 750, label:"RECAL ↓", polarity:+1, stars:3 }, // ★★★
+    { mins: 720, label:"STALK LONG ↑",      polarity:-1, stars:2 },
+    { mins: 750, label:"REGIME SWITCH ↓", polarity:+1, stars:3 }, // ★★★
     // ─── PM (exact mirror) ───────────────────────────────────────────────────
-    { mins: 780, label:"TRAP ↑",         polarity:-1, stars:2 },
-    { mins: 810, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★ was missing
-    { mins: 840, label:"LIQUID ↑",             polarity:-1, stars:1 },
-    { mins: 900, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins: 960, label:"TRAP ↑",             polarity:-1, stars:2 },
-    { mins: 990, label:"TRAP ↓", polarity:+1, stars:3 }, // ★★★
-    { mins:1020, label:"LIQUID ↑",             polarity:-1, stars:1 },
-    { mins:1080, label:"EXECUTE ↓",             polarity:+1, stars:2 },
-    { mins:1110, label:"LIQUID ↑",             polarity:-1, stars:1 },
-    { mins:1140, label:"TRAP ↓",   polarity:+1, stars:2 },
-    { mins:1170, label:"TRAP ↑", polarity:-1, stars:3 }, // ★★★
-    { mins:1200, label:"LIQUID ↓",             polarity:+1, stars:2 },
+    { mins: 780, label:"STALK LONG ↑",         polarity:-1, stars:2 },
+    { mins: 810, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★ was missing
+    { mins: 840, label:"COUNTER ↑",             polarity:-1, stars:1 },
+    { mins: 900, label:"CONTINUATION ↓",             polarity:+1, stars:2 },
+    { mins: 960, label:"STALK LONG ↑",             polarity:-1, stars:2 },
+    { mins: 990, label:"VWAP ANCHOR ↓", polarity:+1, stars:3 }, // ★★★
+    { mins:1020, label:"RECOVERY ↑",             polarity:-1, stars:1 },
+    { mins:1080, label:"FLUSH ↓",             polarity:+1, stars:2 },
+    { mins:1110, label:"COUNTER ↑",             polarity:-1, stars:1 },
+    { mins:1140, label:"STALK BUY DIP ↓",   polarity:+1, stars:2 },
+    { mins:1170, label:"VWAP ANCHOR ↑", polarity:-1, stars:3 }, // ★★★
+    { mins:1200, label:"PULLBACK ↓",             polarity:+1, stars:2 },
     { mins:1260, label:"SESSION CONTINUATION ↑",             polarity:-1, stars:2 },
-    { mins:1320, label:"TRAP ↓",            polarity:+1, stars:2 },
-    { mins:1350, label:"TRAP ↑",polarity:-1, stars:3 }, // ★★★
+    { mins:1320, label:"STALK SELL ↓",            polarity:+1, stars:2 },
+    { mins:1350, label:"VWAP ANCHOR ↑",polarity:-1, stars:3 }, // ★★★
     { mins:1380, label:"OVERNIGHT ↓",            polarity:+1, stars:2 },
   ];
 
@@ -834,9 +843,7 @@ function App() {
 
       // Expire breaking anchor
       setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
-      // Expire sweep confirmation (lasts 20 minutes)
-      setSweepSeen(prev => prev && Date.now() > prev.expiresAt ? null : prev);
-    },15000);
+    },1000);
     return()=>clearInterval(t);
   },[zones,soundOn,plan,tz]);
 
@@ -901,45 +908,13 @@ function App() {
     }
   }, []);
 
-  // Fetch market only after first paint/idle so page can render first
+  // Fetch on mount + every 90 seconds
   useEffect(()=>{
-    const start = ()=>{
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(()=>fetchMarketData(), { timeout: 1200 });
-      } else {
-        setTimeout(()=>fetchMarketData(), 350);
-      }
-    };
-    start();
+    fetchMarketData();
     const t = setInterval(fetchMarketData, 90000);
     return ()=>clearInterval(t);
   }, []);
 
-  useEffect(()=>{
-    if(!marketData) return;
-    const etNow = getTZ("America/New_York");
-    const mins = etNow.h24*60 + etNow.m;
-    const trap = TRAP_TIMES.find(t=>t.h*60+t.m===mins);
-    if(!trap) return;
-    const dateKey = getDateKeyInTZ('America/New_York');
-    const k = `${trap.id}_${dateKey}`;
-    setVwapAnchors(prev=>{
-      if(prev && prev[k]) return prev;
-      const next = { ...(prev||{}) };
-      next[k] = {
-        id:trap.id, label:trap.label, h:trap.h, m:trap.m, period:trap.period, dateKey,
-        capturedAt:new Date().toISOString(),
-        prices:{
-          BTC:Number(marketData?.btc?.price||0),
-          ES:Number(marketData?.es?.price||0),
-          NQ:Number(marketData?.nq?.price||0),
-          GC:Number(marketData?.gc?.price||0),
-          DXY:Number(marketData?.dxy?.price||0),
-        }
-      };
-      return next;
-    });
-  }, [marketData, et.h24, et.m]);
 
   const nextZ    = zones.filter(z=>!liveIds.includes(z.id)).map(z=>({...z,mins:minsUntil(z,et.h,et.m)})).sort((a,b)=>a.mins-b.mins)[0];
   const allActive= cats.flatMap(c=>c.items.filter(i=>i.active));
@@ -982,7 +957,7 @@ function App() {
     // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
     { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
-    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 2:00–3:00 AM  : UP (counter inside Z1)
     { from: 120, to: 180, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 AM  : DOWN (continuation sell)
@@ -990,7 +965,7 @@ function App() {
     // 4:00–4:30 AM  : UP (pre-anchor stalk)
     { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
-    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 5:00–6:00 AM  : UP (Z4 recovery buy)
     { from: 300, to: 360, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
@@ -1000,7 +975,7 @@ function App() {
     // 7:00–7:30 AM  : DOWN (final flush before NY open)
     { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
-    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"TRAP ↑" },
+    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
     // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
     { from: 480, to: 540, pol:+1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 AM : UP (NYSE open expansion)
@@ -1014,13 +989,13 @@ function App() {
     // 12:00–12:30 AM: UP (pre-Z12 stalk)
     { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
-    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"RECAL ↓" },
+    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"REGIME SWITCH ↓" },
 
     // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
     // 1:00–1:30 PM  : UP
     { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 2:00–3:00 PM  : UP
     { from: 840, to: 900, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
     // 3:00–4:00 PM  : DOWN
@@ -1028,7 +1003,7 @@ function App() {
     // 4:00–4:30 PM  : UP
     { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
     // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
-    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"VWAP ANCHOR ↓" },
     // 5:00–6:00 PM  : UP
     { from:1020, to:1080, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
     // 6:00–6:30 PM  : DOWN
@@ -1038,7 +1013,7 @@ function App() {
     // 7:00–7:30 PM  : DOWN
     { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
     // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
-    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"TRAP ↑" },
+    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"VWAP ANCHOR ↑" },
     // 8:00–9:00 PM  : DOWN
     { from:1200, to:1260, pol:+1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
     // 9:00–10:00 PM : UP
@@ -1046,7 +1021,7 @@ function App() {
     // 10:00–10:30 PM: DOWN
     { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
     // 10:30–11:00 PM: UP ★ VWAP ANCHOR
-    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"TRAP ↑" },
+    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR ↑" },
     // 11:00–12:00 AM: DOWN
     { from:1380, to:1440, pol:+1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
   ];
@@ -1150,135 +1125,158 @@ function App() {
   // End of two-layer regime functions
 
   // ══════════════════════════════════════════════════════════════════════
-  // CONNECTOR + CHARGE ENGINE — exact no-duplicate version
+  // CONNECTOR + CHARGE ENGINE
   // ══════════════════════════════════════════════════════════════════════
+  // Interest rates — update monthly. USD is the anchor.
+  // USD anchor — Fed funds rate March 2026
+  // Equal-to-USD treated same as below (goes with lower)
+  // USD anchor — Fed funds range 3.50–3.75%, using upper bound
+  // Equal-to-USD treated same as below per system rules
   const USD_RATE = 3.75;
   const CHARGE_CURRENCIES = [
-    { sym:"USD", rate:3.75 },
-    { sym:"AUD", rate:4.10 },
-    { sym:"NOK", rate:4.00 },
-    { sym:"GBP", rate:3.75 },
-    { sym:"EUR", rate:2.15 },
-    { sym:"CAD", rate:2.25 },
-    { sym:"NZD", rate:2.25 },
-    { sym:"SEK", rate:2.25 },
-    { sym:"CHF", rate:0.00 },
-    { sym:"JPY", rate:0.75 },
-    { sym:"BRL", rate:14.75 },
-    { sym:"TRY", rate:40.00 },
-    { sym:"MXN", rate:9.00  },
-    { sym:"ISK", rate:8.50  },
-    { sym:"ZAR", rate:7.50  },
-    { sym:"HUF", rate:6.50  },
-    { sym:"RON", rate:6.50  },
-    { sym:"INR", rate:6.25  },
-    { sym:"IDR", rate:5.75  },
-    { sym:"PLN", rate:5.75  },
-    { sym:"PHP", rate:5.50  },
-    { sym:"ILS", rate:4.50  },
-    { sym:"CZK", rate:3.50  },
-    { sym:"MYR", rate:3.00  },
-    { sym:"SGD", rate:3.00  },
-    { sym:"CNY", rate:3.00  },
-    { sym:"KRW", rate:2.75  },
-    { sym:"DKK", rate:2.35  },
-    { sym:"TWD", rate:2.00  },
-    { sym:"THB", rate:2.00  },
+    // G10
+    { sym:"AUD", rate:4.10  }, // RBA — 4.10% (Mar 17 2026)
+    { sym:"NOK", rate:4.00  }, // Norges Bank — 4.00% (Mar 25 2026)
+    { sym:"GBP", rate:3.75  }, // BOE — 3.75% = equal → lower
+    { sym:"EUR", rate:2.15  }, // ECB deposit — 2.15%
+    { sym:"CAD", rate:2.25  }, // BOC — 2.25%
+    { sym:"NZD", rate:2.25  }, // RBNZ — 2.25%
+    { sym:"SEK", rate:2.25  }, // Riksbank — 2.25%
+    { sym:"CHF", rate:0.00  }, // SNB — 0.00%
+    { sym:"JPY", rate:0.75  }, // BOJ — 0.75%
+    // EM / Major Crosses
+    { sym:"BRL", rate:14.75 }, // Banco Central Brasil — 14.75%
+    { sym:"TRY", rate:40.00 }, // CBRT Turkey — ~40%
+    { sym:"MXN", rate:9.00  }, // Banxico Mexico — ~9.00%
+    { sym:"ISK", rate:8.50  }, // Seðlabanki Iceland — 8.50%
+    { sym:"ZAR", rate:7.50  }, // SARB South Africa — 7.50%
+    { sym:"HUF", rate:6.50  }, // MNB Hungary — 6.50%
+    { sym:"RON", rate:6.50  }, // BNR Romania — 6.50%
+    { sym:"INR", rate:6.25  }, // RBI India — 6.25%
+    { sym:"IDR", rate:5.75  }, // BI Indonesia — 5.75%
+    { sym:"PLN", rate:5.75  }, // NBP Poland — 5.75%
+    { sym:"PHP", rate:5.50  }, // BSP Philippines — 5.50%
+    { sym:"ILS", rate:4.50  }, // BOI Israel — 4.50%
+    { sym:"CZK", rate:3.50  }, // CNB Czech Republic — 3.50%
+    { sym:"MYR", rate:3.00  }, // BNM Malaysia — 3.00%
+    { sym:"SGD", rate:3.00  }, // MAS Singapore — 3.00%
+    { sym:"CNY", rate:3.00  }, // PBOC LPR — 3.00%
+    { sym:"KRW", rate:2.75  }, // BOK South Korea — 2.75%
+    { sym:"DKK", rate:2.35  }, // DNB Denmark — 2.35%
+    { sym:"TWD", rate:2.00  }, // CBC Taiwan — 2.00%
+    { sym:"THB", rate:2.00  }, // BOT Thailand — 2.00%
   ];
 
-  const MIRROR_RANGES = [
-    [30, 90], [270, 390], [450, 630],
-    [750, 810], [990, 1110], [1170, 1350],
-  ];
-
-  const ALIGNED_RANGES = [
-    [0, 30], [90, 270], [390, 450], [630, 750],
-    [810, 990], [1110, 1170], [1350, 1440],
-  ];
-
+  // Connector window: which logic applies right now (24h ET minutes)
+  // Mirror (−): 12:30–1:30 · 4:30–6:30 · 7:30–10:30  AM + PM
+  // Aligned (+): 1:30–4:30 · 6:30–7:30 · 10:30–12:30  AM + PM
   function getConnectorMode(h24, m) {
-    const t = h24 * 60 + m;
-    if (MIRROR_RANGES.some(([s, e]) => t >= s && t < e)) return "mirror";
-    if (ALIGNED_RANGES.some(([s, e]) => t >= s && t < e)) return "aligned";
+    const t = h24*60+m;
+    const MIRROR = [
+      [30,   90],   // 12:30–1:30 AM
+      [270,  390],  // 4:30–6:30 AM
+      [450,  630],  // 7:30–10:30 AM
+      [750,  810],  // 12:30–1:30 PM
+      [990,  1110], // 4:30–6:30 PM
+      [1170, 1350], // 7:30–10:30 PM
+    ];
+    const ALIGNED = [
+      [0,    30],   // 12:00–12:30 AM
+      [90,   270],  // 1:30–4:30 AM
+      [390,  450],  // 6:30–7:30 AM
+      [630,  750],  // 10:30 AM–12:30 PM
+      [810,  990],  // 1:30–4:30 PM
+      [1110, 1170], // 6:30–7:30 PM
+      [1350, 1440], // 10:30 PM–12:00 AM
+    ];
+    if(MIRROR.some(([s,e]) => t>=s && t<e))  return "mirror";
+    if(ALIGNED.some(([s,e]) => t>=s && t<e)) return "aligned";
     return "mirror";
   }
 
-  function stackCharges(a, b) {
-    if (a === 1 && b === 1) return -1;
-    if (a === -1 && b === -1) return 1;
-    return -1;
+  // Charge engine — applies mirror or aligned rules to interest rates
+  // ── COUNTRY INFERENCE from news title ────────────────────────────────────────
+  function inferCountry(title) {
+    if(!title) return null;
+    const t = title.toLowerCase();
+    if(/federal reserve|fomc|powell|nfp|payroll|us cpi|us gdp|us pce|united states/.test(t)) return "USD";
+    if(/ecb|european central bank|eurozone/.test(t)) return "EUR";
+    if(/bank of england|boe|britain|uk |pound sterling/.test(t)) return "GBP";
+    if(/bank of japan|boj|yen |jpy/.test(t)) return "JPY";
+    if(/bank of canada|boc|canada |canadian/.test(t)) return "CAD";
+    if(/reserve bank.*australia|rba|australia /.test(t)) return "AUD";
+    if(/rbnz|new zealand/.test(t)) return "NZD";
+    if(/snb|swiss national|switzerland/.test(t)) return "CHF";
+    if(/norges bank|norway|norwegian/.test(t)) return "NOK";
+    if(/riksbank|sweden|swedish/.test(t)) return "SEK";
+    if(/banco central.*brasil|brazil|brazilian/.test(t)) return "BRL";
+    if(/cbrt|turkey|turkish lira/.test(t)) return "TRY";
+    if(/banxico|mexico |mexican peso/.test(t)) return "MXN";
+    if(/reserve bank.*india|india |rupee/.test(t)) return "INR";
+    if(/pboc|peoples bank.*china|china |yuan|renminbi/.test(t)) return "CNY";
+    if(/sarb|south africa/.test(t)) return "ZAR";
+    if(/nbp|poland|zloty/.test(t)) return "PLN";
+    if(/bank of israel|israel |shekel/.test(t)) return "ILS";
+    if(/bank of korea|south korea|korean won/.test(t)) return "KRW";
+    return null;
   }
 
-  function compareCharges(a, b) {
-    return a === b ? 1 : -1;
-  }
+  // ── CHARGE ENGINE V2 — 2-Step Traceable Formula ───────────────────────────
+  // STEP A: Higher-rate events → combine with WINDOW MATH
+  //   pos+pos→neg  neg+neg→pos  pos+neg→neg  neg+pos→neg
+  // STEP B: Rate-group charge vs TIME CHARGE → TIME MATH
+  //   same signs→pos (BUY)  different signs→neg (SELL)
+  function computeChargeV2(connMode, stepDir, activeEvent, nearEvents, usdRate, currencies) {
+    // Time charge
+    const connPol    = connMode === "aligned" ? "positive" : "negative";
+    const stepPol    = stepDir  === "buy"     ? "positive" : "negative";
+    const timeCharge = resolveTimeMath(connPol, stepPol);
 
-  function assignRawCharge(currencyRate, connectorMode) {
-    const aboveUSD = currencyRate > USD_RATE;
-    if (connectorMode === "mirror") return aboveUSD ? -1 : 1;
-    return aboveUSD ? 1 : -1;
-  }
-
-  function computeChargeEngine(h24, m, timeCharge) {
-    const mode = getConnectorMode(h24, m);
-    const usdRawCharge = mode === "mirror" ? -1 : 1;
-
-    const higherGroup = CHARGE_CURRENCIES
-      .filter(c => c.sym !== "USD" && c.rate > USD_RATE)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: assignRawCharge(c.rate, mode) }));
-
-    const lowerGroup = CHARGE_CURRENCIES
-      .filter(c => c.sym !== "USD" && c.rate <= USD_RATE)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: assignRawCharge(c.rate, mode) }));
-
-    let higherCombinedCharge = null;
-    let flipTriggered = false;
-    let stackSteps = [];
-
-    if (higherGroup.length === 1) {
-      higherCombinedCharge = higherGroup[0].rawCharge;
-      stackSteps = [{ a: higherGroup[0].sym, b: null, result: higherCombinedCharge, flip: false }];
-    } else if (higherGroup.length > 1) {
-      let running = higherGroup[0].rawCharge;
-      for (let i = 1; i < higherGroup.length; i++) {
-        const prev = running;
-        running = stackCharges(running, higherGroup[i].rawCharge);
-        const didFlip = prev === higherGroup[i].rawCharge;
-        if (didFlip) flipTriggered = true;
-        stackSteps.push({
-          a: i === 1 ? higherGroup[0].sym : `prev(${prev > 0 ? "+" : "−"})`,
-          b: higherGroup[i].sym,
-          aCharge: prev,
-          bCharge: higherGroup[i].rawCharge,
-          result: running,
-          flip: didFlip,
-        });
-      }
-      higherCombinedCharge = running;
+    // Build higher-rate group from all active events
+    const allEvts = [];
+    if(activeEvent) allEvts.push(activeEvent);
+    for(const ev of (nearEvents||[])){
+      if(!allEvts.find(e=>e.title===ev.title)) allEvts.push(ev);
+    }
+    const higherGroup = [];
+    for(const ev of allEvts){
+      const sym = ev.currency || inferCountry(ev.title);
+      if(!sym) continue;
+      const cur = currencies.find(c=>c.sym===sym);
+      if(!cur || cur.rate <= usdRate) continue;
+      const evCharge = connMode==="mirror" ? "negative" : "positive";
+      higherGroup.push({sym, rate:cur.rate, charge:evCharge, label:(ev.title||"").slice(0,35)});
     }
 
-    const rateCharge = higherCombinedCharge !== null ? higherCombinedCharge : usdRawCharge;
-    const finalCharge = compareCharges(rateCharge, timeCharge);
+    // Step A: Combine higher-rate group with WINDOW MATH
+    let rateGroupCharge = null;
+    if(higherGroup.length===1) rateGroupCharge = higherGroup[0].charge;
+    else if(higherGroup.length>=2)
+      rateGroupCharge = higherGroup.slice(1).reduce((acc,ev)=>resolveWindowMath(acc,ev.charge), higherGroup[0].charge);
 
-    const positive = [...higherGroup, ...lowerGroup].filter(c => c.rawCharge === 1).length;
-    const negative = [...higherGroup, ...lowerGroup].filter(c => c.rawCharge === -1).length;
-    const details = [...higherGroup, ...lowerGroup].map(c => ({ ...c, chg: c.rawCharge }));
+    // Step B: Time vs rate-group with TIME MATH
+    const finalPol    = rateGroupCharge ? resolveTimeMath(timeCharge, rateGroupCharge) : timeCharge;
+    const finalCharge = finalPol==="positive" ? +1 : -1;
 
-    return {
-      mode,
-      positive,
-      negative,
-      flipTriggered,
-      finalCharge,
-      details,
-      higherGroup,
-      lowerGroup,
-      higherCombinedCharge,
-      stackSteps,
-      rateCharge,
-      timeCharge,
-      signal: finalCharge === 1 ? "BUY" : "SELL",
-    };
+    return { mode:connMode, connPol, stepPol, timeCharge,
+             higherGroup, rateGroupCharge, finalPol, finalCharge,
+             hasRateInput:higherGroup.length>0,
+             stepAMath:higherGroup.length>=2?"window":"direct",
+             flipTriggered:false, positive:0, negative:0 };
+  }
+
+  // Legacy computeCharge — used in ReplayTab (no news context)
+  function computeCharge(mode, usdRate, currencies) {
+    let pos=0, neg=0;
+    for(const cur of currencies){
+      const ab=cur.rate>usdRate;
+      const chg=mode==="mirror"?(ab?-1:+1):(ab?+1:-1);
+      if(chg>0)pos++;else neg++;
+    }
+    let flip=false, finalCharge;
+    if(mode==="mirror"){if(neg>=2){flip=true;finalCharge=+1;}else finalCharge=pos>=neg?+1:-1;}
+    else{if(pos>=2){flip=true;finalCharge=-1;}else finalCharge=neg>=pos?-1:+1;}
+    return {mode,positive:pos,negative:neg,flipTriggered:flip,finalCharge};
   }
 
   function getWindowAt(h24, m) {
@@ -1393,54 +1391,23 @@ function App() {
   }
 
   // STAGE 3: EXECUTION + HARD GATES
-  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone, sweepSeen, newsActive) {
+  function computeExecution(eb, val, inSubWindow, hotTraps, btd, breakingAnchor, zone) {
     let contextPts=0, penalties=0;
     const blocked=[];
-    const vwapWindow = getVwapExecutionWindow(et.h24, et.m);
-    const executeNow = isVwapExecutePoint(et.h24, et.m);
-    const tradeCount = getTradeCountForWindow(vwapTrap, vwapWindow);
-    const bandOk = vwapTrap.band==="2" || vwapTrap.band==="3";
-    const hasSequence = bandOk && vwapTrap.reaction && vwapTrap.failure && vwapTrap.displacement;
 
-    if(!zone)                   return {blocked:true,reason:"No active zone",light:"gray",action:"WAIT",contextPts:0,penalties:0,blockedReasons:["No active zone"]};
-    if(eb.isDanger)             return {blocked:true,reason:"Z6 danger window",light:"gray",action:"NO TRADE",contextPts:0,penalties:0,blockedReasons:["Z6 danger window"]};
+    if(!zone)                   return {blocked:true,reason:"No active zone",light:"gray",action:"WAIT",contextPts:0,penalties:0};
+    if(eb.isDanger)             return {blocked:true,reason:"Z6 danger window",light:"gray",action:"NO TRADE",contextPts:0,penalties:0};
     // No DEAD zones in v3 — every window has a polarity direction
 
     if(inSubWindow)  contextPts+=8;
-    if(vwapWindow)   contextPts+=4;
-    if(executeNow)   contextPts+=5;
     if(hotTraps.length) contextPts+=5;
     if(btd.best  && TODAYday===btd.best)  contextPts+=4;
     if(btd.worst && TODAYday===btd.worst) contextPts-=8;
-
-    // ── SWEEP CONFIRMATION — highest-signal manual input (+15) ───────────────
-    // Fires when user taps "SWEEP" at a VWAP anchor. Confirms the actual trigger.
-    if(sweepSeen) {
-      const zType = zone.type;
-      const sweepAligned = (sweepSeen.dir==="buy"&&zType==="buy")||(sweepSeen.dir==="sell"&&zType==="sell");
-      if(sweepAligned) contextPts += 15; // highest single input — confirms entry trigger
-      else             contextPts -= 8;  // sweep against zone = warning
-    }
 
     if(breakingAnchor) {
       const zType=zone.type;
       const agrees=(breakingAnchor.polarity===+1&&zType==="buy")||(breakingAnchor.polarity===-1&&zType==="sell");
       if(agrees) contextPts+=5; else penalties+=6;
-    }
-
-    if(bandOk) contextPts += vwapTrap.band==="3" ? 6 : 4;
-    else if(vwapWindow) penalties += 6;
-    if(vwapTrap.reaction)     contextPts += 3;
-    if(vwapTrap.failure)      contextPts += 3;
-    if(vwapTrap.displacement) contextPts += 4;
-
-    if(vwapWindow && tradeCount>=2) blocked.push("2 trades already used in this VWAP window");
-    if(vwapTrap.band==="3" && vwapTrap.firstTouch3 && !hasSequence) blocked.push("Do not fade first ±3σ touch");
-    if((executeNow || (vwapWindow && vwapWindow.overnight)) && !hasSequence) blocked.push("Need touch → reaction → failure → entry");
-    if(vwapWindow && vwapWindow.overnight){
-      if(!bandOk) blocked.push("Overnight VWAP trap needs 2σ or 3σ touch");
-      if(!eb.zonePolMatch) blocked.push("Overnight VWAP trap needs regime aligned");
-      if(!newsActive) blocked.push("Overnight VWAP trap needs news present");
     }
 
     if(!eb.zonePolMatch)       penalties+=12;
@@ -1450,75 +1417,196 @@ function App() {
     const totalScore = Math.min(100,Math.max(0, eb.biasScore+val.score+contextPts-penalties));
 
     let light, action;
-    if(blocked.length){
-      light="red";
-      action=vwapWindow?"WAIT FOR NEXT TRAP":"AVOID";
-    }
-    else if(penalties>=12||!eb.zonePolMatch){ light="red";    action="AVOID"; }
-    else if((eb.stalkMode || (vwapWindow && !executeNow))&&totalScore>=55){ light="yellow"; action="STALK"; }
-    else if(totalScore>=72&&eb.window.tier>=3){ light="green"; action=(inSubWindow||executeNow)?"ENTER NOW":"ENTER — PRIME"; }
+    if(penalties>=12||!eb.zonePolMatch){ light="red";    action="AVOID"; }
+    else if(eb.stalkMode&&totalScore>=55){ light="yellow"; action="STALK"; }
+    else if(totalScore>=72&&eb.window.tier>=3){ light="green"; action=inSubWindow?"ENTER NOW":"ENTER — PRIME"; }
     else if(totalScore>=50){ light="yellow"; action="STALK"; }
     else { light="gray"; action="WAIT"; }
 
-    return {blocked:blocked.length>0,reason:blocked[0]||"",light,action,totalScore,contextPts,penalties,blockedReasons:blocked,vwapWindow,tradeCount,executeNow};
+    return {blocked:false,light,action,totalScore,contextPts,penalties,blockedReasons:blocked};
   }
 
-  // MASTER ENGINE
-
-  // ── NEWS REACTION ENGINE — unified feeds, symmetric windows, TP levels ──────
+  // ══════════════════════════════════════════════════════════════════════════════
+  // NEWS REACTION ENGINE — two-layer: scheduled calendar + breaking news + speeches
+  //
+  // SCHEDULED:  symmetric windows ±15/±45/±75 min, affects polarity BEFORE and AFTER
+  // BREAKING:   forward-only 15-min window, negative can OVERRIDE charge, positive REINFORCES
+  // SPEECH:     forward-only 60-min window, multiplier ×3 — counts as 3 news hits
+  //             Multiple relevant updates in a speech stack as multiple event units
+  //
+  // Active window check:
+  //   Scheduled: abs(minsUntil) <= pre (before) OR minsAgo <= post (after)
+  //   Breaking/Speech: minsAgo >= 0 AND minsAgo <= post (forward-only)
+  // ══════════════════════════════════════════════════════════════════════════════
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
-    const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
-    const nowMs = Date.now();
-    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
-      const t = Date.parse(ev.pub||0);
-      if(!t || Number.isNaN(t)) return null;
-      const minsUntil = Math.round((t - nowMs)/60000);
-      const win = eventWindowMinutes(ev);
-      const isBreaking = replayEventType(ev) === "breaking";
-      const isSpeech = replayEventType(ev) === "speech";
-      const isAfter = minsUntil < 0;
-      const active = isBreaking || isSpeech
-        ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
-        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
-      if(!active) return null;
-      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
-      const absMins = Math.abs(minsUntil);
-      const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
-      const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
-      let pts = 0;
-      if(isBreaking) pts = Math.round((Number(ev.polarity||0)===-1 ? -8 : 4) * prox);
-      else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
-      else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
-      return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
-    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
+    // Compute zone direction from liveZ state (always available) — appZType is defined later
+    const _nrLiveZone = liveZ.find(z => z && z.type !== "dead") || null;
+    const zDir = (_nrLiveZone ? _nrLiveZone.type : null) ||
+                 (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
 
-    const activeEvent = allEvents[0] || null;
-    const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
-    const negativeDirectional = allEvents.some(ev=>Number(ev.polarity) === -1);
-    const positiveDirectional = allEvents.some(ev=>Number(ev.polarity) === 1);
-    const conflict = negativeDirectional && positiveDirectional ? true : (activeEvent && Number(activeEvent.polarity||0)!==0 ? Number(activeEvent.polarity)!==slotCharge : false);
+    const toMins = (dateStr, timeStr) => {
+      if(!dateStr||!timeStr) return null;
+      try { return Math.round((new Date(dateStr+'T'+timeStr+':00') - new Date()) / 60000); }
+      catch(e){ return null; }
+    };
 
+    // Build unified event list from all sources
+    const allEvents = [
+      // ── SCHEDULED ECONOMIC CALENDAR (all countries, all instruments) ──────────
+      ...calArticles.map(ev=>({
+        title:      ev.title||"",
+        stars:      ev.stars||1,
+        minsUntil:  toMins(ev.date, ev.time),
+        source:     ev.source||"Calendar",
+        country:    ev.currency||ev.country||"",
+        isBreaking: false,
+        kind:       /powell|speech|remarks|testimony|presser|press conference/.test((ev.title||"").toLowerCase()) ? "speech" : "event",
+      })),
+      // ── ECO CALENDAR ARTICLES ────────────────────────────────────────────────
+      ...ecoArticles.map(ev=>({
+        title:      ev.title||"",
+        stars:      ev.stars||1,
+        minsUntil:  ev.pub ? Math.round((new Date(ev.pub)-new Date())/60000) : null,
+        source:     ev.source||"Eco",
+        country:    "",
+        isBreaking: false,
+        kind:       /powell|speech|remarks|testimony|presser|press conference/.test((ev.title||"").toLowerCase()) ? "speech" : "breaking",
+        bearish:    ev.bearish||false,
+        bullish:    ev.bullish||false,
+      })),
+      // ── BREAKING NEWS (Reuters/Bloomberg style — forward-only 15-min window) ──
+      ...newsArticles.filter(a=>a.pub).map(a=>({
+        title:      a.title||"",
+        stars:      0,
+        minsUntil:  -Math.round((new Date()-new Date(a.pub))/60000), // negative = already happened
+        source:     a.feedLabel||a.source||"News",
+        country:    "",
+        isBreaking: true,
+        kind:       "breaking",
+      })),
+    ];
+
+    let activeEvent     = null;
+    let suppressPts     = 0;
+    const nearEvents    = [];
+    let scheduledCount  = 0;
+    let breakingCount   = 0;
+    let speechCount     = 0;
+    let speechMultiplier = 1; // boosted when speech is active
+    const activeWindows = [];
+
+    for(const ev of allEvents) {
+      if(ev.minsUntil === null || isNaN(ev.minsUntil)) continue;
+
+      // ── Get window config for this event type ─────────────────────────────────
+      const wCfg = getNewsWindowConfig(ev);
+
+      // ── Determine if event is currently WITHIN its effect window ──────────────
+      const minsAgo    = -ev.minsUntil;   // positive = event already happened
+      const minsBefore =  ev.minsUntil;   // positive = event upcoming
+
+      let inWindow = false;
+      if(wCfg.type === "scheduled") {
+        // Symmetric: active both before AND after event
+        inWindow = (minsBefore >= 0 && minsBefore <= wCfg.pre) ||
+                   (minsAgo    >= 0 && minsAgo    <= wCfg.post);
+      } else {
+        // Breaking/Speech: forward-only — ONLY after event fired
+        inWindow = minsAgo >= 0 && minsAgo <= wCfg.post;
+      }
+
+      if(!inWindow) continue;
+
+      // ── Proximity score (1 = at event, 0 = edge of window) ───────────────────
+      const windowSize = wCfg.type==="scheduled"
+        ? (minsBefore >= 0 ? wCfg.pre : wCfg.post)
+        : wCfg.post;
+      const absMins = Math.abs(ev.minsUntil);
+      const prox    = windowSize > 0 ? Math.max(0, 1 - (absMins / windowSize)) : 1;
+      const isAfter = minsAgo >= 0;
+
+      // ── Score impact — apply speech multiplier ────────────────────────────────
+      let basePts = 0;
+      const s = wCfg.stars || ev.stars || 1;
+      if(!isAfter) {
+        basePts = s===3 ? Math.round(-18*prox) : s===2 ? Math.round(-10*prox) : Math.round(-5*prox);
+      } else {
+        basePts = s===3 ? Math.round(+10*prox) : s===2 ? Math.round(+6*prox) : Math.round(+3*prox);
+      }
+      const pts = basePts * wCfg.multiplier;
+
+      // ── Breaking news: negative OVERRIDES, positive only reinforces ───────────
+      if(wCfg.type === "breaking") {
+        const isNeg = ev.bearish || (isAfter && basePts > 0 && zDir==="buy") || (isAfter && basePts < 0);
+        if(isNeg) suppressPts += pts * -1; // negative breaking always drags signal down
+        else      suppressPts += Math.abs(pts) * 0.5; // positive only adds half
+        breakingCount++;
+      } else if(wCfg.type === "speech") {
+        // Speech: each "hit" counts as multiplier separate events
+        suppressPts += pts;
+        speechMultiplier = Math.max(speechMultiplier, wCfg.multiplier);
+        speechCount++;
+      } else {
+        suppressPts += pts;
+        scheduledCount++;
+      }
+
+      // ── Track time remaining in window ────────────────────────────────────────
+      const minsLeft = isAfter ? Math.max(0, windowSize - minsAgo) : minsBefore;
+
+      nearEvents.push({
+        ...ev, absMins, prox, pts, wCfg, isAfter, minsLeft,
+        windowType: wCfg.type, windowLabel: wCfg.label,
+        speechMultiplier: wCfg.multiplier,
+      });
+      activeWindows.push({ title:ev.title, type:wCfg.type, label:wCfg.label,
+        minsLeft, stars:wCfg.stars||ev.stars||0, source:ev.source||"", country:ev.country||"",
+        isReinforcing: pts > 0, isOverride: wCfg.type==="breaking" && pts < 0,
+        affectsPolarity: Math.abs(pts) > 0 });
+
+      if(!activeEvent || absMins < activeEvent.absMins) {
+        activeEvent = { ...ev, absMins, prox, pts, wCfg, isAfter, minsLeft, windowType:wCfg.type };
+      }
+    }
+
+    nearEvents.sort((a,b)=>a.absMins-b.absMins);
+    const total = Math.max(-30, Math.min(15, suppressPts));
+
+    // ── TP levels from BTC price (use active event's config) ─────────────────
     let tpLevels = null;
     if(btcPrice && activeEvent) {
-      const tps = (activeEvent.cfg?.tps || []).filter(t=>t>0);
-      const fibs = activeEvent.cfg?.fibs || [];
-      const dir = zDir === "buy" ? 1 : -1;
+      const tps  = (activeEvent.wCfg?.tps  || []).filter(t=>t>0);
+      const fibs = (activeEvent.wCfg?.fibs || []);
+      const dir  = zDir==="buy" ? 1 : -1;
       tpLevels = {
-        fibs: fibs.map(f=>({ pct: f/100, price: Math.round(btcPrice*(1+dir*(f/1000))) })),
-        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct:t, price: Math.round(btcPrice*(1+dir*t/100)) })),
+        fibs: fibs.map(f=>({ pct:f/100, price:Math.round(btcPrice*(1+dir*(f/1000))) })),
+        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct:t, price:Math.round(btcPrice*(1+dir*t/100)) })),
       };
     }
 
+    // ── Conflict: calendar event direction conflicts zone ─────────────────────
+    const conflict = activeEvent && activeEvent.windowType==="scheduled" && activeEvent.isAfter
+      ? (zDir==="buy"  && ecoArticles.find(a=>a.bearish&&a.title===activeEvent.title))
+        || (zDir==="sell" && ecoArticles.find(a=>a.bullish&&a.title===activeEvent.title))
+      : false;
+
     return {
-      active: allEvents.length > 0,
-      suppressPts,
+      active:         nearEvents.length > 0,
+      suppressPts:    total,
       activeEvent,
-      nearEvents: allEvents,
+      nearEvents,
+      activeWindows,
       tpLevels,
-      conflict,
-      level: activeEvent?.isBreaking ? "break" : activeEvent?.stars===3 ? "high" : activeEvent?.stars===2 ? "med" : activeEvent ? "low" : "none",
+      conflict:       !!conflict,
+      level:          activeEvent?.wCfg?.stars===3?"high":activeEvent?.wCfg?.stars===2?"med":activeEvent?.isBreaking?"break":"low",
+      scheduledCount,
+      breakingCount,
+      speechCount,
+      speechMultiplier,
+      hasSpeech:      speechCount > 0,
+      hasBreaking:    breakingCount > 0,
+      hasScheduled:   scheduledCount > 0,
     };
   })();
 
@@ -1531,7 +1619,7 @@ function App() {
 
     const eb  = computeEarlyBias(et.h24, et.m, zone, zType, inSub);
     const val = computeValidation(zType, md, inSub, hotTraps, overall, btd, breakingAnchor, eb);
-    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone, sweepSeen, newsReaction.active);
+    const exe = computeExecution(eb, val, inSub, hotTraps, btd, breakingAnchor, zone);
 
     const totalScore = exe.blocked ? 0 : Math.max(0, exe.totalScore + newsReaction.suppressPts);
     const light = exe.light || "gray";
@@ -1591,11 +1679,14 @@ function App() {
   const { inExecute, inTrap } = getExecuteState(et.h24, et.m);
   const internalStep       = getInternalStep(et.h24, et.m);
   const connectorMode      = getConnectorMode(et.h24, et.m);
-  // Charge engine removed from signal + replay path per latest logic update.
-
-  // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
+  const charge             = computeChargeV2(
+    connectorMode, internalStep.direction,
+    newsReaction.activeEvent||null, newsReaction.nearEvents||[],
+    USD_RATE, CHARGE_CURRENCIES
+  );
+  // Polarity math — runs after internalStep + newsReaction available
   const _stepDir = internalStep.direction;
-  const polarityState = buildPolarityState(_stepDir, connectorMode === "aligned" ? "positive" : "negative");
+  const polarityState = buildPolarityState(_stepDir, _stepDir==="buy"?"positive":"negative");
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
@@ -1614,9 +1705,9 @@ function App() {
       passes: (()=>{
         const ch = marketData?.dxy?.change;
         if(ch==null) return null;
-        const dir = polarityDirection; // "buy" | "sell"
-        if(dir==="buy")  return ch<-0.10?true:ch>+0.10?false:null;
-        if(dir==="sell") return ch>+0.10?true:ch<-0.10?false:null;
+        const chgDir = charge.finalCharge; // +1=buy -1=sell
+        if(chgDir===+1) return ch<-0.10?true:ch>+0.10?false:null;
+        if(chgDir===-1) return ch>+0.10?true:ch<-0.10?false:null;
         return null;
       })(),
       value: marketData?.dxy?.change!=null
@@ -1672,15 +1763,13 @@ function App() {
   // Interest rates confirm or conflict the regime strength
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 3: FINAL SIGNAL TRANSLATOR
-  // Direction now comes from polarity math only.
-  // Charge engine removed from signal + replay path.
+  // Direction comes purely from the charge engine (interest rate differentials).
+  // Major regime (1:30-7:30 BUY / 7:30-1:30 SELL) is display only — not in signal.
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
-    // Signal now follows polarity math only.
-    return polarityDirection === "buy"
-      ? { label:"BUY",  col:G }
-      : { label:"SELL", col:R };
+    const chg = charge.finalCharge;
+    return chg===+1 ? { label:"BUY", col:G } : { label:"SELL", col:R };
   })();
     const appReadyColor = finalSignal.col;
   const appReadyLabel = finalSignal.label;
@@ -1826,132 +1915,53 @@ function App() {
       });
   }
 
-  function cleanReplayText(s){
-    return String(s||"")
-      .toLowerCase()
-      .replace(/<[^>]+>/g," ")
-      .replace(/&[^;]+;/g," ")
-      .replace(/(reuters|bloomberg|markets|google news|myfxbook|trading economics|forex factory)/g," ")
-      .replace(/[^a-z0-9]+/g," ")
-      .replace(/\s+/g," ")
-      .trim();
-  }
-
-  function dedupeFeedItems(items){
-    const seen=new Map();
-    return (items||[]).filter(Boolean).filter(item=>{
-      const title = cleanReplayText(item.title||"");
-      const source = cleanReplayText(item.source||item.feedLabel||"");
-      const hourBucket = (()=>{
-        const t = Date.parse(item.pub||item.date||0);
-        if(!t || Number.isNaN(t)) return "na";
-        const d = new Date(t);
-        d.setMinutes(0,0,0);
-        return d.toISOString();
-      })();
-      const key = [title.slice(0,110), source.slice(0,30), item.country||"", item.kind||"news", hourBucket].join("|");
-      if(!title || seen.has(key)) return false;
-      seen.set(key,true);
-      return true;
-    });
-  }
-
-  function replayEventType(ev){
-    if(ev && ev.kind === "event") return "scheduled";
-    if(ev && ev.kind === "speech") return "speech";
-    return "breaking";
-  }
-
-  function eventWindowMinutes(ev){
-    const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
-    const type = replayEventType(ev);
-    if(type === "breaking") return {pre:0, post:20};
-    if(type === "speech") return {pre:0, post:45};
-    if(stars === 1) return {pre:20, post:20};
-    if(stars === 2) return {pre:50, post:50};
-    return {pre:80, post:80};
-  }
-
-
-  function buildUnifiedNewsEvents(nowMs = Date.now()){
-    const toEvent = (raw, overrides={})=>{
-      const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
-      if(!title) return null;
-      const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
-      const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
-      const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
-      const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
-      const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
-      const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note };
-    };
-
-    const scheduled = [
-      ...(calArticles||[]).map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"event"})),
-      ...(ecoArticles||[]).map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"event"})),
-    ].filter(Boolean);
-
-    const breaking = (newsArticles||[])
-      .map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"breaking"}))
-      .filter(Boolean);
-
-    const manual = (replayEvents||[]).map(ev=>toEvent(ev)).filter(Boolean);
-
-    return dedupeFeedItems([...scheduled, ...breaking, ...manual])
-      .filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
-      })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
-  }
-
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24, m){
-    const events = Array.isArray(activeEvents) ? activeEvents : [];
-    const negatives = events.filter(ev=>Number(ev.polarity) === -1).length;
-    const positives = events.filter(ev=>Number(ev.polarity) === 1).length;
-    const activeCount = events.length;
-
-    let newsCharge = 0;
-    if(positives > negatives) newsCharge = 1;
-    else if(negatives > positives) newsCharge = -1;
-
-    const hourCharge = (Number(h24) % 2 === 0) ? 1 : -1;
-    const hadNews = activeCount > 0 && newsCharge !== 0;
-
-    const finalDirection = !hadNews
-      ? baseDirection
-      : ((hourCharge * newsCharge) > 0 ? "buy" : "sell");
-
-    const finalCharge = finalDirection === "buy" ? 1 : -1;
-    const newsFlip = hadNews && finalDirection !== baseDirection;
-
-    const equationPlain = !hadNews
-      ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
-      : `${hourCharge>0?'EVEN(+)':'ODD(-)'} × ${newsCharge>0?'POSITIVE NEWS':'NEGATIVE NEWS'} = ${finalDirection.toUpperCase()}`;
-
-    const equation = !hadNews
-      ? `${baseDirection.toUpperCase()} + NO NEWS = <b>${finalDirection.toUpperCase()}</b>`
-      : `${hourCharge>0?'EVEN(+)':'ODD(-)'} × ${newsCharge>0?'POSITIVE NEWS':'NEGATIVE NEWS'} = <b>${finalDirection.toUpperCase()}</b>`;
-
+  // Normalize any RSS item into a consistent shape
+  function normalizeItem(item, source, color) {
     return {
-      finalDirection,
-      activeCount,
-      negativePressure: negatives,
-      positivePressure: positives,
-      baseCharge: baseDirection === "buy" ? 1 : -1,
-      finalCharge,
-      newsFlip,
-      reason: !hadNews
-        ? `No directional news → replay falls back to step direction (${baseDirection.toUpperCase()})`
-        : `Replay uses time/news math only: ${equationPlain}`,
-      equation,
-      equationPlain,
-      hasNews: hadNews,
-      newsCharge,
-      hourCharge,
-      dedupedEvents: events
+      title: ((item.title||"")).trim().replace(/\s*[-|]\s*(Reuters|Bloomberg|CNBC|WSJ|FT|Myfxbook|Trading Economics|AP|MarketWatch).*$/i,"").trim(),
+      link:  item.link||item.guid||"",
+      pub:   item.pubDate||item.pub||item.published||"",
+      desc:  ((item.description||item.content||"")).replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200),
+      source, color,
     };
+  }
+
+  // ── State refs (single declarations) ─────────────────────────────────────────
+  const fetchNewsRef  = useRef(false);
+  const newsLoadedFor = useRef("");
+  const ecoLoadedRef  = useRef(false);
+  const calLoadedRef  = useRef(false);
+
+  // ── fetchNews — Reuters/Bloomberg via Google News RSS ────────────────────────
+  const fetchNews = useCallback((feedId)=>{
+    const feed = NEWS_FEEDS.find(f=>f.id===feedId)||NEWS_FEEDS[0];
+    if(!feed||fetchNewsRef.current) return;
+    fetchNewsRef.current=true;
+    setNewsLoading(true); setNewsError(""); setNewsArticles([]);
+
+    const urls=feed.urls||(feed.url?[feed.url]:[]);
+    if(!urls.length){ setNewsError("Feed unavailable."); setNewsLoading(false); fetchNewsRef.current=false; return; }
+
+    Promise.all(urls.map(url=>{
+      let src=feed.label;
+      if(/reuters/i.test(url)) src="Reuters Markets";
+      if(/bloomberg/i.test(url)) src="Bloomberg Markets";
+      if(/coindesk/i.test(url)) src="CoinDesk";
+      return fetchRSS(url).then(items=>items.map(item=>normalizeItem(item,src,feed.color)));
+    }))
+    .then(groups=>{
+      let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
+      const seen=new Set();
+      arts=arts.filter(a=>{
+        const k=(a.title||"").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,45);
+        if(!k||seen.has(k))return false; seen.add(k); return true;
+      });
+      arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+      setNewsArticles(arts.slice(0,30));
+      setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
+    })
+    .catch(()=>setNewsError("Feed unavailable. Try another source."))
+    .finally(()=>{ setNewsLoading(false); fetchNewsRef.current=false; });
   },[]);
 
   // ── fetchEcoNews — eco classification for FEED tab ───────────────────────────
@@ -1966,7 +1976,7 @@ function App() {
     Promise.all(ECO_URLS.map(f=>
       fetchRSS(f.url).then(items=>items.map(item=>{
         const norm=normalizeItem(item,f.label,f.color);
-        const cls=classifyEcoArticle(norm.title,norm.desc); return {...norm,...cls, polarity: cls.bearish?-1:cls.bullish?1:0, kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event", feedType:"eco"};
+        return {...norm,...classifyEcoArticle(norm.title,norm.desc)};
       }).filter(a=>a.title&&a.title.length>3&&a.stars>0)).catch(()=>[])
     )).then(results=>{
       const all=results.flat();
@@ -2015,12 +2025,11 @@ function App() {
             color: "#ff6b35",
             stars: ffStars(ev.impact),
             currency: ev.currency||"",
-            country: inferCountryCode(ev.currency||"", ev.currency||""),
             forecast: ev.forecast||"",
             previous: ev.previous||"",
             date: ev.date.slice(0,10),
             time: ev.date.slice(11,16)||"",
-            isLive: true, feedType:"calendar", kind:/powell|speech|remarks|testimony|presser|press conference/i.test((ev.title||ev.name||""))?"speech":"event", polarity:0,
+            isLive: true,
           }))
           .filter(ev=>ev.title&&ev.title.length>2&&ev.stars>=1);
       }).catch(()=>[]);
@@ -2038,13 +2047,9 @@ function App() {
             return {
               ...norm,
               stars: classifyEcoArticle(norm.title, norm.desc).stars || calStars(norm.title) || 1,
-              country: norm.country || inferCountryCode(`${norm.title} ${norm.desc}`),
               date: dateStr,
               time: d && !isNaN(d) ? d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}) : "",
               isLive: true,
-              feedType:"calendar",
-              kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
-              polarity:Number(norm?.polarity ?? (norm?.bearish ? -1 : norm?.bullish ? 1 : 0)),
             };
           }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=yesterdayStr||!a.date))
         ).catch(()=>[])
@@ -2076,30 +2081,14 @@ function App() {
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
     if(newsView==="feed") {
+      ecoLoadedRef.current=false; fetchEcoNews();
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
-      if(!calLoadedRef.current) fetchCalendar();
     }
     if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
 
-  // On mount, pre-load default feed + calendar
-  useEffect(()=>{
-    const boot = ()=>{
-      newsLoadedFor.current = newsSrc;
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(()=>{
-          try{ fetchNews(newsSrc); }catch(e){}
-          try{ fetchCalendar(); }catch(e){}
-        }, { timeout: 1500 });
-      } else {
-        setTimeout(()=>{
-          try{ fetchNews(newsSrc); }catch(e){}
-          try{ fetchCalendar(); }catch(e){}
-        }, 500);
-      }
-    };
-    boot();
-  },[]);
+  // On mount, pre-load default feed
+  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -2107,158 +2096,110 @@ function App() {
   const mono = {fontFamily:"'Share Tech Mono',monospace"};
 
   // ── CLOCK ──
-  const ClockTab = ()=>(
-    <div style={{padding:"14px 14px 0"}}>
+  const ClockTab = ()=>{
+    const z = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
+    const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
+    const zLabel = z ? z.label : "—";
 
-      {/* TZ */}
-      <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px"})}>
-        <div>
-          <div style={lbl()}>TIMEZONE</div>
-          <div style={{fontSize:13,color:"#aaa",marginTop:1}}>{selTZ.label}</div>
-          <div style={{fontSize:20,fontWeight:900,color:A,marginTop:1,...mono}}>{fmt(loc.h24,loc.m,loc.s)}</div>
-          {tz!=="America/New_York"&&<div style={{fontSize:13,color:"#bbb",marginTop:2,...mono}}>ET: {fmt(et.h24,et.m)}</div>}
-        </div>
-        <button onClick={()=>gate("tz",()=>setTzOpen(true))} style={{background:can("tz")?`${A}18`:"#ffffff05",border:`1px solid ${can("tz")?A:"#222"}`,color:can("tz")?A:"#bbb",borderRadius:10,padding:"8px 12px",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:1}}>
-          {can("tz")?"CHANGE TZ":"🔒 PRO"}
-        </button>
-      </div>
+    // Build a single human-readable polarity chain summary
+    const baseDir = internalStep.direction;
+    const connFlips = connectorMode==="mirror";
+    const connOutput = connFlips ? (baseDir==="buy"?"sell":"buy") : baseDir;
+    const newsActive = newsReaction.active;
+    const newsConflict = newsReaction.conflict;
+    const hasSpeech = newsReaction.hasSpeech;
+    const summaryLine = [
+      `Base: ${baseDir.toUpperCase()}`,
+      connFlips ? `Mirror → ${connOutput.toUpperCase()}` : `Aligned (${baseDir.toUpperCase()})`,
+      newsActive ? (newsConflict ? "News: Override" : hasSpeech ? "News: Speech ×3" : "News: Confirms") : "News: None"
+    ].join("  ·  ");
 
-      {/* Z# · STEP · WINDOW */}
-      {(()=>{
-        const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
-        const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
-        const zLabel = z ? z.label : "—";
-        const winLabel = inExecute?"EXECUTE":inTrap?"TRAP":"TREND";
-        const winCol   = inExecute?G:inTrap?A:"#444";
-        return(
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            {[
-              {label:"ZONE",   val:zLabel,             arrow:null,                                    col:zCol},
-              {label:"STEP",   val:internalStep.label, arrow:internalStep.direction==="buy"?"▲":"▼", col:internalStep.col},
-              {label:"WINDOW", val:winLabel,            arrow:null,                                    col:winCol},
-            ].map(item=>(
-              <div key={item.label} style={{flex:1,borderRadius:14,
-                border:`1px solid ${item.col}33`,background:`${item.col}07`,
-                padding:"11px 8px",textAlign:"center"}}>
-                <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:5,whiteSpace:"nowrap"}}>
-                  {item.label}
-                </div>
-                <div style={{fontSize:20,fontWeight:900,color:item.col,...mono,lineHeight:1,whiteSpace:"nowrap"}}>
-                  {item.arrow&&<span style={{marginRight:4}}>{item.arrow}</span>}{item.val}
-                </div>
-              </div>
-            ))}
+    const sig = finalSignal;
+
+    return (
+      <div style={{padding:"14px 14px 0"}}>
+
+        {/* ── TIMEZONE CARD ── */}
+        <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",marginBottom:10})}>
+          <div>
+            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:3}}>TIMEZONE</div>
+            <div style={{fontSize:13,color:"#aaa",marginBottom:2}}>{selTZ.label}</div>
+            <div style={{fontSize:22,fontWeight:900,color:A,...mono}}>{fmt(loc.h24,loc.m,loc.s)}</div>
+            {tz!=="America/New_York"&&<div style={{fontSize:12,color:"#777",marginTop:2,...mono}}>ET: {fmt(et.h24,et.m)}</div>}
           </div>
-        );
-      })()}
-
-      {/* CLOCK */}
-      <div style={{display:"flex",justifyContent:"center",margin:"4px 0 10px"}}>
-        <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
-          <ClockFace size={270} zones={zones} et={et}/>
+          <button onClick={()=>gate("tz",()=>setTzOpen(true))} style={{background:can("tz")?`${A}18`:"#ffffff05",border:`1px solid ${can("tz")?A:"#222"}`,color:can("tz")?A:"#bbb",borderRadius:10,padding:"8px 12px",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:1}}>
+            {can("tz")?"CHANGE TZ":"🔒 PRO"}
+          </button>
         </div>
-      </div>
 
-      {/* LEGEND */}
-      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-        {[{c:G,l:"BUY"},{c:R,l:"SELL"},{c:"#fff",l:"★ PRIME"}].map(i=>(
-          <div key={i.l} style={{display:"flex",alignItems:"center",gap:5,background:`${i.c}0e`,border:`1px solid ${i.c}22`,borderRadius:16,padding:"4px 10px"}}>
-            <div style={{width:i.c==="#fff"?2:12,height:i.c==="#fff"?10:3,borderRadius:i.c==="#fff"?1:2,background:i.c,boxShadow:`0 0 5px ${i.c}88`}}/>
-            <span style={{fontSize:12,color:i.c,fontWeight:700,letterSpacing:.8}}>{i.l}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* POLARITY MATH ROW */}
-      {(timeMathResult||windowMathResult)&&(()=>{
-        const tCol = timeMathResult?.finalDirection==="buy"?G:R;
-        const wCol = windowMathResult?.result==="positive"?G:R;
-        const pdCol = polarityDirection==="buy"?G:R;
-        return(
-          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${pdCol}33`,
-            background:"rgba(255,255,255,0.02)",padding:"11px 14px"}}>
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>
-              POLARITY MATH
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
-                <div style={{fontSize:16,fontWeight:900,color:wCol,...mono}}>
-                  {polarityState.slotPolarity==="positive" ? "+" : "-"}
-                </div>
-              </div>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${A}08`,border:`1px solid ${A}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
-                <div style={{fontSize:16,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive" ? "+" : _newsPol==="negative" ? "-" : (polarityState.slotPolarity==="positive" ? "+" : "-")}
-                </div>
-              </div>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>RESULT</div>
-                <div style={{fontSize:16,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy" ? "+" : "-"}
-                </div>
+        {/* ── STEP / ZONE / WINDOW — 3 mini tiles ── */}
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          {[
+            {label:"STEP",   val:internalStep.label, arrow:internalStep.direction==="buy"?"▲":"▼", col:internalStep.col},
+            {label:"ZONE",   val:zLabel, arrow:null, col:zCol},
+            {label:"WINDOW", val:inExecute?"EXECUTE":inTrap?"STALK":"OBSERVE", arrow:null, col:inExecute?G:inTrap?A:"#444"},
+          ].map(item=>(
+            <div key={item.label} style={{flex:1,borderRadius:14,border:`1px solid ${item.col}33`,background:`${item.col}07`,padding:"11px 8px",textAlign:"center"}}>
+              <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:5,whiteSpace:"nowrap"}}>{item.label}</div>
+              <div style={{fontSize:20,fontWeight:900,color:item.col,...mono,lineHeight:1,whiteSpace:"nowrap"}}>
+                {item.arrow&&<span style={{marginRight:4}}>{item.arrow}</span>}{item.val}
               </div>
             </div>
-          </div>
-        );
-      })()}
+          ))}
+        </div>
 
-      {/* FINAL SIGNAL */}
-      {(()=>{
-        const sig = finalSignal;
-        return(
-          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${sig.col}44`,
-            background:`${sig.col}08`,padding:"12px 16px"}}>
-            <div style={{textAlign:"center",padding:"10px 0",borderRadius:10,
-              background:`${sig.col}18`,border:`2px solid ${sig.col}55`,
-              boxShadow:`0 0 16px ${sig.col}22`}}>
-              <div style={{fontSize:28,fontWeight:900,color:sig.col,letterSpacing:3,...mono}}>
-                {sig.label}
+        {/* ── ANALOG CLOCK ── */}
+        <div style={{display:"flex",justifyContent:"center",margin:"4px 0 10px"}}>
+          <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
+            <ClockFace size={270} zones={zones} et={et}/>
+          </div>
+        </div>
+
+        {/* ── LEGEND ── */}
+        <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+          {[{c:G,l:"BUY"},{c:R,l:"SELL"},{c:"#fff",l:"★ PRIME"}].map(i=>(
+            <div key={i.l} style={{display:"flex",alignItems:"center",gap:5,background:`${i.c}0e`,border:`1px solid ${i.c}22`,borderRadius:16,padding:"4px 10px"}}>
+              <div style={{width:i.c==="#fff"?2:12,height:i.c==="#fff"?10:3,borderRadius:i.c==="#fff"?1:2,background:i.c,boxShadow:`0 0 5px ${i.c}88`}}/>
+              <span style={{fontSize:12,color:i.c,fontWeight:700,letterSpacing:.8}}>{i.l}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── FINAL SIGNAL — single, prominent ── */}
+        <div style={{marginBottom:14,borderRadius:16,border:`2px solid ${sig.col}55`,background:`${sig.col}0c`,padding:"22px 16px",textAlign:"center",boxShadow:`0 0 32px ${sig.col}14`}}>
+          <div style={{fontSize:10,letterSpacing:3,color:"#555",...mono,marginBottom:10}}>FINAL SIGNAL</div>
+          <div style={{fontSize:52,fontWeight:900,color:sig.col,letterSpacing:4,...mono,lineHeight:1}}>
+            {sig.label==="BUY"?"▲":"▼"} {sig.label}
+          </div>
+          <div style={{marginTop:14,fontSize:12,color:"#666",...mono,lineHeight:1.8,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:12}}>
+            {summaryLine}
+          </div>
+        </div>
+
+        {/* ── ACTIVE NEWS BADGE — only if news is live ── */}
+        {newsActive&&(
+          <div style={{marginBottom:14,borderRadius:12,border:`1px solid ${newsConflict?R:G}33`,background:`${newsConflict?R:G}07`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:newsConflict?R:G,boxShadow:`0 0 6px ${newsConflict?R:G}`,flexShrink:0}}/>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,fontWeight:700,color:newsConflict?R:G,letterSpacing:1,...mono}}>
+                {newsConflict?"NEWS OVERRIDE":"NEWS ACTIVE"}
+                {hasSpeech&&<span style={{marginLeft:8,color:"#aa88ff"}}>· SPEECH ×{newsReaction.speechMultiplier}</span>}
+              </div>
+              <div style={{fontSize:11,color:"#666",...mono,marginTop:2}}>
+                {newsReaction.activeWindows&&newsReaction.activeWindows.length>0
+                  ? newsReaction.activeWindows.map(w=>w.title||(w.country+" "+w.type)).join(" · ")
+                  : "Active news window"}
               </div>
             </div>
-          </div>
-        );
-      })()}
-
-      {/* BIAS — DXY · NEWS · DAY — secondary, below signal */}
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
-        {appChecks.map((chk,i)=>{
-          const col  = chk.passes===true?G:chk.passes===false?R:"#444";
-          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
-          return(
-            <div key={i} style={{flex:1,borderRadius:10,border:`1px solid ${col}22`,
-              background:"rgba(255,255,255,0.02)",padding:"8px 6px",textAlign:"center"}}>
-              <div style={{fontSize:9,letterSpacing:2,color:"#333",fontWeight:700,...mono,marginBottom:3}}>
-                {chk.label}
-              </div>
-              <div style={{fontSize:14,fontWeight:900,color:col,lineHeight:1,marginBottom:3}}>
-                {icon}
-              </div>
-              <div style={{fontSize:10,color:col,...mono,fontWeight:700}}>
-                {chk.value||"—"}
-              </div>
+            <div style={{fontSize:11,color:"#555",...mono,textAlign:"right"}}>
+              NEWS TAB →
             </div>
-          );
-        })}
-      </div>
+          </div>
+        )}
 
-            {/* SOUND */}
-      <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
-        <div>
-          <div style={{fontSize:13,fontWeight:700,color:soundOn&&can("sound")?"#ddd":"#888"}}>🔔 Sound Alerts</div>
-          <div style={{fontSize:13,color:"#888",marginTop:2}}>{can("sound")?"Zone open & close chimes":"PRO feature"}</div>
-        </div>
-        <div onClick={()=>gate("sound",()=>setSoundOn(v=>!v))} style={{width:44,height:24,borderRadius:12,cursor:"pointer",position:"relative",background:soundOn&&can("sound")?G:"#1a1a1a",border:`1px solid ${soundOn&&can("sound")?G:"#2a2a2a"}`,transition:"background .3s"}}>
-          <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:soundOn&&can("sound")?23:3,transition:"left .25s"}}/>
-        </div>
       </div>
-
-    </div>
-  );
+    );
+  };
 
   // ── SIGNALS / BIAS CHECKLIST ──
   const SignalsTab = ()=>{
@@ -2266,82 +2207,153 @@ function App() {
     const effectiveZone = liveZ.find(z=>z.type!=="dead")||null;
     const zType     = effectiveZone?effectiveZone.type:null;
 
-    // Build checklist items — each bias factor in the system
+    // DXY / VIX state
     const btcItem   = cats.flatMap(c=>c.items).find(i=>i.id==="BTC")||{bias:"bull"};
     const dxyItem   = cats.flatMap(c=>c.items).find(i=>i.id==="DXY")||{bias:"bear"};
     const vixItem   = cats.flatMap(c=>c.items).find(i=>i.id==="VIX")||{bias:"bear"};
     const esItem    = cats.flatMap(c=>c.items).find(i=>i.id==="ES") ||{bias:"bull"};
     const nqItem    = cats.flatMap(c=>c.items).find(i=>i.id==="NQ") ||{bias:"bull"};
 
-    // DXY and VIX state — user can toggle these in the inversions card
     const [dxyDir, setDxyDir] = React.useState(dxyItem.bias);
     const [vixDir, setVixDir] = React.useState(vixItem.bias);
 
-    // Cycle: bull → bear → neutral → bull
     const cycle = v => v==="bull"?"bear":v==="bear"?"neutral":"bull";
     const dxyCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#aaa";
     const vixCol = vixDir==="bear"?G:vixDir==="bull"?R:"#aaa";
-
-    // What DXY/VIX direction tells us about BTC direction
     const dxyBtcSignal = dxyDir==="bear"?"▲ BTC BULLISH":dxyDir==="bull"?"▼ BTC BEARISH":"◆ NEUTRAL";
     const vixBtcSignal = vixDir==="bear"?"▲ BTC BULLISH":vixDir==="bull"?"▼ BTC BEARISH":"◆ NEUTRAL";
     const dxyBtcCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#aaa";
     const vixBtcCol = vixDir==="bear"?G:vixDir==="bull"?R:"#aaa";
 
-    // Overall bias counts
     const actives  = cats.flatMap(c=>c.items).filter(i=>i.active);
     const nBull    = actives.filter(i=>i.bias==="bull").length;
     const nBear    = actives.filter(i=>i.bias==="bear").length;
-    const overall  = nBull>nBear?"bull":nBear>nBull?"bear":"neutral";
-    const vwapWindowNow = getVwapExecutionWindow(et.h24, et.m);
-    const vwapTradeCount = getTradeCountForWindow(vwapTrap, vwapWindowNow);
-    const executeNow = isVwapExecutePoint(et.h24, et.m);
 
-    function chk(passes){
-      if(passes===null) return {icon:"○", color:"#888"};
-      return passes ? {icon:"✓", color:G} : {icon:"✗", color:R};
-    }
+    // ── SIGNAL CHAIN ──
+    const baseDir    = internalStep.direction;
+    const baseCol    = baseDir==="buy"?G:R;
+    const connFlips  = connectorMode==="mirror";
+    const connOut    = connFlips ? (baseDir==="buy"?"sell":"buy") : baseDir;
+    const connOutCol = connOut==="buy"?G:R;
+    const connCol    = connFlips?"#ff9955":"#55aaff";
+    const newsActive  = newsReaction.active;
+    const newsConflict= newsReaction.conflict;
+    const hasSpeech   = newsReaction.hasSpeech;
+    const speechMult  = newsReaction.speechMultiplier||1;
 
-    function biasFits(bias, zoneType){
-      if(!zoneType||zoneType==="dead") return null;
-      if(zoneType==="buy")  return bias==="bull";
-      if(zoneType==="sell") return bias==="bear";
-      return null;
-    }
-
-    const checks = appChecks;  // single source of truth — defined at App level
-
-    const greenCount = appGreenCount;
-    const redCount   = appRedCount;
-    const readyColor = appReadyColor;
-    const readyLabel = appReadyLabel;
+    const chainRows = [
+      {
+        id:"base",
+        label:"BASE STEP",
+        badge:baseDir.toUpperCase(),
+        badgeCol:baseCol,
+        arrow:baseDir==="buy"?"▲":"▼",
+        note:`Time window: ${internalStep.label} · Direction is ${baseDir.toUpperCase()}`,
+      },
+      {
+        id:"conn",
+        label:"CONNECTOR",
+        badge:connectorMode.toUpperCase(),
+        badgeCol:connCol,
+        arrow:null,
+        note:connFlips
+          ? `Mirror window → flips result from ${baseDir.toUpperCase()} to ${connOut.toUpperCase()}`
+          : `Aligned window → direction unchanged (${baseDir.toUpperCase()})`,
+      },
+      {
+        id:"news",
+        label:"NEWS IMPACT",
+        badge:newsActive?(newsConflict?"OVERRIDE":"REINFORCE"):"NONE",
+        badgeCol:newsActive?(newsConflict?R:G):"#444",
+        arrow:null,
+        note:newsActive
+          ? newsConflict
+            ? `Active news conflicts current setup — polarity drained`
+            : `Active news confirms current setup — polarity boosted`
+          : `No active news window — engine runs on time + connector only`,
+      },
+      ...(hasSpeech ? [{
+        id:"speech",
+        label:"SPEECH ×3",
+        badge:`×${speechMult}`,
+        badgeCol:"#aa88ff",
+        arrow:null,
+        note:`Speech/Fed event active — counts as ${speechMult} stacked news items`,
+      }] : []),
+      {
+        id:"final",
+        label:"FINAL SIGNAL",
+        badge:finalSignal.label,
+        badgeCol:finalSignal.col,
+        arrow:finalSignal.label==="BUY"?"▲":"▼",
+        note:`Result of: base step + connector logic + news layer`,
+        isFinal:true,
+      },
+    ];
 
     return(
       <div style={{padding:14}}>
 
-        {(()=>{
-          const autoVwap = getAutoVwapConfirmation({inst:vwapInst, manualPrice:vwapPrice, marketData, trapStatus, anchors:vwapAnchors, zoneType:zType});
-          const autoCol = autoVwap.status==="buy"?G:autoVwap.status==="sell"?R:A;
-          return (
-          <div style={card({border:`1px solid ${autoCol}33`,background:`${autoCol}08`,marginBottom:12})}>
-            <div style={lbl(autoCol,{marginBottom:8})}>VWAP BAND CONFIRMATION</div>
-            <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.8,marginBottom:10}}>
-              Quiet confirmation only. Times are hidden. This checks whether price is pressing the lower bands for buys or the upper bands for sells.
-            </div>
-            <div style={{padding:"12px 14px",borderRadius:12,background:`${autoCol}12`,border:`1px solid ${autoCol}44`,marginBottom:8}}>
-              <div style={{fontSize:15,fontWeight:900,color:autoCol,letterSpacing:1.5,marginBottom:4}}>{autoVwap.title}</div>
-              <div style={{fontSize:13,color:"#ddd",...mono,lineHeight:1.7}}>{autoVwap.note}</div>
-              {autoVwap.anchor&&<div style={{fontSize:13,color:"#888",...mono,marginTop:6}}>Active anchor: <span style={{color:"#ddd"}}>{autoVwap.anchor}</span></div>}
-            </div>
-            <div style={{display:"grid",gap:6}}>
-              <div style={{fontSize:13,color:"#ddd",...mono}}>Instrument: <span style={{color:autoCol,fontWeight:700}}>{vwapInst}</span></div>
-              <div style={{fontSize:13,color:"#ddd",...mono}}>Price source: <span style={{color:"#ddd",fontWeight:700}}>{parseFloat(vwapPrice)>0 ? "MANUAL INPUT" : "LIVE FEED"}</span></div>
-              <div style={{fontSize:13,color:"#ddd",...mono}}>Band state: <span style={{color:autoCol,fontWeight:700}}>{autoVwap.status==="buy"?"LOWER BAND SUPPORT":autoVwap.status==="sell"?"UPPER BAND RESISTANCE":"NEUTRAL"}</span></div>
-            </div>
-          </div>
-          );
-        })()}
+        {/* ── SIGNAL CHAIN CARD ── */}
+        <div style={{marginBottom:14,borderRadius:14,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.02)",padding:"14px 14px"}}>
+          <div style={{fontSize:10,letterSpacing:2,color:"#555",fontWeight:700,...mono,marginBottom:12}}>SIGNAL CHAIN</div>
 
+          {chainRows.map((row, i)=>(
+            <div key={row.id}>
+              <div style={{
+                display:"flex",alignItems:"center",gap:10,
+                padding:row.isFinal?"14px 12px":"10px 12px",
+                borderRadius:12,
+                background:row.isFinal?`${row.badgeCol}0d`:"rgba(255,255,255,0.02)",
+                border:`1px solid ${row.isFinal?row.badgeCol+"44":"rgba(255,255,255,0.05)"}`,
+                boxShadow:row.isFinal?`0 0 20px ${row.badgeCol}12`:"none",
+                marginBottom:row.isFinal?0:4,
+              }}>
+                {/* Label */}
+                <div style={{width:90,flexShrink:0}}>
+                  <div style={{fontSize:9,letterSpacing:2,color:"#444",fontWeight:700,...mono}}>{row.label}</div>
+                </div>
+                {/* Badge */}
+                <div style={{
+                  padding:row.isFinal?"6px 14px":"4px 10px",
+                  borderRadius:8,
+                  background:`${row.badgeCol}1a`,
+                  border:`1px solid ${row.badgeCol}44`,
+                  color:row.badgeCol,
+                  fontSize:row.isFinal?18:13,
+                  fontWeight:900,
+                  ...mono,
+                  letterSpacing:row.isFinal?2:1,
+                  flexShrink:0,
+                  minWidth:64,
+                  textAlign:"center",
+                }}>
+                  {row.arrow&&<span style={{marginRight:4}}>{row.arrow}</span>}{row.badge}
+                </div>
+                {/* Note */}
+                <div style={{flex:1,fontSize:11,color:"#666",...mono,lineHeight:1.5}}>{row.note}</div>
+              </div>
+              {i<chainRows.length-1&&(
+                <div style={{textAlign:"left",paddingLeft:96,color:"#2a2a2a",fontSize:16,lineHeight:1.4,...mono}}>↓</div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* ── BIAS CHECKLIST ── */}
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          {appChecks.map((chk,i)=>{
+            const col  = chk.passes===true?G:chk.passes===false?R:"#555";
+            const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
+            return(
+              <div key={i} style={{flex:1,borderRadius:14,border:`1px solid ${col}33`,background:`${col}08`,padding:"14px 10px",textAlign:"center"}}>
+                <div style={{fontSize:11,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:6}}>{chk.label}</div>
+                <div style={{fontSize:22,fontWeight:900,color:col,lineHeight:1,marginBottom:5}}>{icon}</div>
+                <div style={{fontSize:12,color:col,...mono,fontWeight:700,lineHeight:1.3}}>{chk.value||"—"}</div>
+              </div>
+            );
+          })}
+        </div>
 
         {/* ── DXY LEADS BITCOIN ── */}
         <div style={card({border:`1px solid ${dxyCol}44`,background:`${dxyCol}07`,marginBottom:12})}>
@@ -2374,9 +2386,9 @@ function App() {
           </div>
         )}
 
-        {/* Instruments toggle section */}
+        {/* ── INSTRUMENTS TOGGLE ── */}
         <div style={card({marginTop:8})}>
-          <div style={lbl("#999",{marginBottom:10})}>ACTIVE INSTRUMENTS · TAP TO TOGGLE</div>
+          <div style={lbl("none",{marginBottom:10,color:"#999"})}>ACTIVE INSTRUMENTS · TAP TO TOGGLE</div>
           <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
             {cats.map(c=>(
               <button key={c.id} onClick={()=>setSigCat(c.id)} style={{
@@ -2408,139 +2420,6 @@ function App() {
     );
   };
 
-    // ── VWAP ──
-  const VwapTab = ()=>{
-    const filtered = (vwapPeriod==="AM"?trapStatus.filter(t=>t.period==="AM"):vwapPeriod==="PM"?trapStatus.filter(t=>t.period==="PM"):trapStatus).filter(t=>t.active);
-    const activeAnchors = filtered.filter(t=>t.active);
-    const price = parseFloat(vwapPrice)||0;
-    const hasPrice = price>0;
-
-    return(
-      <div style={{padding:14}}>
-
-        {/* ── ACTIVE ANCHORS — shown first ── */}
-        {activeAnchors.length>0?(
-          <div style={{marginBottom:12}}>
-            {activeAnchors.map(t=>{
-              const pct   = t.pct||0;
-              const str   = Math.round(100-pct);
-              const strCol= str>=70?G:str>=40?A:R;
-              return(
-                <div key={t.id} style={{background:`${strCol}0a`,border:`2px solid ${strCol}55`,borderRadius:14,padding:"14px 16px",marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                    <div>
-                      <div style={{fontSize:13,letterSpacing:2,color:strCol,fontWeight:700,marginBottom:3}}>● ACTIVE VWAP ANCHOR</div>
-                      <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{t.label}</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:28,fontWeight:900,color:strCol,lineHeight:1}}>{str}%</div>
-                      <div style={{fontSize:13,color:"#999",letterSpacing:1}}>STRENGTH</div>
-                    </div>
-                  </div>
-                  {/* Strength bar */}
-                  <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${str}%`,background:strCol,borderRadius:3,boxShadow:`0 0 6px ${strCol}88`,transition:"width 1s"}}/>
-                  </div>
-                  <div style={{fontSize:13,color:"#999",...mono,marginTop:6}}>
-                    {t.elapsed<60?`${t.elapsed} min since anchor`:`${Math.floor(t.elapsed/60)}h ${t.elapsed%60}m since anchor`} · Fades over 3 hours
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ):(
-          <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 16px",marginBottom:12,textAlign:"center"}}>
-            <div style={{fontSize:13,color:"#bbb",letterSpacing:2,...mono}}>NO ACTIVE ANCHOR RIGHT NOW</div>
-            <div style={{fontSize:13,color:"#2a2a2a",marginTop:4,...mono}}>Anchors wake up automatically around the trap cycle and fade out after their active life.</div>
-          </div>
-        )}
-
-        {/* ── WHAT THIS TELLS YOU ── */}
-        <div style={card({background:"rgba(255,160,48,0.06)",border:`1px solid ${A}33`})}>
-          <div style={lbl(A,{marginBottom:10})}>WHAT THE VWAP IS TELLING YOU</div>
-          <div style={{fontSize:13,color:"#ccc",...mono,lineHeight:2.0,marginBottom:12}}>
-            The VWAP is anchored to the <span style={{color:A,fontWeight:700}}>trap candle</span> at each zone start — not the session open. This is what makes ENGiN3 VWAP different.
-            It tells you <span style={{color:A,fontWeight:700}}>where fair value is</span> since that session began.
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {[
-              {color:G,  title:"Price ABOVE VWAP", body:"Buyers are in control since the anchor. Trend is up from that session start. BUY zones with price above VWAP = higher probability long."},
-              {color:R,  title:"Price BELOW VWAP", body:"Sellers are in control. SELL zones with price below VWAP = higher probability short."},
-              {color:`${G}bb`, title:"Price at UB2", body:"Momentum resistance. Price is extended. Watch for pause or pullback to VWAP."},
-              {color:G,  title:"Price at UB3", body:"Price is stretched far above fair value. High probability reversal or consolidation zone."},
-              {color:`${R}bb`, title:"Price at LB2", body:"Momentum support. Bounces common here. Watch for zone alignment."},
-              {color:R,  title:"Price at LB3", body:"Price is stretched far below fair value. High probability bounce or exhaustion zone."},
-            ].map((row,i)=>(
-              <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",paddingBottom:8,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                <div style={{width:3,minHeight:36,background:row.color,flexShrink:0,borderRadius:2,marginTop:2}}/>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:row.color,marginBottom:3}}>{row.title}</div>
-                  <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>{row.body}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{marginTop:10,padding:"8px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8}}>
-            <div style={{fontSize:13,color:A,fontWeight:700,marginBottom:4}}>BEST USE CASE</div>
-            <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>
-              Zone fires + VWAP confirms direction + price near Band 2 or 3 = your highest confluence entry. Use bands as targets and as stops reference.
-            </div>
-          </div>
-        </div>
-
-        {/* ── PRICE INPUT ── */}
-        <div style={card({padding:"14px 16px"})}>
-          <div style={lbl("#aaa",{marginBottom:10})}>ENTER CURRENT PRICE TO SEE BANDS</div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <div style={{position:"relative",flex:1}}>
-              <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:A,fontSize:14,fontWeight:900,...mono}}>$</span>
-              <input value={vwapPrice} onChange={e=>setVwapPrice(e.target.value.replace(/[^0-9.]/g,""))}
-                placeholder="0.00" inputMode="decimal"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:`1px solid ${hasPrice?A:"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"12px 12px 12px 28px",color:A,...mono,fontSize:16,fontWeight:900,transition:"border .2s"}}/>
-            </div>
-            <select value={vwapInst} onChange={e=>setVwapInst(e.target.value)} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"12px",color:"#ccc",...mono,fontSize:13,cursor:"pointer",minWidth:90}}>
-              {cats.flatMap(c=>c.items).map(i=><option key={i.id} value={i.id} style={{background:"#0d0d22"}}>{i.id}</option>)}
-            </select>
-          </div>
-          {hasPrice&&<div style={{fontSize:13,color:A,marginTop:8,...mono}}>
-            {vwapInst} @ ${price.toLocaleString()} · band map only · mean reversion + value break modes
-          </div>}
-        </div>
-
-        {/* ── SESSION ── */}
-        <div style={{display:"flex",gap:6,marginBottom:12}}>
-          {[["ALL","All Sessions"],["AM","AM Only"],["PM","PM Only"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setVwapPeriod(v)} style={{flex:1,padding:"9px 0",borderRadius:10,background:vwapPeriod===v?`${A}22`:"transparent",border:`1px solid ${vwapPeriod===v?A:"#1e1e2e"}`,color:vwapPeriod===v?A:"#888",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>{l}</button>
-          ))}
-        </div>
-
-        {activeAnchors.length>0&&(
-          <div style={{background:`${A}0d`,border:`1px solid ${A}44`,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:A,boxShadow:`0 0 8px ${A}`,flexShrink:0}}/>
-            <div style={{fontSize:14,color:A,fontWeight:700,...mono}}>
-              {activeAnchors.length} anchor{activeAnchors.length>1?"s":""} active: {activeAnchors.map(t=>t.label).join(" · ")}
-            </div>
-          </div>
-        )}
-
-        {!can("vwap")?(
-          <div style={{textAlign:"center",padding:"28px 20px"}}>
-            <div style={{fontSize:30,marginBottom:10}}>📊</div>
-            <div style={{fontSize:13,fontWeight:900,color:G,marginBottom:6,letterSpacing:2}}>PRO REQUIRED</div>
-            <button onClick={()=>setSubOpen(true)} style={{background:`${G}18`,border:`1px solid ${G}`,color:G,borderRadius:10,padding:"10px 22px",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:2}}>UPGRADE →</button>
-          </div>
-        ):(
-          filtered.length===0?(
-            <div style={{textAlign:"center",padding:"28px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12}}>
-              <div style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",marginBottom:6}}>NO ACTIVE ANCHORS</div>
-              <div style={{fontSize:13,color:"#222",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>Anchors are captured automatically and expire after 3 hours. Expired anchors are removed.</div>
-            </div>
-          ):filtered.map(t=><VWAPBandCard key={t.id} trap={t} et={et} price={vwapPrice} marketData={marketData} inst={vwapInst} anchors={vwapAnchors}/>)
-        )}
-      </div>
-    );
-  };
-
   // ── ZONES removed ──
   const ZonesTab = ()=> null;
 
@@ -2557,14 +2436,63 @@ function App() {
     });
     const [diag, setDiag] = React.useState(null);
 
-    const loggedLastWeek = React.useMemo(()=> tab==="replay" ? buildUnifiedNewsEvents(Date.now()) : [], [tab, newsArticles, calArticles, ecoArticles, replayEvents]);
+    const loggedLastWeek = React.useMemo(()=>{
+      if(tab !== 'replay') return [];
+      function cleanReplayText(s){
+        return String(s||'').toLowerCase().replace(/<[^>]+>/g,' ').replace(/&[^;]+;/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+      }
+      function dedupeFeedItems(items){
+        const seen = new Map();
+        return (items||[]).filter(Boolean).filter(item=>{
+          const title = cleanReplayText(item.title||'');
+          const source = cleanReplayText(item.source||item.feedLabel||'');
+          const hourBucket = (()=>{
+            const t = Date.parse(item.pub||item.date||0);
+            if(!t || Number.isNaN(t)) return 'na';
+            const d = new Date(t);
+            d.setMinutes(0,0,0);
+            return d.toISOString();
+          })();
+          const key = [title.slice(0,110), source.slice(0,30), item.country||'', item.kind||'news', hourBucket].join('|');
+          if(!title || seen.has(key)) return false;
+          seen.set(key, true);
+          return true;
+        });
+      }
+      function toEvent(raw, overrides={}){
+        const title = String(raw?.title || raw?.l || raw?.label || overrides.title || '').trim();
+        if(!title) return null;
+        const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==='high'?3:raw?.imp==='med'?2:1) || 1)));
+        const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
+        const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? 'event' : 'breaking');
+        const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || 'live';
+        const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : '');
+        const country = raw?.country || raw?.currency || overrides.country || inferCountry(`${title} ${raw?.desc||raw?.note||''}`) || '';
+        const note = raw?.desc || raw?.btc || raw?.note || overrides.note || '';
+        return { title, source, stars, polarity, kind, pub, country, note };
+      }
+      const speechRe = /powell|speech|remarks|testimony|presser|press conference/i;
+      const scheduled = [
+        ...(calArticles||[]).map(ev=>toEvent(ev,{kind:speechRe.test(ev?.title||'')?'speech':'event'})),
+        ...(ecoArticles||[]).map(ev=>toEvent(ev,{kind:speechRe.test(ev?.title||'')?'speech':'event'})),
+      ].filter(Boolean);
+      const breaking = (newsArticles||[])
+        .map(ev=>toEvent(ev,{kind:speechRe.test(ev?.title||'')?'speech':'breaking'}))
+        .filter(Boolean);
+      return dedupeFeedItems([...scheduled, ...breaking])
+        .filter(ev=>{
+          const t = Date.parse(ev.pub||0);
+          return t && !Number.isNaN(t) && (Date.now() - t) <= 7*24*60*60*1000;
+        })
+        .sort((a,b)=>(Date.parse(a.pub||0)||0) - (Date.parse(b.pub||0)||0));
+    }, [tab, newsArticles, calArticles, ecoArticles]);
 
     React.useEffect(()=>{
       try{ localStorage.setItem('engin3ReplayHoldMins', String(holdMins)); }catch(e){}
     },[holdMins]);
 
     React.useEffect(()=>{
-      if(tab !== "replay") return;
+      if(tab !== 'replay') return;
       try{
         const raw = JSON.parse(localStorage.getItem('engin3ReplayLastResults')||'null');
         if(raw && Array.isArray(raw.sessions) && raw.sessions.length) setResults(raw);
@@ -2575,10 +2503,7 @@ function App() {
       if(!playing || !results?.sessions?.length) return;
       const timer = setInterval(()=>{
         setPlayIdx(prev=>{
-          if(prev >= results.sessions.length-1){
-            setPlaying(false);
-            return prev;
-          }
+          if(prev >= results.sessions.length-1){ setPlaying(false); return prev; }
           return prev + 1;
         });
       }, 250);
@@ -2599,130 +2524,131 @@ function App() {
       return { h24, m: minute, dayStr: `${bag.weekday} ${bag.month} ${bag.day}`, timeStr: `${bag.hour}:${bag.minute} ${dp}` };
     }
 
-
     async function fetchReplayCandles(){
       const cacheKey = 'engin3ReplayCandles_1m_7d';
-      const persist = candles => {
-        try{ localStorage.setItem(cacheKey, JSON.stringify(candles)); }catch(e){}
-        return candles;
-      };
-      const fromCache = ()=>{
-        try{
-          const raw = JSON.parse(localStorage.getItem(cacheKey)||'null');
-          return Array.isArray(raw)&&raw.length?raw:null;
-        }catch(e){ return null; }
-      };
-      const dedupeSort = rows => Object.values((rows||[]).reduce((acc,c)=>{
-        if(c && Number.isFinite(c.ts)) acc[c.ts]=c;
-        return acc;
-      }, {})).sort((a,b)=>a.ts-b.ts);
-
+      const persist = candles => { try{ localStorage.setItem(cacheKey, JSON.stringify(candles)); }catch(e){} return candles; };
+      const fromCache = ()=>{ try{ const raw = JSON.parse(localStorage.getItem(cacheKey)||'null'); return Array.isArray(raw)&&raw.length?raw:null; }catch(e){ return null; } };
+      const dedupeSort = rows => Object.values((rows||[]).reduce((acc,c)=>{ if(c && Number.isFinite(c.ts)) acc[c.ts]=c; return acc; }, {})).sort((a,b)=>a.ts-b.ts);
       const normalizeBinance = raw => Array.isArray(raw)
         ? raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
              .filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close))
         : null;
-
       const normalizeCryptoCompare = raw => {
         const arr = raw?.Data?.Data || raw?.Data || [];
         return Array.isArray(arr)
-          ? arr.map(k=>({
-              ts:Number(k.time)*1000,
-              open:Number(k.open),
-              high:Number(k.high),
-              low:Number(k.low),
-              close:Number(k.close)
-            })).filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close))
+          ? arr.map(k=>({ ts:Number(k.time)*1000, open:Number(k.open), high:Number(k.high), low:Number(k.low), close:Number(k.close) }))
+                .filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close))
           : null;
       };
-
-      const now = Date.now();
-      const weekAgo = now - 7*24*60*60*1000;
-
-      // Fast fallback 1: CryptoCompare backwards chunks
       try{
-        let toTs = Math.floor(now/1000);
-        const merged = [];
-        for(let i=0;i<6;i++){
-          const url = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=2000&toTs=${toTs}&cacheBust=${Date.now()}_${i}`;
-          const res = await fetch(url, {cache:'no-cache'});
-          if(!res.ok) throw new Error('cryptocompare unavailable');
-          const raw = await res.json();
-          const candles = normalizeCryptoCompare(raw);
-          if(candles && candles.length){
-            merged.push(...candles);
-            toTs = Math.floor((candles[0].ts/1000) - 60);
-          }
+        const endTs = Date.now();
+        const startTs = endTs - 7*24*60*60*1000;
+        const binanceUrl = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&startTime=${startTs}&endTime=${endTs}&limit=1000`;
+        const bRes = await fetch(binanceUrl,{cache:'no-cache'});
+        if(bRes.ok){
+          const raw = await bRes.json();
+          const rows = normalizeBinance(raw);
+          if(rows?.length) return persist(dedupeSort(rows));
         }
-        const rows = dedupeSort(merged).filter(c=>c.ts>=weekAgo);
-        if(rows.length >= 3000) return persist(rows);
       }catch(e){}
-
-      // Fast fallback 2: Binance direct + proxy in larger batches
       try{
-        const batchMs = 1000 * 60 * 1000;
-        const urlsFor = (startTs,endTs)=>{
-          const base = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000&startTime=${startTs}&endTime=${endTs}&cacheBust=${Date.now()}`;
-          return [
-            base,
-            `https://api.binance.us/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000&startTime=${startTs}&endTime=${endTs}&cacheBust=${Date.now()}`,
-            `https://corsproxy.io/?${encodeURIComponent(base)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`
-          ];
-        };
-        const merged = [];
-        for(let cursor=weekAgo; cursor<now; cursor+=batchMs){
-          const endTs = Math.min(now, cursor + batchMs - 60000);
-          let got = null;
-          for(const url of urlsFor(cursor,endTs)){
-            try{
-              const res = await fetch(url, {cache:'no-cache'});
-              if(!res.ok) continue;
-              const raw = await res.json();
-              const candles = normalizeBinance(raw);
-              if(candles && candles.length){ got = candles; break; }
-            }catch(e){}
-          }
-          if(got && got.length) merged.push(...got);
+        const ccUrl = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=2000`;
+        const cRes = await fetch(ccUrl,{cache:'no-cache'});
+        if(cRes.ok){
+          const raw = await cRes.json();
+          const rows = normalizeCryptoCompare(raw);
+          if(rows?.length) return persist(dedupeSort(rows));
         }
-        const rows = dedupeSort(merged);
-        if(rows.length) return persist(rows);
       }catch(e){}
-
       const cached = fromCache();
       if(cached) return cached;
-
       throw new Error('BTC replay minute data unavailable');
+    }
+
+    function replayEventType(ev){
+      if(ev && ev.kind === 'event') return 'scheduled';
+      if(ev && ev.kind === 'speech') return 'speech';
+      return 'breaking';
+    }
+    function eventWindowMinutes(ev){
+      const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
+      const type = replayEventType(ev);
+      if(type === 'breaking') return {pre:0, post:20};
+      if(type === 'speech') return {pre:0, post:45};
+      if(stars === 1) return {pre:20, post:20};
+      if(stars === 2) return {pre:50, post:50};
+      return {pre:80, post:80};
+    }
+    function activeEventsFor(tsMs){
+      return loggedLastWeek.filter(ev=>{
+        const t = Date.parse(ev.pub||0);
+        if(!t || Number.isNaN(t)) return false;
+        const w = eventWindowMinutes(ev);
+        return tsMs >= (t - w.pre*60000) && tsMs <= (t + w.post*60000);
+      });
+    }
+    function computeReplayPolarity(baseDirection, activeEvents, h24){
+      const events = Array.isArray(activeEvents) ? activeEvents : [];
+      const negatives = events.filter(ev=>Number(ev.polarity)===-1).length;
+      const positives = events.filter(ev=>Number(ev.polarity)===1).length;
+      const activeCount = events.length;
+      let newsCharge = 0;
+      if(positives > negatives) newsCharge = 1;
+      else if(negatives > positives) newsCharge = -1;
+      const hourCharge = (Number(h24)%2===0) ? 1 : -1;
+      const hasNews = activeCount > 0 && newsCharge !== 0;
+      const finalDirection = !hasNews ? baseDirection : ((hourCharge * newsCharge) > 0 ? 'buy' : 'sell');
+      const finalCharge = finalDirection === 'buy' ? 1 : -1;
+      const newsFlip = hasNews && finalDirection !== baseDirection;
+      const equationPlain = !hasNews
+        ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
+        : `${hourCharge>0?'EVEN(+)':'ODD(-)'} × ${newsCharge>0?'POSITIVE NEWS':'NEGATIVE NEWS'} = ${finalDirection.toUpperCase()}`;
+      const equation = !hasNews
+        ? `${baseDirection.toUpperCase()} + NO NEWS = <b>${finalDirection.toUpperCase()}</b>`
+        : `${hourCharge>0?'EVEN(+)':'ODD(-)'} × ${newsCharge>0?'POSITIVE NEWS':'NEGATIVE NEWS'} = <b>${finalDirection.toUpperCase()}</b>`;
+      return {
+        finalDirection,
+        activeCount,
+        negativePressure: negatives,
+        positivePressure: positives,
+        baseCharge: baseDirection === 'buy' ? 1 : -1,
+        finalCharge,
+        newsFlip,
+        reason: !hasNews ? `No directional news → replay falls back to step direction (${baseDirection.toUpperCase()})` : `Replay uses time/news math only: ${equationPlain}`,
+        equation,
+        equationPlain,
+        hasNews,
+        newsCharge,
+        hourCharge,
+        dedupedEvents: events,
+      };
     }
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
       const connectorMode = getConnectorMode(h24, m);
-      const slotPol = connectorMode === 'aligned' ? 'positive' : 'negative';
-      const baseDirection = step.direction;
-      const applied = computeReplayPolarity(baseDirection, slotPol, activeEvents, h24, m);
+      const applied = computeReplayPolarity(step.direction, activeEvents, h24);
       const signal = applied.finalDirection === 'buy' ? 'BUY' : 'SELL';
       return {
         signal,
         mode: connectorMode,
-        flip: applied.finalDirection !== baseDirection,
+        flip: applied.finalDirection !== step.direction,
         reason: applied.reason,
         activeEvents: applied.dedupedEvents,
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection,
+        baseDirection: step.direction,
         baseCharge: applied.baseCharge,
         finalCharge: applied.finalCharge,
         newsFlip: applied.newsFlip,
-        slotPolarity: slotPol,
+        slotPolarity: connectorMode === 'aligned' ? 'positive' : 'negative',
         equation: applied.equation,
         equationPlain: applied.equationPlain,
         hasNews: applied.hasNews,
         hourCharge: applied.hourCharge,
         newsCharge: applied.newsCharge,
       };
-    };
     }
-
     function scoreSignalWindow(signal, openPrice, futureCandles) {
       const tp1 = 0.003, tp2 = 0.006, tp3 = 0.009;
       if(!openPrice || !Array.isArray(futureCandles) || !futureCandles.length) return null;
@@ -2746,16 +2672,6 @@ function App() {
       }
       return null;
     }
-
-    function activeEventsFor(tsMs){
-      return loggedLastWeek.filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        if(!t || Number.isNaN(t)) return false;
-        const w = eventWindowMinutes(ev);
-        return tsMs >= (t - w.pre*60000) && tsMs <= (t + w.post*60000);
-      });
-    }
-
     function buildConfirmationTags(replay, score){
       const tags = [];
       tags.push(replay.hasNews ? 'NEWS MATH' : 'STEP FALLBACK');
@@ -2770,15 +2686,14 @@ function App() {
       return tags;
     }
     function isReplayExecuteWindow(h24, m){
-      const hh = Number(h24||0);
-      const mm = Number(m||0);
+      const hh = Number(h24||0), mm = Number(m||0);
       if(mm !== 0) return false;
       return hh===2 || hh===5 || hh===8 || hh===11 || hh===14 || hh===17 || hh===20 || hh===23;
     }
 
-
     async function runReplay() {
-      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(50, Number(holdMins||50)) });
+      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false);
+      setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Number(holdMins||50), rejectedNonExecute:0 });
       try {
         const candles = await fetchReplayCandles();
         if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
@@ -2786,7 +2701,6 @@ function App() {
         const sessions = [];
         let rejectedNonExecute = 0;
         const horizon = Math.max(50, Number(holdMins||50));
-        const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
         const events = (Array.isArray(loggedLastWeek) ? loggedLastWeek : []).filter(ev=>ev && ev.pub && !Number.isNaN(Date.parse(ev.pub)));
 
         for(let j=0; j<events.length; j++) {
@@ -2845,11 +2759,11 @@ function App() {
           return { key:tag, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
         }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
 
-        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: eventCount, bySignal, byConfirm, holdMins:horizon };
-        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon, rejectedNonExecute });
+        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: events.length, bySignal, byConfirm, holdMins:horizon };
+        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:events.length, holdMins:horizon, rejectedNonExecute });
 
         if(!replayRows.length){
-          setError(eventCount ? 'Replay ran, but no BUY/SELL signals were generated from the event timestamps in the loaded window.' : 'Replay ran, but no historical events were loaded into the event log yet.');
+          setError(events.length ? 'Replay ran, but no BUY/SELL signals were generated from event timestamps inside execution hours.' : 'Replay ran, but there were no recent scheduled or breaking events loaded.');
           setResults({ ...payload, sessions: sessions.slice(-120).reverse() });
         } else {
           setResults(payload);
@@ -2859,7 +2773,7 @@ function App() {
         const msg = (e && e.message) ? String(e.message) : 'Replay unavailable';
         setDiag(null);
         setError(msg.includes('minute data unavailable')
-          ? 'Replay could not fetch BTC 1-minute candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles.'
+          ? 'Replay could not fetch BTC 1-minute candles and no saved replay cache was available. Open this file in a normal browser tab with internet, run replay once, then it can reuse cached candles.'
           : `Replay error: ${msg}`);
       }
       setLoading(false);
@@ -2873,154 +2787,116 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl('#999',{marginBottom:10})}>REPLAY — BTC 1M ENGINE</div>
         <div style={{fontSize:12,color:'#666',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window. This scores event timestamps on BTC 1-minute candles so replay is not firing a new trade every minute.
+          Replay now scores BTC on 1-minute candles. A replay win means TP1 or better was reached inside the selected hold window, and it only scores timestamps that land in the execution hours from Code2.
         </div>
 
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-          <div style={{borderRadius:12,border:'1px solid rgba(240,160,48,0.25)',background:'rgba(240,160,48,0.06)',padding:'10px 12px'}}>
-            <div style={{fontSize:10,color:'#555',letterSpacing:2,marginBottom:4}}>LOGGED EVENTS</div>
-            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.length}</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+          <div style={card({padding:'12px 14px',marginBottom:0})}>
+            <div style={lbl('#888',{marginBottom:6})}>RECENT EVENTS</div>
+            <div style={{fontSize:22,fontWeight:900,color:A,...mono}}>{loggedLastWeek.length}</div>
+            <div style={{fontSize:11,color:'#555',...mono,marginTop:4}}>last 7 days from news + calendar</div>
           </div>
-          <div style={{borderRadius:12,border:'1px solid rgba(255,255,255,0.08)',background:'rgba(255,255,255,0.03)',padding:'10px 12px'}}>
-            <div style={{fontSize:10,color:'#555',letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
-            <div style={{fontSize:22,color:'#ccc',fontWeight:900}}>7D</div>
-          </div>
-          <div style={{borderRadius:12,border:'1px solid rgba(102,204,255,0.24)',background:'rgba(102,204,255,0.07)',padding:'10px 12px'}}>
-            <div style={{fontSize:10,color:'#555',letterSpacing:2,marginBottom:4}}>HOLD</div>
-            <div style={{fontSize:22,color:'#66ccff',fontWeight:900}}>{holdMins}m</div>
-          </div>
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,marginBottom:12,alignItems:'end'}}>
-          <div>
-            <div style={{fontSize:10,letterSpacing:2,color:'#555',marginBottom:6,...mono}}>HOLD WINDOW (MINUTES)</div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {[1,3,5,10,15,30,50].map(v=>(
-                <button key={v} onClick={()=>setHoldMins(v)} style={{padding:'8px 10px',borderRadius:10,border:`1px solid ${holdMins===v?A:'rgba(255,255,255,0.10)'}`,background:holdMins===v?`${A}18`:'rgba(255,255,255,0.03)',color:holdMins===v?A:'#bbb',fontWeight:800,cursor:'pointer'}}>{v}m</button>
-              ))}
+          <div style={card({padding:'12px 14px',marginBottom:0})}>
+            <div style={lbl('#888',{marginBottom:6})}>HOLD WINDOW</div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <input type='range' min='50' max='240' step='10' value={holdMins} onChange={e=>setHoldMins(Number(e.target.value)||50)} style={{flex:1}}/>
+              <div style={{fontSize:16,fontWeight:900,color:A,...mono,minWidth:54,textAlign:'right'}}>{holdMins}m</div>
             </div>
           </div>
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={runReplay} disabled={loading}
-              style={{padding:'12px 16px',borderRadius:12,fontSize:14,fontWeight:900,cursor:loading?'not-allowed':'pointer',letterSpacing:2,
-                background:loading?'rgba(255,255,255,0.05)':`${G}1a`,border:`1px solid ${loading?'#333':G}`,color:loading?'#555':G}}>
-              {loading?'⏳ RUNNING...':'▶ RUN REPLAY'}
-            </button>
-            <button onClick={()=>setPlaying(p=>!p)} disabled={!results?.sessions?.length}
-              style={{padding:'12px 14px',borderRadius:12,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',color:'#ddd',fontWeight:800,cursor:results?.sessions?.length?'pointer':'not-allowed'}}>
-              {playing?'❚❚':'▶'}
-            </button>
-          </div>
         </div>
 
-        {error&&<div style={{color:R,fontSize:13,...mono,marginBottom:12,padding:'10px 14px',background:`${R}12`,borderRadius:10,border:`1px solid ${R}33`}}>{error}</div>}
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <button onClick={runReplay} disabled={loading} style={{flex:1,padding:'12px 14px',borderRadius:12,background:`${A}18`,border:`1px solid ${A}`,color:A,fontSize:13,fontWeight:900,cursor:'pointer',letterSpacing:1.5}}>
+            {loading?'RUNNING…':'RUN REPLAY'}
+          </button>
+          <button onClick={()=>{ setPlayIdx(0); setPlaying(v=>!v); }} disabled={!results?.sessions?.length} style={{padding:'12px 14px',borderRadius:12,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',color:results?.sessions?.length?'#bbb':'#444',fontSize:13,fontWeight:900,cursor:'pointer',letterSpacing:1.5}}>
+            {playing?'PAUSE':'PLAY'}
+          </button>
+        </div>
+
+        {error&&<div style={{marginBottom:12,padding:'10px 12px',borderRadius:10,background:'rgba(255,51,85,0.08)',border:'1px solid rgba(255,51,85,0.28)',color:R,fontSize:12,...mono,lineHeight:1.7}}>{error}</div>}
+
+        {diag&&(
+          <div style={{marginBottom:12,padding:'10px 12px',borderRadius:10,background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.06)'}}>
+            <div style={{fontSize:10,letterSpacing:2,color:'#666',fontWeight:700,...mono,marginBottom:6}}>REPLAY DIAGNOSTICS</div>
+            <div style={{fontSize:12,color:'#888',...mono,lineHeight:1.8}}>
+              candles {diag.candlesLoaded} · built {diag.sessionsBuilt} · kept {diag.replaySignals} · scored {diag.scoredSignals} · events {diag.eventsUsed} · rejected non-execution {diag.rejectedNonExecute}
+            </div>
+          </div>
+        )}
 
         {results&&(
           <>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:8,marginBottom:12}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:8,marginBottom:12}}>
               {[
-                {l:'WIN RATE', v:`${results.wr}%`, c:results.wr>=60?G:results.wr>=45?A:R},
-                {l:'WINS', v:results.wins, c:G},
-                {l:'LOSSES', v:results.losses, c:R},
-                {l:'SIGNALS', v:results.total, c:A},
-                {l:'HOLD', v:`${results.holdMins}m`, c:'#66ccff'},
-              ].map(i=>(<div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:'10px 8px',textAlign:'center'}}><div style={{fontSize:9,color:'#444',letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>))}
+                {l:'WIN RATE',v:`${results.wr||0}%`,c:(results.wr||0)>=60?G:(results.wr||0)>=45?A:R},
+                {l:'WINS',v:results.wins||0,c:G},
+                {l:'LOSSES',v:results.losses||0,c:R},
+                {l:'TOTAL',v:results.total||0,c:A},
+              ].map(i=><div key={i.l} style={card({padding:'12px 10px',textAlign:'center',marginBottom:0})}><div style={lbl('#777',{marginBottom:6})}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>)}
             </div>
 
-            <div style={{marginBottom:14,borderRadius:12,border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.02)',padding:'12px 14px'}}>
-              <div style={{fontSize:10,letterSpacing:2,color:'#444',fontWeight:700,...mono,marginBottom:10}}>BY SIGNAL TYPE</div>
-              {results.bySignal.map(row=>{
-                const sc = sigCol(row.key);
-                return(
-                  <div key={row.key} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
-                    <div style={{width:90,fontSize:12,fontWeight:900,color:sc,...mono}}>{row.key}</div>
-                    <div style={{flex:1,height:6,background:'rgba(255,255,255,0.05)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${row.wr}%`,background:sc,borderRadius:3}}/></div>
-                    <div style={{fontSize:13,fontWeight:900,color:row.wr>=60?G:row.wr>=45?A:R,...mono,width:44,textAlign:'right'}}>{row.wr}%</div>
-                    <div style={{fontSize:11,color:'#444',...mono,width:46,textAlign:'right'}}>{row.wins}/{row.total}</div>
+            {current&&(
+              <div style={card({padding:'14px 16px'})}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginBottom:8}}>
+                  <div>
+                    <div style={{fontSize:12,color:'#777',...mono}}>{current.dayStr} · {current.timeStr}</div>
+                    <div style={{fontSize:20,fontWeight:900,color:sigCol(current.signal),letterSpacing:1.5}}>{current.signal}</div>
                   </div>
-                );
-              })}
-            </div>
-
-            <div style={{marginBottom:14,borderRadius:12,border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.02)',padding:'12px 14px'}}>
-              <div style={{fontSize:10,letterSpacing:2,color:'#444',fontWeight:700,...mono,marginBottom:10}}>BY CONFIRMATION</div>
-              {results.byConfirm.slice(0,8).map(row=>{
-                const sc = row.wr>=60?G:row.wr>=45?A:R;
-                return(
-                  <div key={row.key} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
-                    <div style={{width:128,fontSize:11,fontWeight:900,color:'#ddd',...mono}}>{row.key}</div>
-                    <div style={{flex:1,height:6,background:'rgba(255,255,255,0.05)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${row.wr}%`,background:sc,borderRadius:3}}/></div>
-                    <div style={{fontSize:13,fontWeight:900,color:sc,...mono,width:44,textAlign:'right'}}>{row.wr}%</div>
-                    <div style={{fontSize:11,color:'#444',...mono,width:46,textAlign:'right'}}>{row.wins}/{row.total}</div>
+                  <div style={{fontSize:12,color:'#666',...mono,textAlign:'right'}}>
+                    OPEN ${Number(current.open||0).toLocaleString()}<br/>
+                    {current.score?.label||'MISS'}{current.score?.firstHitMins?` · ${current.score.firstHitMins}m`:''}
                   </div>
-                );
-              })}
-            </div>
-
-            {current && (
-              <div style={{borderRadius:12,border:`1px solid ${sigCol(current.signal)}33`,background:`${sigCol(current.signal)}09`,padding:'12px 14px',marginBottom:12}}>
-                <div style={{display:'flex',justifyContent:'space-between',gap:10,marginBottom:6,alignItems:'center'}}>
-                  <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} ET</div>
-                  <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.signal}</div>
                 </div>
-                <div style={{fontSize:12,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8}}>{current.score?.correct?`✓ ${current.score?.label || 'WIN'}`:`✗ ${current.score?.label || 'LOSS'}`}</div>
-                <div style={{fontSize:12,color:'#bbb',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  Hold {current.holdMins}m · First hit: {current.score?.firstHitMins?`${current.score.firstHitMins}m`:'—'} · News: {current.activeCount>0?'YES':'NO'}
-                </div>
-                <div style={{fontSize:12,color:'#bbb',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  Base: {current.baseDirection.toUpperCase()} ({current.baseCharge>0?'+1':'-1'}) · News flip: {current.newsFlip>0?'+1':'-1'} · Final: {current.finalCharge>0?'+1':'-1'}
-                </div>
-                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equation}</div>
-                <div style={{fontSize:13,color:'#fff',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equationPlain}</div>
-                <div style={{fontSize:12,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                  {current.confirmations.join(' · ')}
-                </div>
-                {current.eventTitle && (
-                  <div style={{fontSize:11,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                    Event: {current.eventTitle}
-                  </div>
-                )}
-                <div style={{fontSize:12,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                  Open ${current.open.toLocaleString()} · High ${current.high.toLocaleString()} · Low ${current.low.toLocaleString()} · Close ${current.close.toLocaleString()}
-                </div>
-                <input type='range' min='0' max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>setPlayIdx(Number(e.target.value)||0)} style={{width:'100%',marginTop:10}}/>
-                <div style={{display:'flex',justifyContent:'space-between',marginTop:8,gap:8}}>
-                  <button onClick={()=>setPlayIdx(i=>Math.max(0,i-1))} style={{flex:1,padding:'8px 0',borderRadius:8,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',color:'#ddd',cursor:'pointer'}}>← STEP</button>
-                  <button onClick={()=>setPlayIdx(i=>Math.min((results.sessions.length-1),i+1))} style={{flex:1,padding:'8px 0',borderRadius:8,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',color:'#ddd',cursor:'pointer'}}>STEP →</button>
+                <div style={{fontSize:12,color:'#aaa',...mono,lineHeight:1.8,marginBottom:8}} dangerouslySetInnerHTML={{__html: current.equation || current.reason || '—'}} />
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {(current.confirmations||[]).map(tag=><span key={tag} style={{fontSize:11,padding:'4px 8px',borderRadius:999,border:'1px solid rgba(255,255,255,0.08)',background:'rgba(255,255,255,0.03)',color:'#aaa',...mono}}>{tag}</span>)}
                 </div>
               </div>
             )}
 
-            <div style={{fontSize:10,letterSpacing:2,color:'#444',fontWeight:700,...mono,marginBottom:8}}>LATEST 300 SIGNALS</div>
-            {visibleLog.map((s,i)=>{
-              const sc = sigCol(s.signal);
-              const tagCol = s.score?.tp3Hit ? G : s.score?.tp2Hit ? A : s.score?.tp1Hit ? '#66ccff' : R;
-              return(
-                <div key={i} onClick={()=>setPlayIdx(results.sessions.findIndex(x=>x.ts===s.ts))} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.04)',cursor:'pointer'}}>
-                  <div style={{fontSize:10,color:'#444',...mono,minWidth:68}}>{s.dayStr}</div>
-                  <div style={{fontSize:11,color:'#aaa',...mono,minWidth:72}}>{s.timeStr}</div>
+            {!!results.bySignal?.length&&(
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                {results.bySignal.map(row=><div key={row.key} style={card({padding:'12px 14px',marginBottom:0})}><div style={lbl('#777',{marginBottom:6})}>{row.key}</div><div style={{fontSize:18,fontWeight:900,color:sigCol(row.key),...mono}}>{row.wr}%</div><div style={{fontSize:11,color:'#666',...mono,marginTop:4}}>{row.wins}W · {row.losses}L · {row.total} total</div></div>)}
+              </div>
+            )}
+
+            {!!results.byConfirm?.length&&(
+              <div style={card({padding:'12px 14px'})}>
+                <div style={{fontSize:10,letterSpacing:2,color:'#666',fontWeight:700,...mono,marginBottom:8}}>CONFIRMATION BREAKDOWN</div>
+                {results.byConfirm.slice(0,8).map(row=><div key={row.key} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}><div style={{fontSize:12,color:'#aaa',...mono}}>{row.key}</div><div style={{fontSize:12,color:row.wr>=60?G:row.wr>=45?A:R,...mono}}>{row.wr}% · {row.total}</div></div>)}
+              </div>
+            )}
+
+            <div style={card({padding:'12px 14px'})}>
+              <div style={{fontSize:10,letterSpacing:2,color:'#666',fontWeight:700,...mono,marginBottom:8}}>SESSION LOG</div>
+              {visibleLog.map((s,i)=>{
+                const sc = sigCol(s.signal);
+                const res = s.score?.correct===true?'✓':s.score?.correct===false?'✗':'—';
+                const resCol = s.score?.correct===true?G:s.score?.correct===false?R:'#555';
+                return <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                  <div style={{fontSize:10,color:'#555',...mono,minWidth:62}}>{s.dayStr.slice(0,10)}</div>
+                  <div style={{fontSize:11,color:'#666',...mono,minWidth:54}}>{s.timeStr}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
-                  <div style={{fontSize:11,color:'#777',...mono,minWidth:54,textAlign:'right'}}>{s.activeCount>0?'NEWS':'NONE'}</div>
-                  <div style={{fontSize:11,color:'#777',...mono,minWidth:36,textAlign:'right'}}>{s.holdMins}m</div>
-                  <div style={{fontSize:11,color:tagCol,...mono,minWidth:44,textAlign:'right'}}>{s.score?.label || 'MISS'}</div>
-                  <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?'✓':'✗'}</div>
-                </div>
-              );
-            })}
+                  <div style={{fontSize:11,color:'#777',...mono,minWidth:58,textAlign:'right'}}>${Number(s.open||0).toLocaleString()}</div>
+                  <div style={{fontSize:11,color:'#999',...mono,minWidth:72,textAlign:'right'}}>{s.score?.label||'MISS'}</div>
+                  <div style={{fontSize:16,fontWeight:900,color:resCol,minWidth:16}}>{res}</div>
+                </div>;
+              })}
+            </div>
           </>
         )}
 
         {!results&&!loading&&(
-          <div style={{textAlign:'center',padding:'32px 20px',color:'#444',...mono,lineHeight:1.8}}>
-            Run replay to test every BTC signal on minute candles.<br/>
-            A replay win now means TP1 or better was hit inside the hold window you choose.
+          <div style={{textAlign:'center',padding:'40px 20px',color:'#333',...mono}}>
+            Press RUN REPLAY to score recent news and calendar events on BTC 1-minute candles using the new execution-hour replay math.
           </div>
         )}
       </div>
     );
   };
 
-const BacktestTab = ()=>{
+  const BacktestTab = ()=>{
     if(!can("backtest_full")) return(
       <div style={{padding:32,textAlign:"center"}}>
         <div style={{fontSize:44,marginBottom:14}}>📊</div>
@@ -3083,8 +2959,6 @@ const BacktestTab = ()=>{
         </div>
         {can("sub_pocket")&&<div style={card({background:`${A}08`,border:`1px solid ${A}22`,marginBottom:10})}>
           <div style={lbl(A,{marginBottom:6})}>PRIME POCKET</div>
-          <div style={{fontSize:14,color:A,fontWeight:900,letterSpacing:1,marginBottom:6}}>{""}</div>
-          
           <div style={{fontSize:14,color:"#888",...mono,lineHeight:1.8}}>{(zone&&zone.pocket&&zone.pocket.note)}</div>
           <div style={{fontSize:13,color:"#aaa",marginTop:6}}>{(zone&&zone.institutionalEdge)}</div>
         </div>}
@@ -3170,12 +3044,6 @@ const BacktestTab = ()=>{
   };
 
   // ─── NEWS TAB ─────────────────────────────────────────────────────────────────
-  React.useEffect(()=>{
-    const unified = buildUnifiedNewsEvents(Date.now());
-    if(!unified.length) return;
-    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(unified.slice(0,400))); }catch(e){}
-  },[newsArticles, calArticles, ecoArticles]);
-
   const NewsTab = ()=>{
     // Uses App-level state: newsArticles, newsLoading, newsError, newsSrc, newsView, newsExpanded
     // This means news persists through clock ticks and never resets.
@@ -3212,9 +3080,10 @@ const BacktestTab = ()=>{
 
     const LINKS = [
       { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
-      { label:"Myfxbook News",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
+      { label:"",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
       { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
       { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
+      { label:"Investing.com",      color:"#ff9500",  url:"https://www.investing.com/news/latest-news",              desc:"Latest financial news" },
     ];
 
     function fmtDate(s){
@@ -3229,22 +3098,124 @@ const BacktestTab = ()=>{
     const todayStr = new Date().toISOString().slice(0,10);
     const upcoming = (()=>{ const sameDay = ECON.filter(e=>e.d===todayStr); return sameDay.length ? sameDay : ECON.filter(e=>e.d>=todayStr); })();
 
-    React.useEffect(()=>{
-      const refreshAll = ()=>{
-        try{ newsLoadedFor.current = ""; calLoadedRef.current = false; }catch(e){}
-        try{ fetchNews(newsSrc || "combo"); }catch(e){}
-        try{ fetchCalendar(); }catch(e){}
-      };
-      const t = setInterval(refreshAll, 90000);
-      return ()=>clearInterval(t);
-    }, [newsSrc]);
-
     return (
       <div style={{padding:14}}>
 
+        {/* ── ACTIVE NEWS ENGINE STATUS ── shown at top always ── */}
+        {(()=>{
+          const windows = newsReaction.activeWindows || [];
+          const scheduled = windows.filter(w=>w.type==="scheduled"||(!w.type));
+          const breaking  = windows.filter(w=>w.type==="breaking");
+          const speech    = windows.filter(w=>w.type==="speech");
+          const hasAny    = windows.length > 0;
+          const conflict  = newsReaction.conflict;
+
+          if(!hasAny) return (
+            <div style={{marginBottom:12,borderRadius:12,border:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.02)",padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:"#333",flexShrink:0}}/>
+              <div style={{fontSize:12,color:"#555",...mono,letterSpacing:1}}>
+                NO ACTIVE NEWS WINDOW — Engine running on time + connector only
+              </div>
+            </div>
+          );
+
+          return (
+            <div style={{marginBottom:12}}>
+              {/* Section header */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:10,letterSpacing:2,color:"#555",fontWeight:700,...mono}}>ACTIVE NEWS WINDOWS</div>
+                <div style={{fontSize:11,color:conflict?R:G,fontWeight:700,...mono,letterSpacing:1,
+                  padding:"2px 8px",borderRadius:6,background:conflict?`${R}18`:`${G}18`,border:`1px solid ${conflict?R:G}44`}}>
+                  {conflict?"OVERRIDE":"REINFORCE"}
+                </div>
+              </div>
+
+              {/* Scheduled */}
+              {scheduled.length>0&&(
+                <div style={{marginBottom:6}}>
+                  <div style={{fontSize:9,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:4}}>📅 SCHEDULED</div>
+                  {scheduled.map((w,i)=>{
+                    const wCol = w.polarity==="positive"?G:R;
+                    const pct = w.minsLeft>0 ? Math.min(100,Math.round((w.minsLeft/(w.stars===3?75:w.stars===2?45:15))*100)) : 0;
+                    return(
+                      <div key={i} style={{borderRadius:10,border:`1px solid ${wCol}33`,background:`${wCol}06`,padding:"8px 12px",marginBottom:4}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          <div style={{fontSize:12,fontWeight:700,color:"#ddd"}}>{w.title||w.label||"Scheduled Event"}</div>
+                          <div style={{fontSize:11,color:wCol,fontWeight:700,...mono}}>{w.minsLeft!=null?`${w.minsLeft}m left`:""}</div>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{fontSize:11,color:"#666",...mono}}>{w.country||""} {w.source?`· ${w.source}`:""}</div>
+                          <div style={{fontSize:11,color:wCol,fontWeight:700,...mono}}>{w.polarity==="positive"?"▲ CONFIRMS":"▼ CONFLICTS"}</div>
+                        </div>
+                        {w.minsLeft>0&&(
+                          <div style={{marginTop:5,height:2,background:"rgba(255,255,255,0.06)",borderRadius:1,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${pct}%`,background:wCol,borderRadius:1,transition:"width 1s"}}/>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Breaking */}
+              {breaking.length>0&&(
+                <div style={{marginBottom:6}}>
+                  <div style={{fontSize:9,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:4}}>⚡ BREAKING NEWS</div>
+                  {breaking.map((w,i)=>{
+                    const wCol = w.polarity==="positive"?G:R;
+                    const pct = w.minsLeft>0 ? Math.min(100,Math.round((w.minsLeft/15)*100)) : 0;
+                    return(
+                      <div key={i} style={{borderRadius:10,border:`2px solid ${R}44`,background:`${R}06`,padding:"8px 12px",marginBottom:4}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          <div style={{fontSize:12,fontWeight:700,color:"#ddd"}}>{w.title||w.label||"Breaking"}</div>
+                          <div style={{fontSize:11,color:R,fontWeight:700,...mono,letterSpacing:1}}>⚡ {w.minsLeft!=null?`${w.minsLeft}m`:""}</div>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between"}}>
+                          <div style={{fontSize:11,color:"#666",...mono}}>{w.source||"Breaking"}</div>
+                          <div style={{fontSize:11,color:wCol,fontWeight:700,...mono}}>{w.polarity==="positive"?"▲ CONFIRMS":"▼ DRAINS"}</div>
+                        </div>
+                        {w.minsLeft>0&&(
+                          <div style={{marginTop:5,height:2,background:"rgba(255,255,255,0.06)",borderRadius:1,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${pct}%`,background:R,borderRadius:1}}/>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Speech */}
+              {speech.length>0&&(
+                <div style={{marginBottom:6}}>
+                  <div style={{fontSize:9,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:4}}>🎤 SPEECH / FED EVENT</div>
+                  {speech.map((w,i)=>{
+                    const pct = w.minsLeft>0 ? Math.min(100,Math.round((w.minsLeft/60)*100)) : 0;
+                    return(
+                      <div key={i} style={{borderRadius:10,border:"1px solid rgba(170,136,255,0.4)",background:"rgba(170,136,255,0.06)",padding:"8px 12px",marginBottom:4}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          <div style={{fontSize:12,fontWeight:700,color:"#ddd"}}>{w.title||w.label||"Speech"}</div>
+                          <div style={{fontSize:11,color:"#aa88ff",fontWeight:700,...mono}}>×{newsReaction.speechMultiplier||3} · {w.minsLeft!=null?`${w.minsLeft}m`:""}</div>
+                        </div>
+                        <div style={{fontSize:11,color:"#666",...mono}}>Counts as {newsReaction.speechMultiplier||3} stacked news events</div>
+                        {w.minsLeft>0&&(
+                          <div style={{marginTop:5,height:2,background:"rgba(255,255,255,0.06)",borderRadius:1,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${pct}%`,background:"#aa88ff",borderRadius:1}}/>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Toggle */}
-        <div style={{display:"none",gap:6,marginBottom:14}}>
-          {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"events",l:"⚡ POLARITY"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
+        <div style={{display:"flex",gap:6,marginBottom:14}}>
+          {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
               border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
@@ -3270,8 +3241,6 @@ const BacktestTab = ()=>{
           </div>
         )}
 
-        {/* Replay log removed */}
-
         {/* ── LIVE ECO NEWS / EVENTS ── */}
         {newsView==="events"&&(
           <div>
@@ -3296,7 +3265,7 @@ const BacktestTab = ()=>{
                 style={{flex:1,padding:"9px 0",borderRadius:10,background:`${G}14`,border:`1px solid ${G}44`,color:G,fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 ▲ ANCHOR BULL 15m
               </button>
-              <button onClick={()=>setBreakingAnchor({title:"MANUAL BEAR ANCHOR",polarity:-1,expiresAt:Date.now()+15*60*1000,stars:3})}
+              <button onClick={()=>setBreakingAnchor({title:"MANUAL BEAR ANCHOR",polarity:+1,expiresAt:Date.now()+15*60*1000,stars:3})}
                 style={{flex:1,padding:"9px 0",borderRadius:10,background:`${R}14`,border:`1px solid ${R}44`,color:R,fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 ▼ ANCHOR BEAR 15m
               </button>
@@ -3330,11 +3299,6 @@ const BacktestTab = ()=>{
                             color:art.bearish?R:G,cursor:"pointer",fontWeight:700}}>
                           ⚡ ANCHOR {art.bearish?"BEAR":"BULL"}
                         </button>
-                        <button onClick={()=>pushReplayEvent(art,{kind:/powell|speech|remarks|testimony/i.test(art.title||"")?"speech":"breaking"})}
-                          style={{fontSize:14,padding:"2px 8px",borderRadius:6,
-                            background:"rgba(240,160,48,0.12)",border:`1px solid ${A}44`,color:A,cursor:"pointer",fontWeight:700}}>
-                          ＋ LOG
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -3355,46 +3319,50 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LAST 4</div>
-              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>LIVE FEED</div>
+              <button onClick={()=>{ ecoLoadedRef.current=false; newsLoadedFor.current=""; fetchEcoNews(); fetchNews(newsSrc); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH ALL</button>
             </div>
 
-            {(newsLoading||calLoading)&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing latest timeline...</div>
-            )}
-
-            {!newsLoading && newsError && (
-              <div style={{padding:"14px 16px",background:"rgba(255,51,85,0.07)",border:"1px solid rgba(255,51,85,0.25)",borderRadius:12,marginBottom:12}}>
-                <div style={{fontSize:14,color:"#ff7788",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>{newsError}</div>
-              </div>
+            {(ecoLoading || newsLoading)&&(
+              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing feed...</div>
             )}
 
             {(()=>{
-              const timeline = dedupeFeedItems([
-                ...calArticles.map(item=>({
-                  ...item,
+              const mixed = [
+                ...ecoArticles.map(a=>({
                   kind:"event",
-                  isUnified:true,
-                  pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
-                  country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
-                  feedType:"calendar"
+                  title:a.title,
+                  link:a.link,
+                  pub:a.pub,
+                  desc:a.desc,
+                  color:a.stars===3?"#ff3355":a.stars===2?"#f0a030":"#88aaff",
+                  source:(a.source||"Event"),
+                  stars:a.stars||0,
+                  bullish:!!a.bullish,
+                  bearish:!!a.bearish
                 })),
-                ...newsArticles.map(item=>({
-                  ...item,
-                  kind:"breaking",
-                  isUnified:true,
-                  country: item.country || inferCountryCode(`${item.title||""} ${item.desc||""}`),
-                  feedType:"breaking"
+                ...newsArticles.map(a=>({
+                  kind:"news",
+                  title:a.title,
+                  link:a.link,
+                  pub:a.pub,
+                  desc:a.desc,
+                  color:a.color||"#888",
+                  source:a.feedLabel||a.source||"News",
+                  stars:0,
+                  bullish:false,
+                  bearish:false
                 }))
-              ]).sort((a,b)=>{
-                const ta = Date.parse(a.pub||0) || 0;
-                const tb = Date.parse(b.pub||0) || 0;
-                return ta - tb;
-              }).slice(-4);
-              if(!newsLoading && !calLoading && timeline.length===0){
-                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
+              ].filter(x=>x.title);
+
+              mixed.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+              const rows = mixed.slice(0, 40);
+
+              if(!rows.length && !ecoLoading && !newsLoading){
+                return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No feed items yet — tap refresh.</div>;
               }
-              return timeline.map((item,i)=>(
+
+              return rows.map((item,i)=>(
                 <div key={i}
                   onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
                   style={{
@@ -3402,22 +3370,30 @@ const BacktestTab = ()=>{
                     borderRadius:12,padding:"12px 14px",marginBottom:8,
                     cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
                   }}>
-                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
+                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color}}/>
                   <div style={{paddingLeft:12}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,color:item.feedType==="calendar"?"#6fcf97":(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 BREAK"}</span>
+                        <span style={{fontSize:13,color:item.color,fontWeight:700,letterSpacing:1}}>{item.kind==="event"?"⚡ EVENT":"📰 NEWS"}</span>
                         <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
-                        {!!item.country && <span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
-                        {item.feedType==="calendar" && <span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1, Math.min(3, Number(item.stars||1))))}</span>}
+                        {item.stars>0 && <span style={{fontSize:13,color:item.color}}>{"★".repeat(item.stars)}</span>}
                       </div>
                       <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
                     </div>
                     <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
                     {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
                     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                      {item.feedType==="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>WINDOW ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TP {Number(item.stars||1)===3?"261–300":Number(item.stars||1)===2?"161–200":"100–127"}</span>}
-                      {item.feedType!=="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>BURST 0–20m · 61.8–78.6</span>}
+                      {item.link&&<span style={{fontSize:14,color:"#2a2a2a",letterSpacing:1}}>TAP TO READ ↗</span>}
+                      {item.kind==="event" && (item.bullish || item.bearish) && (
+                        <button
+                          onClick={(e)=>{e.stopPropagation(); setBreakingAnchor({title:item.title,polarity:item.bearish?-1:1,expiresAt:Date.now()+15*60*1000,stars:item.stars||3});}}
+                          style={{fontSize:14,padding:"2px 8px",borderRadius:6,
+                            background:item.bearish?`${R}18`:`${G}18`,
+                            border:`1px solid ${item.bearish?R:G}44`,
+                            color:item.bearish?R:G,cursor:"pointer",fontWeight:700}}>
+                          ⚡ ANCHOR {item.bearish?"BEAR":"BULL"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3427,9 +3403,7 @@ const BacktestTab = ()=>{
         )}
 
 
-
-
-{newsView==="news"&&(
+        {newsView==="news"&&(
           <>
             {/* Source selector */}
             <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
@@ -3472,7 +3446,7 @@ const BacktestTab = ()=>{
               </div>
             )}
 
-            {[...newsArticles].sort((a,b)=>((Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0))).map((art,i)=>(
+            {newsArticles.map((art,i)=>(
               <div key={i}
                 onClick={()=>{ if(art.link) window.open(art.link,"_blank","noopener,noreferrer"); }}
                 style={{
@@ -3622,7 +3596,7 @@ const BacktestTab = ()=>{
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Myfxbook + Trading Economics calendar events with Reuters + Bloomberg breaking news in one on-page timeline, including country codes.</div>
+              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Google-powered Reuters/Bloomberg market searches on-page. Calendar links remain below for Myfxbook and Trading Economics.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
@@ -3660,9 +3634,10 @@ const BacktestTab = ()=>{
   // Navigation tabs: remove VWAP and Plan tabs per user request
   const NAV=[
     {id:"clock",icon:"⏱",l:"CLOCK"},
-    {id:"news",icon:"📰",l:"NEWS"},
     {id:"signals",icon:"📡",l:"SIGNALS"},
-    {id:"replay",icon:"📊",l:"REPLAY"}
+    {id:"news",icon:"📰",l:"NEWS"},
+    {id:"backtest",icon:"📊",l:"BACKTEST"},
+    {id:"replay",icon:"⏪",l:"REPLAY"}
   ];
 
   return(
@@ -3687,9 +3662,11 @@ const BacktestTab = ()=>{
       {/* CONTENT */}
       <div style={{animation:"fadeUp .3s ease"}}>
         {tab==="clock"    && <ClockTab/>}
-        {tab==="news"     && <NewsTab/>}
         {tab==="signals"  && <SignalsTab/>}
-        {tab==="replay"   && <div style={{display:"grid",gap:14}}><ReplayTab/><BacktestTab/></div>}
+        {/* VWAP tab removed per user request */}
+        {tab==="news"     && <NewsTab/>}
+        {tab==="backtest" && <BacktestTab/>}
+        {tab==="replay" && <ReplayTab/>}
         {/* Plan tab removed per user request */}
       </div>
 
