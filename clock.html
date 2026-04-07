@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>BiG ENGiN3 · Unified Timeline</title>
+<title>BiG ENGiN3 · Zone Clock Pro</title>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
 <style>
@@ -20,20 +20,20 @@ body{overflow-x:hidden}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 12px #f0a03055)}50%{filter:drop-shadow(0 0 24px #f0a03099)}}
 #loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s}
-#logo{width:134px;height:134px;border-radius:28px;background:linear-gradient(135deg,#0d1030,#131849);border:1px solid #282f6d;display:flex;align-items:center;justify-content:center;color:var(--amber);font-size:38px;font-weight:900;animation:pulse 2.5s ease-in-out infinite,glow 3.2s ease-in-out infinite}
+#logoImg{width:170px;height:170px;object-fit:contain;margin-bottom:0;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
 #spinner{width:38px;height:38px;border:2px solid #1a1a2e;border-top:2px solid var(--amber);border-radius:50%;animation:spin .8s linear infinite;margin-top:20px}
 #loader p{margin-top:14px;font-size:8px;letter-spacing:4px;color:#394060}
-.app{max-width:860px;margin:0 auto;padding:14px 14px 32px;animation:fadeUp .35s ease}
+.app{max-width:920px;margin:0 auto;padding:14px 14px 32px;animation:fadeUp .35s ease}
 .brand{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 2px 14px}
 .brandTitle{font-size:20px;font-weight:900;letter-spacing:2px;color:var(--amber)}
 .brandSub{font-size:11px;letter-spacing:3px;color:#9aa1bf;margin-top:6px}
 .clockNow{font-size:26px;font-weight:900}
 .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
-.tab-btn{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);color:#aeb5d3;border-radius:16px;padding:12px 8px;font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer}
+.tab-btn{background:linear-gradient(180deg,#0b0e28,#0d1130);border:1px solid var(--line);color:#aeb5d3;border-radius:16px;padding:12px 8px;font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer}
 .tab-btn.active{color:var(--amber);border-color:var(--amber);box-shadow:0 0 0 1px rgba(240,160,48,.12) inset}
 .tab{display:none}
 .tab.active{display:block}
-.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:22px;padding:16px;margin-bottom:12px}
+.card{background:linear-gradient(180deg,#0b0e28,#0d1130);border:1px solid var(--line);border-radius:24px;padding:16px;margin-bottom:12px}
 .label{font-size:11px;letter-spacing:4px;color:var(--muted);margin-bottom:10px}
 .big{font-size:38px;font-weight:900;line-height:1}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
