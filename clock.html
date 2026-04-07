@@ -201,7 +201,7 @@ const REGIME_CURRENCIES = {
 
 // NEWS REACTION WINDOWS — symmetric (before AND after event)
 // Stars → window in mins, TP targets as % move from entry
-// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
+// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=15m
 const NEWS_REACTION = {
   break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
   1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
@@ -698,6 +698,7 @@ function App() {
   // ── Live market data for real-time correlation engine ────────────────────────
   const [marketData,   setMarketData]   = useState(null);
   const safeLocalGet = (k,d=null)=>{ try{ return localStorage.getItem(k) ?? d; }catch(_){ return d; } };
+  const MAX_PERSIST_EVENTS = 5000;
   const [replayEvents, setReplayEvents] = useState(()=>safeJsonParse(safeLocalGet("engin3ReplayEvents", null), []));
   const [vwapAnchors, setVwapAnchors] = useState(()=>safeJsonParse(safeLocalGet("engin3VwapAnchors", null), {}));
   // {btc:{price,change24h,high24h,low24h}, dxy:{price,change}, es:{price,change}, nq:{price,change}}
@@ -706,7 +707,7 @@ function App() {
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
 
   useEffect(()=>{
-    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,400))); }catch(e){}
+    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,MAX_PERSIST_EVENTS))); }catch(e){}
   },[replayEvents]);
 
   useEffect(()=>{
@@ -723,7 +724,7 @@ function App() {
     const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : nowIso);
     const event = { title, source, stars, polarity, kind, pub, country: raw?.country || overrides.country || "", note: raw?.desc || raw?.btc || overrides.note || "" };
     if(!event.title) return;
-    setReplayEvents(prev=> dedupeFeedItems([event, ...prev]).slice(0,400));
+    setReplayEvents(prev=> dedupeFeedItems([event, ...prev]));
   },[]);
 
   const clearReplayEvents = useCallback(()=>setReplayEvents([]),[]);
@@ -1954,7 +1955,7 @@ function App() {
     return dedupeFeedItems([...scheduled, ...breaking, ...manual])
       .filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
+        return t && !Number.isNaN(t);
       })
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
@@ -2077,7 +2078,7 @@ function App() {
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
       arts=dedupeFeedItems(arts);
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
-      setNewsArticles(arts.slice(0,180));
+      setNewsArticles(arts);
       setReplayEvents(prev=>dedupeFeedItems([
         ...arts.map(a=>({
           title:a.title,
@@ -2090,7 +2091,7 @@ function App() {
           note:a.desc||""
         })),
         ...prev
-      ]).slice(0,800));
+      ]));
       setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
     })
     .catch(()=>setNewsError("Feed unavailable. Try another source."))
@@ -3469,7 +3470,7 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LATEST FIRST · SCORED</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LATEST FIRST · SCORED · NO CAP</div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
