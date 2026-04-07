@@ -1,428 +1,989 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>BiG ENGiN3 · Clean Engine</title>
-<meta name="theme-color" content="#06071a" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>BiG ENGiN3 Zone Clock Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script type="importmap">{"imports":{"react":"https://esm.sh/react@18.3.1","react-dom/client":"https://esm.sh/react-dom@18.3.1/client","htm":"https://esm.sh/htm@3.1.1"}}</script>
 <style>
 :root{
-  --bg:#06071a; --panel:#0d1026; --panel2:#11152f; --text:#f6f7fb; --muted:#97a0c3;
-  --line:rgba(255,255,255,.08); --accent:#f0a030; --green:#00ff88; --red:#ff3355; --gold:#f8c14a; --blue:#7aa2ff;
+  --bg:#07090c;--bg2:#0c1016;--bg3:#11171e;--bg4:#161d26;
+  --border:#1a2330;--border2:#253040;
+  --text:#bfcfdf;--text2:#6a8a9f;--text3:#304050;
+  --buy:#00e676;--buy2:#00b854;
+  --sell:#ff2055;--sell2:#cc0033;
+  --amber:#ffaa00;--amber2:#cc8800;
+  --cyan:#00d4ff;--cyan2:#0099bb;
+  --purple:#8855ff;
+  --font-mono:'JetBrains Mono',monospace;
+  --font-hd:'Orbitron',sans-serif;
+  --r:7px;
 }
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-body{max-width:520px;margin:0 auto;padding:0 0 80px}
-.header{position:sticky;top:0;z-index:20;background:rgba(6,7,26,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:14px 14px 10px}
-.brand{font-weight:900;letter-spacing:1.5px;color:var(--accent);font-size:24px}
-.sub{font-size:12px;color:var(--muted);margin-top:4px}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.tab{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-weight:700;font-size:12px}
-.tab.active{border-color:rgba(240,160,48,.55);color:var(--accent)}
-.view{display:none;padding:14px}.view.active{display:block}
-.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
-.row{display:flex;justify-content:space-between;gap:10px;align-items:center}
-.wrap{flex-wrap:wrap}
-.title{font-weight:800;line-height:1.25}.muted{color:var(--muted)}
-.big{font-size:34px;font-weight:900;letter-spacing:.6px}.buy{color:var(--green)}.sell{color:var(--red)}.gold{color:var(--gold)}
-.kv{display:grid;grid-template-columns:1fr auto;gap:8px 12px;font-size:14px}
-.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);padding:4px 9px;border-radius:999px;font-size:12px;font-weight:800}
-.now{color:var(--accent)} .core{color:var(--gold)} .reset{color:var(--blue)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.list{display:grid;gap:10px}.item{border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(255,255,255,.02)}
-.item.fade-1{opacity:.92}.item.fade-2{opacity:.78}.item.fade-3{opacity:.6}.item.fade-4{opacity:.44}
-.meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
-.star1{color:var(--green)} .star2{color:var(--gold)} .star3{color:var(--red)}
-.small{font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-input,button,select,textarea{font:inherit} button{cursor:pointer}
-input,textarea{width:100%;background:#080b1d;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-textarea{min-height:140px;resize:vertical}
-.table{width:100%;border-collapse:collapse;font-size:12px}
-.table th,.table td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
-.footer{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;background:rgba(6,7,26,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:8px 14px;color:var(--muted);font-size:12px}
-.err{color:#ffb3b3;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-.ok{color:var(--green)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-mono);font-size:13px;-webkit-text-size-adjust:100%}
+#root{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;overflow:hidden}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.hdr-logo{font-family:var(--font-hd);font-size:10px;font-weight:900;letter-spacing:.18em;color:var(--amber)}
+.hdr-logo em{font-style:normal;color:var(--text3);font-weight:400}
+.hdr-right{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text2)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--buy);box-shadow:0 0 7px var(--buy);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── TABS ── */
+.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{flex:1;padding:9px 0 8px;text-align:center;font-family:var(--font-hd);font-size:7.5px;font-weight:700;letter-spacing:.14em;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.tab.on{color:var(--amber);border-bottom-color:var(--amber)}
+.tab:hover:not(.on){color:var(--text2)}
+
+/* ── SCROLL ── */
+.page{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
+.page::-webkit-scrollbar{width:3px}
+.page::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:9px}
+.card-lbl{font-size:8px;font-weight:700;letter-spacing:.14em;color:var(--text3);text-transform:uppercase;margin-bottom:9px}
+
+/* ── SIGNAL BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:4px;font-family:var(--font-hd);font-size:12px;font-weight:700;letter-spacing:.1em}
+.badge.buy,.badge.up{background:rgba(0,230,118,.1);color:var(--buy);border:1px solid rgba(0,230,118,.28)}
+.badge.sell,.badge.down{background:rgba(255,32,85,.1);color:var(--sell);border:1px solid rgba(255,32,85,.28)}
+.badge.idle{background:rgba(100,140,160,.08);color:var(--text2);border:1px solid var(--border2)}
+
+/* ── REGIME ── */
+.regime{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:3px;font-size:8.5px;font-weight:700;letter-spacing:.1em}
+.regime.core{background:rgba(0,230,118,.07);color:var(--buy);border:1px solid rgba(0,230,118,.2)}
+.regime.reset{background:rgba(255,32,85,.07);color:var(--sell);border:1px solid rgba(255,32,85,.2)}
+.regime.none{background:rgba(100,140,160,.06);color:var(--text3);border:1px solid var(--border)}
+
+/* ── TRAP PILLS ── */
+.trap-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:3px;font-size:8px;font-weight:700;letter-spacing:.08em}
+.tp-trap{background:rgba(255,170,0,.1);color:var(--amber);border:1px solid rgba(255,170,0,.3)}
+.tp-exec{background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.3);animation:flashCyan 1s infinite}
+.tp-live{background:rgba(255,170,0,.07);color:var(--amber2);border:1px solid rgba(255,170,0,.18)}
+@keyframes flashCyan{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ── DATA ROWS ── */
+.drow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+.drow:last-child{border-bottom:none}
+.dlbl{font-size:10px;color:var(--text2)}
+.dval{font-size:11px;font-weight:500}
+.dval.pos{color:var(--buy)}
+.dval.neg{color:var(--sell)}
+.dval.amb{color:var(--amber)}
+
+/* ── CHARGE MATH ── */
+.charge-box{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:10px;margin-top:6px}
+.charge-row{display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:3px 0}
+.charge-key{color:var(--text2)}
+.charge-val{font-weight:700;font-size:11px}
+.charge-val.plus{color:var(--buy)}
+.charge-val.minus{color:var(--sell)}
+
+/* ── CURRENCY CHIPS ── */
+.curr-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.chip{font-size:9px;font-weight:700;padding:3px 7px;border-radius:3px;letter-spacing:.06em}
+.chip.buy{background:rgba(0,230,118,.09);color:var(--buy);border:1px solid rgba(0,230,118,.22)}
+.chip.sell{background:rgba(255,32,85,.09);color:var(--sell);border:1px solid rgba(255,32,85,.22)}
+
+/* ── CLOCK SVG ── */
+.clock-wrap{display:flex;justify-content:center;padding:4px 0 8px}
+.clk-slot-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)}
+.clk-slot-row:last-child{border-bottom:none}
+
+/* ── NEWS ITEMS ── */
+.nitem{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)}
+.nitem:last-child{border-bottom:none}
+.ntime{font-size:9px;color:var(--amber);white-space:nowrap;min-width:44px;line-height:1.6}
+.nbody{flex:1;min-width:0}
+.ntitle{font-size:11px;color:var(--text);line-height:1.45;margin-bottom:3px}
+.nmeta{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.nsrc{font-size:8px;font-weight:700;padding:1px 5px;border-radius:2px;letter-spacing:.06em}
+.nsrc.reuters{background:rgba(255,170,0,.13);color:var(--amber)}
+.nsrc.bloomberg{background:rgba(0,212,255,.13);color:var(--cyan)}
+.nsrc.calendar{background:rgba(136,85,255,.13);color:var(--purple)}
+.nsrc.breaking{background:rgba(255,32,85,.13);color:var(--sell);animation:flashRed 1.4s infinite}
+@keyframes flashRed{0%,100%{opacity:1}50%{opacity:.5}}
+.nstars{color:var(--amber);font-size:10px}
+.nwindow{font-size:8px;color:var(--cyan2)}
+.npolarity{font-size:9px;font-weight:700}
+.npolarity.plus{color:var(--buy)}
+.npolarity.minus{color:var(--sell)}
+
+/* ── REPLAY ── */
+.rrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)}
+.rrow:last-child{border-bottom:none}
+.rrow.active-slot{background:rgba(255,170,0,.04);margin:0 -4px;padding:7px 4px;border-radius:4px}
+.rslot{font-size:11px;color:var(--cyan);min-width:48px;font-weight:500}
+.rsig{font-size:11px;font-weight:700;min-width:52px}
+.rsig.buy,.rsig.up{color:var(--buy)}
+.rsig.sell,.rsig.down{color:var(--sell)}
+.rmode{font-size:8px;color:var(--text3);flex:1}
+.rnews{font-size:9px;color:var(--text2);flex:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── INPUTS / BUTTONS ── */
+.inp{background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;border-radius:4px;outline:none;width:100%;-webkit-appearance:none;appearance:none}
+.inp:focus{border-color:var(--amber)}
+.inp-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.btn{background:var(--amber);color:#000;font-family:var(--font-hd);font-size:8.5px;font-weight:700;letter-spacing:.1em;padding:9px 14px;border:none;border-radius:4px;cursor:pointer;width:100%;-webkit-tap-highlight-color:transparent}
+.btn:active{background:var(--amber2)}
+.btn.sec{background:var(--bg3);color:var(--text2);border:1px solid var(--border2)}
+.btn.sec:active{border-color:var(--amber);color:var(--amber)}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+
+/* ── VWAP CHART ── */
+.chart-wrap{position:relative;height:150px;margin-bottom:10px}
+
+/* ── STAT GRID ── */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px}
+.scard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px}
+.sval{font-family:var(--font-hd);font-size:15px;font-weight:700;margin-bottom:2px;line-height:1.2}
+.slbl{font-size:7.5px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase}
+
+/* ── SECTION LABEL ── */
+.sec{font-family:var(--font-hd);font-size:7.5px;font-weight:700;letter-spacing:.16em;color:var(--text3);text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:7px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── SKEL ── */
+.skel{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:200%;animation:sh 1.4s infinite;border-radius:3px;height:12px;margin-bottom:5px}
+@keyframes sh{0%{background-position:200%}100%{background-position:-200%}}
+
+/* ── NEWS REACTION WINDOW INDICATOR ── */
+.win-bar{height:3px;border-radius:2px;background:var(--border2);overflow:hidden;margin-top:4px}
+.win-fill{height:100%;border-radius:2px;transition:width .5s}
+.win-fill.active{background:var(--amber)}
+.win-fill.hot{background:var(--sell)}
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="brand">BiG ENGiN3</div>
-  <div class="sub">fast first · clean resolver · live + replay use the same logic</div>
-  <div class="tabs">
-    <button class="tab active" data-tab="signal">Signal</button>
-    <button class="tab" data-tab="timeline">Timeline</button>
-    <button class="tab" data-tab="replay">Replay</button>
-    <button class="tab" data-tab="logic">Logic</button>
-  </div>
-</div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100dvh;color:#ffaa00;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em">BOOTING ENGIN3...</div></div>
 
-<section id="signal" class="view active">
-  <div class="card">
-    <div class="row wrap">
-      <div>
-        <div class="muted">Live signal</div>
-        <div id="liveSignal" class="big">Loading…</div>
-        <div id="liveReason" class="muted">Booting engine…</div>
-      </div>
-      <div class="badge now" id="clockTime">--:--</div>
-    </div>
-  </div>
-  <div class="card kv">
-    <div>Mode</div><div id="modeState">--</div>
-    <div>Current slot</div><div id="slotKey">--</div>
-    <div>No-news direction</div><div id="stepDir">--</div>
-    <div>News slot value</div><div id="newsDir">--</div>
-    <div>Regime</div><div id="regimeState">--</div>
-    <div>Active events</div><div id="activeCount">0</div>
-    <div>Anchor confluence</div><div id="anchorConfluence">--</div>
-  </div>
-  <div class="card">
-    <div class="title">Top active event</div>
-    <div id="topEvent" class="meta">No active event right now.</div>
-  </div>
-  <div class="card">
-    <div class="title">Dynamic range engine</div>
-    <div class="meta">Trap anchors stay alive until <span class="gold">50 minutes after the next EXECUTE</span>. Example: 4:30 trap → 5:00 execute → next trap 7:30 / execute 8:00 → keep 4:30 VWAP alive until <span class="gold">8:50</span>.</div>
-  </div>
-</section>
+<script type="module">
+// ─── SAFE BOOT ──────────────────────────────────────────────────────────────
+window.__bootErr = null;
+window.addEventListener('error', e => { window.__bootErr = e.message || 'Script error'; });
 
-<section id="timeline" class="view">
-  <div class="card">
-    <div class="row wrap">
-      <div>
-        <div class="title">Unified timeline</div>
-        <div class="meta">breaking news + calendar events together. Live load is optional; cached and manual events still work.</div>
-      </div>
-      <div class="row">
-        <button id="refreshBtn" class="tab">Refresh</button>
-        <button id="seedBtn" class="tab">Seed demo</button>
-      </div>
-    </div>
-    <div id="newsStatus" class="meta" style="margin-top:8px">Loading feeds…</div>
-  </div>
-  <div class="card">
-    <div class="title">Manual event input</div>
-    <div class="meta">One per line: <span class="mono">2026-04-07T08:30, CPI, USD, 3, calendar</span></div>
-    <textarea id="manualEvents"></textarea>
-    <div class="row" style="margin-top:10px">
-      <button id="saveManualBtn" class="tab active">Save manual events</button>
-      <div id="manualStatus" class="meta"></div>
-    </div>
-  </div>
-  <div id="timelineList" class="list"></div>
-</section>
+import * as React from 'react';
+const {useState,useEffect,useRef,useCallback,useMemo} = React;
+import {createRoot} from 'react-dom/client';
+import htm from 'htm';
+const html = htm.bind(React.createElement);
 
-<section id="replay" class="view">
-  <div class="card">
-    <div class="title">Replay</div>
-    <div class="meta">Same resolver as live. Pick a time and replay the current timeline.</div>
-    <div class="grid2" style="margin-top:12px">
-      <input id="replayTime" type="datetime-local" />
-      <button id="runReplay" class="tab active">Run replay</button>
-    </div>
-  </div>
-  <div class="card kv">
-    <div>Signal</div><div id="replaySignal">--</div>
-    <div>Reason</div><div id="replayReason">--</div>
-    <div>Slot</div><div id="replaySlot">--</div>
-    <div>Mode</div><div id="replayMode">--</div>
-    <div>Regime</div><div id="replayRegime">--</div>
-    <div>Events</div><div id="replayEvents">0</div>
-    <div>Anchor</div><div id="replayAnchor">--</div>
-  </div>
-</section>
+// ─── SAFE localStorage ──────────────────────────────────────────────────────
+const LS = {
+  get(k,fb=null){try{const v=localStorage.getItem(k);return v!=null?JSON.parse(v):fb}catch{return fb}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}},
+  del(k){try{localStorage.removeItem(k)}catch{}}
+};
 
-<section id="logic" class="view">
-  <div class="card">
-    <div class="title">Signal rules</div>
-    <div class="meta" style="margin-top:8px">
-      <div><span class="ok">BUY = up = even = +</span></div>
-      <div><span class="sell">SELL = down = odd = -</span></div>
-      <div style="margin-top:8px">No news uses step direction only. With news uses your direct news value map only. Anchor and rate logic stay visible as confluence context.</div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="title">Step direction schedule</div>
-    <table class="table" id="stepTable"></table>
-  </div>
-  <div class="card">
-    <div class="title">News value schedule</div>
-    <table class="table" id="newsTable"></table>
-  </div>
-  <div class="card">
-    <div class="title">News reaction windows</div>
-    <table class="table">
-      <tr><th>Impact</th><th>Window</th><th>Target</th></tr>
-      <tr><td>Breaking news</td><td>0–20 minutes</td><td>61.8</td></tr>
-      <tr><td class="star1">⭐</td><td>20 minutes before / after</td><td>TP1 · 100 · 0.3%</td></tr>
-      <tr><td class="star2">⭐⭐</td><td>50 minutes before / after</td><td>TP2 · 161 · 0.6%</td></tr>
-      <tr><td class="star3">⭐⭐⭐</td><td>80 minutes before / after</td><td>TP3 · 261 · 0.9%</td></tr>
-    </table>
-  </div>
-  <div class="card">
-    <div class="title">Bias + regime logic</div>
-    <table class="table">
-      <tr><th>Regime</th><th>Use list</th><th>Meaning</th></tr>
-      <tr><td class="reset">RESET</td><td>+</td><td>normal</td></tr>
-      <tr><td class="core">CORE</td><td>−</td><td>mirror</td></tr>
-    </table>
-    <div class="meta" style="margin-top:10px"><b>BUY CORE</b> = 12:30–1:30 and 4:30–6:30. <b>SELL RESET</b> = 6:30–7:30 and 10:30–12:30. PM windows mirror the same schedule.</div>
-    <div class="meta" style="margin-top:8px">Dynamic sign override: if a symbol value is less than or equal to the USD anchor, invert that symbol sign.</div>
-  </div>
-  <div class="card">
-    <div class="title">VWAP + trap notes</div>
-    <div class="meta">
-      VWAP defines <b>WHERE</b>. Trap defines <b>WHEN</b>. Use 2σ and 3σ bands. Keep the trap anchor alive until <b>50 minutes after the next execute window</b>. Example: 4:30 trap → 5:00 execute → next trap 7:30 / execute 8:00 → keep 4:30 VWAP alive until <b>8:50</b>. Do not fade the first ±3σ touch. Require <b>touch → reaction → failure → entry</b>. During <b>7:30–10:30</b> and <b>1:30–4:30</b>, use the dynamic range engine as confluence context. Between <b>1:30 AM–4:30 AM</b> only trade if 2σ or 3σ, regime aligned, and news present. Otherwise skip. Two trades max per execution window.
-    </div>
-  </div>
-  <div id="bootErr" class="card" style="display:none">
-    <div class="title">Diagnostics</div>
-    <div id="bootErrText" class="err"></div>
-  </div>
-</section>
+// ─── SIGNAL ENGINE (canonical — shared by LIVE and REPLAY) ──────────────────
+//
+// EQUIVALENCES: Buy=up=even=+    Sell=down=odd=-
+//
+// SLOTS: mins12 = minutes within 12h cycle (0=12:00, 30=12:30, 60=1:00 …)
+// step  = no-news direction  (up=Buy / down=Sell)
+// sign  = with-news polarity (+/-)
+// charge math: slot.sign === newsPolarity → BUY, else → SELL
+//
+const SLOTS = [
+  {m:0,   k:'12:00',step:'up',   sign:'+'},
+  {m:30,  k:'12:30',step:'down', sign:'+'},
+  {m:60,  k:'1:00', step:'up',   sign:'-'},
+  {m:90,  k:'1:30', step:'down', sign:'-'},
+  {m:120, k:'2:00', step:'up',   sign:'+'},
+  {m:180, k:'3:00', step:'down', sign:'-'},
+  {m:240, k:'4:00', step:'up',   sign:'+'},
+  {m:270, k:'4:30', step:'down', sign:'+'},
+  {m:300, k:'5:00', step:'up',   sign:'-'},
+  {m:360, k:'6:00', step:'down', sign:'+'},
+  {m:390, k:'6:30', step:'up',   sign:'+'},
+  {m:420, k:'7:00', step:'down', sign:'-'},
+  {m:450, k:'7:30', step:'up',   sign:'-'},
+  {m:480, k:'8:00', step:'down', sign:'+'},
+  {m:540, k:'9:00', step:'up',   sign:'-'},
+  {m:600, k:'10:00',step:'down', sign:'+'},
+  {m:630, k:'10:30',step:'up',   sign:'+'},
+  {m:660, k:'11:00',step:'down', sign:'-'},
+];
 
-<div class="footer">BiG ENGiN3 Clean Engine</div>
+// TRAP/EXECUTE pairs — (minutes within 12h cycle)
+// Each VWAP anchor stays alive until reanchor time
+const TRAPS = [
+  {trap:90, exec:120,reanchor:170,tLabel:'1:30',eLabel:'2:00',rLabel:'2:50'},
+  {trap:270,exec:300,reanchor:350,tLabel:'4:30',eLabel:'5:00',rLabel:'5:50'},
+  {trap:450,exec:480,reanchor:530,tLabel:'7:30',eLabel:'8:00',rLabel:'8:50'},
+  {trap:630,exec:660,reanchor:710,tLabel:'10:30',eLabel:'11:00',rLabel:'11:50'},
+];
 
-<script>
-(function(){
-  const $ = s => document.querySelector(s);
-  const $$ = s => Array.from(document.querySelectorAll(s));
-  const USD_RATE = 5.5;
-  const RATE_TABLE = { USD:5.5, GBP:5.25, EUR:4.0, JPY:0.1, AUD:4.35, NZD:5.5, CAD:5.0, CHF:1.5 };
+// REGIME windows (BUY CORE = −mirror, SELL RESET = +aligned)
+// Stored as [startMins12, endMins12] pairs; endMins12 can wrap (>720 = wrap)
+const BUY_CORE_WINDOWS = [[30,90],[270,390],[450,630]];   // 12:30-1:30, 4:30-6:30, 7:30-10:30
+const SELL_RESET_WINDOWS = [[90,270],[390,450],[630,750]]; // 1:30-4:30, 6:30-7:30, 10:30-12:30(wraps)
 
-  const STEP_SEQUENCE = [
-    ["00:00","up"],["00:30","down"],["01:00","up"],["01:30","down"],["02:00","up"],["03:00","down"],["04:00","up"],["04:30","down"],["05:00","up"],["06:00","down"],
-    ["06:30","up"],["07:00","down"],["07:30","up"],["08:00","down"],["09:00","up"],["10:00","down"],["10:30","up"],["11:00","down"],["12:00","up"],["12:30","down"],
-    ["13:00","up"],["13:30","down"],["14:00","up"],["15:00","down"],["16:00","up"],["16:30","down"],["17:00","up"],["18:00","down"],["18:30","up"],["19:00","down"],
-    ["19:30","up"],["20:00","down"],["21:00","up"],["22:00","down"],["22:30","up"],["23:00","down"]
-  ];
-  const NEWS_SEQUENCE = [
-    ["00:00","+"],["00:30","+"],["01:00","-"],["01:30","-"],["02:00","+"],["03:00","-"],["04:00","+"],["04:30","+"],["05:00","-"],["06:00","+"],
-    ["06:30","+"],["07:00","-"],["07:30","-"],["08:00","+"],["09:00","-"],["10:00","+"],["10:30","+"],["11:00","-"],["12:00","+"],["12:30","+"],
-    ["13:00","-"],["13:30","-"],["14:00","+"],["15:00","-"],["16:00","+"],["16:30","+"],["17:00","-"],["18:00","+"],["18:30","+"],["19:00","-"],
-    ["19:30","-"],["20:00","+"],["21:00","-"],["22:00","+"],["22:30","+"],["23:00","-"]
-  ];
-  const TRAPS = ["01:30","04:30","07:30","10:30","13:30","16:30","19:30","22:30"];
-  const EXECUTES = ["02:00","05:00","08:00","11:00","14:00","17:00","20:00","23:00"];
-  const CORE_RANGES = [["00:30","01:30"],["04:30","06:30"],["12:30","13:30"],["16:30","18:30"]];
-  const RESET_RANGES = [["06:30","07:30"],["10:30","12:30"],["18:30","19:30"],["22:30","24:00"]];
+// REGIME currency signs
+const REGIME_CURRS = {
+  BUY_CORE:  [{sym:'AOA',s:'-'},{sym:'AUD',s:'-'},{sym:'USD',s:'-',anchor:true},{sym:'GBP',s:'+'},{sym:'JPY',s:'+'}],
+  SELL_RESET:[{sym:'AOA',s:'+'},{sym:'AUD',s:'+'},{sym:'USD',s:'+',anchor:true},{sym:'GBP',s:'-'},{sym:'JPY',s:'-'}],
+};
 
-  const state = { events:[], lastError:"" };
+// NEWS REACTION WINDOWS (symmetric ±)
+const IMPACT_WINDOWS = {0:20, 1:20, 2:50, 3:80}; // stars → minutes
 
-  function safeSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
-  function safeGet(k,f){ try{ const v=localStorage.getItem(k); return v==null?f:v; }catch(e){ return f; } }
-  function pad(n){ return String(n).padStart(2,'0'); }
-  function hmToMin(hm){ const [h,m]=hm.split(':').map(Number); return h*60+m; }
-  function minToHm(total){ total=(total+1440)%1440; return pad(Math.floor(total/60))+":"+pad(total%60); }
-  function fmtLocalInput(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); }
-  function ageBucket(ts){ const mins=Math.max(0,(Date.now()-ts)/60000); if(mins<30) return 1; if(mins<120) return 2; if(mins<360) return 3; return 4; }
-  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// HELPERS ─────────────────────────────────────────────────────────────────────
+function mins12(date){return(date.getHours()*60+date.getMinutes())%720}
 
-  function resolveSlotFromSequence(date, sequence){
-    const mins = date.getHours()*60 + date.getMinutes();
-    let found = sequence[0];
-    for(const row of sequence){ if(hmToMin(row[0]) <= mins) found = row; else break; }
-    return found;
+function getSlot(date){
+  const m=mins12(date);
+  let s=SLOTS[0];
+  for(const sl of SLOTS){if(sl.m<=m)s=sl;else break}
+  return s;
+}
+
+function getRegime(date){
+  const m=mins12(date);
+  for(const [a,b] of BUY_CORE_WINDOWS){if(m>=a&&m<b)return'BUY_CORE'}
+  for(const [a,b] of SELL_RESET_WINDOWS){
+    if(b<=720){if(m>=a&&m<b)return'SELL_RESET'}
+    else{if(m>=a||m<(b-720))return'SELL_RESET'} // wraps midnight
   }
-  function stepDirection(date){ return resolveSlotFromSequence(date, STEP_SEQUENCE)[1]; }
-  function newsValue(date){ return resolveSlotFromSequence(date, NEWS_SEQUENCE)[1]; }
-  function currentSlot(date){ return resolveSlotFromSequence(date, STEP_SEQUENCE)[0]; }
+  return null;
+}
 
-  function inRange(mins,start,end){ const s=hmToMin(start), e=hmToMin(end)%1440; if(end==="24:00") return mins>=s && mins<1440; return mins>=s && mins<e; }
-  function regimeAt(date){
-    const mins = date.getHours()*60 + date.getMinutes();
-    for(const [s,e] of CORE_RANGES){ if(inRange(mins,s,e)) return {name:'CORE', connector:'−'}; }
-    for(const [s,e] of RESET_RANGES){ if(inRange(mins,s,e)) return {name:'RESET', connector:'+'}; }
-    return {name:'NEUTRAL', connector:'•'};
+function getTrapStatus(date){
+  const m=mins12(date);
+  for(const t of TRAPS){
+    if(m===t.trap)return{phase:'TRAP',t};
+    if(m>t.trap&&m<t.exec)return{phase:'PRE_EXEC',t};
+    if(m===t.exec)return{phase:'EXECUTE',t};
+    if(m>t.exec&&m<t.reanchor)return{phase:'LIVE_VWAP',t};
   }
+  return{phase:'IDLE',t:null};
+}
 
-  function parseManualEvents(txt){
-    return txt.split(/\n+/).map(line=>line.trim()).filter(Boolean).map((line,idx)=>{
-      const parts = line.split(',').map(s=>s.trim());
-      if(parts.length < 5) return null;
-      const [iso,title,currency,stars,sourceType] = parts;
-      return normalizeEvent({ id:'manual-'+idx+'-'+iso+'-'+title, pub:iso, title, currency, stars:Number(stars)||1, sourceType:sourceType||'calendar', sourceName:'Manual' });
-    }).filter(Boolean);
-  }
+// Normalize event with tsStart/tsEnd
+function normalizeEvent(raw){
+  const stars = raw.stars||raw.impact||0;
+  const win = IMPACT_WINDOWS[stars]||20;
+  const base = new Date(raw.tsStart||raw.date||raw.time||Date.now());
+  return {
+    id: raw.id||`ev_${base.getTime()}_${Math.random().toString(36).slice(2,6)}`,
+    tsStart: base.getTime() - win*60000,
+    tsEnd:   base.getTime() + win*60000,
+    baseTs:  base.getTime(),
+    sourceType: raw.sourceType||'calendar',
+    sourceName: raw.sourceName||raw.currency||'',
+    title: raw.title||raw.event||raw.name||'',
+    currency: raw.currency||'',
+    stars, win,
+    polarity: raw.polarity||null,  // '+' or '-' or null (unknown)
+    isBreaking: raw.isBreaking||false,
+  };
+}
 
-  function countryFromCurrency(ccy){ return ({USD:'US',GBP:'GB',EUR:'EU',JPY:'JP',AUD:'AU',NZD:'NZ',CAD:'CA',CHF:'CH'})[ccy] || ccy || 'NA'; }
-  function starsForTitle(title){ const t=(title||'').toLowerCase(); if(/nfp|non-farm|fomc|cpi|inflation|gdp|pce|powell|rate decision/.test(t)) return 3; if(/pmi|jobless|unemployment|retail sales|consumer confidence|ecb|boe|boj|rba/.test(t)) return 2; return 1; }
-  function reactionWindowMins(ev){ if(ev.isBreaking) return 20; if(ev.stars>=3) return 80; if(ev.stars===2) return 50; return 20; }
-  function inferCurrency(text){ const t=(text||'').toUpperCase(); for(const c of Object.keys(RATE_TABLE)){ if(t.includes(c)) return c; } if(/powell|fomc|cpi|nfp|inflation|pce|gdp/.test((text||'').toLowerCase())) return 'USD'; return 'USD'; }
-  function normalizeEvent(raw){
-    const ts = new Date(raw.pub || raw.date || Date.now()).getTime();
-    const stars = Number(raw.stars) || starsForTitle(raw.title || '');
-    const ccy = raw.currency || inferCurrency(raw.title || '');
-    const isBreaking = (raw.sourceType || 'calendar') === 'breaking';
-    const win = reactionWindowMins({stars,isBreaking});
-    return { id: raw.id || ('ev-'+ts+'-'+(raw.title||'')), tsStart:ts, tsEnd:ts + win*60*1000, title:raw.title||'Untitled', currency:ccy, country:raw.country||countryFromCurrency(ccy), stars, sourceType:raw.sourceType||'calendar', sourceName:raw.sourceName||'Feed', isBreaking, reactionWindowMins:win };
-  }
+// ── THE UNIFIED SIGNAL RESOLVER ──────────────────────────────────────────────
+// Used identically for LIVE and REPLAY — only the `date` and `events` differ
+function resolveSignal(date, events){
+  const slot = getSlot(date);
+  const regime = getRegime(date);
+  const ts = date.getTime();
 
-  function activeEventsAt(ts){
-    return state.events.filter(ev => ts >= ev.tsStart - ev.reactionWindowMins*60*1000 && ts <= ev.tsEnd)
-      .sort((a,b)=> (b.stars-a.stars) || (b.tsStart-a.tsStart));
-  }
+  // Active events: those whose reaction window includes `date`
+  const active = events.filter(ev => ts>=ev.tsStart && ts<=ev.tsEnd);
 
-  function anchorConfluenceFor(events,date){
-    if(!events.length) return 'No news';
-    const regime = regimeAt(date);
-    const top = events[0];
-    const rate = RATE_TABLE[top.currency] ?? USD_RATE;
-    const symbolSign = regime.name === 'CORE' ? (rate > USD_RATE ? '-' : '+') : (regime.name === 'RESET' ? (rate > USD_RATE ? '+' : '-') : '?');
-    const charge = symbolSign === '-' ? '+' : '-';
-    return `${top.currency} ${symbolSign} → charge ${charge}`;
-  }
-
-  function resolveUnifiedSignal(ts){
-    const date = new Date(ts);
-    const step = stepDirection(date);
-    const news = newsValue(date);
-    const slot = currentSlot(date);
-    const active = activeEventsAt(ts);
-    const regime = regimeAt(date);
-    if(!active.length){
-      return { signal: step==='up'?'BUY':'SELL', reason:'No news active, using step direction', mode:'NO NEWS', slot, step, news, regime, activeCount:0, confluence:'No news', topEvent:null };
+  // Dominant polarity: highest stars wins; breaking news treated as ⭐
+  let newsPolarity = null;
+  let dominantEvent = null;
+  if(active.length>0){
+    const known = active.filter(e=>e.polarity);
+    if(known.length>0){
+      const sorted = [...known].sort((a,b)=>(b.stars||0)-(a.stars||0)||(b.baseTs-a.baseTs));
+      dominantEvent = sorted[0];
+      newsPolarity = sorted[0].polarity;
     }
-    return { signal: news==='+'?'BUY':'SELL', reason:'News active, using direct news value map', mode:'WITH NEWS', slot, step, news, regime, activeCount:active.length, confluence:anchorConfluenceFor(active,date), topEvent:active[0], active };
   }
 
-  async function fetchCalendar(){
-    try{
-      const r = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {cache:'no-store'});
-      if(!r.ok) throw new Error('Calendar failed: '+r.status);
-      const data = await r.json();
-      return (Array.isArray(data)?data:[]).slice(0,80).map(ev => normalizeEvent({ sourceType:'calendar', sourceName:'ForexFactory', title:ev.title || ev.name || '', pub:ev.date, currency:ev.currency || 'USD', stars:String(ev.impact||'').toLowerCase()==='high'?3:(String(ev.impact||'').toLowerCase().includes('med')?2:1) })).filter(ev=>ev.title);
-    }catch(e){ return []; }
+  // Signal logic
+  let signal, mode;
+  if(!newsPolarity){
+    // No news (or polarity unknown): step direction
+    signal = slot.step; // 'up' or 'down'
+    mode   = 'STEP';
+  } else {
+    // Charge math: slot.sign === newsPolarity → BUY, else → SELL
+    signal = (slot.sign===newsPolarity) ? 'BUY' : 'SELL';
+    mode   = 'CHARGE';
   }
 
-  async function fetchRSSViaProxy(url){
-    const prox = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
-    const r = await fetch(prox, {cache:'no-store'});
-    if(!r.ok) throw new Error('RSS failed');
-    const j = await r.json();
-    return Array.isArray(j.items) ? j.items : [];
+  // 2+ high-rate override
+  const hiRate = active.filter(e=>(e.stars||0)>=3);
+  const override2plus = hiRate.length>=2;
+  if(override2plus){
+    // Flip signal
+    if(signal==='BUY'||signal==='up') signal='SELL';
+    else signal='BUY';
+    mode='OVERRIDE';
   }
 
-  async function fetchBreaking(){
-    const feeds = [
-      {sourceName:'Reuters', url:'https://news.google.com/rss/search?q=site:reuters.com%20(bitcoin%20OR%20crypto%20OR%20inflation%20OR%20rates%20OR%20fomc%20OR%20cpi)&hl=en-US&gl=US&ceid=US:en'},
-      {sourceName:'Bloomberg Markets', url:'https://news.google.com/rss/search?q=site:bloomberg.com/markets%20(bitcoin%20OR%20crypto%20OR%20inflation%20OR%20rates%20OR%20fomc%20OR%20cpi)&hl=en-US&gl=US&ceid=US:en'}
-    ];
-    const blocks = await Promise.all(feeds.map(async feed=>{
-      try{
-        const items = await fetchRSSViaProxy(feed.url);
-        return items.slice(0,20).map(it => normalizeEvent({ sourceType:'breaking', sourceName:feed.sourceName, title:it.title || '', pub:it.pubDate || new Date().toISOString(), currency:inferCurrency((it.title||'')+' '+(it.description||'')), stars:starsForTitle((it.title||'')+' '+(it.description||'')) })).filter(ev=>ev.title);
-      }catch(e){ return []; }
-    }));
-    return blocks.flat();
-  }
+  const isBuy = (signal==='BUY'||signal==='up');
 
-  function seedDemoEvents(){
-    const now = new Date();
-    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 30, 0).toISOString();
-    const sample = [
-      `${base}, CPI, USD, 3, calendar`,
-      `${new Date(Date.now()-35*60000).toISOString()}, Reuters breaking BTC headline, USD, 2, breaking`,
-      `${new Date(Date.now()+45*60000).toISOString()}, BOE remarks, GBP, 2, breaking`
-    ].join('\n');
-    $('#manualEvents').value = sample;
-    saveManualEvents();
-  }
+  return {slot, regime, active, dominantEvent, newsPolarity, signal, mode, isBuy, override2plus};
+}
 
-  function saveManualEvents(){
-    const txt = $('#manualEvents').value.trim();
-    safeSet('engin3-manual-events', txt);
-    const manual = parseManualEvents(txt);
-    mergeEvents(manual, state.events.filter(e => e.sourceName !== 'Manual'));
-    $('#manualStatus').textContent = `${manual.length} manual events saved`;
-    renderTimeline(); renderLive();
+// ─── VWAP ENGINE ─────────────────────────────────────────────────────────────
+function computeVWAP(candles, anchorIdx){
+  if(!candles||candles.length===0)return[];
+  let cumPV=0,cumPV2=0,cumV=0;
+  const out=new Array(candles.length).fill(null);
+  for(let i=anchorIdx;i<candles.length;i++){
+    const tp=(candles[i].h+candles[i].l+candles[i].c)/3;
+    const v=candles[i].v||1;
+    cumPV+=tp*v; cumPV2+=tp*tp*v; cumV+=v;
+    const vwap=cumPV/cumV;
+    const variance=Math.max(0,cumPV2/cumV-vwap*vwap);
+    const sigma=Math.sqrt(variance);
+    out[i]={vwap,u2:vwap+2*sigma,l2:vwap-2*sigma,u3:vwap+3*sigma,l3:vwap-3*sigma,sigma};
   }
+  return out;
+}
 
-  function mergeEvents(manual, remote){
-    const map = new Map();
-    [...remote, ...manual].forEach(ev => map.set(ev.id, ev));
-    state.events = [...map.values()].sort((a,b)=>b.tsStart-a.tsStart);
-    safeSet('engin3-events-cache', JSON.stringify(state.events.slice(0,300)));
+// Find anchor index for current trap
+function getVwapAnchorIdx(candles, date){
+  const m=mins12(date);
+  // Find most recent trap time ≤ current
+  let bestTrap=null;
+  for(const t of TRAPS){
+    if(t.trap<=m||(m<30&&t.trap>=630)) // wrap case
+      if(!bestTrap||t.trap>bestTrap.trap) bestTrap=t;
   }
-
-  function renderLive(){
-    const r = resolveUnifiedSignal(Date.now());
-    $('#clockTime').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    $('#liveSignal').innerHTML = `<span class="${r.signal==='BUY'?'buy':'sell'}">${r.signal}</span>`;
-    $('#liveReason').textContent = r.reason;
-    $('#modeState').textContent = r.mode;
-    $('#slotKey').textContent = r.slot;
-    $('#stepDir').textContent = r.step.toUpperCase();
-    $('#newsDir').textContent = r.news;
-    $('#regimeState').innerHTML = r.regime.name==='CORE' ? `<span class="core">CORE ${r.regime.connector}</span>` : (r.regime.name==='RESET' ? `<span class="reset">RESET ${r.regime.connector}</span>` : r.regime.name);
-    $('#activeCount').textContent = String(r.activeCount);
-    $('#anchorConfluence').textContent = r.confluence;
-    $('#topEvent').innerHTML = r.topEvent ? `<span class="${r.topEvent.stars>=3?'star3':(r.topEvent.stars===2?'star2':'star1')}">${'★'.repeat(r.topEvent.stars)}</span> ${escapeHtml(r.topEvent.title)} · ${escapeHtml(r.topEvent.currency)} · ${new Date(r.topEvent.tsStart).toLocaleString()}` : 'No active event right now.';
+  if(!bestTrap) return 0;
+  // Find candle index closest to trap time
+  const h=date.getHours(); const min=date.getMinutes();
+  const trapH=Math.floor(bestTrap.trap/60)+(h>=12?12:0);
+  const trapM=bestTrap.trap%60;
+  const trapTs=new Date(date);
+  trapTs.setHours(trapH,trapM,0,0);
+  const trapTime=trapTs.getTime();
+  let best=0;
+  for(let i=0;i<candles.length;i++){
+    if(candles[i].t<=trapTime) best=i;
   }
+  return best;
+}
 
-  function renderTimeline(){
-    const box = $('#timelineList'); box.innerHTML='';
-    const sorted = [...state.events].sort((a,b)=>b.tsStart-a.tsStart);
-    if(!sorted.length){ box.innerHTML = `<div class="card muted">No events loaded yet.</div>`; return; }
-    sorted.forEach(ev=>{
-      const item = document.createElement('div');
-      item.className = 'item fade-'+ageBucket(ev.tsStart);
-      item.innerHTML = `<div class="row wrap"><div class="badge ${ev.sourceType==='breaking'?'now':''}">${escapeHtml(ev.sourceType.toUpperCase())}</div><div class="badge ${ev.stars>=3?'star3':(ev.stars===2?'star2':'star1')}">${'★'.repeat(ev.stars)}</div></div><div class="title" style="margin-top:8px">${escapeHtml(ev.title)}</div><div class="meta">${escapeHtml(ev.sourceName)} · ${new Date(ev.tsStart).toLocaleString()} · ${escapeHtml(ev.currency)} · ${escapeHtml(ev.country)} · ±${ev.reactionWindowMins}m</div>`;
-      box.appendChild(item);
+// ─── DATA FETCHERS ────────────────────────────────────────────────────────────
+async function fetchBTC(limit=300){
+  try{
+    const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=${limit}`);
+    const d=await r.json();
+    return d.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+  }catch{return[]}
+}
+
+async function fetchBTCHistory(startTs, limit=480){
+  try{
+    const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&startTime=${startTs}&limit=${limit}`);
+    const d=await r.json();
+    return d.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+  }catch{return[]}
+}
+
+async function fetchCalendar(){
+  try{
+    const r=await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json?v='+Date.now());
+    const d=await r.json();
+    return d.filter(e=>['USD','GBP','JPY','AUD','EUR'].includes(e.currency))
+             .map(e=>normalizeEvent({...e,sourceType:'calendar',sourceName:e.currency,
+               title:e.title||e.name,
+               stars: e.impact==='High'?3:e.impact==='Medium'?2:e.impact==='Low'?1:0}));
+  }catch{return[]}
+}
+
+async function fetchBreakingNews(claudeKey=''){
+  // Uses Claude API with web search to get Reuters + Bloomberg breaking news
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:800,
+        tools:[{type:'web_search_20250305',name:'web_search'}],
+        system:'You are a financial news aggregator. Search for breaking financial market news published in the last 2 hours from Reuters (reuters.com) and Bloomberg Markets (bloomberg.com/markets) ONLY. Return ONLY a raw JSON array (no markdown, no backticks) of objects: [{title,source,publishedAt,polarity}] where polarity is "+" for USD-bullish news or "-" for USD-bearish news. If uncertain, omit polarity field.',
+        messages:[{role:'user',content:'Search for the latest breaking financial market news from reuters.com OR bloomberg.com/markets published today. Return as JSON array.'}]
+      })
     });
+    const d=await r.json();
+    const text=(d.content||[]).map(b=>b.text||'').join('');
+    const clean=text.replace(/```json\n?|```/g,'').trim();
+    const arr=JSON.parse(clean);
+    return arr.map(n=>normalizeEvent({
+      title:n.title,
+      tsStart:n.publishedAt?new Date(n.publishedAt).getTime():Date.now(),
+      sourceType:'breaking',
+      sourceName:n.source||'Reuters/Bloomberg',
+      polarity:n.polarity||null,
+      isBreaking:true,
+      stars:0
+    }));
+  }catch{return[]}
+}
+
+// ─── CLOCK SVG ────────────────────────────────────────────────────────────────
+function ringArc(cx,cy,r1,r2,s12,e12){
+  const tw=(v)=>(v/720)*2*Math.PI-Math.PI/2;
+  const sa=tw(s12),ea=tw(e12);
+  const large=(e12-s12>360)?1:0;
+  const ox1=cx+r2*Math.cos(sa),oy1=cy+r2*Math.sin(sa);
+  const ox2=cx+r2*Math.cos(ea),oy2=cy+r2*Math.sin(ea);
+  const ix1=cx+r1*Math.cos(ea),iy1=cy+r1*Math.sin(ea);
+  const ix2=cx+r1*Math.cos(sa),iy2=cy+r1*Math.sin(sa);
+  return `M${ox1} ${oy1} A${r2} ${r2} 0 ${large} 1 ${ox2} ${oy2} L${ix1} ${iy1} A${r1} ${r1} 0 ${large} 0 ${ix2} ${iy2}Z`;
+}
+
+function AnalogClock({date}){
+  const CX=130,CY=130,R=115;
+  const h=date.getHours();const m=date.getMinutes();const s=date.getSeconds();
+  const m12=(h*60+m)%720;
+
+  // Hand angles (12h clock)
+  const hAngle=((h%12)*60+m)/720*360-90;
+  const mAngle=(m*60+s)/3600*360-90;
+  const sAngle=s/60*360-90;
+  const toRad=a=>a*Math.PI/180;
+  const hp=a=>[CX+75*Math.cos(toRad(a)),CY+75*Math.sin(toRad(a))];
+  const mp=a=>[CX+100*Math.cos(toRad(a)),CY+100*Math.sin(toRad(a))];
+  const sp=a=>[CX+108*Math.cos(toRad(a)),CY+108*Math.sin(toRad(a))];
+
+  const hw=hp(hAngle),mw=mp(mAngle),sw=sp(sAngle);
+
+  // Zone arcs
+  const zones=[
+    // BUY CORE
+    {s:30,e:90,  c:'rgba(0,230,118,.18)'},
+    {s:270,e:390,c:'rgba(0,230,118,.18)'},
+    {s:450,e:630,c:'rgba(0,230,118,.18)'},
+    // SELL RESET
+    {s:90,e:270, c:'rgba(255,32,85,.15)'},
+    {s:390,e:450,c:'rgba(255,32,85,.15)'},
+    {s:630,e:720,c:'rgba(255,32,85,.15)'},
+    {s:0,e:30,   c:'rgba(255,32,85,.15)'},
+  ];
+
+  // Trap dot positions
+  const dotPos=(min12)=>{const a=min12/720*2*Math.PI-Math.PI/2;return[CX+(R-8)*Math.cos(a),CY+(R-8)*Math.sin(a)]};
+  const trapDots=TRAPS.map(t=>({pos:dotPos(t.trap),col:'#ffaa00',label:t.tLabel}));
+  const execDots=TRAPS.map(t=>({pos:dotPos(t.exec),col:'#00d4ff',label:t.eLabel}));
+
+  // Current time marker
+  const curA=m12/720*2*Math.PI-Math.PI/2;
+  const curX=CX+(R+2)*Math.cos(curA),curY=CY+(R+2)*Math.sin(curA);
+
+  return html`<svg class="clock-svg" width="260" height="260" viewBox="0 0 260 260">
+    <!-- outer ring bg -->
+    <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#1a2330" stroke-width="16"/>
+    <!-- zone arcs -->
+    ${zones.map((z,i)=>html`<path key=${i} d=${ringArc(CX,CY,R-8,R+8,z.s,z.e)} fill=${z.c}/>`)}
+    <!-- face -->
+    <circle cx="${CX}" cy="${CY}" r="${R-14}" fill="#0c1016"/>
+    <circle cx="${CX}" cy="${CY}" r="${R-14}" fill="none" stroke="#1a2330" stroke-width="1"/>
+    <!-- hour ticks -->
+    ${[0,1,2,3,4,5,6,7,8,9,10,11].map(i=>{
+      const a=i/12*2*Math.PI-Math.PI/2;
+      const r1=R-17,r2=R-22;
+      return html`<line key=${i}
+        x1=${CX+r1*Math.cos(a)} y1=${CY+r1*Math.sin(a)}
+        x2=${CX+r2*Math.cos(a)} y2=${CY+r2*Math.sin(a)}
+        stroke="#253040" stroke-width=${i%3===0?2:1}/>`;
+    })}
+    <!-- trap dots -->
+    ${trapDots.map((d,i)=>html`<circle key=${'t'+i} cx=${d.pos[0]} cy=${d.pos[1]} r="4" fill=${d.col} opacity=".9"/>`)}
+    ${execDots.map((d,i)=>html`<circle key=${'e'+i} cx=${d.pos[0]} cy=${d.pos[1]} r="3" fill=${d.col} opacity=".8"/>`)}
+    <!-- current time arc indicator -->
+    <circle cx="${curX}" cy="${curY}" r="5" fill="var(--amber)" opacity=".9"/>
+    <!-- hands -->
+    <line x1="${CX}" y1="${CY}" x2="${hw[0]}" y2="${hw[1]}" stroke="#bfcfdf" stroke-width="3" stroke-linecap="round"/>
+    <line x1="${CX}" y1="${CY}" x2="${mw[0]}" y2="${mw[1]}" stroke="#7fa0b8" stroke-width="2" stroke-linecap="round"/>
+    <line x1="${CX}" y1="${CY}" x2="${sw[0]}" y2="${sw[1]}" stroke="var(--amber)" stroke-width="1.2" stroke-linecap="round"/>
+    <circle cx="${CX}" cy="${CY}" r="4" fill="var(--amber)"/>
+  </svg>`;
+}
+
+// ─── CLOCK TAB ────────────────────────────────────────────────────────────────
+function ClockTab({now, events, btc, vwapData}){
+  const result = useMemo(()=>resolveSignal(now,events),[now,events]);
+  const trap = getTrapStatus(now);
+  const {isBuy,signal,mode,slot,regime,active} = result;
+
+  const sigCls = isBuy?'buy':'sell';
+  const sigLabel = mode==='STEP'?(isBuy?'↑ UP':'↓ DOWN'):signal;
+
+  const regimeLabel = regime==='BUY_CORE'?'BUY CORE':regime==='SELL_RESET'?'SELL RESET':'—';
+  const regimeCls = regime==='BUY_CORE'?'core':regime==='SELL_RESET'?'reset':'none';
+
+  // BTC price
+  const btcPrice = btc.length>0?btc[btc.length-1].c:null;
+  const btcPrev  = btc.length>1?btc[btc.length-2].c:null;
+  const btcChg   = btcPrice&&btcPrev?((btcPrice-btcPrev)/btcPrev*100):null;
+
+  // Upcoming slot
+  const m=mins12(now);
+  const next = SLOTS.find(s=>s.m>m)||SLOTS[0];
+  const nextMins = next.m>m?next.m-m:(720-m+next.m);
+
+  return html`<div class="page">
+    <div class="clock-wrap"><${AnalogClock} date=${now}/></div>
+
+    <div class="sgrid">
+      <div class="scard">
+        <div class="sval" style="color:${isBuy?'var(--buy)':'var(--sell)'}">${sigLabel}</div>
+        <div class="slbl">Signal · ${mode}</div>
+      </div>
+      <div class="scard">
+        <div class="sval" style="color:${regime==='BUY_CORE'?'var(--buy)':regime==='SELL_RESET'?'var(--sell)':'var(--text3)'}">${regimeLabel}</div>
+        <div class="slbl">Regime</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-lbl">Current Slot</div>
+      <div class="drow"><span class="dlbl">Slot</span><span class="dval amb">${slot.k}</span></div>
+      <div class="drow"><span class="dlbl">Step Dir</span><span class="dval ${slot.step==='up'?'pos':'neg'}">${slot.step==='up'?'↑ UP':'↓ DOWN'}</span></div>
+      <div class="drow"><span class="dlbl">Slot Sign</span><span class="dval ${slot.sign==='+'?'pos':'neg'}">${slot.sign}</span></div>
+      <div class="drow"><span class="dlbl">News Events</span><span class="dval ${active.length>0?'amb':''}"> ${active.length}</span></div>
+      <div class="drow"><span class="dlbl">Next Slot</span><span class="dval">${next.k} · ${nextMins}m</span></div>
+    </div>
+
+    ${trap.phase!=='IDLE'&&html`<div class="card">
+      <div class="card-lbl">VWAP Trap</div>
+      <div class="drow">
+        <span class="dlbl">${trap.t.tLabel} Trap → ${trap.t.eLabel} Execute</span>
+        <span class="trap-pill ${trap.phase==='EXECUTE'||trap.phase==='LIVE_VWAP'?'tp-exec':trap.phase==='TRAP'?'tp-trap':'tp-live'}">${trap.phase}</span>
+      </div>
+      ${(trap.phase==='LIVE_VWAP')&&html`<div style="font-size:9px;color:var(--text3);margin-top:5px">Re-anchor at ${trap.t.rLabel}</div>`}
+    </div>`}
+
+    ${btcPrice&&html`<div class="card">
+      <div class="card-lbl">BTC/USDT</div>
+      <div class="drow">
+        <span class="dlbl">Price</span>
+        <span class="dval ${btcChg>=0?'pos':'neg'}">\$${btcPrice.toLocaleString('en',{maximumFractionDigits:0})}  ${btcChg!=null?(btcChg>=0?'▲':'▼')+Math.abs(btcChg).toFixed(3)+'%':''}</span>
+      </div>
+      ${vwapData&&html`<div class="drow"><span class="dlbl">VWAP</span><span class="dval amb">\$${Math.round(vwapData.vwap).toLocaleString()}</span></div>`}
+      ${vwapData&&html`<div class="drow"><span class="dlbl">±2σ</span><span class="dval" style="font-size:9px">${Math.round(vwapData.l2).toLocaleString()} – ${Math.round(vwapData.u2).toLocaleString()}</span></div>`}
+      ${vwapData&&html`<div class="drow"><span class="dlbl">±3σ</span><span class="dval" style="font-size:9px">${Math.round(vwapData.l3).toLocaleString()} – ${Math.round(vwapData.u3).toLocaleString()}</span></div>`}
+    </div>`}
+  </div>`;
+}
+
+// ─── NEWS TAB ─────────────────────────────────────────────────────────────────
+function NewsTab({events, now, onRefresh, loading}){
+  // Unified feed: newest first, age-faded
+  const sorted = useMemo(()=>[...events].sort((a,b)=>b.baseTs-a.baseTs),[events]);
+
+  function opacity(ev){
+    const age=(now.getTime()-ev.baseTs)/1000/60; // minutes old
+    if(age<0)return 1; // future event
+    if(age<30)return 1;
+    if(age<120)return 0.85;
+    if(age<480)return 0.6;
+    return 0.35;
   }
 
-  function renderTables(){
-    $('#stepTable').innerHTML = '<tr><th>Time</th><th>Value</th><th>Signal</th></tr>' + STEP_SEQUENCE.map(([t,v])=>`<tr><td>${t}</td><td>${v}</td><td class="${v==='up'?'buy':'sell'}">${v==='up'?'BUY':'SELL'}</td></tr>`).join('');
-    $('#newsTable').innerHTML = '<tr><th>Time</th><th>Value</th><th>Signal</th></tr>' + NEWS_SEQUENCE.map(([t,v])=>`<tr><td>${t}</td><td>${v}</td><td class="${v==='+'?'buy':'sell'}">${v==='+'?'BUY':'SELL'}</td></tr>`).join('');
+  function windowStatus(ev){
+    const ts=now.getTime();
+    const inWindow = ts>=ev.tsStart&&ts<=ev.tsEnd;
+    const pct = inWindow?Math.round(((ev.tsEnd-ts)/(ev.tsEnd-ev.tsStart))*100):0;
+    return{inWindow,pct};
   }
 
-  function runReplay(){
-    const val = $('#replayTime').value; if(!val) return;
-    const r = resolveUnifiedSignal(new Date(val).getTime());
-    $('#replaySignal').textContent = r.signal;
-    $('#replayReason').textContent = r.reason;
-    $('#replaySlot').textContent = r.slot;
-    $('#replayMode').textContent = r.mode;
-    $('#replayRegime').textContent = `${r.regime.name} ${r.regime.connector}`;
-    $('#replayEvents').textContent = String(r.activeCount);
-    $('#replayAnchor').textContent = r.confluence;
+  return html`<div class="page">
+    <div class="btn-row">
+      <button class="btn" onClick=${onRefresh}>${loading?'LOADING…':'↻ REFRESH NEWS'}</button>
+      <button class="btn sec" disabled>+ MANUAL EVENT</button>
+    </div>
+    <div class="sec">Live Feed</div>
+    ${loading&&html`<div><div class="skel" style="width:80%"/><div class="skel" style="width:60%"/><div class="skel" style="width:70%"/></div>`}
+    ${sorted.length===0&&!loading&&html`<div style="color:var(--text3);font-size:10px;text-align:center;padding:20px">No events loaded. Tap Refresh.</div>`}
+    ${sorted.map(ev=>{
+      const {inWindow,pct}=windowStatus(ev);
+      const stars='★'.repeat(ev.stars||0);
+      const srcCls = ev.isBreaking?'breaking':ev.sourceType==='calendar'?'calendar':ev.sourceName?.toLowerCase().includes('bloomberg')?'bloomberg':'reuters';
+      return html`<div key=${ev.id} class="nitem" style="opacity:${opacity(ev)}">
+        <div class="ntime">${fmtTime(new Date(ev.baseTs))}</div>
+        <div class="nbody">
+          <div class="ntitle">${ev.title}</div>
+          <div class="nmeta">
+            <span class="nsrc ${srcCls}">${ev.sourceName||ev.sourceType}</span>
+            ${ev.stars>0&&html`<span class="nstars">${stars}</span>`}
+            ${ev.polarity&&html`<span class="npolarity ${ev.polarity==='+'?'plus':'minus'}">${ev.polarity==='+'?'+ USD BULL':'− USD BEAR'}</span>`}
+            ${inWindow&&html`<span class="nwindow">⚡ ACTIVE ${pct}% left</span>`}
+          </div>
+          ${inWindow&&html`<div class="win-bar" style="margin-top:4px"><div class="win-fill ${ev.stars>=3?'hot':'active'}" style="width:${pct}%"/></div>`}
+        </div>
+      </div>`;
+    })}
+  </div>`;
+}
+
+// ─── SIGNALS TAB ──────────────────────────────────────────────────────────────
+function SignalsTab({now, events}){
+  const result = useMemo(()=>resolveSignal(now,events),[now,events]);
+  const {slot,regime,active,dominantEvent,newsPolarity,signal,mode,isBuy,override2plus} = result;
+
+  const regCurrs = regime?REGIME_CURRS[regime]:null;
+  const connectorLabel = regime==='BUY_CORE'?'− Mirror':'+ Aligned';
+
+  return html`<div class="page">
+
+    <div class="sec">Signal</div>
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="badge ${isBuy?'buy':'sell'}" style="font-size:16px">${isBuy?'▲ BUY':'▼ SELL'}</span>
+      <span style="font-size:9px;color:var(--text3)">${mode==='STEP'?'STEP DIRECTION':mode==='CHARGE'?'CHARGE MATH':mode==='OVERRIDE'?'2+ OVERRIDE':''}</span>
+      ${override2plus&&html`<span style="font-size:9px;color:var(--sell);font-weight:700">⚠ 2+ HIGH-RATE FLIP</span>`}
+    </div>
+
+    <div class="card">
+      <div class="card-lbl">Charge Math</div>
+      <div class="charge-box">
+        <div class="charge-row">
+          <span class="charge-key">Slot</span>
+          <span class="charge-val amb">${slot.k}</span>
+        </div>
+        <div class="charge-row">
+          <span class="charge-key">Slot Sign</span>
+          <span class="charge-val ${slot.sign==='+'?'plus':'minus'}">${slot.sign==='+'?'+ Even':'− Odd'}</span>
+        </div>
+        <div class="charge-row">
+          <span class="charge-key">News Polarity</span>
+          <span class="charge-val ${newsPolarity==='+'?'plus':newsPolarity==='-'?'minus':''}">${newsPolarity||'None → Step'}</span>
+        </div>
+        <div class="charge-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px">
+          <span class="charge-key" style="font-weight:700">Result</span>
+          <span class="charge-val ${isBuy?'plus':'minus'}" style="font-size:14px">${isBuy?'▲ BUY':'▼ SELL'}</span>
+        </div>
+      </div>
+    </div>
+
+    ${mode==='STEP'&&html`<div class="card">
+      <div class="card-lbl">Step Direction (No News)</div>
+      <div style="font-size:10px;color:var(--text2);margin-bottom:8px">Signal based on time slot direction only</div>
+      ${SLOTS.map(s=>html`<div key=${s.k} class="drow" style="${s.k===slot.k?'background:rgba(255,170,0,.06);margin:0 -4px;padding:5px 4px;border-radius:4px':''}">
+        <span class="dlbl" style="${s.k===slot.k?'color:var(--amber)':''}">${s.k} ${s.k===slot.k?'◀':''}</span>
+        <span class="dval ${s.step==='up'?'pos':'neg'}">${s.step==='up'?'↑ UP':'↓ DOWN'}</span>
+      </div>`)}
+    </div>`}
+
+    <div class="card">
+      <div class="card-lbl">Regime · ${regime||'NONE'}</div>
+      ${regime&&html`<div style="font-size:9px;color:var(--text2);margin-bottom:8px">Connector: ${connectorLabel}</div>`}
+      ${regCurrs&&html`<div class="curr-row">
+        ${regCurrs.map(c=>html`<span key=${c.sym} class="chip ${c.s==='+'?'buy':'sell'}">${c.sym}${c.s}${c.anchor?' (anchor)':''}</span>`)}
+      </div>`}
+      ${!regime&&html`<div style="font-size:10px;color:var(--text3)">Between regime windows</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-lbl">News Reaction Windows</div>
+      <div class="drow"><span class="dlbl">Breaking</span><span class="dval">0–20m burst · TP 61.8</span></div>
+      <div class="drow"><span class="dlbl">★</span><span class="dval">±20m · TP1 100 · 0.3%</span></div>
+      <div class="drow"><span class="dlbl">★★</span><span class="dval">±50m · TP2 161 · 0.6%</span></div>
+      <div class="drow"><span class="dlbl">★★★</span><span class="dval">±80m · TP3 261 · 0.9%</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-lbl">Risk</div>
+      <div class="drow"><span class="dlbl">Max Trades</span><span class="dval amb">2 per execution window</span></div>
+      <div class="drow"><span class="dlbl">Trail Stop</span><span class="dval">Below new structure</span></div>
+      <div class="drow"><span class="dlbl">Exit</span><span class="dval">At TP times</span></div>
+    </div>
+  </div>`;
+}
+
+// ─── REPLAY TAB ───────────────────────────────────────────────────────────────
+// Uses resolveSignal EXACTLY as live — no separate logic path
+function ReplayTab({liveEvents}){
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+
+  const [date, setDate] = useState(todayStr);
+  const [replayEvents, setReplayEvents] = useState(()=>LS.get('engin3ReplayEvents',[]));
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [timeline, setTimeline] = useState([]);
+
+  // New event form
+  const [form, setForm] = useState({title:'',time:'',stars:'1',polarity:'+'});
+  const [showForm, setShowForm] = useState(false);
+
+  const targetDate = useMemo(()=>new Date(date+'T00:00:00'),[date]);
+  const isToday = date===todayStr;
+
+  // Build full-day timeline of all slots
+  function buildTimeline(evs){
+    const all=[];
+    // Both AM and PM
+    for(const half of [0,1]){
+      for(const s of SLOTS){
+        const h=Math.floor((s.m+(half*720))/60);
+        const m_=(s.m+(half*720))%60;
+        const slotDate=new Date(targetDate);
+        slotDate.setHours(h,m_,0,0);
+        const res=resolveSignal(slotDate,evs);
+        const ampm=h<12?'AM':'PM';
+        all.push({slotDate,slot:res.slot,signal:res.signal,mode:res.mode,isBuy:res.isBuy,
+          active:res.active,newsPolarity:res.newsPolarity,ampm,timeStr:fmtTime(slotDate)});
+      }
+    }
+    return all;
   }
 
-  function wireTabs(){ $$('.tab[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{ const tab=btn.dataset.tab; $$('.tab[data-tab]').forEach(b=>b.classList.toggle('active', b===btn)); $$('.view').forEach(v=>v.classList.toggle('active', v.id===tab)); })); }
-
-  async function refreshFeeds(){
-    $('#newsStatus').textContent = 'Loading live feeds…';
-    const [calendar, breaking] = await Promise.all([fetchCalendar(), fetchBreaking()]);
-    const manual = parseManualEvents($('#manualEvents').value || '');
-    mergeEvents(manual, [...calendar, ...breaking]);
-    $('#newsStatus').textContent = `Loaded ${state.events.length} total events`; renderTimeline(); renderLive();
+  function load(){
+    setLoading(true);
+    // For today, include live events
+    const evs = isToday ? [...liveEvents,...replayEvents.filter(e=>e.date===date)]
+                        : replayEvents.filter(e=>e.date===date);
+    setTimeout(()=>{
+      setTimeline(buildTimeline(evs.map(e=>({...e,stars:parseInt(e.stars)||1}))));
+      setLoaded(true);
+      setLoading(false);
+    },100);
   }
 
-  function boot(){
-    wireTabs(); renderTables();
-    $('#refreshBtn').addEventListener('click', ()=>refreshFeeds().catch(showErr));
-    $('#seedBtn').addEventListener('click', seedDemoEvents);
-    $('#saveManualBtn').addEventListener('click', saveManualEvents);
-    $('#runReplay').addEventListener('click', runReplay);
-
-    const cached = safeGet('engin3-events-cache','[]');
-    try{ const arr = JSON.parse(cached); if(Array.isArray(arr)) state.events = arr; }catch(e){}
-    $('#manualEvents').value = safeGet('engin3-manual-events','');
-    if(!$('#manualEvents').value.trim()) seedDemoEvents();
-    else saveManualEvents();
-
-    $('#replayTime').value = fmtLocalInput(new Date());
-    renderTimeline(); renderLive(); runReplay();
-    refreshFeeds().catch(err=>{ $('#newsStatus').textContent = 'Live feeds failed. Cached/manual events still active.'; showErr(err); renderTimeline(); renderLive(); });
-    setInterval(renderLive,1000);
+  function addEvent(){
+    if(!form.title||!form.time) return;
+    const [hh,mm]=form.time.split(':').map(Number);
+    const d=new Date(targetDate);
+    d.setHours(hh,mm,0,0);
+    const ev={
+      id:`replay_${Date.now()}`,
+      date,
+      title:form.title,
+      tsStart:d.getTime(),
+      baseTs:d.getTime(),
+      tsEnd:d.getTime()+(IMPACT_WINDOWS[parseInt(form.stars)]||20)*60000,
+      stars:parseInt(form.stars),
+      polarity:form.polarity,
+      sourceType:'calendar',
+      sourceName:'Manual',
+      win:IMPACT_WINDOWS[parseInt(form.stars)]||20
+    };
+    const updated=[...replayEvents,ev];
+    setReplayEvents(updated);
+    LS.set('engin3ReplayEvents',updated);
+    setForm({title:'',time:'',stars:'1',polarity:'+'});
+    setShowForm(false);
+    setLoaded(false); // force reload
   }
 
-  function showErr(err){ state.lastError = String(err && err.message || err); $('#bootErr').style.display='block'; $('#bootErrText').textContent = state.lastError; }
-  window.addEventListener('error',e=>showErr(e.message||'Script error'));
-  window.addEventListener('unhandledrejection',e=>showErr(e.reason && e.reason.message || e.reason || 'Unhandled promise rejection'));
-  boot();
-})();
+  function removeEvent(id){
+    const updated=replayEvents.filter(e=>e.id!==id);
+    setReplayEvents(updated);
+    LS.set('engin3ReplayEvents',updated);
+    setLoaded(false);
+  }
+
+  const dateEvents = replayEvents.filter(e=>e.date===date);
+
+  return html`<div class="page">
+    <div class="sec">Date</div>
+    <div class="inp-row" style="margin-bottom:8px">
+      <input class="inp" type="date" value=${date} onInput=${e=>{ setDate(e.target.value); setLoaded(false); }}/>
+      <button class="btn" onClick=${load}>${loading?'…':'▶ LOAD'}</button>
+    </div>
+
+    <!-- Events for this date -->
+    <div class="sec">News Events for ${date}</div>
+    <button class="btn sec" style="margin-bottom:8px" onClick=${()=>setShowForm(!showForm)}>
+      ${showForm?'✕ Cancel':'+ Add Event'}
+    </button>
+
+    ${showForm&&html`<div class="card" style="margin-bottom:9px">
+      <div class="card-lbl">Add Event</div>
+      <input class="inp" style="margin-bottom:6px" placeholder="Event title…" value=${form.title}
+        onInput=${e=>setForm({...form,title:e.target.value})}/>
+      <div class="inp-row" style="margin-bottom:6px">
+        <input class="inp" type="time" value=${form.time} onInput=${e=>setForm({...form,time:e.target.value})}/>
+        <select class="inp" value=${form.polarity} onChange=${e=>setForm({...form,polarity:e.target.value})}>
+          <option value="+">+ USD Bull</option>
+          <option value="-">− USD Bear</option>
+        </select>
+      </div>
+      <div class="inp-row" style="margin-bottom:8px">
+        <select class="inp" value=${form.stars} onChange=${e=>setForm({...form,stars:e.target.value})}>
+          <option value="0">★ Breaking</option>
+          <option value="1">★ Low</option>
+          <option value="2">★★ Med</option>
+          <option value="3">★★★ High</option>
+        </select>
+        <button class="btn" onClick=${addEvent}>ADD</button>
+      </div>
+    </div>`}
+
+    ${dateEvents.length>0&&html`<div class="card" style="margin-bottom:9px">
+      ${dateEvents.map(ev=>html`<div key=${ev.id} class="drow">
+        <span class="dlbl" style="font-size:10px">${fmtTime(new Date(ev.baseTs))} · ${'★'.repeat(ev.stars)} · <span class="${ev.polarity==='+'?'dval pos':'dval neg'}">${ev.polarity}</span></span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px;color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ev.title}</span>
+          <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px" onClick=${()=>removeEvent(ev.id)}>✕</button>
+        </div>
+      </div>`)}
+    </div>`}
+
+    ${loaded&&html`<div>
+      <div class="sec">Replay Timeline · ${date}</div>
+      <div style="font-size:9px;color:var(--text3);margin-bottom:8px">Same signal engine as live — Buy=up=even=+ / Sell=down=odd=−</div>
+      ${timeline.map((row,i)=>html`<div key=${i} class="rrow">
+        <span class="rslot">${row.timeStr}</span>
+        <span class="rsig ${row.isBuy?'buy':'sell'}">${row.isBuy?'▲ BUY':'▼ SELL'}</span>
+        <span class="rmode">${row.mode==='STEP'?'step':row.mode==='CHARGE'?'chrg':row.mode==='OVERRIDE'?'2+OVR':''}</span>
+        <span class="rnews">
+          ${row.active.length>0?row.active.map(e=>e.title).join(', '):'—'}
+        </span>
+      </div>`)}
+    </div>`}
+
+    ${!loaded&&!loading&&html`<div style="color:var(--text3);font-size:10px;text-align:center;padding:20px">
+      Add events then tap LOAD to run replay
+    </div>`}
+  </div>`;
+}
+
+// ─── VWAP CHART COMPONENT ─────────────────────────────────────────────────────
+function VwapChart({candles, vwapArr}){
+  const ref = useRef();
+  const chartRef = useRef();
+
+  useEffect(()=>{
+    if(!ref.current||!candles||candles.length===0) return;
+    const labels=candles.map(c=>fmtTime(new Date(c.t)));
+    const closes=candles.map(c=>c.c);
+    const vwap=vwapArr.map(v=>v?v.vwap:null);
+    const u2=vwapArr.map(v=>v?v.u2:null);
+    const l2=vwapArr.map(v=>v?v.l2:null);
+    const u3=vwapArr.map(v=>v?v.u3:null);
+    const l3=vwapArr.map(v=>v?v.l3:null);
+
+    if(chartRef.current) chartRef.current.destroy();
+    chartRef.current=new Chart(ref.current,{
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {label:'BTC',data:closes,borderColor:'#bfcfdf',borderWidth:1.5,pointRadius:0,tension:0},
+          {label:'VWAP',data:vwap,borderColor:'#ffaa00',borderWidth:1.5,pointRadius:0,borderDash:[3,3],tension:0},
+          {label:'+2σ',data:u2,borderColor:'rgba(0,230,118,.5)',borderWidth:1,pointRadius:0,tension:0},
+          {label:'-2σ',data:l2,borderColor:'rgba(0,230,118,.5)',borderWidth:1,pointRadius:0,tension:0},
+          {label:'+3σ',data:u3,borderColor:'rgba(255,32,85,.5)',borderWidth:1,pointRadius:0,tension:0},
+          {label:'-3σ',data:l3,borderColor:'rgba(255,32,85,.5)',borderWidth:1,pointRadius:0,tension:0},
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},tooltip:{enabled:false}},
+        scales:{
+          x:{display:false},
+          y:{display:true,ticks:{color:'#304050',font:{family:'JetBrains Mono',size:9},maxTicksLimit:4,callback:v=>'$'+Math.round(v/1000)+'k'},grid:{color:'#1a2330'}}
+        }
+      }
+    });
+    return()=>{if(chartRef.current)chartRef.current.destroy()};
+  },[candles,vwapArr]);
+
+  return html`<div class="chart-wrap"><canvas ref=${ref}/></div>`;
+}
+
+// ─── FORMAT HELPERS ───────────────────────────────────────────────────────────
+function fmtTime(d){
+  let h=d.getHours(),m=d.getMinutes();
+  const ap=h>=12?'PM':'AM';
+  h=h%12||12;
+  return `${h}:${String(m).padStart(2,'0')} ${ap}`;
+}
+
+function fmtHM(d){
+  let h=d.getHours(),m=d.getMinutes(),s=d.getSeconds();
+  const ap=h>=12?'PM':'AM';
+  h=h%12||12;
+  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ap}`;
+}
+
+// ─── ROOT APP ─────────────────────────────────────────────────────────────────
+function App(){
+  const [tab,setTab]=useState('clock');
+  const [now,setNow]=useState(()=>new Date());
+  const [events,setEvents]=useState([]);
+  const [btc,setBtc]=useState([]);
+  const [vwapArr,setVwapArr]=useState([]);
+  const [newsLoading,setNewsLoading]=useState(false);
+  const tickRef=useRef();
+
+  // Clock tick
+  useEffect(()=>{
+    tickRef.current=setInterval(()=>setNow(new Date()),1000);
+    return()=>clearInterval(tickRef.current);
+  },[]);
+
+  // Initial load
+  useEffect(()=>{
+    loadNews();
+    loadBTC();
+  },[]);
+
+  // Refresh BTC every 30s
+  useEffect(()=>{
+    const id=setInterval(loadBTC,30000);
+    return()=>clearInterval(id);
+  },[]);
+
+  async function loadNews(){
+    setNewsLoading(true);
+    const cal=await fetchCalendar();
+    const breaking=await fetchBreakingNews();
+    const all=[...cal,...breaking];
+    setEvents(all);
+    setNewsLoading(false);
+  }
+
+  async function loadBTC(){
+    const candles=await fetchBTC(240);
+    if(candles.length===0) return;
+    setBtc(candles);
+    const anchorIdx=getVwapAnchorIdx(candles,new Date());
+    const vd=computeVWAP(candles,anchorIdx);
+    setVwapArr(vd);
+  }
+
+  // Current VWAP value for display
+  const currentVwap = vwapArr.length>0?vwapArr[vwapArr.length-1]:null;
+
+  const TABS=[{k:'clock',label:'CLOCK'},{k:'news',label:'NEWS'},{k:'signals',label:'SIGNALS'},{k:'replay',label:'REPLAY'}];
+
+  return html`<div id="root">
+    <div class="hdr">
+      <div class="hdr-logo">BiG ENGiN3<em> // ZONE CLOCK</em></div>
+      <div class="hdr-right">
+        <span>${fmtHM(now)}</span>
+        <div class="live-dot"/>
+      </div>
+    </div>
+    <div class="tabs">
+      ${TABS.map(t=>html`<div key=${t.k} class=${'tab'+(tab===t.k?' on':'')} onClick=${()=>setTab(t.k)}>${t.label}</div>`)}
+    </div>
+    ${tab==='clock'&&html`<${ClockTab} now=${now} events=${events} btc=${btc} vwapData=${currentVwap}/>`}
+    ${tab==='news'&&html`<${NewsTab} events=${events} now=${now} onRefresh=${loadNews} loading=${newsLoading}/>`}
+    ${tab==='signals'&&html`<${SignalsTab} now=${now} events=${events}/>`}
+    ${tab==='replay'&&html`<${ReplayTab} liveEvents=${events}/>`}
+  </div>`;
+}
+
+// ─── MOUNT ─────────────────────────────────────────────────────────────────────
+const container = document.getElementById('root');
+const root = createRoot(container);
+root.render(html`<${App}/>`);
 </script>
 </body>
 </html>
