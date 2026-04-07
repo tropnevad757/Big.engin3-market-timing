@@ -1761,22 +1761,22 @@ function App() {
   // Reuters: google news search locked to reuters.com domain
   // Bloomberg: google news search locked to bloomberg.com domain
   const NEWS_FEEDS = [
-    { id:"combo", label:"R + B", color:"#ffb347",
+    { id:"combo", label:"GOOGLE R + B", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(Reuters+Markets+OR+site:reuters.com/markets+OR+site:reuters.com/world+economy)+BTC+OR+stocks+OR+rates+OR+inflation+OR+Fed&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(Bloomberg+Markets+OR+site:bloomberg.com/markets)+BTC+OR+stocks+OR+rates+OR+inflation+OR+Fed&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"reuters", label:"Reuters", color:"#ff6b35",
+    { id:"reuters", label:"GOOGLE REUTERS", color:"#ff6b35",
       // Locked to reuters.com — last 24h — same as Feedly reuters/businessNews
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(Reuters+Markets+OR+site:reuters.com/markets+OR+site:reuters.com/world+economy)+BTC+OR+stocks+OR+rates+OR+inflation+OR+Fed&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"bloomberg", label:"Bloomberg", color:"#f0a030",
+    { id:"bloomberg", label:"GOOGLE BLOOMBERG", color:"#f0a030",
       // Locked to bloomberg.com markets — last 24h
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:1d+(Bloomberg+Markets+OR+site:bloomberg.com/markets)+BTC+OR+stocks+OR+rates+OR+inflation+OR+Fed&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
@@ -1918,7 +1918,7 @@ function App() {
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
-    if(type === "breaking") return {pre:0, post:20};
+    if(type === "breaking") return {pre:0, post:15};
     if(type === "speech") return {pre:0, post:45};
     if(stars === 1) return {pre:20, post:20};
     if(stars === 2) return {pre:50, post:50};
@@ -2077,7 +2077,20 @@ function App() {
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
       arts=dedupeFeedItems(arts);
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
-      setNewsArticles(arts.slice(0,30));
+      setNewsArticles(arts.slice(0,180));
+      setReplayEvents(prev=>dedupeFeedItems([
+        ...arts.map(a=>({
+          title:a.title,
+          source:a.source || "Google Breaking",
+          stars:Math.max(1, Math.min(3, Number(a.stars||1))),
+          polarity:Number(a.polarity||0),
+          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(a.title||"")?"speech":"breaking",
+          pub:a.pub,
+          country:a.country||"",
+          note:a.desc||""
+        })),
+        ...prev
+      ]).slice(0,800));
       setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
     })
     .catch(()=>setNewsError("Feed unavailable. Try another source."))
@@ -3456,12 +3469,12 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LAST 4</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LATEST FIRST · SCORED</div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
             {(newsLoading||calLoading)&&(
-              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing latest timeline...</div>
+              <div style={{textAlign:"center",padding:"24px",color:"#999",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>Refreshing latest timeline from Google Reuters/Bloomberg + calendar...</div>
             )}
 
             {!newsLoading && newsError && (
@@ -3474,7 +3487,7 @@ const BacktestTab = ()=>{
               const timeline = dedupeFeedItems([
                 ...calArticles.map(item=>({
                   ...item,
-                  kind:"event",
+                  kind:/powell|speech|remarks|testimony|presser|press conference/i.test(item.title||"")?"speech":"event",
                   isUnified:true,
                   pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
@@ -3482,51 +3495,75 @@ const BacktestTab = ()=>{
                 })),
                 ...newsArticles.map(item=>({
                   ...item,
-                  kind:"breaking",
+                  kind:/powell|speech|remarks|testimony|presser|press conference/i.test(item.title||"")?"speech":"breaking",
                   isUnified:true,
                   country: item.country || inferCountryCode(`${item.title||""} ${item.desc||""}`),
                   feedType:"breaking"
+                })),
+                ...replayEvents.map(item=>({
+                  ...item,
+                  isUnified:true,
+                  feedType:item.kind==="event"?"calendar":"breaking",
+                  country:item.country || inferCountryCode(`${item.title||""} ${item.note||item.desc||""}`)
                 }))
               ]).sort((a,b)=>{
                 const ta = Date.parse(a.pub||0) || 0;
                 const tb = Date.parse(b.pub||0) || 0;
-                return ta - tb;
-              }).slice(-4);
+                return tb - ta;
+              });
               if(!newsLoading && !calLoading && timeline.length===0){
                 return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
               }
-              return timeline.map((item,i)=>(
-                <div key={i}
-                  onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
-                  style={{
-                    background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
-                    borderRadius:12,padding:"12px 14px",marginBottom:8,
-                    cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
-                  }}>
-                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
-                  <div style={{paddingLeft:12}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
-                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,color:item.feedType==="calendar"?"#6fcf97":(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 BREAK"}</span>
-                        <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
-                        {!!item.country && <span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
-                        {item.feedType==="calendar" && <span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1, Math.min(3, Number(item.stars||1))))}</span>}
+              return timeline.map((item,i)=>{
+                const ts = Date.parse(item.pub||0) || 0;
+                const ageMin = ts ? Math.max(0, Math.floor((Date.now()-ts)/60000)) : 999999;
+                const older = ageMin > 180;
+                const stale = ageMin > 1440;
+                const opacity = stale ? 0.38 : older ? 0.62 : 1;
+                const stars = Math.max(1, Math.min(3, Number(item.stars||1)));
+                const pol = Number(item.polarity||0);
+                const polarityLabel = pol===1 ? "+" : pol===-1 ? "-" : "0";
+                const trackedLabel = item.feedType==="calendar"
+                  ? `WINDOW ±${stars===3?80:stars===2?50:20}m`
+                  : (item.kind==="speech" ? "BURST 0–15m · SPEECH" : "BURST 0–15m");
+                const mathLabel = item.feedType==="calendar"
+                  ? `NEWS VALUE ${polarityLabel}`
+                  : `BREAK VALUE ${polarityLabel}`;
+                return (
+                  <div key={`${item.title||'item'}-${item.pub||i}`}
+                    onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
+                    style={{
+                      background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
+                      borderRadius:12,padding:"12px 14px",marginBottom:8,
+                      cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden",
+                      opacity
+                    }}>
+                    <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
+                    <div style={{paddingLeft:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
+                        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                          <span style={{fontSize:13,color:item.feedType==="calendar"?"#6fcf97":(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 BREAK"}</span>
+                          <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                          {!!item.country && <span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
+                          <span style={{fontSize:12,color:pol===1?"#00ff9c":pol===-1?"#ff4d73":"#aaa",fontWeight:700}}>{mathLabel}</span>
+                          <span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(stars)}</span>
+                          {i===0 && <span style={{fontSize:12,color:"#111",background:"rgba(0,255,156,0.28)",border:"1px solid rgba(0,255,156,0.35)",padding:"1px 6px",borderRadius:8,fontWeight:700}}>LATEST</span>}
+                        </div>
+                        <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
                       </div>
-                      <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
-                    </div>
-                    <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
-                    {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
-                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                      {item.feedType==="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>WINDOW ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TP {Number(item.stars||1)===3?"261–300":Number(item.stars||1)===2?"161–200":"100–127"}</span>}
-                      {item.feedType!=="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>BURST 0–20m · 61.8–78.6</span>}
+                      <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc||item.note?5:0}}>{item.title}</div>
+                      {(item.desc||item.note)&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{String(item.desc||item.note||"").slice(0,180)}{String(item.desc||item.note||"").length>180?"...":""}</div>}
+                      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
+                        <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>{trackedLabel} · TRACKED IN MATH</span>
+                        <span style={{fontSize:12,color:stale?"#555":older?"#777":"#9fe3ff",fontFamily:"'Share Tech Mono',monospace"}}>{ageMin<60?`${ageMin}m ago`:ageMin<1440?`${Math.floor(ageMin/60)}h ago`:`${Math.floor(ageMin/1440)}d ago`}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ));
+                );
+              });
             })()}
           </>
         )}
-
 
 
 
