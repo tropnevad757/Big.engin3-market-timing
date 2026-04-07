@@ -201,7 +201,7 @@ const REGIME_CURRENCIES = {
 
 // NEWS REACTION WINDOWS — symmetric (before AND after event)
 // Stars → window in mins, TP targets as % move from entry
-// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=15m
+// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
 const NEWS_REACTION = {
   break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
   1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
@@ -698,7 +698,6 @@ function App() {
   // ── Live market data for real-time correlation engine ────────────────────────
   const [marketData,   setMarketData]   = useState(null);
   const safeLocalGet = (k,d=null)=>{ try{ return localStorage.getItem(k) ?? d; }catch(_){ return d; } };
-  const MAX_PERSIST_EVENTS = 5000;
   const [replayEvents, setReplayEvents] = useState(()=>safeJsonParse(safeLocalGet("engin3ReplayEvents", null), []));
   const [vwapAnchors, setVwapAnchors] = useState(()=>safeJsonParse(safeLocalGet("engin3VwapAnchors", null), {}));
   // {btc:{price,change24h,high24h,low24h}, dxy:{price,change}, es:{price,change}, nq:{price,change}}
@@ -707,7 +706,7 @@ function App() {
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
 
   useEffect(()=>{
-    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,MAX_PERSIST_EVENTS))); }catch(e){}
+    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,400))); }catch(e){}
   },[replayEvents]);
 
   useEffect(()=>{
@@ -724,7 +723,7 @@ function App() {
     const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : nowIso);
     const event = { title, source, stars, polarity, kind, pub, country: raw?.country || overrides.country || "", note: raw?.desc || raw?.btc || overrides.note || "" };
     if(!event.title) return;
-    setReplayEvents(prev=> dedupeFeedItems([event, ...prev]));
+    setReplayEvents(prev=> dedupeFeedItems([event, ...prev]).slice(0,400));
   },[]);
 
   const clearReplayEvents = useCallback(()=>setReplayEvents([]),[]);
@@ -1936,9 +1935,10 @@ function App() {
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
+      const currency = raw?.currency || raw?.country || overrides.currency || "";
+      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`, currency||"") || "";
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note };
+      return { title, source, stars, polarity, kind, pub, country, currency, note };
     };
 
     const scheduled = [
@@ -1955,45 +1955,95 @@ function App() {
     return dedupeFeedItems([...scheduled, ...breaking, ...manual])
       .filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t);
+        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
       })
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24, m){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
-    const normalized = (activeEvents||[]).map(ev=>({
-      ...ev,
-      charge: Number(ev?.polarity) === 1 ? 1 : Number(ev?.polarity) === -1 ? -1 : 0,
-      type: replayEventType(ev)
-    }));
+    const mode = getConnectorMode(h24, m);
+    const slotCharge = slotPolarity === "positive" ? 1 : -1;
+    const usdRawCharge = mode === "mirror" ? -1 : 1;
+    const ratesBySym = Object.fromEntries((CHARGE_CURRENCIES||[]).map(c=>[String(c.sym||"").toUpperCase(), Number(c.rate||0)]));
+
+    const normalized = (activeEvents||[]).map(ev=>{
+      const sym = String(ev?.currency || ev?.country || inferCountryCode(`${ev?.title||""} ${ev?.note||""}`, ev?.currency||"") || "").toUpperCase();
+      const explicitCharge = Number(ev?.polarity) === 1 ? 1 : Number(ev?.polarity) === -1 ? -1 : 0;
+      const rate = ratesBySym[sym];
+      const rawCharge = explicitCharge !== 0 ? explicitCharge : 0;
+      return {
+        ...ev,
+        sym,
+        rate: Number.isFinite(rate) ? rate : null,
+        charge: explicitCharge,
+        rawCharge,
+        type: replayEventType(ev)
+      };
+    });
+
     const directional = normalized.filter(ev=>ev.charge !== 0);
-    const negatives = directional.filter(ev=>ev.charge === -1).length;
-    const positives = directional.filter(ev=>ev.charge === 1).length;
     const speeches  = normalized.filter(ev=>ev.type === "speech").length;
     const activeCount = normalized.length;
     const hadNews = activeCount > 0;
+    const positives = directional.filter(ev=>ev.charge === 1).length;
+    const negatives = directional.filter(ev=>ev.charge === -1).length;
 
-    let newsCharge = 0;
-    if(directional.length === 1){
-      newsCharge = directional[0].charge;
-    }else if(directional.length > 1){
-      let running = directional[0].charge;
-      for(let i=1;i<directional.length;i++) running = stackCharges(running, directional[i].charge);
-      newsCharge = running;
+    const higherDirectional = directional.filter(ev => ev.sym && ev.sym !== 'USD' && Number.isFinite(ev.rate) && ev.rate > USD_RATE);
+    const lowerDirectional  = directional.filter(ev => !(ev.sym && ev.sym !== 'USD' && Number.isFinite(ev.rate) && ev.rate > USD_RATE));
+
+    let newsValue = 0;
+    let sourceUsed = 'none';
+    const stackSteps = [];
+
+    const stackList = items => {
+      if(!items.length) return 0;
+      if(items.length === 1) {
+        stackSteps.push({a: items[0].sym || items[0].title || 'EV1', b: null, result: items[0].charge});
+        return items[0].charge;
+      }
+      let running = items[0].charge;
+      for(let i=1;i<items.length;i++){
+        const prev = running;
+        running = stackCharges(running, items[i].charge);
+        stackSteps.push({
+          a: i===1 ? (items[0].sym || items[0].title || 'EV1') : `prev(${prev>0?'+':'-'})`,
+          b: items[i].sym || items[i].title || `EV${i+1}`,
+          result: running
+        });
+      }
+      return running;
+    };
+
+    if(hadNews){
+      if(higherDirectional.length >= 2){
+        newsValue = stackList(higherDirectional);
+        sourceUsed = 'higher-stack';
+      }else if(higherDirectional.length === 1){
+        newsValue = compareCharges(usdRawCharge, higherDirectional[0].charge);
+        stackSteps.push({a:'USD', b:higherDirectional[0].sym || 'EV1', result: newsValue});
+        sourceUsed = 'usd-vs-higher';
+      }else if(directional.length >= 2){
+        newsValue = stackList(directional);
+        sourceUsed = 'all-stack';
+      }else if(directional.length === 1){
+        newsValue = compareCharges(usdRawCharge, directional[0].charge);
+        stackSteps.push({a:'USD', b:directional[0].sym || 'EV1', result: newsValue});
+        sourceUsed = 'usd-vs-single';
+      }
     }
 
-    const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const finalDirection = !hadNews
       ? baseDirection
-      : (newsCharge === 0 ? baseDirection : (slotCharge === newsCharge ? "buy" : "sell"));
-    const finalCharge = finalDirection === "buy" ? 1 : -1;
+      : (newsValue === 0 ? baseDirection : (compareCharges(slotCharge, newsValue) === 1 ? 'buy' : 'sell'));
+
+    const finalCharge = finalDirection === 'buy' ? 1 : -1;
     const newsFlip = hadNews && finalDirection !== baseDirection;
     const equationPlain = !hadNews
       ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
-      : newsCharge === 0
-        ? `${slotCharge===1?'+':'-'} NEWS SLOT + 0 NEWS VALUE = ${finalDirection.toUpperCase()}`
-        : `${slotCharge===1?'+':'-'} NEWS SLOT × ${newsCharge===1?'+':'-'} NEWS VALUE = ${finalDirection.toUpperCase()}`;
+      : newsValue === 0
+        ? `${slotCharge===1?'+':'-'} SLOT × 0 NEWS VALUE = ${finalDirection.toUpperCase()}`
+        : `${slotCharge===1?'+':'-'} SLOT × ${newsValue===1?'+':'-'} NEWS VALUE = ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2004,1328 +2054,32 @@ function App() {
       positivePressure: positives,
       activeCount,
       reason: !hadNews
-        ? "no news, step direction holds"
-        : newsCharge===0
-          ? "news present but no directional news value"
-          : (slotCharge===newsCharge ? "news slot sign matched news value" : "news slot sign conflicted with news value"),
+        ? 'no news, step direction holds'
+        : newsValue===0
+          ? 'news present but no directional news value'
+          : sourceUsed==='higher-stack'
+            ? '2+ higher interest-rate news items stacked into zone math'
+            : sourceUsed==='usd-vs-higher'
+              ? 'usd anchor compared against single higher-rate event'
+              : sourceUsed==='all-stack'
+                ? 'stacked directional news value'
+                : 'usd anchor compared against single event',
       equation: equationPlain,
       equationPlain,
-      newsCharge,
       slotCharge,
+      slotPolarity,
+      baseDirection,
+      newsValue,
+      newsValueSource: sourceUsed,
+      usdRawCharge,
+      higherCount: higherDirectional.length,
+      higherSymbols: higherDirectional.map(ev=>ev.sym).filter(Boolean),
+      lowerCount: lowerDirectional.length,
+      stackSteps,
     };
   }
 
-  function safeJsonParse(v, fallback){
-    try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
-  }
-
-  function inferCountryCode(rawText="", fallback="") {
-    const t = String(rawText||" ").toUpperCase();
-    if(fallback) return String(fallback).toUpperCase().slice(0,3);
-    const checks = [
-      [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
-      [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
-      [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/, "GBP"],
-      [/(^|\W)(JPY|JAPAN|BOJ)(\W|$)/, "JPY"],
-      [/(^|\W)(AUD|AUSTRALIA|RBA)(\W|$)/, "AUD"],
-      [/(^|\W)(CAD|CANADA|BOC)(\W|$)/, "CAD"],
-      [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/, "CHF"],
-      [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/, "NZD"],
-      [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
-    ];
-    for (const [rx, code] of checks) if (rx.test(t)) return code;
-    return "";
-  }
-
-  // Normalize any RSS item into a consistent shape
-  function normalizeItem(item, source, color) {
-    const title = ((item.title||"")).trim().replace(/\s*[-|]\s*(Reuters|Bloomberg|CNBC|WSJ|FT|Myfxbook|Trading Economics|AP|MarketWatch).*$/i,"").trim();
-    const desc = ((item.description||item.content||"")).replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200);
-    const country = inferCountryCode(`${title} ${desc}`);
-    return {
-      title,
-      link:  item.link||item.guid||"",
-      pub:   item.pubDate||item.pub||item.published||"",
-      desc,
-      source, color, country,
-    };
-  }
-
-  // ── State refs (single declarations) ─────────────────────────────────────────
-  const fetchNewsRef  = useRef(false);
-  const newsLoadedFor = useRef("");
-  const ecoLoadedRef  = useRef(false);
-  const calLoadedRef  = useRef(false);
-
-  // ── fetchNews — Reuters/Bloomberg via Google News RSS ────────────────────────
-  const fetchNews = useCallback((feedId)=>{
-    const feed = NEWS_FEEDS.find(f=>f.id===feedId)||NEWS_FEEDS[0];
-    if(!feed||fetchNewsRef.current) return;
-    fetchNewsRef.current=true;
-    setNewsLoading(true); setNewsError(""); setNewsArticles([]);
-
-    const urls=feed.urls||(feed.url?[feed.url]:[]);
-    if(!urls.length){ setNewsError("Feed unavailable."); setNewsLoading(false); fetchNewsRef.current=false; return; }
-
-    Promise.all(urls.map(url=>{
-      let src=feed.label;
-      if(/reuters/i.test(url)) src="Reuters Markets";
-      if(/bloomberg/i.test(url)) src="Bloomberg Markets";
-      if(/coindesk/i.test(url)) src="CoinDesk";
-      return fetchRSS(url).then(items=>items.map(item=>{ const norm=normalizeItem(item,src,feed.color); return {...norm, ...classifyEcoArticle(norm.title, norm.desc), kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"breaking", feedType:"news", country:norm.country||inferCountryCode(`${norm.title} ${norm.desc}`)}; }));
-    }))
-    .then(groups=>{
-      let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
-      arts=dedupeFeedItems(arts);
-      arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
-      setNewsArticles(arts);
-      setReplayEvents(prev=>dedupeFeedItems([
-        ...arts.map(a=>({
-          title:a.title,
-          source:a.source || "Google Breaking",
-          stars:Math.max(1, Math.min(3, Number(a.stars||1))),
-          polarity:Number(a.polarity||0),
-          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(a.title||"")?"speech":"breaking",
-          pub:a.pub,
-          country:a.country||"",
-          note:a.desc||""
-        })),
-        ...prev
-      ]));
-      setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
-    })
-    .catch(()=>setNewsError("Feed unavailable. Try another source."))
-    .finally(()=>{ setNewsLoading(false); fetchNewsRef.current=false; });
-  },[]);
-
-  // ── fetchEcoNews — eco classification for FEED tab ───────────────────────────
-  const fetchEcoNews = useCallback(()=>{
-    if(ecoLoadedRef.current) return;
-    ecoLoadedRef.current=true;
-    setEcoLoading(true);
-    const ECO_URLS = [
-      {url:"https://news.google.com/rss/search?q=CPI+OR+NFP+OR+FOMC+OR+GDP+OR+PCE+OR+PMI+OR+%22jobless+claims%22+OR+%22interest+rate%22+OR+%22non-farm+payrolls%22&hl=en-US&gl=US&ceid=US:en", label:"Google Econ", color:"#00aaff"},
-      {url:"https://news.google.com/rss/search?q=Federal+Reserve+OR+Powell+OR+%22rate+decision%22+OR+%22rate+hike%22+OR+%22rate+cut%22&hl=en-US&gl=US&ceid=US:en", label:"Google Fed", color:"#aa88ff"},
-    ];
-    Promise.all(ECO_URLS.map(f=>
-      fetchRSS(f.url).then(items=>items.map(item=>{
-        const norm=normalizeItem(item,f.label,f.color);
-        const cls=classifyEcoArticle(norm.title,norm.desc); return {...norm,...cls, polarity: cls.bearish?-1:cls.bullish?1:0, kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event", feedType:"eco"};
-      }).filter(a=>a.title&&a.title.length>3&&a.stars>0)).catch(()=>[])
-    )).then(results=>{
-      const all=results.flat();
-      const seen=new Set();
-      const deduped=all.filter(a=>{ const k=a.title.slice(0,40).toLowerCase(); if(seen.has(k))return false; seen.add(k); return true; });
-      deduped.sort((a,b)=>(b.stars-a.stars)||new Date(b.pub)-new Date(a.pub));
-      setEcoArticles(deduped);
-      const recent3=deduped.find(a=>a.stars===3&&!breakingAnchor&&(Date.now()-new Date(a.pub).getTime())<30*60000);
-      if(recent3){ const pol=recent3.bearish?-1:recent3.bullish?1:0; if(pol!==0) setBreakingAnchor({title:recent3.title,polarity:pol,expiresAt:Date.now()+15*60*1000,stars:3,auto:true}); }
-    }).finally(()=>setEcoLoading(false));
-  },[breakingAnchor]);
-
-  // ── fetchCalendar — ForexFactory JSON (primary) + Myfxbook/Reuters/Bloomberg RSS (fallback) ──
-  const fetchCalendar = useCallback(()=>{
-    if(calLoadedRef.current) return;
-    calLoadedRef.current=true;
-    setCalLoading(true);
-    const todayStr     = new Date().toISOString().slice(0,10);
-    const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
-
-    // Impact map for ForexFactory: Low/Medium/High → 1/2/3 stars
-    function ffStars(impact){
-      if(!impact) return 1;
-      const i = impact.toLowerCase();
-      if(i==="high") return 3;
-      if(i==="medium"||i==="med") return 2;
-      return 1;
-    }
-
-    // Fetch ForexFactory JSON (primary — free, no CORS issues, same data as Myfxbook/TE)
-    function fetchFF(){
-      const feeds = CALENDAR_FEEDS.filter(f=>f.type==="ff_json");
-      if(!feeds.length) return Promise.resolve([]);
-      return Promise.race([
-        fetch(feeds[0].url,{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()),
-        new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),8000))
-      ]).then(data=>{
-        if(!Array.isArray(data)) return [];
-        return data
-          .filter(ev=>ev.date&&ev.date.slice(0,10)>=yesterdayStr)
-          .map(ev=>({
-            title: (ev.title||ev.name||"").trim(),
-            pub: ev.date,
-            link: "",
-            source: "ForexFactory",
-            color: "#ff6b35",
-            stars: ffStars(ev.impact),
-            currency: ev.currency||"",
-            country: inferCountryCode(ev.currency||"", ev.currency||""),
-            forecast: ev.forecast||"",
-            previous: ev.previous||"",
-            date: ev.date.slice(0,10),
-            time: ev.date.slice(11,16)||"",
-            isLive: true, feedType:"calendar", kind:/powell|speech|remarks|testimony|presser|press conference/i.test((ev.title||ev.name||""))?"speech":"event", polarity:0,
-          }))
-          .filter(ev=>ev.title&&ev.title.length>2&&ev.stars>=1);
-      }).catch(()=>[]);
-    }
-
-    // Fetch RSS-based feeds (Myfxbook, Reuters Econ, Bloomberg Econ)
-    function fetchRSSFeeds(){
-      const rssFeeds = CALENDAR_FEEDS.filter(f=>f.type==="rss"||f.type==="rss_proxy");
-      return Promise.all(rssFeeds.map(f=>
-        fetchRSS(f.url).then(items=>
-          items.map(item=>{
-            const norm = normalizeItem(item, f.label, f.color);
-            const d = norm.pub ? new Date(norm.pub) : null;
-            const dateStr = d && !isNaN(d) ? d.toISOString().slice(0,10) : "";
-            return {
-              ...norm,
-              stars: classifyEcoArticle(norm.title, norm.desc).stars || calStars(norm.title) || 1,
-              country: norm.country || inferCountryCode(`${norm.title} ${norm.desc}`),
-              date: dateStr,
-              time: d && !isNaN(d) ? d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}) : "",
-              isLive: true,
-              feedType:"calendar",
-              kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
-              polarity:Number(norm?.polarity ?? (norm?.bearish ? -1 : norm?.bullish ? 1 : 0)),
-            };
-          }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=yesterdayStr||!a.date))
-        ).catch(()=>[])
-      )).then(groups=>groups.flat());
-    }
-
-    // Run both in parallel, merge, dedupe, sort
-    Promise.all([fetchFF(), fetchRSSFeeds()])
-    .then(([ffItems, rssItems])=>{
-      const all = [...ffItems, ...rssItems];
-      const seen = new Set();
-      const deduped = all.filter(a=>{
-        // Fingerprint = first 40 chars of title + date — catches cross-source duplicates
-        const title = (a.title||"").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,40);
-        const k = title + (a.date||"");
-        if(!title||seen.has(k)) return false;
-        seen.add(k); return true;
-      });
-      // Sort: today first (by time), then upcoming by date
-      deduped.sort((a,b)=>{
-        if(a.date===b.date) return (a.time||"").localeCompare(b.time||"");
-        return (a.date||"9999").localeCompare(b.date||"9999");
-      });
-      setCalArticles(deduped);
-    })
-    .finally(()=>setCalLoading(false));
-  },[]);
-
-  // ── Auto-load feeds on tab switch ────────────────────────────────────────────
-  useEffect(()=>{
-    if(newsView==="feed") {
-      if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
-      if(!calLoadedRef.current) fetchCalendar();
-    }
-    if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
-  },[newsView,newsSrc]);
-
-  // On mount, pre-load default feed + calendar
-  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); },[]);
-
-
-  const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
-  const lbl = (col="#999",ex={}) => ({fontSize:13,letterSpacing:2.5,color:col,fontWeight:700,...ex});
-  const mono = {fontFamily:"'Share Tech Mono',monospace"};
-
-  // ── CLOCK ──
-  const ClockTab = ()=>(
-    <div style={{padding:"14px 14px 0"}}>
-
-      {/* TZ */}
-      <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px"})}>
-        <div>
-          <div style={lbl()}>TIMEZONE</div>
-          <div style={{fontSize:13,color:"#aaa",marginTop:1}}>{selTZ.label}</div>
-          <div style={{fontSize:20,fontWeight:900,color:A,marginTop:1,...mono}}>{fmt(loc.h24,loc.m,loc.s)}</div>
-          {tz!=="America/New_York"&&<div style={{fontSize:13,color:"#bbb",marginTop:2,...mono}}>ET: {fmt(et.h24,et.m)}</div>}
-        </div>
-        <button onClick={()=>gate("tz",()=>setTzOpen(true))} style={{background:can("tz")?`${A}18`:"#ffffff05",border:`1px solid ${can("tz")?A:"#222"}`,color:can("tz")?A:"#bbb",borderRadius:10,padding:"8px 12px",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:1}}>
-          {can("tz")?"CHANGE TZ":"🔒 PRO"}
-        </button>
-      </div>
-
-      {/* Z# · STEP · WINDOW */}
-      {(()=>{
-        const z    = liveZ.find(lz=>lz.type!=="dead") || liveZ[0] || null;
-        const zCol = z ? (z.type==="buy"?G:z.type==="sell"?R:D) : "#444";
-        const zLabel = z ? z.label : "—";
-        const winLabel = inExecute?"EXECUTE":inTrap?"TRAP":"TREND";
-        const winCol   = inExecute?G:inTrap?A:"#444";
-        return(
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            {[
-              {label:"ZONE",   val:zLabel,             arrow:null,                                    col:zCol},
-              {label:"STEP",   val:internalStep.label, arrow:internalStep.direction==="buy"?"▲":"▼", col:internalStep.col},
-              {label:"WINDOW", val:winLabel,            arrow:null,                                    col:winCol},
-            ].map(item=>(
-              <div key={item.label} style={{flex:1,borderRadius:14,
-                border:`1px solid ${item.col}33`,background:`${item.col}07`,
-                padding:"11px 8px",textAlign:"center"}}>
-                <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:5,whiteSpace:"nowrap"}}>
-                  {item.label}
-                </div>
-                <div style={{fontSize:20,fontWeight:900,color:item.col,...mono,lineHeight:1,whiteSpace:"nowrap"}}>
-                  {item.arrow&&<span style={{marginRight:4}}>{item.arrow}</span>}{item.val}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {/* CLOCK */}
-      <div style={{display:"flex",justifyContent:"center",margin:"4px 0 10px"}}>
-        <div style={{filter:`drop-shadow(0 0 28px ${liveZ.length?(liveZ[0].type==="buy"?G:liveZ[0].type==="sell"?R:D):A}44)`}}>
-          <ClockFace size={270} zones={zones} et={et}/>
-        </div>
-      </div>
-
-      {/* LEGEND */}
-      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-        {[{c:G,l:"BUY"},{c:R,l:"SELL"},{c:"#fff",l:"★ PRIME"}].map(i=>(
-          <div key={i.l} style={{display:"flex",alignItems:"center",gap:5,background:`${i.c}0e`,border:`1px solid ${i.c}22`,borderRadius:16,padding:"4px 10px"}}>
-            <div style={{width:i.c==="#fff"?2:12,height:i.c==="#fff"?10:3,borderRadius:i.c==="#fff"?1:2,background:i.c,boxShadow:`0 0 5px ${i.c}88`}}/>
-            <span style={{fontSize:12,color:i.c,fontWeight:700,letterSpacing:.8}}>{i.l}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* POLARITY MATH ROW */}
-      {(timeMathResult||windowMathResult)&&(()=>{
-        const tCol = timeMathResult?.finalDirection==="buy"?G:R;
-        const wCol = windowMathResult?.result==="positive"?G:R;
-        const pdCol = polarityDirection==="buy"?G:R;
-        return(
-          <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${pdCol}33`,
-            background:"rgba(255,255,255,0.02)",padding:"11px 14px"}}>
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>
-              POLARITY MATH
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
-                <div style={{fontSize:16,fontWeight:900,color:wCol,...mono}}>
-                  {polarityState.slotPolarity==="positive" ? "+" : "-"}
-                </div>
-              </div>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${A}08`,border:`1px solid ${A}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
-                <div style={{fontSize:16,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive" ? "+" : _newsPol==="negative" ? "-" : (polarityState.slotPolarity==="positive" ? "+" : "-")}
-                </div>
-              </div>
-              <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>RESULT</div>
-                <div style={{fontSize:16,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy" ? "+" : "-"}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* FINAL SIGNAL */}
-      {(()=>{
-        const sig = finalSignal;
-        return(
-          <div style={{marginBottom:10,borderRadius:14,border:`2px solid ${sig.col}44`,
-            background:`${sig.col}08`,padding:"12px 16px"}}>
-            <div style={{textAlign:"center",padding:"10px 0",borderRadius:10,
-              background:`${sig.col}18`,border:`2px solid ${sig.col}55`,
-              boxShadow:`0 0 16px ${sig.col}22`}}>
-              <div style={{fontSize:28,fontWeight:900,color:sig.col,letterSpacing:3,...mono}}>
-                {sig.label}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* BIAS — DXY · NEWS · DAY — secondary, below signal */}
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
-        {appChecks.map((chk,i)=>{
-          const col  = chk.passes===true?G:chk.passes===false?R:"#444";
-          const icon = chk.passes===true?"✓":chk.passes===false?"✗":"◆";
-          return(
-            <div key={i} style={{flex:1,borderRadius:10,border:`1px solid ${col}22`,
-              background:"rgba(255,255,255,0.02)",padding:"8px 6px",textAlign:"center"}}>
-              <div style={{fontSize:9,letterSpacing:2,color:"#333",fontWeight:700,...mono,marginBottom:3}}>
-                {chk.label}
-              </div>
-              <div style={{fontSize:14,fontWeight:900,color:col,lineHeight:1,marginBottom:3}}>
-                {icon}
-              </div>
-              <div style={{fontSize:10,color:col,...mono,fontWeight:700}}>
-                {chk.value||"—"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-            {/* SOUND */}
-      <div style={card({display:"flex",justifyContent:"space-between",alignItems:"center"})}>
-        <div>
-          <div style={{fontSize:13,fontWeight:700,color:soundOn&&can("sound")?"#ddd":"#888"}}>🔔 Sound Alerts</div>
-          <div style={{fontSize:13,color:"#888",marginTop:2}}>{can("sound")?"Zone open & close chimes":"PRO feature"}</div>
-        </div>
-        <div onClick={()=>gate("sound",()=>setSoundOn(v=>!v))} style={{width:44,height:24,borderRadius:12,cursor:"pointer",position:"relative",background:soundOn&&can("sound")?G:"#1a1a1a",border:`1px solid ${soundOn&&can("sound")?G:"#2a2a2a"}`,transition:"background .3s"}}>
-          <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:soundOn&&can("sound")?23:3,transition:"left .25s"}}/>
-        </div>
-      </div>
-
-    </div>
-  );
-
-  // ── SIGNALS / BIAS CHECKLIST ──
-  const SignalsTab = ()=>{
-    const liveZone  = liveZ[0]||null;
-    const effectiveZone = liveZ.find(z=>z.type!=="dead")||null;
-    const zType     = effectiveZone?effectiveZone.type:null;
-
-    // Build checklist items — each bias factor in the system
-    const btcItem   = cats.flatMap(c=>c.items).find(i=>i.id==="BTC")||{bias:"bull"};
-    const dxyItem   = cats.flatMap(c=>c.items).find(i=>i.id==="DXY")||{bias:"bear"};
-    const vixItem   = cats.flatMap(c=>c.items).find(i=>i.id==="VIX")||{bias:"bear"};
-    const esItem    = cats.flatMap(c=>c.items).find(i=>i.id==="ES") ||{bias:"bull"};
-    const nqItem    = cats.flatMap(c=>c.items).find(i=>i.id==="NQ") ||{bias:"bull"};
-
-    // DXY and VIX state — user can toggle these in the inversions card
-    const [dxyDir, setDxyDir] = React.useState(dxyItem.bias);
-    const [vixDir, setVixDir] = React.useState(vixItem.bias);
-
-    // Cycle: bull → bear → neutral → bull
-    const cycle = v => v==="bull"?"bear":v==="bear"?"neutral":"bull";
-    const dxyCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#aaa";
-    const vixCol = vixDir==="bear"?G:vixDir==="bull"?R:"#aaa";
-
-    // What DXY/VIX direction tells us about BTC direction
-    const dxyBtcSignal = dxyDir==="bear"?"▲ BTC BULLISH":dxyDir==="bull"?"▼ BTC BEARISH":"◆ NEUTRAL";
-    const vixBtcSignal = vixDir==="bear"?"▲ BTC BULLISH":vixDir==="bull"?"▼ BTC BEARISH":"◆ NEUTRAL";
-    const dxyBtcCol = dxyDir==="bear"?G:dxyDir==="bull"?R:"#aaa";
-    const vixBtcCol = vixDir==="bear"?G:vixDir==="bull"?R:"#aaa";
-
-    // Overall bias counts
-    const actives  = cats.flatMap(c=>c.items).filter(i=>i.active);
-    const nBull    = actives.filter(i=>i.bias==="bull").length;
-    const nBear    = actives.filter(i=>i.bias==="bear").length;
-    const overall  = nBull>nBear?"bull":nBear>nBull?"bear":"neutral";
-    const vwapWindowNow = getVwapExecutionWindow(et.h24, et.m);
-    const vwapTradeCount = getTradeCountForWindow(vwapTrap, vwapWindowNow);
-    const executeNow = isVwapExecutePoint(et.h24, et.m);
-
-    function chk(passes){
-      if(passes===null) return {icon:"○", color:"#888"};
-      return passes ? {icon:"✓", color:G} : {icon:"✗", color:R};
-    }
-
-    function biasFits(bias, zoneType){
-      if(!zoneType||zoneType==="dead") return null;
-      if(zoneType==="buy")  return bias==="bull";
-      if(zoneType==="sell") return bias==="bear";
-      return null;
-    }
-
-    const checks = appChecks;  // single source of truth — defined at App level
-
-    const greenCount = appGreenCount;
-    const redCount   = appRedCount;
-    const readyColor = appReadyColor;
-    const readyLabel = appReadyLabel;
-
-    return(
-      <div style={{padding:14}}>
-
-        {(()=>{
-          const autoVwap = getAutoVwapConfirmation({inst:vwapInst, manualPrice:vwapPrice, marketData, trapStatus, anchors:vwapAnchors, zoneType:zType});
-          const autoCol = autoVwap.status==="buy"?G:autoVwap.status==="sell"?R:A;
-          return (
-          <div style={card({border:`1px solid ${autoCol}33`,background:`${autoCol}08`,marginBottom:12})}>
-            <div style={lbl(autoCol,{marginBottom:8})}>VWAP BAND CONFIRMATION</div>
-            <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.8,marginBottom:10}}>
-              Quiet confirmation only. Times are hidden. This checks whether price is pressing the lower bands for buys or the upper bands for sells.
-            </div>
-            <div style={{padding:"12px 14px",borderRadius:12,background:`${autoCol}12`,border:`1px solid ${autoCol}44`,marginBottom:8}}>
-              <div style={{fontSize:15,fontWeight:900,color:autoCol,letterSpacing:1.5,marginBottom:4}}>{autoVwap.title}</div>
-              <div style={{fontSize:13,color:"#ddd",...mono,lineHeight:1.7}}>{autoVwap.note}</div>
-              {autoVwap.anchor&&<div style={{fontSize:13,color:"#888",...mono,marginTop:6}}>Active anchor: <span style={{color:"#ddd"}}>{autoVwap.anchor}</span></div>}
-            </div>
-            <div style={{display:"grid",gap:6}}>
-              <div style={{fontSize:13,color:"#ddd",...mono}}>Instrument: <span style={{color:autoCol,fontWeight:700}}>{vwapInst}</span></div>
-              <div style={{fontSize:13,color:"#ddd",...mono}}>Price source: <span style={{color:"#ddd",fontWeight:700}}>{parseFloat(vwapPrice)>0 ? "MANUAL INPUT" : "LIVE FEED"}</span></div>
-              <div style={{fontSize:13,color:"#ddd",...mono}}>Band state: <span style={{color:autoCol,fontWeight:700}}>{autoVwap.status==="buy"?"LOWER BAND SUPPORT":autoVwap.status==="sell"?"UPPER BAND RESISTANCE":"NEUTRAL"}</span></div>
-            </div>
-          </div>
-          );
-        })()}
-
-
-        {/* ── DXY LEADS BITCOIN ── */}
-        <div style={card({border:`1px solid ${dxyCol}44`,background:`${dxyCol}07`,marginBottom:12})}>
-          <div style={lbl(dxyCol,{marginBottom:8})}>DXY LEADS BITCOIN</div>
-          <div style={{fontSize:13,color:"#aaa",...mono,lineHeight:1.7,marginBottom:10}}>
-            Dollar Index moves <span style={{color:A,fontWeight:700}}>before BTC</span> — the strongest and most reliable inverse signal.
-          </div>
-          <button onClick={()=>setDxyDir(cycle(dxyDir))} style={{
-            width:"100%",padding:"13px 0",borderRadius:10,marginBottom:10,
-            background:`${dxyCol}18`,border:`1px solid ${dxyCol}55`,
-            color:dxyCol,fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:2
-          }}>
-            {dxyDir==="bull"?"▲ DXY RISING":dxyDir==="bear"?"▼ DXY FALLING":"◆ DXY NEUTRAL"}
-          </button>
-          <div style={{padding:"12px 16px",borderRadius:10,textAlign:"center",background:`${dxyBtcCol}12`,border:`1px solid ${dxyBtcCol}44`}}>
-            <div style={{fontSize:14,fontWeight:900,color:dxyBtcCol,letterSpacing:2,marginBottom:4}}>{dxyBtcSignal}</div>
-            <div style={{fontSize:13,color:"#999",...mono,lineHeight:1.7}}>
-              {dxyDir==="bear"?"Dollar falling = institutions buying risk = BTC pumps":
-               dxyDir==="bull"?"Dollar rising = risk-off selling = BTC dumps":
-               "Set DXY direction above to get the BTC signal"}
-            </div>
-          </div>
-        </div>
-
-        {/* Dead zone notice */}
-        {liveZone&&liveZone.type==="dead"&&(
-          <div style={{background:"rgba(51,51,68,0.3)",border:"1px solid #444466",borderRadius:12,padding:"12px 14px",marginBottom:12,textAlign:"center"}}>
-            <div style={{fontSize:13,fontWeight:700,color:"#aaa",marginBottom:4}}>◆ {liveZone.label} — DEAD ZONE</div>
-            <div style={{fontSize:13,color:"#888",...mono,lineHeight:1.7}}>No directional edge. Avoid entries. Wait for next active zone.</div>
-          </div>
-        )}
-
-        {/* Instruments toggle section */}
-        <div style={card({marginTop:8})}>
-          <div style={lbl("#999",{marginBottom:10})}>ACTIVE INSTRUMENTS · TAP TO TOGGLE</div>
-          <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:10,paddingBottom:3}}>
-            {cats.map(c=>(
-              <button key={c.id} onClick={()=>setSigCat(c.id)} style={{
-                padding:"5px 10px",borderRadius:14,flexShrink:0,
-                background:sigCat===c.id?"rgba(255,255,255,0.1)":"transparent",
-                border:`1px solid ${sigCat===c.id?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.05)"}`,
-                color:sigCat===c.id?"#fff":"#999",
-                fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:.5,whiteSpace:"nowrap"
-              }}>{c.icon} {c.label}</button>
-            ))}
-          </div>
-          {(cats.find(c=>c.id===sigCat)||cats[0]).items.map(item=>{
-            const bc = item.bias==="bull"?G:item.bias==="bear"?R:"#999";
-            return(
-              <div key={item.id} onClick={()=>updateItem((cats.find(c=>c.id===sigCat)||cats[0]).id,item.id,{active:!item.active})}
-                style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer",opacity:item.active?1:.35}}>
-                <div style={{width:10,height:10,borderRadius:"50%",flexShrink:0,background:item.active?bc:"#222",border:`2px solid ${item.active?bc:"#bbb"}`}}/>
-                <div style={{flex:1,fontSize:13,fontWeight:700,color:item.active?"#ddd":"#888"}}>{item.name}</div>
-                <div style={{fontSize:13,color:"#888",...mono}}>{item.desc}</div>
-                <div style={{fontSize:13,fontWeight:700,color:bc,padding:"3px 9px",borderRadius:12,background:`${bc}14`,border:`1px solid ${bc}33`}}>
-                  {item.bias==="bull"?"▲ BULL":item.bias==="bear"?"▼ BEAR":"◆ NEU"}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-      </div>
-    );
-  };
-
-    // ── VWAP ──
-  const VwapTab = ()=>{
-    const filtered = (vwapPeriod==="AM"?trapStatus.filter(t=>t.period==="AM"):vwapPeriod==="PM"?trapStatus.filter(t=>t.period==="PM"):trapStatus).filter(t=>t.active);
-    const activeAnchors = filtered.filter(t=>t.active);
-    const price = parseFloat(vwapPrice)||0;
-    const hasPrice = price>0;
-
-    return(
-      <div style={{padding:14}}>
-
-        {/* ── ACTIVE ANCHORS — shown first ── */}
-        {activeAnchors.length>0?(
-          <div style={{marginBottom:12}}>
-            {activeAnchors.map(t=>{
-              const pct   = t.pct||0;
-              const str   = Math.round(100-pct);
-              const strCol= str>=70?G:str>=40?A:R;
-              return(
-                <div key={t.id} style={{background:`${strCol}0a`,border:`2px solid ${strCol}55`,borderRadius:14,padding:"14px 16px",marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                    <div>
-                      <div style={{fontSize:13,letterSpacing:2,color:strCol,fontWeight:700,marginBottom:3}}>● ACTIVE VWAP ANCHOR</div>
-                      <div style={{fontSize:18,fontWeight:900,color:"#fff",...mono}}>{t.label}</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:28,fontWeight:900,color:strCol,lineHeight:1}}>{str}%</div>
-                      <div style={{fontSize:13,color:"#999",letterSpacing:1}}>STRENGTH</div>
-                    </div>
-                  </div>
-                  {/* Strength bar */}
-                  <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${str}%`,background:strCol,borderRadius:3,boxShadow:`0 0 6px ${strCol}88`,transition:"width 1s"}}/>
-                  </div>
-                  <div style={{fontSize:13,color:"#999",...mono,marginTop:6}}>
-                    {t.elapsed<60?`${t.elapsed} min since anchor`:`${Math.floor(t.elapsed/60)}h ${t.elapsed%60}m since anchor`} · Fades over 3 hours
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ):(
-          <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"12px 16px",marginBottom:12,textAlign:"center"}}>
-            <div style={{fontSize:13,color:"#bbb",letterSpacing:2,...mono}}>NO ACTIVE ANCHOR RIGHT NOW</div>
-            <div style={{fontSize:13,color:"#2a2a2a",marginTop:4,...mono}}>Anchors wake up automatically around the trap cycle and fade out after their active life.</div>
-          </div>
-        )}
-
-        {/* ── WHAT THIS TELLS YOU ── */}
-        <div style={card({background:"rgba(255,160,48,0.06)",border:`1px solid ${A}33`})}>
-          <div style={lbl(A,{marginBottom:10})}>WHAT THE VWAP IS TELLING YOU</div>
-          <div style={{fontSize:13,color:"#ccc",...mono,lineHeight:2.0,marginBottom:12}}>
-            The VWAP is anchored to the <span style={{color:A,fontWeight:700}}>trap candle</span> at each zone start — not the session open. This is what makes ENGiN3 VWAP different.
-            It tells you <span style={{color:A,fontWeight:700}}>where fair value is</span> since that session began.
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {[
-              {color:G,  title:"Price ABOVE VWAP", body:"Buyers are in control since the anchor. Trend is up from that session start. BUY zones with price above VWAP = higher probability long."},
-              {color:R,  title:"Price BELOW VWAP", body:"Sellers are in control. SELL zones with price below VWAP = higher probability short."},
-              {color:`${G}bb`, title:"Price at UB2", body:"Momentum resistance. Price is extended. Watch for pause or pullback to VWAP."},
-              {color:G,  title:"Price at UB3", body:"Price is stretched far above fair value. High probability reversal or consolidation zone."},
-              {color:`${R}bb`, title:"Price at LB2", body:"Momentum support. Bounces common here. Watch for zone alignment."},
-              {color:R,  title:"Price at LB3", body:"Price is stretched far below fair value. High probability bounce or exhaustion zone."},
-            ].map((row,i)=>(
-              <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",paddingBottom:8,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                <div style={{width:3,minHeight:36,background:row.color,flexShrink:0,borderRadius:2,marginTop:2}}/>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:row.color,marginBottom:3}}>{row.title}</div>
-                  <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>{row.body}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{marginTop:10,padding:"8px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8}}>
-            <div style={{fontSize:13,color:A,fontWeight:700,marginBottom:4}}>BEST USE CASE</div>
-            <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>
-              Zone fires + VWAP confirms direction + price near Band 2 or 3 = your highest confluence entry. Use bands as targets and as stops reference.
-            </div>
-          </div>
-        </div>
-
-        {/* ── PRICE INPUT ── */}
-        <div style={card({padding:"14px 16px"})}>
-          <div style={lbl("#aaa",{marginBottom:10})}>ENTER CURRENT PRICE TO SEE BANDS</div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <div style={{position:"relative",flex:1}}>
-              <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:A,fontSize:14,fontWeight:900,...mono}}>$</span>
-              <input value={vwapPrice} onChange={e=>setVwapPrice(e.target.value.replace(/[^0-9.]/g,""))}
-                placeholder="0.00" inputMode="decimal"
-                style={{width:"100%",background:"rgba(255,255,255,0.06)",border:`1px solid ${hasPrice?A:"rgba(255,255,255,0.1)"}`,borderRadius:10,padding:"12px 12px 12px 28px",color:A,...mono,fontSize:16,fontWeight:900,transition:"border .2s"}}/>
-            </div>
-            <select value={vwapInst} onChange={e=>setVwapInst(e.target.value)} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"12px",color:"#ccc",...mono,fontSize:13,cursor:"pointer",minWidth:90}}>
-              {cats.flatMap(c=>c.items).map(i=><option key={i.id} value={i.id} style={{background:"#0d0d22"}}>{i.id}</option>)}
-            </select>
-          </div>
-          {hasPrice&&<div style={{fontSize:13,color:A,marginTop:8,...mono}}>
-            {vwapInst} @ ${price.toLocaleString()} · band map only · mean reversion + value break modes
-          </div>}
-        </div>
-
-        {/* ── SESSION ── */}
-        <div style={{display:"flex",gap:6,marginBottom:12}}>
-          {[["ALL","All Sessions"],["AM","AM Only"],["PM","PM Only"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setVwapPeriod(v)} style={{flex:1,padding:"9px 0",borderRadius:10,background:vwapPeriod===v?`${A}22`:"transparent",border:`1px solid ${vwapPeriod===v?A:"#1e1e2e"}`,color:vwapPeriod===v?A:"#888",fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:.5}}>{l}</button>
-          ))}
-        </div>
-
-        {activeAnchors.length>0&&(
-          <div style={{background:`${A}0d`,border:`1px solid ${A}44`,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:A,boxShadow:`0 0 8px ${A}`,flexShrink:0}}/>
-            <div style={{fontSize:14,color:A,fontWeight:700,...mono}}>
-              {activeAnchors.length} anchor{activeAnchors.length>1?"s":""} active: {activeAnchors.map(t=>t.label).join(" · ")}
-            </div>
-          </div>
-        )}
-
-        {!can("vwap")?(
-          <div style={{textAlign:"center",padding:"28px 20px"}}>
-            <div style={{fontSize:30,marginBottom:10}}>📊</div>
-            <div style={{fontSize:13,fontWeight:900,color:G,marginBottom:6,letterSpacing:2}}>PRO REQUIRED</div>
-            <button onClick={()=>setSubOpen(true)} style={{background:`${G}18`,border:`1px solid ${G}`,color:G,borderRadius:10,padding:"10px 22px",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:2}}>UPGRADE →</button>
-          </div>
-        ):(
-          filtered.length===0?(
-            <div style={{textAlign:"center",padding:"28px 16px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12}}>
-              <div style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",marginBottom:6}}>NO ACTIVE ANCHORS</div>
-              <div style={{fontSize:13,color:"#222",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>Anchors are captured automatically and expire after 3 hours. Expired anchors are removed.</div>
-            </div>
-          ):filtered.map(t=><VWAPBandCard key={t.id} trap={t} et={et} price={vwapPrice} marketData={marketData} inst={vwapInst} anchors={vwapAnchors}/>)
-        )}
-      </div>
-    );
-  };
-
-  // ── ZONES removed ──
-  const ZonesTab = ()=> null;
-
-    // ── BACKTEST ──
-  // ── SIGNAL REPLAY — fetches real BTC OHLC + replays engine against last week ──
-  const ReplayTab = ()=>{
-    const [loading,  setLoading]  = React.useState(false);
-    const [results,  setResults]  = React.useState(null);
-    const [error,    setError]    = React.useState("");
-    const [playIdx,  setPlayIdx]  = React.useState(0);
-    const [playing,  setPlaying]  = React.useState(false);
-    const [holdMins, setHoldMins] = React.useState(()=>{
-      try{ return Math.max(1, Number(localStorage.getItem('engin3ReplayHoldMins')||1)); }catch(e){ return 1; }
-    });
-    const [diag, setDiag] = React.useState(null);
-
-    const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
-
-    React.useEffect(()=>{
-      try{ localStorage.setItem('engin3ReplayHoldMins', String(holdMins)); }catch(e){}
-    },[holdMins]);
-
-    React.useEffect(()=>{
-      try{
-        const raw = JSON.parse(localStorage.getItem('engin3ReplayLastResults')||'null');
-        if(raw && Array.isArray(raw.sessions) && raw.sessions.length) setResults(raw);
-      }catch(e){}
-    },[]);
-
-    React.useEffect(()=>{
-      if(!playing || !results?.sessions?.length) return;
-      const timer = setInterval(()=>{
-        setPlayIdx(prev=>{
-          if(prev >= results.sessions.length-1){
-            setPlaying(false);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, 250);
-      return ()=>clearInterval(timer);
-    },[playing, results]);
-
-    function getETParts(tsMs){
-      const bag = {};
-      new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: 'numeric', minute: '2-digit', hour12: true,
-      }).formatToParts(new Date(tsMs)).forEach(p=>{ if(p.type !== 'literal') bag[p.type] = p.value; });
-      const hour12 = Number(bag.hour || 0);
-      const minute = Number(bag.minute || 0);
-      const dp = String(bag.dayPeriod || 'AM').toUpperCase();
-      const h24 = (hour12 % 12) + (dp === 'PM' ? 12 : 0);
-      return { h24, m: minute, dayStr: `${bag.weekday} ${bag.month} ${bag.day}`, timeStr: `${bag.hour}:${bag.minute} ${dp}` };
-    }
-
-
-    async function fetchReplayCandles(){
-      const cacheKey = 'engin3ReplayCandles_1m_7d';
-      const persist = candles => {
-        try{ localStorage.setItem(cacheKey, JSON.stringify(candles)); }catch(e){}
-        return candles;
-      };
-      const fromCache = ()=>{
-        try{
-          const raw = JSON.parse(localStorage.getItem(cacheKey)||'null');
-          return Array.isArray(raw)&&raw.length?raw:null;
-        }catch(e){ return null; }
-      };
-      const dedupeSort = rows => Object.values((rows||[]).reduce((acc,c)=>{
-        if(c && Number.isFinite(c.ts)) acc[c.ts]=c;
-        return acc;
-      }, {})).sort((a,b)=>a.ts-b.ts);
-
-      const normalizeBinance = raw => Array.isArray(raw)
-        ? raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
-             .filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close))
-        : null;
-
-      const normalizeCryptoCompare = raw => {
-        const arr = raw?.Data?.Data || raw?.Data || [];
-        return Array.isArray(arr)
-          ? arr.map(k=>({
-              ts:Number(k.time)*1000,
-              open:Number(k.open),
-              high:Number(k.high),
-              low:Number(k.low),
-              close:Number(k.close)
-            })).filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close))
-          : null;
-      };
-
-      const now = Date.now();
-      const weekAgo = now - 7*24*60*60*1000;
-
-      // Fast fallback 1: CryptoCompare backwards chunks
-      try{
-        let toTs = Math.floor(now/1000);
-        const merged = [];
-        for(let i=0;i<6;i++){
-          const url = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=2000&toTs=${toTs}&cacheBust=${Date.now()}_${i}`;
-          const res = await fetch(url, {cache:'no-cache'});
-          if(!res.ok) throw new Error('cryptocompare unavailable');
-          const raw = await res.json();
-          const candles = normalizeCryptoCompare(raw);
-          if(candles && candles.length){
-            merged.push(...candles);
-            toTs = Math.floor((candles[0].ts/1000) - 60);
-          }
-        }
-        const rows = dedupeSort(merged).filter(c=>c.ts>=weekAgo);
-        if(rows.length >= 3000) return persist(rows);
-      }catch(e){}
-
-      // Fast fallback 2: Binance direct + proxy in larger batches
-      try{
-        const batchMs = 1000 * 60 * 1000;
-        const urlsFor = (startTs,endTs)=>{
-          const base = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000&startTime=${startTs}&endTime=${endTs}&cacheBust=${Date.now()}`;
-          return [
-            base,
-            `https://api.binance.us/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=1000&startTime=${startTs}&endTime=${endTs}&cacheBust=${Date.now()}`,
-            `https://corsproxy.io/?${encodeURIComponent(base)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`
-          ];
-        };
-        const merged = [];
-        for(let cursor=weekAgo; cursor<now; cursor+=batchMs){
-          const endTs = Math.min(now, cursor + batchMs - 60000);
-          let got = null;
-          for(const url of urlsFor(cursor,endTs)){
-            try{
-              const res = await fetch(url, {cache:'no-cache'});
-              if(!res.ok) continue;
-              const raw = await res.json();
-              const candles = normalizeBinance(raw);
-              if(candles && candles.length){ got = candles; break; }
-            }catch(e){}
-          }
-          if(got && got.length) merged.push(...got);
-        }
-        const rows = dedupeSort(merged);
-        if(rows.length) return persist(rows);
-      }catch(e){}
-
-      const cached = fromCache();
-      if(cached) return cached;
-
-      throw new Error('BTC replay minute data unavailable');
-    }
-    function replaySignal(h24, m, activeEvents) {
-      const step = getInternalStep(h24, m);
-      const newsSlot = getNewsTimeSign(h24, m);
-      const hadNews = Array.isArray(activeEvents) && activeEvents.length > 0;
-      const applied = computeReplayPolarity(step.direction, newsSlot.polarity, activeEvents);
-      const signal = applied.finalDirection === 'buy' ? 'BUY' : 'SELL';
-      return {
-        signal,
-        mode: hadNews ? 'news' : 'step',
-        flip: applied.finalDirection !== step.direction,
-        reason: applied.reason,
-        activeEvents,
-        activeCount: applied.activeCount,
-        negativePressure: applied.negativePressure,
-        positivePressure: applied.positivePressure,
-        baseDirection: step.direction,
-        baseCharge: applied.baseCharge,
-        finalCharge: applied.finalCharge,
-        newsFlip: applied.newsFlip,
-        slotPolarity: hadNews ? newsSlot.polarity : 'none',
-        stepLabel: step.label,
-        newsSlotLabel: newsSlot.label,
-        equation: applied.equation,
-        equationPlain: applied.equationPlain,
-      };
-    }
-
-    function scoreSignalWindow(signal, openPrice, futureCandles) {
-      const tp1 = 0.003, tp2 = 0.006, tp3 = 0.009;
-      if(!openPrice || !Array.isArray(futureCandles) || !futureCandles.length) return null;
-      if(signal === 'BUY') {
-        const h1 = openPrice * (1 + tp1), h2 = openPrice * (1 + tp2), h3 = openPrice * (1 + tp3);
-        const hit1 = futureCandles.findIndex(c=>c.high >= h1);
-        const hit2 = futureCandles.findIndex(c=>c.high >= h2);
-        const hit3 = futureCandles.findIndex(c=>c.high >= h3);
-        const tp1Hit = hit1 >= 0, tp2Hit = hit2 >= 0, tp3Hit = hit3 >= 0;
-        const firstHitMins = tp3Hit ? hit3+1 : tp2Hit ? hit2+1 : tp1Hit ? hit1+1 : null;
-        return { correct:tp1Hit, tp1Hit, tp2Hit, tp3Hit, label:tp3Hit?'TP3':tp2Hit?'TP2':tp1Hit?'TP1':'MISS', firstHitMins };
-      }
-      if(signal === 'SELL') {
-        const l1 = openPrice * (1 - tp1), l2 = openPrice * (1 - tp2), l3 = openPrice * (1 - tp3);
-        const hit1 = futureCandles.findIndex(c=>c.low <= l1);
-        const hit2 = futureCandles.findIndex(c=>c.low <= l2);
-        const hit3 = futureCandles.findIndex(c=>c.low <= l3);
-        const tp1Hit = hit1 >= 0, tp2Hit = hit2 >= 0, tp3Hit = hit3 >= 0;
-        const firstHitMins = tp3Hit ? hit3+1 : tp2Hit ? hit2+1 : tp1Hit ? hit1+1 : null;
-        return { correct:tp1Hit, tp1Hit, tp2Hit, tp3Hit, label:tp3Hit?'TP3':tp2Hit?'TP2':tp1Hit?'TP1':'MISS', firstHitMins };
-      }
-      return null;
-    }
-
-    function activeEventsFor(tsMs){
-      return loggedLastWeek.filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        if(!t || Number.isNaN(t)) return false;
-        const w = eventWindowMinutes(ev);
-        return tsMs >= (t - w.pre*60000) && tsMs <= (t + w.post*60000);
-      });
-    }
-
-    function buildConfirmationTags(replay, score){
-      const tags = [];
-      tags.push(replay.activeCount>0 ? 'NEWS PRESENT' : 'NO NEWS');
-      tags.push(replay.signal);
-      tags.push(replay.mode === 'news' ? 'NEWS SLOT' : 'STEP SLOT');
-      tags.push(replay.flip ? 'NEWS FLIPPED' : 'BASE HELD');
-      if(score?.tp3Hit) tags.push('TP3 HIT');
-      else if(score?.tp2Hit) tags.push('TP2 HIT');
-      else if(score?.tp1Hit) tags.push('TP1 HIT');
-      else tags.push('MISS');
-      return tags;
-    }
-
-    async function runReplay() {
-      setLoading(true); setError(''); setResults(null); setPlayIdx(0); setPlaying(false); setDiag({ candlesLoaded:0, sessionsBuilt:0, replaySignals:0, scoredSignals:0, eventsUsed:Array.isArray(loggedLastWeek)?loggedLastWeek.length:0, holdMins:Math.max(1, Number(holdMins||1)) });
-      try {
-        const candles = await fetchReplayCandles();
-        if(!Array.isArray(candles) || candles.length < 5) throw new Error('Not enough BTC candles loaded for replay');
-
-        const sessions = [];
-        const horizon = Math.max(1, Number(holdMins||1));
-        const eventCount = Array.isArray(loggedLastWeek) ? loggedLastWeek.length : 0;
-        const scheduleSet = new Set(INTERNAL_STEPS.map(x=>x[0]).filter(v=>v >= 0 && v < 1440));
-
-        for(let i=0; i<candles.length-horizon; i++) {
-          const c = candles[i];
-          const future = candles.slice(i+1, i+1+horizon);
-          const et = getETParts(c.ts);
-          const t = et.h24*60 + et.m;
-          if(!scheduleSet.has(t)) continue;
-          const activeEvents = activeEventsFor(c.ts);
-          const replay = replaySignal(et.h24, et.m, activeEvents);
-          const score  = scoreSignalWindow(replay.signal, c.open, future);
-          const confirmations = buildConfirmationTags(replay, score);
-          const eventTitle = activeEvents.length
-            ? activeEvents.map(ev=>ev.title||'').filter(Boolean).slice(0,2).join(' · ')
-            : 'NO NEWS / STEP';
-          sessions.push({
-            ts: c.ts,
-            h24: et.h24,
-            m: et.m,
-            dayStr: et.dayStr,
-            timeStr: et.timeStr,
-            open: Math.round(c.open),
-            close: Math.round(c.close),
-            high: Math.round(c.high),
-            low: Math.round(c.low),
-            holdMins: horizon,
-            eventTitle,
-            eventSource: activeEvents.length ? 'UNIFIED' : 'STEP',
-            ...replay,
-            score,
-            confirmations,
-          });
-        }
-
-        const replayRows = sessions.filter(s=>['BUY','SELL'].includes(s.signal));
-        const scoredRows = replayRows.filter(s=>s.score && typeof s.score.correct === 'boolean');
-        const wins   = scoredRows.filter(s=>s.score.correct===true).length;
-        const losses = scoredRows.filter(s=>s.score.correct===false).length;
-        const total  = wins + losses;
-        const wr     = total>0 ? Math.round((wins/total)*100) : 0;
-
-        const bySignal = ['BUY','SELL'].map(sig=>{
-          const rows = scoredRows.filter(s=>s.signal===sig);
-          const w = rows.filter(s=>s.score?.correct===true).length;
-          const l = rows.filter(s=>s.score?.correct===false).length;
-          const t = w+l;
-          return { key:sig, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
-        }).filter(x=>x.total>0);
-
-        const byNewsState = ['NO NEWS','NEWS'].map(label=>{
-          const rows = scoredRows.filter(s=>(s.activeCount>0 ? 'NEWS' : 'NO NEWS')===label);
-          const w = rows.filter(s=>s.score?.correct===true).length;
-          const l = rows.filter(s=>s.score?.correct===false).length;
-          const t = w+l;
-          return { key:label, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
-        }).filter(x=>x.total>0);
-
-        const allTags = [...new Set(scoredRows.flatMap(s=>s.confirmations||[]))];
-        const byConfirm = allTags.map(tag=>{
-          const rows = scoredRows.filter(s=>(s.confirmations||[]).includes(tag));
-          const w = rows.filter(s=>s.score?.correct===true).length;
-          const l = rows.filter(s=>s.score?.correct===false).length;
-          const t = w+l;
-          return { key:tag, wins:w, losses:l, total:t, wr:t?Math.round((w/t)*100):0 };
-        }).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
-
-        const payload = { sessions: replayRows, wins, losses, total, wr, eventsUsed: eventCount, bySignal, byNewsState, byConfirm, holdMins:horizon };
-        setDiag({ candlesLoaded:candles.length, sessionsBuilt:sessions.length, replaySignals:replayRows.length, scoredSignals:scoredRows.length, eventsUsed:eventCount, holdMins:horizon });
-
-        if(!replayRows.length){
-          setError('Replay ran, but no scheduled slots were scored in the loaded window.');
-          setResults({ ...payload, sessions: sessions.slice(-120).reverse() });
-        } else {
-          setResults(payload);
-          try{ localStorage.setItem('engin3ReplayLastResults', JSON.stringify(payload)); }catch(e){}
-        }
-      } catch(e) {
-        const msg = (e && e.message) ? String(e.message) : 'Replay unavailable';
-        setDiag(null);
-        setError(msg.includes('minute data unavailable')
-          ? 'Replay could not fetch BTC 1-minute candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles.'
-          : `Replay error: ${msg}`);
-      }
-      setLoading(false);
-    }
-
-    const sigCol = s => s==='BUY'?G:R;
-    const current = results?.sessions?.[playIdx] || null;
-    const visibleLog = React.useMemo(()=> results?.sessions ? results.sessions.slice(-300).reverse() : [], [results]);
-
-    return(
-      <div style={{padding:14}}>
-        <div style={lbl('#999',{marginBottom:10})}>REPLAY — BTC 1M ENGINE</div>
-        <div style={{fontSize:12,color:'#666',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now scores BTC on 1-minute candles at your exact schedule points. No news uses step direction. Active news uses your news-slot sign plus news-value math. A replay win means TP1 or better was reached inside the selected hold window.
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-          <div style={{borderRadius:12,border:'1px solid rgba(240,160,48,0.25)',background:'rgba(240,160,48,0.06)',padding:'10px 12px'}}>
-            <div style={{fontSize:10,color:'#555',letterSpacing:2,marginBottom:4}}>LOGGED EVENTS</div>
-            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.length}</div>
-          </div>
-          <div style={{borderRadius:12,border:'1px solid rgba(255,255,255,0.08)',background:'rgba(255,255,255,0.03)',padding:'10px 12px'}}>
-            <div style={{fontSize:10,color:'#555',letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
-            <div style={{fontSize:22,color:'#ccc',fontWeight:900}}>7D</div>
-          </div>
-          <div style={{borderRadius:12,border:'1px solid rgba(102,204,255,0.24)',background:'rgba(102,204,255,0.07)',padding:'10px 12px'}}>
-            <div style={{fontSize:10,color:'#555',letterSpacing:2,marginBottom:4}}>HOLD</div>
-            <div style={{fontSize:22,color:'#66ccff',fontWeight:900}}>{holdMins}m</div>
-          </div>
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,marginBottom:12,alignItems:'end'}}>
-          <div>
-            <div style={{fontSize:10,letterSpacing:2,color:'#555',marginBottom:6,...mono}}>HOLD WINDOW (MINUTES)</div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {[1,3,5,10,15,30,50].map(v=>(
-                <button key={v} onClick={()=>setHoldMins(v)} style={{padding:'8px 10px',borderRadius:10,border:`1px solid ${holdMins===v?A:'rgba(255,255,255,0.10)'}`,background:holdMins===v?`${A}18`:'rgba(255,255,255,0.03)',color:holdMins===v?A:'#bbb',fontWeight:800,cursor:'pointer'}}>{v}m</button>
-              ))}
-            </div>
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={runReplay} disabled={loading}
-              style={{padding:'12px 16px',borderRadius:12,fontSize:14,fontWeight:900,cursor:loading?'not-allowed':'pointer',letterSpacing:2,
-                background:loading?'rgba(255,255,255,0.05)':`${G}1a`,border:`1px solid ${loading?'#333':G}`,color:loading?'#555':G}}>
-              {loading?'⏳ RUNNING...':'▶ RUN REPLAY'}
-            </button>
-            <button onClick={()=>setPlaying(p=>!p)} disabled={!results?.sessions?.length}
-              style={{padding:'12px 14px',borderRadius:12,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',color:'#ddd',fontWeight:800,cursor:results?.sessions?.length?'pointer':'not-allowed'}}>
-              {playing?'❚❚':'▶'}
-            </button>
-          </div>
-        </div>
-
-        {error&&<div style={{color:R,fontSize:13,...mono,marginBottom:12,padding:'10px 14px',background:`${R}12`,borderRadius:10,border:`1px solid ${R}33`}}>{error}</div>}
-
-        {results&&(
-          <>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr',gap:8,marginBottom:12}}>
-              {[
-                {l:'WIN RATE', v:`${results.wr}%`, c:results.wr>=60?G:results.wr>=45?A:R},
-                {l:'WINS', v:results.wins, c:G},
-                {l:'LOSSES', v:results.losses, c:R},
-                {l:'SIGNALS', v:results.total, c:A},
-                {l:'HOLD', v:`${results.holdMins}m`, c:'#66ccff'},
-              ].map(i=>(<div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:'10px 8px',textAlign:'center'}}><div style={{fontSize:9,color:'#444',letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>))}
-            </div>
-
-            <div style={{marginBottom:14,borderRadius:12,border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.02)',padding:'12px 14px'}}>
-              <div style={{fontSize:10,letterSpacing:2,color:'#444',fontWeight:700,...mono,marginBottom:10}}>BY SIGNAL TYPE</div>
-              {results.bySignal.map(row=>{
-                const sc = sigCol(row.key);
-                return(
-                  <div key={row.key} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
-                    <div style={{width:90,fontSize:12,fontWeight:900,color:sc,...mono}}>{row.key}</div>
-                    <div style={{flex:1,height:6,background:'rgba(255,255,255,0.05)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${row.wr}%`,background:sc,borderRadius:3}}/></div>
-                    <div style={{fontSize:13,fontWeight:900,color:row.wr>=60?G:row.wr>=45?A:R,...mono,width:44,textAlign:'right'}}>{row.wr}%</div>
-                    <div style={{fontSize:11,color:'#444',...mono,width:46,textAlign:'right'}}>{row.wins}/{row.total}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{marginBottom:14,borderRadius:12,border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.02)',padding:'12px 14px'}}>
-              <div style={{fontSize:10,letterSpacing:2,color:'#444',fontWeight:700,...mono,marginBottom:10}}>BY CONFIRMATION</div>
-              {results.byConfirm.slice(0,8).map(row=>{
-                const sc = row.wr>=60?G:row.wr>=45?A:R;
-                return(
-                  <div key={row.key} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
-                    <div style={{width:128,fontSize:11,fontWeight:900,color:'#ddd',...mono}}>{row.key}</div>
-                    <div style={{flex:1,height:6,background:'rgba(255,255,255,0.05)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${row.wr}%`,background:sc,borderRadius:3}}/></div>
-                    <div style={{fontSize:13,fontWeight:900,color:sc,...mono,width:44,textAlign:'right'}}>{row.wr}%</div>
-                    <div style={{fontSize:11,color:'#444',...mono,width:46,textAlign:'right'}}>{row.wins}/{row.total}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {current && (
-              <div style={{borderRadius:12,border:`1px solid ${sigCol(current.signal)}33`,background:`${sigCol(current.signal)}09`,padding:'12px 14px',marginBottom:12}}>
-                <div style={{display:'flex',justifyContent:'space-between',gap:10,marginBottom:6,alignItems:'center'}}>
-                  <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} ET</div>
-                  <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.signal}</div>
-                </div>
-                <div style={{fontSize:12,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8}}>{current.score?.correct?`✓ ${current.score?.label || 'WIN'}`:`✗ ${current.score?.label || 'LOSS'}`}</div>
-                <div style={{fontSize:12,color:'#bbb',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  Hold {current.holdMins}m · First hit: {current.score?.firstHitMins?`${current.score.firstHitMins}m`:'—'} · News: {current.activeCount>0?'YES':'NO'}
-                </div>
-                <div style={{fontSize:12,color:'#bbb',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  Base: {current.baseDirection.toUpperCase()} ({current.baseCharge>0?'+1':'-1'}) · News flip: {current.newsFlip>0?'+1':'-1'} · Final: {current.finalCharge>0?'+1':'-1'}
-                </div>
-                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equation}</div>
-                <div style={{fontSize:13,color:'#fff',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equationPlain}</div>
-                <div style={{fontSize:12,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                  {current.confirmations.join(' · ')}
-                </div>
-                {current.eventTitle && (
-                  <div style={{fontSize:11,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                    Event: {current.eventTitle}
-                  </div>
-                )}
-                <div style={{fontSize:12,color:'#888',fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                  Open ${current.open.toLocaleString()} · High ${current.high.toLocaleString()} · Low ${current.low.toLocaleString()} · Close ${current.close.toLocaleString()}
-                </div>
-                <input type='range' min='0' max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>setPlayIdx(Number(e.target.value)||0)} style={{width:'100%',marginTop:10}}/>
-                <div style={{display:'flex',justifyContent:'space-between',marginTop:8,gap:8}}>
-                  <button onClick={()=>setPlayIdx(i=>Math.max(0,i-1))} style={{flex:1,padding:'8px 0',borderRadius:8,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',color:'#ddd',cursor:'pointer'}}>← STEP</button>
-                  <button onClick={()=>setPlayIdx(i=>Math.min((results.sessions.length-1),i+1))} style={{flex:1,padding:'8px 0',borderRadius:8,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',color:'#ddd',cursor:'pointer'}}>STEP →</button>
-                </div>
-              </div>
-            )}
-
-            <div style={{fontSize:10,letterSpacing:2,color:'#444',fontWeight:700,...mono,marginBottom:8}}>LATEST 300 SIGNALS</div>
-            {visibleLog.map((s,i)=>{
-              const sc = sigCol(s.signal);
-              const tagCol = s.score?.tp3Hit ? G : s.score?.tp2Hit ? A : s.score?.tp1Hit ? '#66ccff' : R;
-              return(
-                <div key={i} onClick={()=>setPlayIdx(results.sessions.findIndex(x=>x.ts===s.ts))} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.04)',cursor:'pointer'}}>
-                  <div style={{fontSize:10,color:'#444',...mono,minWidth:68}}>{s.dayStr}</div>
-                  <div style={{fontSize:11,color:'#aaa',...mono,minWidth:72}}>{s.timeStr}</div>
-                  <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
-                  <div style={{fontSize:11,color:'#777',...mono,minWidth:54,textAlign:'right'}}>{s.activeCount>0?'NEWS':'NONE'}</div>
-                  <div style={{fontSize:11,color:'#777',...mono,minWidth:36,textAlign:'right'}}>{s.holdMins}m</div>
-                  <div style={{fontSize:11,color:tagCol,...mono,minWidth:44,textAlign:'right'}}>{s.score?.label || 'MISS'}</div>
-                  <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?'✓':'✗'}</div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {!results&&!loading&&(
-          <div style={{textAlign:'center',padding:'32px 20px',color:'#444',...mono,lineHeight:1.8}}>
-            Run replay to test every BTC signal on minute candles.<br/>
-            A replay win now means TP1 or better was hit inside the hold window you choose.
-          </div>
-        )}
-      </div>
-    );
-  };
-
-const BacktestTab = ()=>{
-    const replaySummary = React.useMemo(()=>{
-      try{ return JSON.parse(localStorage.getItem('engin3ReplayLastResults')||'null'); }catch(e){ return null; }
-    },[]);
-    const rows = replaySummary?.sessions || [];
-    const scored = rows.filter(r=>r?.score && typeof r.score.correct === 'boolean');
-    const newsRows = scored.filter(r=>r.activeCount>0);
-    const noNewsRows = scored.filter(r=>!r.activeCount);
-    const stat = arr=>{
-      const wins = arr.filter(r=>r.score?.correct===true).length;
-      const losses = arr.filter(r=>r.score?.correct===false).length;
-      const total = wins + losses;
-      return { wins, losses, total, wr: total?Math.round((wins/total)*100):0 };
-    };
-    const all = stat(scored), news = stat(newsRows), noNews = stat(noNewsRows);
-    const buy = stat(scored.filter(r=>r.signal==='BUY'));
-    const sell = stat(scored.filter(r=>r.signal==='SELL'));
-
-    if(!rows.length) return(
-      <div style={{padding:14}}>
-        <div style={{background:"rgba(240,160,48,0.07)",border:"1px solid rgba(240,160,48,0.25)",borderRadius:10,padding:"12px 14px"}}>
-          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:6}}>BACKTEST READY</div>
-          <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.8}}>Run Replay first. Backtest will summarize the same real results by overall, news, no-news, buy, and sell.</div>
-        </div>
-      </div>
-    );
-
-    return(
-      <div style={{padding:14}}>
-        <div style={{background:"rgba(102,204,255,0.07)",border:"1px solid rgba(102,204,255,0.24)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,letterSpacing:1.5,color:'#66ccff',fontWeight:700,marginBottom:4}}>REAL REPLAY BACKTEST</div>
-          <div style={{fontSize:13,color:'#bbb',...mono,lineHeight:1.7}}>No-news uses step direction. News uses your exact news-slot sign plus stacked news value math.</div>
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-          {[
-            {l:'OVERALL',v:`${all.wr}%`,s:`${all.wins}/${all.total}`,c:all.wr>=60?G:all.wr>=45?A:R},
-            {l:'NO NEWS',v:`${noNews.wr}%`,s:`${noNews.wins}/${noNews.total}`,c:noNews.wr>=60?G:noNews.wr>=45?A:R},
-            {l:'NEWS',v:`${news.wr}%`,s:`${news.wins}/${news.total}`,c:news.wr>=60?G:news.wr>=45?A:R},
-          ].map(i=>(
-            <div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:'10px 8px',textAlign:'center'}}>
-              <div style={{fontSize:9,color:'#555',letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div>
-              <div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div>
-              <div style={{fontSize:11,color:'#777',...mono}}>{i.s}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9,marginBottom:12}}>
-          {[
-            {l:'BUY WR',v:`${buy.wr}%`,s:`${buy.wins}/${buy.total}`,c:G},
-            {l:'SELL WR',v:`${sell.wr}%`,s:`${sell.wins}/${sell.total}`,c:R},
-            {l:'SIGNALS',v:all.total,s:`hold ${replaySummary?.holdMins||1}m`,c:A},
-            {l:'EVENT LOG',v:replaySummary?.eventsUsed||0,s:'calendar + feed',c:'#66ccff'},
-          ].map(i=>(
-            <div key={i.l} style={card({textAlign:'center',padding:'13px 10px',marginBottom:0})}>
-              <div style={lbl('#888',{marginBottom:6})}>{i.l}</div>
-              <div style={{fontSize:22,fontWeight:900,color:i.c}}>{i.v}</div>
-              <div style={{fontSize:11,color:'#666',...mono,marginTop:4}}>{i.s}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={card({marginBottom:10})}>
-          <div style={lbl('#999',{marginBottom:8})}>SEGMENT BREAKDOWN</div>
-          {[{k:'NO NEWS',row:noNews,c:'#66ccff'},{k:'NEWS',row:news,c:A},{k:'BUY',row:buy,c:G},{k:'SELL',row:sell,c:R}].map(item=>(
-            <div key={item.k} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
-              <div style={{width:90,fontSize:12,fontWeight:900,color:item.c,...mono}}>{item.k}</div>
-              <div style={{flex:1,height:6,background:'rgba(255,255,255,0.05)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:`${item.row.wr}%`,background:item.c,borderRadius:3}}/></div>
-              <div style={{fontSize:13,fontWeight:900,color:item.row.wr>=60?G:item.row.wr>=45?A:R,...mono,width:44,textAlign:'right'}}>{item.row.wr}%</div>
-              <div style={{fontSize:11,color:'#444',...mono,width:46,textAlign:'right'}}>{item.row.wins}/{item.row.total}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // ── ACCOUNT ──
-  const AccountTab = ()=>(
-    <div style={{padding:14}}>
-      <div style={lbl("#999",{marginBottom:14})}>SUBSCRIPTION PLANS</div>
-      {PLANS.map(p=>{const active=plan===p.id; return(
-        <div key={p.id} style={card({border:active?`2px solid ${p.color}`:"1px solid rgba(255,255,255,0.07)",background:active?`${p.color}08`:"rgba(255,255,255,0.02)",marginBottom:14})}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-            <div>
-              <div style={{fontSize:18,fontWeight:900,color:p.color,letterSpacing:3}}>{p.name}</div>
-              <div style={{fontSize:25,fontWeight:900,color:"#fff",marginTop:3}}>{p.price===0?"FREE":`$${p.price}`}{p.price>0&&<span style={{fontSize:14,color:"#888",fontWeight:400}}>/mo</span>}</div>
-            </div>
-            {active?<div style={{padding:"6px 14px",borderRadius:20,background:`${p.color}18`,border:`1px solid ${p.color}`,color:p.color,fontSize:13,fontWeight:700,letterSpacing:2}}>✓ ACTIVE</div>
-            :<button onClick={()=>setPlan(p.id)} style={{padding:"9px 16px",borderRadius:10,background:`${p.color}18`,border:`1px solid ${p.color}`,color:p.color,fontSize:13,fontWeight:700,cursor:"pointer",letterSpacing:1}}>{p.price>((PLANS.find(x=>x.id===plan)||{price:0}).price|| 0)?"UPGRADE":"SELECT"}</button>}
-          </div>
-          {p.perks.map((f,i)=><div key={i} style={{fontSize:14,color:"#aaa",marginBottom:5,display:"flex",gap:8,...mono}}><span style={{color:p.color}}>✓</span>{f}</div>)}
-          {p.locked.length>0&&<><div style={{height:1,background:"rgba(255,255,255,0.05)",margin:"10px 0"}}/>{p.locked.map((f,i)=><div key={i} style={{fontSize:14,color:"#2a2a2a",marginBottom:5,display:"flex",gap:8,...mono}}><span>🔒</span>{f}</div>)}</>}
-        </div>
-      );})}
-      <div style={{textAlign:"center",fontSize:13,color:"#2a2a2a",...mono}}>Demo — tap SELECT to preview any plan</div>
-    </div>
-  );
-
-  // ── MODALS ──
-  const TZModal=()=>(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:400,display:"flex",alignItems:"flex-end"}} onClick={()=>setTzOpen(false)}>
-      <div style={{width:"100%",maxWidth:480,margin:"0 auto",background:"#0b0b1e",borderRadius:"18px 18px 0 0",border:"1px solid rgba(255,255,255,0.08)",maxHeight:"65vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{textAlign:"center",padding:"16px 0 12px",fontSize:13,letterSpacing:3,color:"#888",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>SELECT TIMEZONE</div>
-        {TZ_LIST.map(t=><button key={t.tz} onClick={()=>{setTZ(t.tz);setTzOpen(false);}} style={{display:"block",width:"100%",padding:"14px 22px",background:tz===t.tz?`${A}0e`:"none",border:"none",borderBottom:"1px solid rgba(255,255,255,0.04)",color:tz===t.tz?A:"#888",fontSize:13,fontWeight:tz===t.tz?700:400,cursor:"pointer",textAlign:"left",letterSpacing:1}}>
-          {t.label}{tz===t.tz&&<span style={{float:"right",color:A}}>✓</span>}
-        </button>)}
-      </div>
-    </div>
-  );
-
-  const TellModal=()=>{
-    const zid=(tellOpen||"").replace("_log",""), zone=zones.find(z=>z.id===zid);
-    if(!zone)return null;
-    const isLog=(tellOpen&&tellOpen.endsWith("_log")), col=zone.type==="buy"?G:R, flips=(bt[zid]&&bt[zid].flipHistory)||[];
-    return(
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setTellOpen(null)}>
-        <div style={{background:"#0d0d22",borderRadius:20,padding:24,border:`1px solid ${A}44`,maxWidth:340,width:"100%"}} onClick={e=>e.stopPropagation()}>
-          {isLog?(<>
-            <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:14,letterSpacing:2}}>FLIP LOG · {zone.label}</div>
-            {flips.length===0?<div style={{fontSize:14,color:"#888",...mono}}>No logs yet.</div>:flips.map((f,i)=><div key={i} style={{padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-              <div style={{fontSize:13,color:A,...mono}}>{f.date}</div>
-              <div style={{fontSize:14,color:"#888",...mono,marginTop:2}}>{f.note}</div>
-            </div>)}
-          </>):(<>
-            <div style={{fontSize:13,fontWeight:900,color:A,marginBottom:6,letterSpacing:2}}>FLIP {zone.label}?</div>
-            <div style={{fontSize:14,color:"#aaa",...mono,lineHeight:1.9,marginBottom:14}}>
-              <span style={{color:col,fontWeight:700}}>{zone.type.toUpperCase()}</span> → <span style={{color:zone.type==="buy"?R:G,fontWeight:700}}>{zone.type==="buy"?"SELL":"BUY"}</span><br/>Log your tell sign:
-            </div>
-            <textarea value={tellNote} onChange={e=>setTellNote(e.target.value)} placeholder="e.g. Sold 3 days in a row during BUY zone..." style={{width:"100%",background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"10px 12px",color:"#ddd",...mono,fontSize:14,resize:"none",height:68,marginBottom:14}}/>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{flipZone(zid,tellNote||"Tell sign flip");setTellOpen(null);setTellNote("");}} style={{flex:1,padding:"11px",borderRadius:10,background:`${A}1a`,border:`1px solid ${A}`,color:A,fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:1.5}}>⚡ FLIP & LOG</button>
-              <button onClick={()=>setTellOpen(null)} style={{flex:1,padding:"11px",borderRadius:10,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",color:"#999",fontSize:14,fontWeight:700,cursor:"pointer"}}>CANCEL</button>
-            </div>
-          </>)}
-        </div>
-      </div>
-    );
-  };
-
-  // ─── NEWS TAB ─────────────────────────────────────────────────────────────────
-  React.useEffect(()=>{
-    const unified = buildUnifiedNewsEvents(Date.now());
-    if(!unified.length) return;
-    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(unified.slice(0,400))); }catch(e){}
-  },[newsArticles, calArticles, ecoArticles]);
-
-  const NewsTab = ()=>{
-    // Uses App-level state: newsArticles, newsLoading, newsError, newsSrc, newsView, newsExpanded
-    // This means news persists through clock ticks and never resets.
-
-    const ECON = [
-      {d:"2026-03-21",t:"08:30",l:"Jobless Claims",             imp:"high", cat:"LABOR",     btc:"Weak jobs = dovish Fed = BTC bullish. Watch for surprise miss."},
-      {d:"2026-03-24",t:"09:45",l:"Flash Manufacturing PMI",  imp:"med",  cat:"MACRO",     btc:"Low PMI = slower growth = Fed dovish = risk-on for crypto."},
-      {d:"2026-03-24",t:"09:45",l:"Flash Services PMI",       imp:"med",  cat:"MACRO",     btc:"Services health — biggest sector. Weak = risk-off pressure."},
-      {d:"2026-03-25",t:"10:00",l:"Consumer Confidence",      imp:"med",  cat:"MACRO",     btc:"Consumer mood. Miss = potential short-term dip in risk assets."},
-      {d:"2026-03-26",t:"08:30",l:"Durable Goods Orders",     imp:"high", cat:"MACRO",     btc:"Big-ticket spending. Miss = BTC often pops on dovish hope."},
-      {d:"2026-03-27",t:"08:30",l:"PCE Price Index",          imp:"high", cat:"INFLATION", btc:"Fed's preferred inflation gauge — hotter = rate hike fears = BTC sell."},
-      {d:"2026-03-27",t:"10:00",l:"UMich Consumer Sentiment", imp:"med",  cat:"MACRO",     btc:"Expectations data. Affects risk appetite going into weekend."},
-      {d:"2026-03-28",t:"00:00",l:"Month-End Rebalancing",    imp:"high", cat:"CRYPTO",    btc:"Funds rebalance end of month. Expect elevated BTC volatility and potential liquidity grab."},
-      {d:"2026-03-31",t:"00:00",l:"Quarter-End Close Q1",     imp:"high", cat:"CRYPTO",    btc:"Largest quarterly close of 2026. Historically a major BTC pivot point."},
-      {d:"2026-04-01",t:"08:30",l:"ISM Manufacturing PMI",    imp:"high", cat:"MACRO",     btc:"Monthly factory index. Biggest macro mover for risk assets on the 1st."},
-      {d:"2026-04-02",t:"08:15",l:"ADP Employment Report",    imp:"med",  cat:"LABOR",     btc:"Private payrolls preview. Sets tone 2 days before NFP."},
-      {d:"2026-04-04",t:"08:30",l:"Non-Farm Payrolls NFP",    imp:"high", cat:"LABOR",     btc:"Biggest monthly macro event. Strong jobs = hawkish Fed = BTC pressure."},
-      {d:"2026-04-04",t:"08:30",l:"Unemployment Rate",        imp:"high", cat:"LABOR",     btc:"Rising unemployment = Fed pivot expectations = BTC rally potential."},
-      {d:"2026-04-10",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"Most important monthly print. Hotter CPI = rate hike risk = BTC dump."},
-      {d:"2026-04-11",t:"08:30",l:"PPI Producer Prices",      imp:"med",  cat:"INFLATION", btc:"Leads CPI by 1-2 months. Early inflation signal."},
-      {d:"2026-04-15",t:"08:30",l:"Retail Sales",             imp:"high", cat:"MACRO",     btc:"Consumer spending strength. Strong = risk-on = BTC upside."},
-      {d:"2026-04-17",t:"08:30",l:"Jobless Claims",           imp:"med",  cat:"LABOR",     btc:"Weekly labor check. Part of ongoing Fed data watch."},
-      {d:"2026-04-30",t:"08:30",l:"GDP Q1 Advance Estimate",  imp:"high", cat:"MACRO",     btc:"First GDP read. Below 0 = recession fear = BTC volatile."},
-      {d:"2026-05-06",t:"14:00",l:"FOMC Rate Decision",       imp:"high", cat:"FED",       btc:"Single biggest BTC catalyst. Rate cut = BTC rocket. Hike = dump."},
-      {d:"2026-05-06",t:"14:30",l:"Powell Press Conference",  imp:"high", cat:"FED",       btc:"Fed chair words move BTC 3-8% in minutes. Watch tone on future cuts."},
-      {d:"2026-05-12",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"May CPI — watch if inflation trend confirms Fed pivot narrative."},
-      {d:"2026-05-22",t:"14:00",l:"FOMC Minutes Release",     imp:"high", cat:"FED",       btc:"Detailed meeting notes. Markets read for rate path clues."},
-      {d:"2026-06-10",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"Q2 inflation check. Key for summer Fed decision."},
-      {d:"2026-06-17",t:"14:00",l:"FOMC Rate Decision",       imp:"high", cat:"FED",       btc:"Mid-year Fed decision — likely largest BTC mover of Q2."},
-    ];
-
-    const IC = {high:"#ff3355", med:"#f0a030"};
-    const CC = {LABOR:"#00aaff", MACRO:"#88aaff", INFLATION:"#ff3355", CRYPTO:A, FED:"#aa88ff"};
-
-    const LINKS = [
+  const LINKS = [
       { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
       { label:"Myfxbook News",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
       { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
@@ -3470,7 +2224,7 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LATEST FIRST · SCORED · NO CAP</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · LATEST FIRST · SCORED</div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
