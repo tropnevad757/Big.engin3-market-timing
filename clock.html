@@ -3,467 +3,424 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>BiG ENGiN3 Lite</title>
+<title>BiG ENGiN3 · Clean Engine</title>
 <meta name="theme-color" content="#06071a" />
 <style>
 :root{
   --bg:#06071a; --panel:#0d1026; --panel2:#11152f; --text:#f6f7fb; --muted:#97a0c3;
-  --line:rgba(255,255,255,.08); --accent:#f0a030; --green:#00ff88; --red:#ff3355; --gold:#f8c14a;
+  --line:rgba(255,255,255,.08); --accent:#f0a030; --green:#00ff88; --red:#ff3355; --gold:#f8c14a; --blue:#7aa2ff;
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-body{max-width:480px;margin:0 auto;padding:0 0 72px}
-.header{position:sticky;top:0;z-index:20;background:rgba(6,7,26,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:14px 14px 10px}
-.brand{font-weight:900;letter-spacing:1.5px;color:var(--accent);font-size:22px}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+body{max-width:520px;margin:0 auto;padding:0 0 80px}
+.header{position:sticky;top:0;z-index:20;background:rgba(6,7,26,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:14px 14px 10px}
+.brand{font-weight:900;letter-spacing:1.5px;color:var(--accent);font-size:24px}
 .sub{font-size:12px;color:var(--muted);margin-top:4px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .tab{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-weight:700;font-size:12px}
 .tab.active{border-color:rgba(240,160,48,.55);color:var(--accent)}
-.view{display:none;padding:14px}
-.view.active{display:block}
-.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.view{display:none;padding:14px}.view.active{display:block}
+.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:center}
-.muted{color:var(--muted)}
-.big{font-size:28px;font-weight:800}
+.wrap{flex-wrap:wrap}
+.title{font-weight:800;line-height:1.25}.muted{color:var(--muted)}
+.big{font-size:34px;font-weight:900;letter-spacing:.6px}.buy{color:var(--green)}.sell{color:var(--red)}.gold{color:var(--gold)}
 .kv{display:grid;grid-template-columns:1fr auto;gap:8px 12px;font-size:14px}
-.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
-.buy{color:var(--green)}
-.sell{color:var(--red)}
-.now{color:var(--accent)}
-.list{display:grid;gap:10px}
-.item{border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(255,255,255,.02)}
-.item.fade-1{opacity:.92}.item.fade-2{opacity:.76}.item.fade-3{opacity:.58}.item.fade-4{opacity:.42}
-.title{font-weight:800;line-height:1.25}
-.meta{font-size:12px;color:var(--muted);margin-top:6px}
+.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);padding:4px 9px;border-radius:999px;font-size:12px;font-weight:800}
+.now{color:var(--accent)} .core{color:var(--gold)} .reset{color:var(--blue)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.list{display:grid;gap:10px}.item{border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(255,255,255,.02)}
+.item.fade-1{opacity:.92}.item.fade-2{opacity:.78}.item.fade-3{opacity:.6}.item.fade-4{opacity:.44}
+.meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
 .star1{color:var(--green)} .star2{color:var(--gold)} .star3{color:var(--red)}
-input,button,select{font:inherit}
-button{cursor:pointer}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.small{font-size:12px}
-.footer{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(6,7,26,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:8px 14px;color:var(--muted);font-size:12px}
-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.loader{padding:28px 16px;text-align:center;color:var(--muted)}
+.small{font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+input,button,select,textarea{font:inherit} button{cursor:pointer}
+input,textarea{width:100%;background:#080b1d;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+textarea{min-height:140px;resize:vertical}
+.table{width:100%;border-collapse:collapse;font-size:12px}
+.table th,.table td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+.footer{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;background:rgba(6,7,26,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:8px 14px;color:var(--muted);font-size:12px}
 .err{color:#ffb3b3;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.ok{color:var(--green)}
 </style>
 </head>
 <body>
-  <div class="header">
-    <div class="brand">BiG ENGiN3</div>
-    <div class="sub">fast boot · unified timeline · no React dependency</div>
-    <div class="tabs">
-      <button class="tab active" data-tab="clock">Clock</button>
-      <button class="tab" data-tab="news">News</button>
-      <button class="tab" data-tab="replay">Replay</button>
-      <button class="tab" data-tab="about">About</button>
+<div class="header">
+  <div class="brand">BiG ENGiN3</div>
+  <div class="sub">fast first · clean resolver · live + replay use the same logic</div>
+  <div class="tabs">
+    <button class="tab active" data-tab="signal">Signal</button>
+    <button class="tab" data-tab="timeline">Timeline</button>
+    <button class="tab" data-tab="replay">Replay</button>
+    <button class="tab" data-tab="logic">Logic</button>
+  </div>
+</div>
+
+<section id="signal" class="view active">
+  <div class="card">
+    <div class="row wrap">
+      <div>
+        <div class="muted">Live signal</div>
+        <div id="liveSignal" class="big">Loading…</div>
+        <div id="liveReason" class="muted">Booting engine…</div>
+      </div>
+      <div class="badge now" id="clockTime">--:--</div>
     </div>
   </div>
+  <div class="card kv">
+    <div>Mode</div><div id="modeState">--</div>
+    <div>Current slot</div><div id="slotKey">--</div>
+    <div>No-news direction</div><div id="stepDir">--</div>
+    <div>News slot value</div><div id="newsDir">--</div>
+    <div>Regime</div><div id="regimeState">--</div>
+    <div>Active events</div><div id="activeCount">0</div>
+    <div>Anchor confluence</div><div id="anchorConfluence">--</div>
+  </div>
+  <div class="card">
+    <div class="title">Top active event</div>
+    <div id="topEvent" class="meta">No active event right now.</div>
+  </div>
+  <div class="card">
+    <div class="title">Dynamic range engine</div>
+    <div class="meta">Trap anchors stay alive until <span class="gold">50 minutes after the next EXECUTE</span>. Example: 4:30 trap → 5:00 execute → next trap 7:30 / execute 8:00 → keep 4:30 VWAP alive until <span class="gold">8:50</span>.</div>
+  </div>
+</section>
 
-  <section id="clock" class="view active">
-    <div class="card">
-      <div class="row"><div class="muted">Live signal</div><div id="clockTime" class="badge now">--:--</div></div>
-      <div id="liveSignal" class="big">Loading…</div>
-      <div class="muted" id="liveReason">Booting unified engine…</div>
-    </div>
-    <div class="card kv">
-      <div>No-news direction</div><div id="stepDir">--</div>
-      <div>With-news slot sign</div><div id="slotSign">--</div>
-      <div>Active events</div><div id="activeCount">0</div>
-      <div>2+ higher-rate override</div><div id="flipState">No</div>
-      <div>Mode</div><div id="modeState">--</div>
-    </div>
-  </section>
-
-  <section id="news" class="view">
-    <div class="card">
+<section id="timeline" class="view">
+  <div class="card">
+    <div class="row wrap">
+      <div>
+        <div class="title">Unified timeline</div>
+        <div class="meta">breaking news + calendar events together. Live load is optional; cached and manual events still work.</div>
+      </div>
       <div class="row">
-        <div>
-          <div class="title">Unified timeline</div>
-          <div class="meta">calendar + breaking news together, newest first</div>
-        </div>
         <button id="refreshBtn" class="tab">Refresh</button>
+        <button id="seedBtn" class="tab">Seed demo</button>
       </div>
     </div>
-    <div id="newsStatus" class="loader">Loading feeds…</div>
-    <div id="timeline" class="list"></div>
-  </section>
+    <div id="newsStatus" class="meta" style="margin-top:8px">Loading feeds…</div>
+  </div>
+  <div class="card">
+    <div class="title">Manual event input</div>
+    <div class="meta">One per line: <span class="mono">2026-04-07T08:30, CPI, USD, 3, calendar</span></div>
+    <textarea id="manualEvents"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="saveManualBtn" class="tab active">Save manual events</button>
+      <div id="manualStatus" class="meta"></div>
+    </div>
+  </div>
+  <div id="timelineList" class="list"></div>
+</section>
 
-  <section id="replay" class="view">
-    <div class="card">
-      <div class="title">Replay preview</div>
-      <div class="meta">uses the same resolver as live mode</div>
-      <div style="margin-top:12px" class="grid2">
-        <input id="replayTime" type="datetime-local" />
-        <button id="runReplay" class="tab active">Run</button>
-      </div>
+<section id="replay" class="view">
+  <div class="card">
+    <div class="title">Replay</div>
+    <div class="meta">Same resolver as live. Pick a time and replay the current timeline.</div>
+    <div class="grid2" style="margin-top:12px">
+      <input id="replayTime" type="datetime-local" />
+      <button id="runReplay" class="tab active">Run replay</button>
     </div>
-    <div class="card kv">
-      <div>Signal</div><div id="replaySignal">--</div>
-      <div>Reason</div><div id="replayReason">--</div>
-      <div>Active events</div><div id="replayEvents">0</div>
-      <div>Flip</div><div id="replayFlip">No</div>
-    </div>
-  </section>
+  </div>
+  <div class="card kv">
+    <div>Signal</div><div id="replaySignal">--</div>
+    <div>Reason</div><div id="replayReason">--</div>
+    <div>Slot</div><div id="replaySlot">--</div>
+    <div>Mode</div><div id="replayMode">--</div>
+    <div>Regime</div><div id="replayRegime">--</div>
+    <div>Events</div><div id="replayEvents">0</div>
+    <div>Anchor</div><div id="replayAnchor">--</div>
+  </div>
+</section>
 
-  <section id="about" class="view">
-    <div class="card">
-      <div class="title">What changed</div>
-      <div class="meta" style="margin-top:8px">
-        This version is rebuilt to boot without React/CDN startup failure. It uses one normalized event stream and one resolver path for live and replay.
-      </div>
-      <ul class="small muted">
-        <li>No React, no Babel, no external UI framework.</li>
-        <li>One normalized timeline store.</li>
-        <li>No-news = step direction only.</li>
-        <li>With-news = slot sign + anchor math + higher-rate stacking + 2+ override.</li>
-      </ul>
+<section id="logic" class="view">
+  <div class="card">
+    <div class="title">Signal rules</div>
+    <div class="meta" style="margin-top:8px">
+      <div><span class="ok">BUY = up = even = +</span></div>
+      <div><span class="sell">SELL = down = odd = -</span></div>
+      <div style="margin-top:8px">No news uses step direction only. With news uses your direct news value map only. Anchor and rate logic stay visible as confluence context.</div>
     </div>
-    <div class="card">
-      <div class="title">Feed sources</div>
-      <div class="meta" style="margin-top:8px">
-        Forex Factory JSON calendar plus Google News RSS searches filtered to Reuters and Bloomberg Markets.
-      </div>
+  </div>
+  <div class="card">
+    <div class="title">Step direction schedule</div>
+    <table class="table" id="stepTable"></table>
+  </div>
+  <div class="card">
+    <div class="title">News value schedule</div>
+    <table class="table" id="newsTable"></table>
+  </div>
+  <div class="card">
+    <div class="title">News reaction windows</div>
+    <table class="table">
+      <tr><th>Impact</th><th>Window</th><th>Target</th></tr>
+      <tr><td>Breaking news</td><td>0–20 minutes</td><td>61.8</td></tr>
+      <tr><td class="star1">⭐</td><td>20 minutes before / after</td><td>TP1 · 100 · 0.3%</td></tr>
+      <tr><td class="star2">⭐⭐</td><td>50 minutes before / after</td><td>TP2 · 161 · 0.6%</td></tr>
+      <tr><td class="star3">⭐⭐⭐</td><td>80 minutes before / after</td><td>TP3 · 261 · 0.9%</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <div class="title">Bias + regime logic</div>
+    <table class="table">
+      <tr><th>Regime</th><th>Use list</th><th>Meaning</th></tr>
+      <tr><td class="reset">RESET</td><td>+</td><td>normal</td></tr>
+      <tr><td class="core">CORE</td><td>−</td><td>mirror</td></tr>
+    </table>
+    <div class="meta" style="margin-top:10px"><b>BUY CORE</b> = 12:30–1:30 and 4:30–6:30. <b>SELL RESET</b> = 6:30–7:30 and 10:30–12:30. PM windows mirror the same schedule.</div>
+    <div class="meta" style="margin-top:8px">Dynamic sign override: if a symbol value is less than or equal to the USD anchor, invert that symbol sign.</div>
+  </div>
+  <div class="card">
+    <div class="title">VWAP + trap notes</div>
+    <div class="meta">
+      VWAP defines <b>WHERE</b>. Trap defines <b>WHEN</b>. Use 2σ and 3σ bands. Keep the trap anchor alive until <b>50 minutes after the next execute window</b>. Example: 4:30 trap → 5:00 execute → next trap 7:30 / execute 8:00 → keep 4:30 VWAP alive until <b>8:50</b>. Do not fade the first ±3σ touch. Require <b>touch → reaction → failure → entry</b>. During <b>7:30–10:30</b> and <b>1:30–4:30</b>, use the dynamic range engine as confluence context. Between <b>1:30 AM–4:30 AM</b> only trade if 2σ or 3σ, regime aligned, and news present. Otherwise skip. Two trades max per execution window.
     </div>
-    <div id="bootErr" class="card" style="display:none">
-      <div class="title">Diagnostics</div>
-      <div id="bootErrText" class="err"></div>
-    </div>
-  </section>
+  </div>
+  <div id="bootErr" class="card" style="display:none">
+    <div class="title">Diagnostics</div>
+    <div id="bootErrText" class="err"></div>
+  </div>
+</section>
 
-  <div class="footer">BiG ENGiN3 Lite</div>
+<div class="footer">BiG ENGiN3 Clean Engine</div>
 
 <script>
 (function(){
   const $ = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
-
-  const state = {
-    events: [],
-    lastError: "",
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"
-  };
-
-  const STEP_MAP = {
-    "00:30":"down","01:00":"up","01:30":"down","02:00":"up","03:00":"down","04:00":"up",
-    "04:30":"down","05:00":"up","06:00":"down","06:30":"up","07:00":"down","07:30":"up",
-    "08:00":"down","09:00":"up","10:00":"down","10:30":"up","11:00":"down","12:00":"up",
-    "12:30":"down","13:00":"up","13:30":"down","14:00":"up","15:00":"down","16:00":"up",
-    "16:30":"down","17:00":"up","18:00":"down","18:30":"up","19:00":"down","19:30":"up",
-    "20:00":"down","21:00":"up","22:00":"down","22:30":"up","23:00":"down","00:00":"up"
-  };
-
-  const NEWS_SLOT_MAP = {
-    "00:30":"+","01:00":"-","01:30":"-","02:00":"+","03:00":"-","04:00":"+",
-    "04:30":"+","05:00":"-","06:00":"+","06:30":"+","07:00":"-","07:30":"-",
-    "08:00":"+","09:00":"-","10:00":"+","10:30":"+","11:00":"-","12:00":"+",
-    "12:30":"+","13:00":"-","13:30":"-","14:00":"+","15:00":"-","16:00":"+",
-    "16:30":"+","17:00":"-","18:00":"+","18:30":"+","19:00":"-","19:30":"-",
-    "20:00":"+","21:00":"-","22:00":"+","22:30":"+","23:00":"-","00:00":"+"
-  };
-
   const USD_RATE = 5.5;
-  const RATE_TABLE = { USD: 5.5, GBP: 5.25, EUR: 4.0, JPY: 0.1, AUD: 4.35, NZD: 5.5, CAD: 5.0, CHF: 1.5 };
-  const BREAKING_SEARCH = [
-    {sourceName:"Reuters", url:"https://news.google.com/rss/search?q=site:reuters.com%20(crypto%20OR%20bitcoin%20OR%20inflation%20OR%20rates%20OR%20fomc%20OR%20cpi)&hl=en-US&gl=US&ceid=US:en"},
-    {sourceName:"Bloomberg Markets", url:"https://news.google.com/rss/search?q=site:bloomberg.com/markets%20(crypto%20OR%20bitcoin%20OR%20inflation%20OR%20rates%20OR%20fomc%20OR%20cpi)&hl=en-US&gl=US&ceid=US:en"}
+  const RATE_TABLE = { USD:5.5, GBP:5.25, EUR:4.0, JPY:0.1, AUD:4.35, NZD:5.5, CAD:5.0, CHF:1.5 };
+
+  const STEP_SEQUENCE = [
+    ["00:00","up"],["00:30","down"],["01:00","up"],["01:30","down"],["02:00","up"],["03:00","down"],["04:00","up"],["04:30","down"],["05:00","up"],["06:00","down"],
+    ["06:30","up"],["07:00","down"],["07:30","up"],["08:00","down"],["09:00","up"],["10:00","down"],["10:30","up"],["11:00","down"],["12:00","up"],["12:30","down"],
+    ["13:00","up"],["13:30","down"],["14:00","up"],["15:00","down"],["16:00","up"],["16:30","down"],["17:00","up"],["18:00","down"],["18:30","up"],["19:00","down"],
+    ["19:30","up"],["20:00","down"],["21:00","up"],["22:00","down"],["22:30","up"],["23:00","down"]
   ];
+  const NEWS_SEQUENCE = [
+    ["00:00","+"],["00:30","+"],["01:00","-"],["01:30","-"],["02:00","+"],["03:00","-"],["04:00","+"],["04:30","+"],["05:00","-"],["06:00","+"],
+    ["06:30","+"],["07:00","-"],["07:30","-"],["08:00","+"],["09:00","-"],["10:00","+"],["10:30","+"],["11:00","-"],["12:00","+"],["12:30","+"],
+    ["13:00","-"],["13:30","-"],["14:00","+"],["15:00","-"],["16:00","+"],["16:30","+"],["17:00","-"],["18:00","+"],["18:30","+"],["19:00","-"],
+    ["19:30","-"],["20:00","+"],["21:00","-"],["22:00","+"],["22:30","+"],["23:00","-"]
+  ];
+  const TRAPS = ["01:30","04:30","07:30","10:30","13:30","16:30","19:30","22:30"];
+  const EXECUTES = ["02:00","05:00","08:00","11:00","14:00","17:00","20:00","23:00"];
+  const CORE_RANGES = [["00:30","01:30"],["04:30","06:30"],["12:30","13:30"],["16:30","18:30"]];
+  const RESET_RANGES = [["06:30","07:30"],["10:30","12:30"],["18:30","19:30"],["22:30","24:00"]];
 
-  function safeSet(k,v){ try{ localStorage.setItem(k, v); }catch(e){} }
-  function safeGet(k, fallback){ try{ const v=localStorage.getItem(k); return v==null?fallback:v; }catch(e){ return fallback; } }
+  const state = { events:[], lastError:"" };
 
+  function safeSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  function safeGet(k,f){ try{ const v=localStorage.getItem(k); return v==null?f:v; }catch(e){ return f; } }
   function pad(n){ return String(n).padStart(2,'0'); }
-  function fmtKey(d){ return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
-  function stepDirection(d){ return STEP_MAP[fmtKey(d)] || ((d.getHours()%2===0) ? "up" : "down"); }
-  function slotSign(d){ return NEWS_SLOT_MAP[fmtKey(d)] || ((d.getHours()%2===0) ? "+" : "-"); }
-  function signToDir(sign, newsCharge){
-    if(sign==="+" && newsCharge==="+") return "BUY";
-    if(sign==="+" && newsCharge==="-" ) return "SELL";
-    if(sign==="-" && newsCharge==="-" ) return "BUY";
-    return "SELL";
+  function hmToMin(hm){ const [h,m]=hm.split(':').map(Number); return h*60+m; }
+  function minToHm(total){ total=(total+1440)%1440; return pad(Math.floor(total/60))+":"+pad(total%60); }
+  function fmtLocalInput(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); }
+  function ageBucket(ts){ const mins=Math.max(0,(Date.now()-ts)/60000); if(mins<30) return 1; if(mins<120) return 2; if(mins<360) return 3; return 4; }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function resolveSlotFromSequence(date, sequence){
+    const mins = date.getHours()*60 + date.getMinutes();
+    let found = sequence[0];
+    for(const row of sequence){ if(hmToMin(row[0]) <= mins) found = row; else break; }
+    return found;
   }
-  function countryFromCurrency(ccy){
-    const m={USD:"US",GBP:"GB",EUR:"EU",JPY:"JP",AUD:"AU",NZD:"NZ",CAD:"CA",CHF:"CH"};
-    return m[ccy] || ccy || "NA";
+  function stepDirection(date){ return resolveSlotFromSequence(date, STEP_SEQUENCE)[1]; }
+  function newsValue(date){ return resolveSlotFromSequence(date, NEWS_SEQUENCE)[1]; }
+  function currentSlot(date){ return resolveSlotFromSequence(date, STEP_SEQUENCE)[0]; }
+
+  function inRange(mins,start,end){ const s=hmToMin(start), e=hmToMin(end)%1440; if(end==="24:00") return mins>=s && mins<1440; return mins>=s && mins<e; }
+  function regimeAt(date){
+    const mins = date.getHours()*60 + date.getMinutes();
+    for(const [s,e] of CORE_RANGES){ if(inRange(mins,s,e)) return {name:'CORE', connector:'−'}; }
+    for(const [s,e] of RESET_RANGES){ if(inRange(mins,s,e)) return {name:'RESET', connector:'+'}; }
+    return {name:'NEUTRAL', connector:'•'};
   }
-  function starClass(stars){ return stars>=3?"star3":stars===2?"star2":"star1"; }
-  function starsForTitle(title){
-    const t=(title||"").toLowerCase();
-    if(/nfp|non-farm|fomc|rate decision|powell|cpi|inflation|gdp|pce|emergency|halt/.test(t)) return 3;
-    if(/pmi|jobless|unemployment|retail sales|consumer confidence|trade balance|ecb|boe|boj|rba|rbnz/.test(t)) return 2;
-    if(/housing|building permits|durable goods|flash|preliminary|revised/.test(t)) return 1;
-    return 1;
+
+  function parseManualEvents(txt){
+    return txt.split(/\n+/).map(line=>line.trim()).filter(Boolean).map((line,idx)=>{
+      const parts = line.split(',').map(s=>s.trim());
+      if(parts.length < 5) return null;
+      const [iso,title,currency,stars,sourceType] = parts;
+      return normalizeEvent({ id:'manual-'+idx+'-'+iso+'-'+title, pub:iso, title, currency, stars:Number(stars)||1, sourceType:sourceType||'calendar', sourceName:'Manual' });
+    }).filter(Boolean);
   }
-  function inferCurrency(text){
-    const t=(text||"").toUpperCase();
-    for(const c of Object.keys(RATE_TABLE)){ if(t.includes(c)) return c; }
-    if(/federal reserve|powell|cpi|nfp|inflation|pce|gdp/.test((text||"").toLowerCase())) return "USD";
-    return "USD";
-  }
-  function bullishBearishPolarity(text){
-    const t=(text||"").toLowerCase();
-    if(/beats|better than expected|strong jobs|lower inflation|rate cut|surge|rally/.test(t)) return +1;
-    if(/misses|worse than expected|weak jobs|hotter inflation|rate hike|selloff|crash|halt/.test(t)) return -1;
-    return 0;
-  }
-  function reactionWindowMins(ev){
-    if(ev.isBreaking) return 20;
-    if(ev.stars>=3) return 80;
-    if(ev.stars===2) return 50;
-    return 20;
-  }
+
+  function countryFromCurrency(ccy){ return ({USD:'US',GBP:'GB',EUR:'EU',JPY:'JP',AUD:'AU',NZD:'NZ',CAD:'CA',CHF:'CH'})[ccy] || ccy || 'NA'; }
+  function starsForTitle(title){ const t=(title||'').toLowerCase(); if(/nfp|non-farm|fomc|cpi|inflation|gdp|pce|powell|rate decision/.test(t)) return 3; if(/pmi|jobless|unemployment|retail sales|consumer confidence|ecb|boe|boj|rba/.test(t)) return 2; return 1; }
+  function reactionWindowMins(ev){ if(ev.isBreaking) return 20; if(ev.stars>=3) return 80; if(ev.stars===2) return 50; return 20; }
+  function inferCurrency(text){ const t=(text||'').toUpperCase(); for(const c of Object.keys(RATE_TABLE)){ if(t.includes(c)) return c; } if(/powell|fomc|cpi|nfp|inflation|pce|gdp/.test((text||'').toLowerCase())) return 'USD'; return 'USD'; }
   function normalizeEvent(raw){
     const ts = new Date(raw.pub || raw.date || Date.now()).getTime();
-    const stars = raw.stars || starsForTitle(raw.title || "");
-    const ccy = raw.currency || inferCurrency(raw.title || "");
-    const isBreaking = raw.sourceType === "breaking";
+    const stars = Number(raw.stars) || starsForTitle(raw.title || '');
+    const ccy = raw.currency || inferCurrency(raw.title || '');
+    const isBreaking = (raw.sourceType || 'calendar') === 'breaking';
     const win = reactionWindowMins({stars,isBreaking});
-    return {
-      id: raw.id || (raw.sourceName + "|" + (raw.title||"") + "|" + ts),
-      tsStart: ts,
-      tsEnd: ts + win*60*1000,
-      sourceType: raw.sourceType || "calendar",
-      sourceName: raw.sourceName || raw.source || "Feed",
-      title: raw.title || "Untitled",
-      country: raw.country || countryFromCurrency(ccy),
-      currency: ccy,
-      stars,
-      polarity: typeof raw.polarity === "number" ? raw.polarity : bullishBearishPolarity(raw.title || ""),
-      isBreaking,
-      burstWindowMins: isBreaking ? 20 : 0,
-      reactionWindowMins: win,
-      rateClass: (RATE_TABLE[ccy] || 0) > USD_RATE ? "higherThanUSD" : ((RATE_TABLE[ccy] || 0) < USD_RATE ? "lowerOrEqualUSD" : "usd")
-    };
+    return { id: raw.id || ('ev-'+ts+'-'+(raw.title||'')), tsStart:ts, tsEnd:ts + win*60*1000, title:raw.title||'Untitled', currency:ccy, country:raw.country||countryFromCurrency(ccy), stars, sourceType:raw.sourceType||'calendar', sourceName:raw.sourceName||'Feed', isBreaking, reactionWindowMins:win };
   }
 
   function activeEventsAt(ts){
-    return state.events.filter(ev => ts >= ev.tsStart - ev.reactionWindowMins*60*1000 && ts <= ev.tsEnd);
+    return state.events.filter(ev => ts >= ev.tsStart - ev.reactionWindowMins*60*1000 && ts <= ev.tsEnd)
+      .sort((a,b)=> (b.stars-a.stars) || (b.tsStart-a.tsStart));
   }
 
-  function computeNewsCharge(events){
-    if(!events.length) return null;
-    let higherCount = 0;
-    let charge = null;
-
-    for(const ev of events){
-      const rate = RATE_TABLE[ev.currency] ?? USD_RATE;
-      let symbolSign = rate > USD_RATE ? "+" : "-";
-      if(rate <= USD_RATE) symbolSign = symbolSign === "+" ? "-" : "+";
-      if(rate > USD_RATE) higherCount += 1;
-
-      const eventCharge = (symbolSign === "-" && "-") ? "+" : (symbolSign === "+" ? "-" : "-");
-      // practical mapping from user's rules:
-      // -/- = +, +/+ = -, -/+ = -
-      // here we collapse event into one news-side charge after anchor inversion
-      charge = charge === null ? eventCharge : (charge === eventCharge ? charge : "-");
-      if(ev.polarity < 0) charge = "-";
-      if(ev.polarity > 0 && charge === null) charge = "+";
-    }
-
-    if(charge === null) charge = "+";
-    const flip = higherCount >= 2;
-    if(flip) charge = charge === "+" ? "-" : "+";
-    return {charge, higherCount, flip};
+  function anchorConfluenceFor(events,date){
+    if(!events.length) return 'No news';
+    const regime = regimeAt(date);
+    const top = events[0];
+    const rate = RATE_TABLE[top.currency] ?? USD_RATE;
+    const symbolSign = regime.name === 'CORE' ? (rate > USD_RATE ? '-' : '+') : (regime.name === 'RESET' ? (rate > USD_RATE ? '+' : '-') : '?');
+    const charge = symbolSign === '-' ? '+' : '-';
+    return `${top.currency} ${symbolSign} → charge ${charge}`;
   }
 
   function resolveUnifiedSignal(ts){
-    const d = new Date(ts);
-    const step = stepDirection(d);
-    const slot = slotSign(d);
+    const date = new Date(ts);
+    const step = stepDirection(date);
+    const news = newsValue(date);
+    const slot = currentSlot(date);
     const active = activeEventsAt(ts);
-
-    if(active.length === 0){
-      return {
-        signal: step === "up" ? "BUY" : "SELL",
-        reason: "No news active, using step direction only",
-        stepDirection: step,
-        slotSign: slot,
-        activeCount: 0,
-        flip: false,
-        mode: "NO NEWS"
-      };
+    const regime = regimeAt(date);
+    if(!active.length){
+      return { signal: step==='up'?'BUY':'SELL', reason:'No news active, using step direction', mode:'NO NEWS', slot, step, news, regime, activeCount:0, confluence:'No news', topEvent:null };
     }
-
-    const news = computeNewsCharge(active);
-    const signal = signToDir(slot, news.charge);
-    return {
-      signal,
-      reason: "With news: slot sign + USD anchor logic + higher-rate stacking" + (news.flip ? " + 2+ override flip" : ""),
-      stepDirection: step,
-      slotSign: slot,
-      activeCount: active.length,
-      flip: news.flip,
-      mode: "WITH NEWS",
-      active
-    };
-  }
-
-  async function fetchText(url){
-    const r = await fetch(url, {cache:"no-store"});
-    if(!r.ok) throw new Error("Fetch failed: " + r.status);
-    return await r.text();
-  }
-
-  async function fetchRSSViaProxy(url){
-    const prox = "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(url);
-    const r = await fetch(prox, {cache:"no-store"});
-    if(!r.ok) throw new Error("RSS proxy failed: " + r.status);
-    const j = await r.json();
-    return Array.isArray(j.items) ? j.items : [];
+    return { signal: news==='+'?'BUY':'SELL', reason:'News active, using direct news value map', mode:'WITH NEWS', slot, step, news, regime, activeCount:active.length, confluence:anchorConfluenceFor(active,date), topEvent:active[0], active };
   }
 
   async function fetchCalendar(){
     try{
-      const r = await fetch("https://nfs.faireconomy.media/ff_calendar_thisweek.json", {cache:"no-store"});
-      if(!r.ok) throw new Error("FF calendar failed: " + r.status);
+      const r = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {cache:'no-store'});
+      if(!r.ok) throw new Error('Calendar failed: '+r.status);
       const data = await r.json();
-      return (Array.isArray(data) ? data : []).slice(0, 120).map(ev => normalizeEvent({
-        sourceType: "calendar",
-        sourceName: "ForexFactory",
-        title: ev.title || ev.name || "",
-        pub: ev.date,
-        currency: ev.currency || "",
-        country: countryFromCurrency(ev.currency || "USD"),
-        stars: (String(ev.impact || "").toLowerCase() === "high" ? 3 : (String(ev.impact || "").toLowerCase().includes("med") ? 2 : 1)),
-        polarity: 0
-      })).filter(ev => ev.title);
-    }catch(e){
-      return [];
-    }
+      return (Array.isArray(data)?data:[]).slice(0,80).map(ev => normalizeEvent({ sourceType:'calendar', sourceName:'ForexFactory', title:ev.title || ev.name || '', pub:ev.date, currency:ev.currency || 'USD', stars:String(ev.impact||'').toLowerCase()==='high'?3:(String(ev.impact||'').toLowerCase().includes('med')?2:1) })).filter(ev=>ev.title);
+    }catch(e){ return []; }
+  }
+
+  async function fetchRSSViaProxy(url){
+    const prox = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
+    const r = await fetch(prox, {cache:'no-store'});
+    if(!r.ok) throw new Error('RSS failed');
+    const j = await r.json();
+    return Array.isArray(j.items) ? j.items : [];
   }
 
   async function fetchBreaking(){
-    const lists = await Promise.all(BREAKING_SEARCH.map(async feed => {
+    const feeds = [
+      {sourceName:'Reuters', url:'https://news.google.com/rss/search?q=site:reuters.com%20(bitcoin%20OR%20crypto%20OR%20inflation%20OR%20rates%20OR%20fomc%20OR%20cpi)&hl=en-US&gl=US&ceid=US:en'},
+      {sourceName:'Bloomberg Markets', url:'https://news.google.com/rss/search?q=site:bloomberg.com/markets%20(bitcoin%20OR%20crypto%20OR%20inflation%20OR%20rates%20OR%20fomc%20OR%20cpi)&hl=en-US&gl=US&ceid=US:en'}
+    ];
+    const blocks = await Promise.all(feeds.map(async feed=>{
       try{
         const items = await fetchRSSViaProxy(feed.url);
-        return items.slice(0, 25).map(it => normalizeEvent({
-          sourceType: "breaking",
-          sourceName: feed.sourceName,
-          title: it.title || "",
-          pub: it.pubDate || it.pub || new Date().toISOString(),
-          currency: inferCurrency((it.title||"") + " " + (it.description||"")),
-          stars: Math.max(1, starsForTitle((it.title||"") + " " + (it.description||""))),
-          polarity: bullishBearishPolarity((it.title||"") + " " + (it.description||""))
-        })).filter(ev => ev.title);
-      }catch(e){
-        return [];
-      }
+        return items.slice(0,20).map(it => normalizeEvent({ sourceType:'breaking', sourceName:feed.sourceName, title:it.title || '', pub:it.pubDate || new Date().toISOString(), currency:inferCurrency((it.title||'')+' '+(it.description||'')), stars:starsForTitle((it.title||'')+' '+(it.description||'')) })).filter(ev=>ev.title);
+      }catch(e){ return []; }
     }));
-    return lists.flat();
+    return blocks.flat();
   }
 
-  function ageBucket(ts){
-    const mins = Math.max(0, (Date.now()-ts)/60000);
-    if(mins < 30) return 0;
-    if(mins < 120) return 1;
-    if(mins < 360) return 2;
-    if(mins < 1440) return 3;
-    return 4;
+  function seedDemoEvents(){
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 30, 0).toISOString();
+    const sample = [
+      `${base}, CPI, USD, 3, calendar`,
+      `${new Date(Date.now()-35*60000).toISOString()}, Reuters breaking BTC headline, USD, 2, breaking`,
+      `${new Date(Date.now()+45*60000).toISOString()}, BOE remarks, GBP, 2, breaking`
+    ].join('\n');
+    $('#manualEvents').value = sample;
+    saveManualEvents();
   }
 
-  function renderTimeline(){
-    const box = $("#timeline");
-    const status = $("#newsStatus");
-    status.textContent = state.events.length ? ("Loaded " + state.events.length + " events") : "No events loaded";
-    box.innerHTML = "";
-    const sorted = [...state.events].sort((a,b)=>b.tsStart-a.tsStart);
-    sorted.forEach(ev => {
-      const item = document.createElement("div");
-      item.className = "item fade-" + ageBucket(ev.tsStart);
-      const dt = new Date(ev.tsStart);
-      item.innerHTML = `
-        <div class="row">
-          <div class="badge ${ev.isBreaking ? 'now' : ''}">${ev.sourceType.toUpperCase()}</div>
-          <div class="badge ${starClass(ev.stars)}">${"★".repeat(ev.stars)}</div>
-        </div>
-        <div class="title" style="margin-top:8px">${escapeHtml(ev.title)}</div>
-        <div class="meta">${escapeHtml(ev.sourceName)} · ${dt.toLocaleString()} · ${escapeHtml(ev.currency)} · ${escapeHtml(ev.country)}</div>
-      `;
-      box.appendChild(item);
-    });
+  function saveManualEvents(){
+    const txt = $('#manualEvents').value.trim();
+    safeSet('engin3-manual-events', txt);
+    const manual = parseManualEvents(txt);
+    mergeEvents(manual, state.events.filter(e => e.sourceName !== 'Manual'));
+    $('#manualStatus').textContent = `${manual.length} manual events saved`;
+    renderTimeline(); renderLive();
   }
 
-  function escapeHtml(s){
-    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]));
+  function mergeEvents(manual, remote){
+    const map = new Map();
+    [...remote, ...manual].forEach(ev => map.set(ev.id, ev));
+    state.events = [...map.values()].sort((a,b)=>b.tsStart-a.tsStart);
+    safeSet('engin3-events-cache', JSON.stringify(state.events.slice(0,300)));
   }
 
   function renderLive(){
     const r = resolveUnifiedSignal(Date.now());
-    $("#clockTime").textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    $("#liveSignal").innerHTML = `<span class="${r.signal==='BUY'?'buy':'sell'}">${r.signal}</span>`;
-    $("#liveReason").textContent = r.reason;
-    $("#stepDir").textContent = r.stepDirection.toUpperCase();
-    $("#slotSign").textContent = r.slotSign;
-    $("#activeCount").textContent = String(r.activeCount);
-    $("#flipState").textContent = r.flip ? "Yes" : "No";
-    $("#modeState").textContent = r.mode;
+    $('#clockTime').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    $('#liveSignal').innerHTML = `<span class="${r.signal==='BUY'?'buy':'sell'}">${r.signal}</span>`;
+    $('#liveReason').textContent = r.reason;
+    $('#modeState').textContent = r.mode;
+    $('#slotKey').textContent = r.slot;
+    $('#stepDir').textContent = r.step.toUpperCase();
+    $('#newsDir').textContent = r.news;
+    $('#regimeState').innerHTML = r.regime.name==='CORE' ? `<span class="core">CORE ${r.regime.connector}</span>` : (r.regime.name==='RESET' ? `<span class="reset">RESET ${r.regime.connector}</span>` : r.regime.name);
+    $('#activeCount').textContent = String(r.activeCount);
+    $('#anchorConfluence').textContent = r.confluence;
+    $('#topEvent').innerHTML = r.topEvent ? `<span class="${r.topEvent.stars>=3?'star3':(r.topEvent.stars===2?'star2':'star1')}">${'★'.repeat(r.topEvent.stars)}</span> ${escapeHtml(r.topEvent.title)} · ${escapeHtml(r.topEvent.currency)} · ${new Date(r.topEvent.tsStart).toLocaleString()}` : 'No active event right now.';
   }
 
-  async function refreshFeeds(){
-    $("#newsStatus").textContent = "Loading feeds…";
-    const [cal, breaking] = await Promise.all([fetchCalendar(), fetchBreaking()]);
-    const merged = [...cal, ...breaking];
-    const dedup = new Map();
-    merged.forEach(ev => dedup.set(ev.id, ev));
-    state.events = [...dedup.values()].sort((a,b)=>b.tsStart-a.tsStart);
-    safeSet("engin3-lite-events", JSON.stringify(state.events.slice(0, 500)));
-    renderTimeline();
-    renderLive();
+  function renderTimeline(){
+    const box = $('#timelineList'); box.innerHTML='';
+    const sorted = [...state.events].sort((a,b)=>b.tsStart-a.tsStart);
+    if(!sorted.length){ box.innerHTML = `<div class="card muted">No events loaded yet.</div>`; return; }
+    sorted.forEach(ev=>{
+      const item = document.createElement('div');
+      item.className = 'item fade-'+ageBucket(ev.tsStart);
+      item.innerHTML = `<div class="row wrap"><div class="badge ${ev.sourceType==='breaking'?'now':''}">${escapeHtml(ev.sourceType.toUpperCase())}</div><div class="badge ${ev.stars>=3?'star3':(ev.stars===2?'star2':'star1')}">${'★'.repeat(ev.stars)}</div></div><div class="title" style="margin-top:8px">${escapeHtml(ev.title)}</div><div class="meta">${escapeHtml(ev.sourceName)} · ${new Date(ev.tsStart).toLocaleString()} · ${escapeHtml(ev.currency)} · ${escapeHtml(ev.country)} · ±${ev.reactionWindowMins}m</div>`;
+      box.appendChild(item);
+    });
+  }
+
+  function renderTables(){
+    $('#stepTable').innerHTML = '<tr><th>Time</th><th>Value</th><th>Signal</th></tr>' + STEP_SEQUENCE.map(([t,v])=>`<tr><td>${t}</td><td>${v}</td><td class="${v==='up'?'buy':'sell'}">${v==='up'?'BUY':'SELL'}</td></tr>`).join('');
+    $('#newsTable').innerHTML = '<tr><th>Time</th><th>Value</th><th>Signal</th></tr>' + NEWS_SEQUENCE.map(([t,v])=>`<tr><td>${t}</td><td>${v}</td><td class="${v==='+'?'buy':'sell'}">${v==='+'?'BUY':'SELL'}</td></tr>`).join('');
   }
 
   function runReplay(){
-    const val = $("#replayTime").value;
-    if(!val){ return; }
-    const ts = new Date(val).getTime();
-    const r = resolveUnifiedSignal(ts);
-    $("#replaySignal").textContent = r.signal;
-    $("#replayReason").textContent = r.reason;
-    $("#replayEvents").textContent = String(r.activeCount);
-    $("#replayFlip").textContent = r.flip ? "Yes" : "No";
+    const val = $('#replayTime').value; if(!val) return;
+    const r = resolveUnifiedSignal(new Date(val).getTime());
+    $('#replaySignal').textContent = r.signal;
+    $('#replayReason').textContent = r.reason;
+    $('#replaySlot').textContent = r.slot;
+    $('#replayMode').textContent = r.mode;
+    $('#replayRegime').textContent = `${r.regime.name} ${r.regime.connector}`;
+    $('#replayEvents').textContent = String(r.activeCount);
+    $('#replayAnchor').textContent = r.confluence;
   }
 
-  function wireTabs(){
-    $$(".tab[data-tab]").forEach(btn => btn.addEventListener("click", () => {
-      const tab = btn.dataset.tab;
-      $$(".tab[data-tab]").forEach(b => b.classList.toggle("active", b===btn));
-      $$(".view").forEach(v => v.classList.toggle("active", v.id===tab));
-    }));
+  function wireTabs(){ $$('.tab[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{ const tab=btn.dataset.tab; $$('.tab[data-tab]').forEach(b=>b.classList.toggle('active', b===btn)); $$('.view').forEach(v=>v.classList.toggle('active', v.id===tab)); })); }
+
+  async function refreshFeeds(){
+    $('#newsStatus').textContent = 'Loading live feeds…';
+    const [calendar, breaking] = await Promise.all([fetchCalendar(), fetchBreaking()]);
+    const manual = parseManualEvents($('#manualEvents').value || '');
+    mergeEvents(manual, [...calendar, ...breaking]);
+    $('#newsStatus').textContent = `Loaded ${state.events.length} total events`; renderTimeline(); renderLive();
   }
 
   function boot(){
-    wireTabs();
-    $("#refreshBtn").addEventListener("click", refreshFeeds);
-    $("#runReplay").addEventListener("click", runReplay);
+    wireTabs(); renderTables();
+    $('#refreshBtn').addEventListener('click', ()=>refreshFeeds().catch(showErr));
+    $('#seedBtn').addEventListener('click', seedDemoEvents);
+    $('#saveManualBtn').addEventListener('click', saveManualEvents);
+    $('#runReplay').addEventListener('click', runReplay);
 
-    const cached = safeGet("engin3-lite-events", "[]");
-    try{
-      const parsed = JSON.parse(cached);
-      if(Array.isArray(parsed)) state.events = parsed;
-    }catch(e){}
+    const cached = safeGet('engin3-events-cache','[]');
+    try{ const arr = JSON.parse(cached); if(Array.isArray(arr)) state.events = arr; }catch(e){}
+    $('#manualEvents').value = safeGet('engin3-manual-events','');
+    if(!$('#manualEvents').value.trim()) seedDemoEvents();
+    else saveManualEvents();
 
-    const now = new Date();
-    const local = new Date(now.getTime() - now.getTimezoneOffset()*60000).toISOString().slice(0,16);
-    $("#replayTime").value = local;
-
-    renderTimeline();
-    renderLive();
-    refreshFeeds().catch(err => {
-      state.lastError = String(err && err.message || err);
-      $("#bootErr").style.display = "block";
-      $("#bootErrText").textContent = state.lastError;
-      $("#newsStatus").textContent = "Feed load failed. Cached data shown if available.";
-      renderLive();
-    });
-    setInterval(renderLive, 1000);
+    $('#replayTime').value = fmtLocalInput(new Date());
+    renderTimeline(); renderLive(); runReplay();
+    refreshFeeds().catch(err=>{ $('#newsStatus').textContent = 'Live feeds failed. Cached/manual events still active.'; showErr(err); renderTimeline(); renderLive(); });
+    setInterval(renderLive,1000);
   }
 
-  window.addEventListener("error", e => {
-    $("#bootErr").style.display = "block";
-    $("#bootErrText").textContent = String((e && e.message) || "Unknown script error");
-  });
-  window.addEventListener("unhandledrejection", e => {
-    $("#bootErr").style.display = "block";
-    $("#bootErrText").textContent = String((e && e.reason && e.reason.message) || e.reason || "Unhandled promise rejection");
-  });
-
+  function showErr(err){ state.lastError = String(err && err.message || err); $('#bootErr').style.display='block'; $('#bootErrText').textContent = state.lastError; }
+  window.addEventListener('error',e=>showErr(e.message||'Script error'));
+  window.addEventListener('unhandledrejection',e=>showErr(e.reason && e.reason.message || e.reason || 'Unhandled promise rejection'));
   boot();
 })();
 </script>
