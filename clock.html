@@ -1588,9 +1588,8 @@ function App() {
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
-  const liveTimeSign = getReplayTimeSign(et.h24, et.m);
   const liveSlotPolarity = newsReaction.active
-    ? (liveTimeSign === 1 ? "positive" : "negative")
+    ? ((et.h24 % 2 === 0) ? "positive" : "negative")
     : (connectorMode === "aligned" ? "positive" : "negative");
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
   const _newsPol = (()=>{
@@ -1900,140 +1899,47 @@ function App() {
         const t = Date.parse(ev.pub||0);
         return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
       })
-      .sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
+      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
-  const NO_NEWS_STEP_MAP = {
-    0:  "buy",   // 12:00
-    30: "sell",  // 12:30
-    60: "buy",   // 1:00
-    90: "sell",  // 1:30
-    120:"buy",   // 2:00
-    180:"sell",  // 3:00
-    240:"buy",   // 4:00
-    270:"sell",  // 4:30
-    300:"buy",   // 5:00
-    360:"sell",  // 6:00
-    390:"buy",   // 6:30
-    420:"sell",  // 7:00
-    450:"buy",   // 7:30
-    480:"sell",  // 8:00
-    540:"buy",   // 9:00
-    600:"sell",  // 10:00
-    630:"buy",   // 10:30
-    660:"sell",  // 11:00
-  };
-
-  const NEWS_TIME_SIGN_MAP = {
-    0:  1,   // 12:00 +
-    30: 1,   // 12:30 +
-    60: -1,  // 1:00 -
-    90: -1,  // 1:30 -
-    120:1,   // 2:00 +
-    180:-1,  // 3:00 -
-    240:1,   // 4:00 +
-    270:1,   // 4:30 +
-    300:-1,  // 5:00 -
-    360:1,   // 6:00 +
-    390:1,   // 6:30 +
-    420:-1,  // 7:00 -
-    450:-1,  // 7:30 -
-    480:1,   // 8:00 +
-    540:-1,  // 9:00 -
-    600:1,   // 10:00 +
-    630:1,   // 10:30 +
-    660:-1,  // 11:00 -
-  };
-
-  function getStepKey(h24, m){
-    return (h24 % 12) * 60 + (m >= 30 ? 30 : 0);
-  }
-
-  function getReplayBaseDirection(h24, m){
-    const key = getStepKey(h24, m);
-    return NO_NEWS_STEP_MAP[key] || getInternalStep(h24, m).direction || "buy";
-  }
-
-  function getReplayTimeSign(h24, m){
-    const key = getStepKey(h24, m);
-    return NEWS_TIME_SIGN_MAP[key] ?? ((h24 % 2 === 0) ? 1 : -1);
-  }
-
-  function getReplayNewsCharge(activeEvents){
-    const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
-    const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
-    const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
-    let newsCharge = 0;
-
-    if(positives > 0 && negatives === 0) newsCharge = 1;
-    else if(negatives > 0 && positives === 0) newsCharge = -1;
-    else if(positives > 0 && negatives > 0) newsCharge = -1; // mixed = defensive negative per user note
-
-    // Dynamic flip: 2 or more same-sign active news events flips the news charge
-    let overrideTriggered = false;
-    if(newsCharge !== 0 && (positives >= 2 || negatives >= 2)) {
-      newsCharge *= -1;
-      overrideTriggered = true;
-    }
-
-    return {
-      newsCharge,
-      positives,
-      negatives,
-      speeches,
-      activeCount: (activeEvents||[]).length,
-      overrideTriggered,
-    };
-  }
-
-  function computeReplayPolarity(h24, m, activeEvents){
-    const baseDirection = getReplayBaseDirection(h24, m);
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
-    const timeCharge = getReplayTimeSign(h24, m);
-    const slotPolarity = timeCharge === 1 ? "positive" : "negative";
-    const newsState = getReplayNewsCharge(activeEvents);
-    const { newsCharge, positives, negatives, speeches, activeCount, overrideTriggered } = newsState;
+    const slotCharge = slotPolarity === "positive" ? 1 : -1;
+    const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
+    const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
+    const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
+    const activeCount = (activeEvents||[]).length;
+
+    let newsCharge = 0;
+    if(negatives > 0 && positives === 0) newsCharge = -1;
+    else if(positives > 0 && negatives === 0) newsCharge = 1;
+    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict defaults defensive
+
     const hadNews = activeCount > 0;
-
-    let finalDirection = baseDirection;
-    let reason = "base polarity held";
-    let equationPlain = `${baseDirection.toUpperCase()} + NO NEWS = ${baseDirection.toUpperCase()}`;
-
-    if(hadNews && newsCharge !== 0) {
-      finalDirection = (timeCharge === newsCharge) ? "buy" : "sell";
-      reason = timeCharge === newsCharge
-        ? "time sign matched news sign"
-        : "time sign conflicted with news sign";
-      equationPlain = `${timeCharge===1?'+':'-'} TIME + ${newsCharge===1?'+':'-'} NEWS = ${finalDirection.toUpperCase()}`;
-      if(overrideTriggered) {
-        reason += " after 2+ same-sign news override";
-        equationPlain += " (OVERRIDE)";
-      }
-    } else if(hadNews) {
-      reason = "news active but no directional polarity";
-      equationPlain = `${baseDirection.toUpperCase()} + NEWS(NEUTRAL) = ${baseDirection.toUpperCase()}`;
-    }
-
+    const finalDirection = !hadNews
+      ? baseDirection
+      : (newsCharge === 0
+          ? baseDirection
+          : (newsCharge === slotCharge ? "buy" : "sell"));
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = hadNews && finalDirection !== baseDirection;
+    const equationPlain = !hadNews
+      ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
+      : newsCharge === 0
+        ? `${baseDirection.toUpperCase()} + NEWS(NEUTRAL) = ${finalDirection.toUpperCase()}`
+        : `${slotCharge===1?'+':'-'} TIME + ${newsCharge===1?'+':'-'} NEWS = ${finalDirection.toUpperCase()}`;
 
     return {
-      baseDirection,
-      baseCharge,
       finalDirection,
+      baseCharge,
       finalCharge,
       newsFlip: newsFlip ? -1 : 1,
       negativePressure: negatives + speeches,
       positivePressure: positives,
       activeCount,
-      reason,
+      reason: !hadNews ? "base polarity held" : newsCharge===0 ? "news active but no directional polarity" : (newsCharge===slotCharge ? "time sign matched news sign" : "time sign conflicted with news sign"),
       equation: equationPlain,
       equationPlain,
-      baseStepKey: getStepKey(h24, m),
-      slotPolarity,
-      timeCharge,
-      newsCharge,
-      overrideTriggered,
     };
   }
 
@@ -2778,26 +2684,26 @@ function App() {
     }
 
     function replaySignal(h24, m, activeEvents) {
+      const step = getInternalStep(h24, m);
       const connectorMode = getConnectorMode(h24, m);
-      const applied = computeReplayPolarity(h24, m, activeEvents);
+      const slotPol = connectorMode === "aligned" ? "positive" : "negative";
+      const polarityState = buildPolarityState(step.direction, slotPol);
+      const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
       return {
         signal,
         mode: connectorMode,
-        flip: applied.finalDirection !== applied.baseDirection,
+        flip: applied.finalDirection !== polarityState.baseDirection,
         reason: applied.reason,
         activeEvents,
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection: applied.baseDirection,
+        baseDirection: polarityState.baseDirection,
         baseCharge: applied.baseCharge,
         finalCharge: applied.finalCharge,
         newsFlip: applied.newsFlip,
-        slotPolarity: applied.slotPolarity,
-        timeCharge: applied.timeCharge,
-        newsCharge: applied.newsCharge,
-        overrideTriggered: applied.overrideTriggered,
+        slotPolarity: slotPol,
         equation: applied.equation,
         equationPlain: applied.equationPlain,
       };
