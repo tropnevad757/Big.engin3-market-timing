@@ -1071,7 +1071,8 @@ function App() {
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
     // AM cycle
-    [   0,  "sell", "Down"],  // 12:00 AM → down (tail)
+    [   0,  "buy",  "Up"  ],  // 12:00 AM → up (buy) — cycle begins
+    [  30,  "sell", "Down"],  // 12:30 AM → down
     [  60,  "buy",  "Up"  ],  // 1:00 AM
     [  90,  "sell", "Down"],  // 1:30 AM
     [ 120,  "buy",  "Up"  ],  // 2:00 AM
@@ -2608,38 +2609,25 @@ function App() {
 
     const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
 
+    // Stable playback: single timer effect, stops cleanly at last frame
     React.useEffect(()=>{
-      if(playTimerRef.current){
-        clearInterval(playTimerRef.current);
-        playTimerRef.current = null;
-      }
-      if(!playing || !results?.sessions?.length || ended) return;
+      if(playTimerRef.current){ clearInterval(playTimerRef.current); playTimerRef.current = null; }
+      if(!playing || !results?.sessions?.length) return;
       const last = results.sessions.length - 1;
       playTimerRef.current = setInterval(()=>{
-        setPlayIdx(prev => Math.min(last, prev + 1));
+        setPlayIdx(prev => {
+          if(prev >= last){
+            clearInterval(playTimerRef.current);
+            playTimerRef.current = null;
+            setPlaying(false);
+            setEnded(true);
+            return last; // freeze on last frame
+          }
+          return prev + 1;
+        });
       }, 2200);
-      return ()=>{
-        if(playTimerRef.current){
-          clearInterval(playTimerRef.current);
-          playTimerRef.current = null;
-        }
-      };
-    },[playing, results, ended]);
-
-    React.useEffect(()=>{
-      if(!results?.sessions?.length) return;
-      const last = results.sessions.length - 1;
-      if(playIdx >= last){
-        if(playTimerRef.current){
-          clearInterval(playTimerRef.current);
-          playTimerRef.current = null;
-        }
-        if(playing) setPlaying(false);
-        if(!ended) setEnded(true);
-      } else if(ended) {
-        setEnded(false);
-      }
-    },[playIdx, playing, results, ended]);
+      return ()=>{ if(playTimerRef.current){ clearInterval(playTimerRef.current); playTimerRef.current = null; } };
+    },[playing, results]);
 
     function getETParts(tsMs){
       const bag = {};
@@ -2716,7 +2704,12 @@ function App() {
     function replaySignal(h24, m, activeEvents) {
       const step = getInternalStep(h24, m);
       const connectorMode = getConnectorMode(h24, m);
-      const slotPol = connectorMode === "aligned" ? "positive" : "negative";
+      const hasNews = (activeEvents||[]).length > 0;
+      // When news is active: even hour = positive (+), odd hour = negative (-)
+      // When no news: use connector mode (aligned = positive, mirror = negative)
+      const slotPol = hasNews
+        ? (h24 % 2 === 0 ? "positive" : "negative")
+        : (connectorMode === "aligned" ? "positive" : "negative");
       const polarityState = buildPolarityState(step.direction, slotPol);
       const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
       const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
@@ -2839,15 +2832,16 @@ function App() {
             if(!results?.sessions?.length) return;
             const last = results.sessions.length - 1;
             if(ended || playIdx >= last){
-              setPlayIdx(0);
+              if(playTimerRef.current){ clearInterval(playTimerRef.current); playTimerRef.current = null; }
               setEnded(false);
-              setPlaying(true);
+              setPlayIdx(0);
+              setTimeout(()=>setPlaying(true), 50);
               return;
             }
             setPlaying(p=>!p);
           }} disabled={!results?.sessions?.length}
             style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
-            {playing?"❚❚":"▶"}
+            {playing?"❚❚":ended?"↺":"▶"}
           </button>
         </div>
 
