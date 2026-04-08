@@ -87,9 +87,38 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
       './vendor/babel.min.js'
     ]}
   ];
+  function runApp(){
+    try {
+      if(!window.React || !window.ReactDOM || !window.Babel){
+        showBootError('Missing required globals', 'React, ReactDOM, or Babel is unavailable after loading.');
+        return;
+      }
+      if(window.__bigEngineAppStarted) return;
+      var src = document.getElementById('app-source');
+      if(!src){
+        showBootError('Missing app source', 'The inline app source block was not found.');
+        return;
+      }
+      window.__bigEngineAppStarted = true;
+      var code = src.textContent || src.innerText || '';
+      var compiled = window.Babel.transform(code, {
+        presets:['env','react'],
+        sourceType:'script'
+      }).code;
+      var s = document.createElement('script');
+      s.type='text/javascript';
+      s.text = compiled + '
+//# sourceURL=big-engine-compiled.js';
+      document.body.appendChild(s);
+    } catch (e) {
+      showBootError('Compile/runtime failure', (e && (e.stack || e.message)) || String(e));
+    }
+  }
+
   function step(n){
     if(n>=sets.length){
       window.__bigEngineDepsReady = true;
+      runApp();
       return;
     }
     loadSequential(sets[n].urls, function(ok,label){
@@ -109,12 +138,12 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   step(0);
   setTimeout(function(){
     if(!window.__bigEngineDepsReady && !(root && root.dataset.bootErrorShown)){
-      showBootError('Startup timed out', 'The dependency loader did not finish in time. This is usually a blocked CDN or offline connection.');
+      showBootError('Startup timed out', 'The dependency loader did not finish in time. This is usually a blocked CDN or offline connection. If you are opening this as a local file, network restrictions may be blocking CDN scripts.');
     }
   }, 8000);
 })();
 </script>
-<script type="text/babel" data-presets="env,react">
+<script id="app-source" type="text/plain" data-presets="env,react">
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
 const toAngle = (h,m) => ((h%12)*60+m)*0.5;
 const polar   = (cx,cy,r,d) => ({ x:cx+r*Math.cos(((d-90)*Math.PI)/180), y:cy+r*Math.sin(((d-90)*Math.PI)/180) });
