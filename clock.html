@@ -30,10 +30,91 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>ZONE CLOCK</p>
 </div>
 <div id="root"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
-<script type="text/babel">
+<script>
+(function(){
+  var root = document.getElementById('root');
+  var loader = document.getElementById('loader');
+  function hideLoader(){
+    try{ if(loader){ loader.style.opacity='0'; setTimeout(function(){ loader.style.display='none'; },250); } }catch(e){}
+  }
+  function showBootError(title, detail){
+    try{
+      hideLoader();
+      if(root && !root.dataset.bootErrorShown){
+        root.dataset.bootErrorShown='1';
+        root.innerHTML = '<div style="min-height:100vh;background:#06071a;color:#fff;padding:20px;font-family:monospace;white-space:pre-wrap">'
+          + '<div style="font-weight:bold;margin-bottom:10px;color:#ff9500">BiG ENGiN3 startup</div>'
+          + '<div style="font-weight:bold;margin-bottom:8px">'+ String(title || 'Startup error') +'</div>'
+          + '<div>'+ String(detail || '') +'</div>'
+          + '</div>';
+      }
+    }catch(e){}
+  }
+  window.__bigEngineBoot = { hideLoader: hideLoader, showBootError: showBootError };
+
+  function loadOne(url, ok, fail){
+    var s=document.createElement('script');
+    s.src=url; s.async=false; s.crossOrigin='anonymous';
+    s.onload=function(){ ok && ok(url); };
+    s.onerror=function(){ s.remove(); fail && fail(url); };
+    document.head.appendChild(s);
+  }
+  function loadSequential(urls, done, label){
+    var i=0;
+    function next(){
+      if(i>=urls.length){ done(false,label); return; }
+      loadOne(urls[i++], function(){ done(true,label); }, next);
+    }
+    next();
+  }
+  var sets = [
+    {label:'React', urls:[
+      'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
+      'https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js',
+      'https://unpkg.com/react@18.2.0/umd/react.production.min.js',
+      './vendor/react.production.min.js'
+    ]},
+    {label:'ReactDOM', urls:[
+      'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
+      'https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js',
+      'https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js',
+      './vendor/react-dom.production.min.js'
+    ]},
+    {label:'Babel', urls:[
+      'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js',
+      'https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.5/babel.min.js',
+      'https://unpkg.com/@babel/standalone@7.22.5/babel.min.js',
+      './vendor/babel.min.js'
+    ]}
+  ];
+  function step(n){
+    if(n>=sets.length){
+      window.__bigEngineDepsReady = true;
+      return;
+    }
+    loadSequential(sets[n].urls, function(ok,label){
+      if(!ok){
+        showBootError('Missing required scripts',
+          'Could not load '+ label +'.\n\n'
+          + 'This app needs React, ReactDOM, and Babel to start because the main app uses <script type="text/babel">.\n\n'
+          + 'What to try:\n'
+          + '• Open while connected to the internet\n'
+          + '• Disable blockers/firewalls for cdnjs, jsdelivr, or unpkg\n'
+          + '• Or place local copies in ./vendor/ as react.production.min.js, react-dom.production.min.js, and babel.min.js');
+        return;
+      }
+      step(n+1);
+    }, sets[n].label);
+  }
+  step(0);
+  setTimeout(function(){
+    if(!window.__bigEngineDepsReady && !(root && root.dataset.bootErrorShown)){
+      showBootError('Startup timed out', 'The dependency loader did not finish in time. This is usually a blocked CDN or offline connection.');
+    }
+  }, 8000);
+})();
+</script>
+<script type="text/babel" data-presets="env,react">
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
 const toAngle = (h,m) => ((h%12)*60+m)*0.5;
 const polar   = (cx,cy,r,d) => ({ x:cx+r*Math.cos(((d-90)*Math.PI)/180), y:cy+r*Math.sin(((d-90)*Math.PI)/180) });
@@ -3800,6 +3881,9 @@ setTimeout(function(){
   } catch(_) {}
 }, 4000);
 try {
+  if(!window.React || !window.ReactDOM){
+    throw new Error('React dependencies are not available.');
+  }
   const rootEl = document.getElementById('root');
   ReactDOM.createRoot(rootEl).render(React.createElement(App));
   if(rootEl){ rootEl.dataset.rendered = '1'; }
