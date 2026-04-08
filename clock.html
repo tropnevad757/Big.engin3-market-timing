@@ -2617,10 +2617,33 @@ function App() {
         playTimerRef.current = null;
       }
       if(!playing || !results?.sessions?.length || ended) return;
+
       const last = results.sessions.length - 1;
       playTimerRef.current = setInterval(()=>{
-        setPlayIdx(prev => Math.min(last, prev + 1));
+        setPlayIdx(prev=>{
+          if(prev >= last){
+            if(playTimerRef.current){
+              clearInterval(playTimerRef.current);
+              playTimerRef.current = null;
+            }
+            setPlaying(false);
+            setEnded(true);
+            return last;
+          }
+          const next = prev + 1;
+          if(next >= last){
+            if(playTimerRef.current){
+              clearInterval(playTimerRef.current);
+              playTimerRef.current = null;
+            }
+            setPlaying(false);
+            setEnded(true);
+            return last;
+          }
+          return next;
+        });
       }, 2200);
+
       return ()=>{
         if(playTimerRef.current){
           clearInterval(playTimerRef.current);
@@ -2639,9 +2662,10 @@ function App() {
         }
         if(playing) setPlaying(false);
         if(!ended) setEnded(true);
-      } else if(ended) {
-        setEnded(false);
+        if(playIdx !== last) setPlayIdx(last);
+        return;
       }
+      if(ended) setEnded(false);
     },[playIdx, playing, results, ended]);
 
     function getETParts(tsMs){
@@ -2768,6 +2792,10 @@ function App() {
     }
 
     async function runReplay() {
+      if(playTimerRef.current){
+        clearInterval(playTimerRef.current);
+        playTimerRef.current = null;
+      }
       setLoading(true); setError(""); setResults(null); setPlayIdx(0); setPlaying(false); setEnded(false);
       try {
         const candles = await fetchReplayCandles();
