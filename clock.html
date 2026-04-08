@@ -203,10 +203,10 @@ const REGIME_CURRENCIES = {
 // Stars → window in mins, TP targets as % move from entry
 // Updated: 1★=30m, 2★=60m, 3★=90m, breaking burst=20m
 const NEWS_REACTION = {
-  break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
-  1:     { window: 30,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
-  2:     { window: 60,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
-  3:     { window: 90,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
+  break: { window: 15,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
+  1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
+  2:     { window: 50,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
+  3:     { window: 80,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -1861,7 +1861,7 @@ function App() {
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
-    if(type === "breaking") return {pre:0, post:20};
+    if(type === "breaking") return {pre:0, post:15};
     if(type === "speech") return {pre:0, post:45};
     if(stars === 1) return {pre:20, post:20};
     if(stars === 2) return {pre:50, post:50};
@@ -1876,8 +1876,8 @@ function App() {
     const t = Date.parse(item?.pub || ((item?.date && item?.time) ? `${item.date}T${String(item.time).replace(/\s/g,"")}` : "") || 0);
     if(!t || Number.isNaN(t)) return false;
     const stars = Math.max(1, Math.min(3, Number(item?.stars || 1)));
-    const pre = 20;
-    const post = stars===3 ? 80 : stars===2 ? 50 : 20;
+    const pre = stars===3 ? 90 : stars===2 ? 60 : 30;
+    const post = 0;
     return nowMs >= (t - pre*60000) && nowMs <= (t + post*60000);
   }
 
@@ -2802,7 +2802,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses the new polarity engine. Scheduled events use symmetric ±20/±50/±80 minute windows, Reuters/Bloomberg breaking news uses 0–20 minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
+          Replay now uses the new polarity engine. Scheduled events use symmetric ±20/±50/±80 minute windows, Reuters/Bloomberg breaking news uses 0–15 minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
