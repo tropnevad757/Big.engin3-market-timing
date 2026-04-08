@@ -1869,44 +1869,9 @@ function App() {
   }
 
 
-  function parseCalendarEventTime(item){
-    const direct = item?.pub || item?.published || item?.datetime || item?.dateTime || "";
-    const directTs = Date.parse(direct);
-    if(direct && !Number.isNaN(directTs)) return directTs;
-
-    const rawDate = String(item?.date || item?.d || "").trim();
-    const rawTime = String(item?.time || item?.t || "").trim();
-    if(!rawDate && !rawTime) return NaN;
-
-    const normalizedDate = rawDate
-      .replace(/\//g, '-')
-      .replace(/\./g, '-')
-      .replace(/(\d{1,2})-(\d{1,2})-(\d{4})/, '$3-$1-$2');
-
-    const compactTime = rawTime.replace(/\s+/g,' ').trim();
-    const combined = `${normalizedDate}${normalizedDate && compactTime ? ' ' : ''}${compactTime}`.trim();
-    let ts = Date.parse(combined);
-    if(!Number.isNaN(ts)) return ts;
-
-    const m = compactTime.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
-    if(rawDate && m){
-      let hh = Number(m[1]);
-      const mm = Number(m[2]);
-      const ap = (m[3]||'').toUpperCase();
-      if(ap==='PM' && hh<12) hh += 12;
-      if(ap==='AM' && hh===12) hh = 0;
-      const d = new Date(normalizedDate || rawDate);
-      if(!Number.isNaN(d.getTime())){
-        d.setHours(hh, mm, 0, 0);
-        return d.getTime();
-      }
-    }
-    return NaN;
-  }
-
   function isCalendarEventVisible(item, nowMs = Date.now()){
-    const t = parseCalendarEventTime(item);
-    if(Number.isNaN(t)) return true;
+    const t = Date.parse(item?.pub || ((item?.date && item?.time) ? `${item.date}T${String(item.time).replace(/\s/g,"")}` : "") || 0);
+    if(!t || Number.isNaN(t)) return false;
     const stars = Math.max(1, Math.min(3, Number(item?.stars || 1)));
     const pre = stars===3 ? 90 : stars===2 ? 60 : 30;
     const post = 0;
@@ -2181,13 +2146,12 @@ function App() {
     if(newsView==="feed") {
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
       if(!calLoadedRef.current) fetchCalendar();
-      if(!ecoLoadedRef.current) fetchEcoNews();
     }
     if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
 
   // On mount, pre-load default feed + calendar
-  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); fetchEcoNews(); },[]);
+  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -3303,7 +3267,7 @@ const BacktestTab = ()=>{
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
               <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR + BREAKING NEWS</div>
-              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; ecoLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); fetchEcoNews(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
+              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
             {(newsLoading||calLoading)&&(
@@ -3317,22 +3281,7 @@ const BacktestTab = ()=>{
             )}
 
             {(()=>{
-              const visibleCount = dedupeFeedItems([...(calArticles||[]),(...(ecoArticles||[]).filter(x=>Number(x?.stars||0)>=1).map(x=>({...x,feedType:"calendar"})))]).filter(item=>isCalendarEventVisible(item, Date.now())).length;
-              return <div style={{fontSize:12,color:visibleCount?"#6fcf97":"#888",fontFamily:"'Share Tech Mono',monospace",marginBottom:10}}>{visibleCount?`LIVE ECONOMIC EVENTS IN FEED: ${visibleCount}`:"No economic calendar events inside the current 90m / 60m / 30m show window yet."}</div>;
-            })()}
-
-            {(()=>{
-              const calendarTimeline = dedupeFeedItems([
-                ...(calArticles||[]),
-                ...(ecoArticles||[])
-                  .filter(item=>Number(item?.stars||0)>=1)
-                  .map(item=>({
-                    ...item,
-                    source:item.source||item.feedLabel||"Economic",
-                    color:item.color||"#88aaff",
-                    feedType:"calendar"
-                  }))
-              ])
+              const calendarTimeline = (calArticles||[])
                 .map(item=>({
                   ...item,
                   kind:"event",
@@ -3341,13 +3290,7 @@ const BacktestTab = ()=>{
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
                   feedType:"calendar"
                 }))
-                .filter(item=>isCalendarEventVisible(item, Date.now()))
-                .sort((a,b)=>{
-                  const ta = parseCalendarEventTime(a);
-                  const tb = parseCalendarEventTime(b);
-                  if(!Number.isNaN(ta) && !Number.isNaN(tb)) return ta - tb;
-                  return (Date.parse(a.pub||0)||0) - (Date.parse(b.pub||0)||0);
-                });
+                .filter(item=>isCalendarEventVisible(item, Date.now()));
 
               const breakingTimeline = (newsArticles||[]).map(item=>({
                 ...item,
@@ -3361,14 +3304,15 @@ const BacktestTab = ()=>{
                 ...calendarTimeline,
                 ...breakingTimeline
               ]).sort((a,b)=>{
+                const ta = Date.parse(a.pub||0) || 0;
+                const tb = Date.parse(b.pub||0) || 0;
                 const now = Date.now();
-                const ta = a.feedType === "calendar" ? parseCalendarEventTime(a) : (Date.parse(a.pub||0) || 0);
-                const tb = b.feedType === "calendar" ? parseCalendarEventTime(b) : (Date.parse(b.pub||0) || 0);
-                const aUpcoming = a.feedType === "calendar" && !Number.isNaN(ta) && ta >= now;
-                const bUpcoming = b.feedType === "calendar" && !Number.isNaN(tb) && tb >= now;
-                if(aUpcoming && bUpcoming) return ta - tb;
-                if(aUpcoming) return -1;
-                if(bUpcoming) return 1;
+                const aUpcoming = ta >= now;
+                const bUpcoming = tb >= now;
+                if(a.feedType === "calendar" && b.feedType === "calendar"){
+                  if(aUpcoming && bUpcoming) return ta - tb;
+                  if(aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+                }
                 return tb - ta;
               });
               if(!newsLoading && !calLoading && timeline.length===0){
