@@ -107,8 +107,7 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
       }).code;
       var s = document.createElement('script');
       s.type='text/javascript';
-      s.text = compiled + '
-//# sourceURL=big-engine-compiled.js';
+      s.text = compiled + '\n//# sourceURL=big-engine-compiled.js';
       document.body.appendChild(s);
     } catch (e) {
       showBootError('Compile/runtime failure', (e && (e.stack || e.message)) || String(e));
