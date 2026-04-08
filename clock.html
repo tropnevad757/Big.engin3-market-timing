@@ -201,12 +201,12 @@ const REGIME_CURRENCIES = {
 
 // NEWS REACTION WINDOWS — symmetric (before AND after event)
 // Stars → window in mins, TP targets as % move from entry
-// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
+// Updated: 1★=30m, 2★=60m, 3★=90m, breaking burst=20m
 const NEWS_REACTION = {
   break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
-  1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
-  2:     { window: 50,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
-  3:     { window: 80,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
+  1:     { window: 30,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
+  2:     { window: 60,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
+  3:     { window: 90,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -2609,19 +2609,24 @@ function App() {
 
     const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
 
+    // Advance playIdx on each tick; clamped at last index — never increments past end.
     React.useEffect(()=>{
       if(!playing || !results?.sessions?.length) return;
+      const last = results.sessions.length - 1;
       const timer = setInterval(()=>{
-        setPlayIdx(prev=>{
-          if(prev >= results.sessions.length-1){
-            setPlaying(false);
-            return prev;
-          }
-          return prev + 1;
-        });
+        setPlayIdx(prev => prev >= last ? prev : prev + 1);
       }, 2200);
       return ()=>clearInterval(timer);
     },[playing, results]);
+
+    // Stop playing once the last step is displayed. Separated from the interval
+    // so we never call setPlaying() inside a state-updater function (React anti-pattern).
+    React.useEffect(()=>{
+      if(!playing || !results?.sessions?.length) return;
+      if(playIdx >= results.sessions.length - 1){
+        setPlaying(false);
+      }
+    },[playIdx, playing, results]);
 
     function getETParts(tsMs){
       const bag = {};
