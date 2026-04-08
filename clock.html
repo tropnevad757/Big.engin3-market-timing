@@ -1869,6 +1869,18 @@ function App() {
   }
 
 
+  function isCalendarEventVisible(item, nowMs = Date.now()){
+    const source = String(item?.source || "").toLowerCase();
+    const isMyfxbook = source.includes("myfxbook");
+    if(!isMyfxbook) return true;
+    const t = Date.parse(item?.pub || ((item?.date && item?.time) ? `${item.date}T${String(item.time).replace(/\s/g,"")}` : "") || 0);
+    if(!t || Number.isNaN(t)) return false;
+    const stars = Math.max(1, Math.min(3, Number(item?.stars || 1)));
+    const pre = 20;
+    const post = stars===3 ? 80 : stars===2 ? 50 : 20;
+    return nowMs >= (t - pre*60000) && nowMs <= (t + post*60000);
+  }
+
   function buildUnifiedNewsEvents(nowMs = Date.now()){
     const toEvent = (raw, overrides={})=>{
       const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
@@ -2607,7 +2619,7 @@ function App() {
           }
           return prev + 1;
         });
-      }, 900);
+      }, 2200);
       return ()=>clearInterval(timer);
     },[playing, results]);
 
@@ -2864,10 +2876,10 @@ function App() {
                 <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
                   Open ${current.open.toLocaleString()} · High ${current.high.toLocaleString()} · Low ${current.low.toLocaleString()} · Close ${current.close.toLocaleString()}
                 </div>
-                <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>setPlayIdx(Number(e.target.value)||0)} style={{width:"100%",marginTop:10}}/>
+                <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>{ setPlaying(false); setPlayIdx(Number(e.target.value)||0); }} style={{width:"100%",marginTop:10}}/>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:8,gap:8}}>
-                  <button onClick={()=>setPlayIdx(i=>Math.max(0,i-1))} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
-                  <button onClick={()=>setPlayIdx(i=>Math.min((results.sessions.length-1),i+1))} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>STEP →</button>
+                  <button onClick={()=>{ setPlaying(false); setPlayIdx(i=>Math.max(0,i-1)); }} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
+                  <button onClick={()=>{ setPlaying(false); setPlayIdx(i=>Math.min((results.sessions.length-1),i+1)); }} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>STEP →</button>
                 </div>
               </div>
             )}
@@ -3242,14 +3254,16 @@ const BacktestTab = ()=>{
 
             {(()=>{
               const timeline = dedupeFeedItems([
-                ...calArticles.map(item=>({
-                  ...item,
-                  kind:"event",
-                  isUnified:true,
-                  pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
-                  country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
-                  feedType:"calendar"
-                })),
+                ...calArticles
+                  .map(item=>({
+                    ...item,
+                    kind:"event",
+                    isUnified:true,
+                    pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
+                    country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
+                    feedType:"calendar"
+                  }))
+                  .filter(item=>isCalendarEventVisible(item, Date.now())),
                 ...newsArticles.map(item=>({
                   ...item,
                   kind:"breaking",
@@ -3409,7 +3423,7 @@ const BacktestTab = ()=>{
                   cat:e.cat, btc:e.btc, date:e.d, time:e.t, isStatic:true,
                 }));
 
-              const liveItems = calArticles.map(a=>({
+              const liveItems = calArticles.filter(a=>isCalendarEventVisible(a, Date.now())).map(a=>({
                 ...a,
                 date: a.date || (a.pub ? new Date(a.pub).toISOString().slice(0,10) : ""),
                 time: a.time || (a.pub && !isNaN(new Date(a.pub)) ? new Date(a.pub).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false}).slice(0,5) : ""),
