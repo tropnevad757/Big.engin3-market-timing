@@ -681,7 +681,7 @@ function App() {
   const [newsLoading,  setNewsLoading]  = useState(false);
   const [newsError,    setNewsError]    = useState("");
   const [newsSrc,      setNewsSrc]      = useState("combo");
-  const [newsView,     setNewsView]     = useState("feed");
+  const [newsView,     setNewsView]     = useState("calendar");
   const [newsExpanded, setNewsExpanded] = useState(null);
   // Breaking news anchor — polarity override for high-impact events
   const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
@@ -2830,6 +2830,9 @@ function App() {
           setError("Replay ran, but that week produced no BUY/SELL actions from the current rules. Showing all replay sessions instead.");
         }
         setResults({ sessions: replayRows, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, byType: actionable.length ? actionable : replayRows });
+        setPlayIdx(Math.max(0, replayRows.length - 1));
+        setPlaying(false);
+        setEnded(true);
       } catch(e) {
         const msg = (e && e.message) ? String(e.message) : "Replay unavailable";
         setError(msg.includes("BTC replay data unavailable")
@@ -3185,7 +3188,7 @@ const BacktestTab = ()=>{
       <div style={{padding:14}}>
 
         {/* Toggle */}
-        <div style={{display:"none",gap:6,marginBottom:14}}>
+        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
           {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"events",l:"⚡ POLARITY"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
