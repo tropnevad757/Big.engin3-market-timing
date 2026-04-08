@@ -1923,9 +1923,8 @@ function App() {
     const activeCount = (activeEvents||[]).length;
 
     let newsCharge = 0;
-    if(negatives > 0 && positives === 0) newsCharge = -1;
-    else if(positives > 0 && negatives === 0) newsCharge = 1;
-    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict defaults defensive
+    if((positives > 0 && negatives === 0) || (negatives > 0 && positives === 0)) newsCharge = 1;
+    else if(negatives > 0 && positives > 0) newsCharge = -1; // mixed signs only
 
     const hadNews = activeCount > 0;
     const finalDirection = !hadNews
