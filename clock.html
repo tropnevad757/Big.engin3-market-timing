@@ -1588,7 +1588,11 @@ function App() {
 
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
-  const polarityState = buildPolarityState(_stepDir, connectorMode === "aligned" ? "positive" : "negative");
+  const liveTimeSign = getReplayTimeSign(et.h24, et.m);
+  const liveSlotPolarity = newsReaction.active
+    ? (liveTimeSign === 1 ? "positive" : "negative")
+    : (connectorMode === "aligned" ? "positive" : "negative");
+  const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
@@ -1896,7 +1900,7 @@ function App() {
         const t = Date.parse(ev.pub||0);
         return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
       })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+      .sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
   }
 
   const NO_NEWS_STEP_MAP = {
@@ -2895,7 +2899,11 @@ function App() {
               background:loading?"rgba(255,255,255,0.05)":`${G}1a`,border:`1px solid ${loading?"#333":G}`,color:loading?"#555":G}}>
             {loading?"⏳ RUNNING...":"▶ RUN REPLAY"}
           </button>
-          <button onClick={()=>setPlaying(p=>!p)} disabled={!results?.sessions?.length}
+          <button onClick={()=>{
+            if(!results?.sessions?.length) return;
+            if(playIdx >= results.sessions.length-1) setPlayIdx(0);
+            setPlaying(p=>!p);
+          }} disabled={!results?.sessions?.length}
             style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
             {playing?"❚❚":"▶"}
           </button>
@@ -2954,7 +2962,7 @@ function App() {
                 <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
                   Open ${current.open.toLocaleString()} · High ${current.high.toLocaleString()} · Low ${current.low.toLocaleString()} · Close ${current.close.toLocaleString()}
                 </div>
-                <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>setPlayIdx(Number(e.target.value)||0)} style={{width:"100%",marginTop:10}}/>
+                <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>{ setPlaying(false); setPlayIdx(Number(e.target.value)||0); }} style={{width:"100%",marginTop:10}}/>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:8,gap:8}}>
                   <button onClick={()=>setPlayIdx(i=>Math.max(0,i-1))} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
                   <button onClick={()=>setPlayIdx(i=>Math.min((results.sessions.length-1),i+1))} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>STEP →</button>
@@ -3350,7 +3358,7 @@ const BacktestTab = ()=>{
               ]).sort((a,b)=>{
                 const ta = Date.parse(a.pub||0) || 0;
                 const tb = Date.parse(b.pub||0) || 0;
-                return ta - tb;
+                return tb - ta;
               });
               if(!newsLoading && !calLoading && timeline.length===0){
                 return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
