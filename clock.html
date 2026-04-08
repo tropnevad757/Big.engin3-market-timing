@@ -2181,12 +2181,13 @@ function App() {
     if(newsView==="feed") {
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
       if(!calLoadedRef.current) fetchCalendar();
+      if(!ecoLoadedRef.current) fetchEcoNews();
     }
     if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
   },[newsView,newsSrc]);
 
   // On mount, pre-load default feed + calendar
-  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); },[]);
+  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); fetchEcoNews(); },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -3302,7 +3303,7 @@ const BacktestTab = ()=>{
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
               <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR + BREAKING NEWS</div>
-              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
+              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; ecoLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); fetchEcoNews(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
             {(newsLoading||calLoading)&&(
@@ -3316,7 +3317,22 @@ const BacktestTab = ()=>{
             )}
 
             {(()=>{
-              const calendarTimeline = (calArticles||[])
+              const visibleCount = dedupeFeedItems([...(calArticles||[]),(...(ecoArticles||[]).filter(x=>Number(x?.stars||0)>=1).map(x=>({...x,feedType:"calendar"})))]).filter(item=>isCalendarEventVisible(item, Date.now())).length;
+              return <div style={{fontSize:12,color:visibleCount?"#6fcf97":"#888",fontFamily:"'Share Tech Mono',monospace",marginBottom:10}}>{visibleCount?`LIVE ECONOMIC EVENTS IN FEED: ${visibleCount}`:"No economic calendar events inside the current 90m / 60m / 30m show window yet."}</div>;
+            })()}
+
+            {(()=>{
+              const calendarTimeline = dedupeFeedItems([
+                ...(calArticles||[]),
+                ...(ecoArticles||[])
+                  .filter(item=>Number(item?.stars||0)>=1)
+                  .map(item=>({
+                    ...item,
+                    source:item.source||item.feedLabel||"Economic",
+                    color:item.color||"#88aaff",
+                    feedType:"calendar"
+                  }))
+              ])
                 .map(item=>({
                   ...item,
                   kind:"event",
@@ -3325,7 +3341,13 @@ const BacktestTab = ()=>{
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
                   feedType:"calendar"
                 }))
-                .filter(item=>isCalendarEventVisible(item, Date.now()));
+                .filter(item=>isCalendarEventVisible(item, Date.now()))
+                .sort((a,b)=>{
+                  const ta = parseCalendarEventTime(a);
+                  const tb = parseCalendarEventTime(b);
+                  if(!Number.isNaN(ta) && !Number.isNaN(tb)) return ta - tb;
+                  return (Date.parse(a.pub||0)||0) - (Date.parse(b.pub||0)||0);
+                });
 
               const breakingTimeline = (newsArticles||[]).map(item=>({
                 ...item,
