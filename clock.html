@@ -1869,12 +1869,44 @@ function App() {
   }
 
 
+  function parseCalendarEventTime(item){
+    const direct = item?.pub || item?.published || item?.datetime || item?.dateTime || "";
+    const directTs = Date.parse(direct);
+    if(direct && !Number.isNaN(directTs)) return directTs;
+
+    const rawDate = String(item?.date || item?.d || "").trim();
+    const rawTime = String(item?.time || item?.t || "").trim();
+    if(!rawDate && !rawTime) return NaN;
+
+    const normalizedDate = rawDate
+      .replace(/\//g, '-')
+      .replace(/\./g, '-')
+      .replace(/(\d{1,2})-(\d{1,2})-(\d{4})/, '$3-$1-$2');
+
+    const compactTime = rawTime.replace(/\s+/g,' ').trim();
+    const combined = `${normalizedDate}${normalizedDate && compactTime ? ' ' : ''}${compactTime}`.trim();
+    let ts = Date.parse(combined);
+    if(!Number.isNaN(ts)) return ts;
+
+    const m = compactTime.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+    if(rawDate && m){
+      let hh = Number(m[1]);
+      const mm = Number(m[2]);
+      const ap = (m[3]||'').toUpperCase();
+      if(ap==='PM' && hh<12) hh += 12;
+      if(ap==='AM' && hh===12) hh = 0;
+      const d = new Date(normalizedDate || rawDate);
+      if(!Number.isNaN(d.getTime())){
+        d.setHours(hh, mm, 0, 0);
+        return d.getTime();
+      }
+    }
+    return NaN;
+  }
+
   function isCalendarEventVisible(item, nowMs = Date.now()){
-    const source = String(item?.source || "").toLowerCase();
-    const isMyfxbook = source.includes("myfxbook");
-    if(!isMyfxbook) return true;
-    const t = Date.parse(item?.pub || ((item?.date && item?.time) ? `${item.date}T${String(item.time).replace(/\s/g,"")}` : "") || 0);
-    if(!t || Number.isNaN(t)) return false;
+    const t = parseCalendarEventTime(item);
+    if(Number.isNaN(t)) return true;
     const stars = Math.max(1, Math.min(3, Number(item?.stars || 1)));
     const pre = stars===3 ? 90 : stars===2 ? 60 : 30;
     const post = 0;
@@ -3307,15 +3339,14 @@ const BacktestTab = ()=>{
                 ...calendarTimeline,
                 ...breakingTimeline
               ]).sort((a,b)=>{
-                const ta = Date.parse(a.pub||0) || 0;
-                const tb = Date.parse(b.pub||0) || 0;
                 const now = Date.now();
-                const aUpcoming = ta >= now;
-                const bUpcoming = tb >= now;
-                if(a.feedType === "calendar" && b.feedType === "calendar"){
-                  if(aUpcoming && bUpcoming) return ta - tb;
-                  if(aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
-                }
+                const ta = a.feedType === "calendar" ? parseCalendarEventTime(a) : (Date.parse(a.pub||0) || 0);
+                const tb = b.feedType === "calendar" ? parseCalendarEventTime(b) : (Date.parse(b.pub||0) || 0);
+                const aUpcoming = a.feedType === "calendar" && !Number.isNaN(ta) && ta >= now;
+                const bUpcoming = b.feedType === "calendar" && !Number.isNaN(tb) && tb >= now;
+                if(aUpcoming && bUpcoming) return ta - tb;
+                if(aUpcoming) return -1;
+                if(bUpcoming) return 1;
                 return tb - ta;
               });
               if(!newsLoading && !calLoading && timeline.length===0){
