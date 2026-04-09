@@ -1696,8 +1696,31 @@ function App() {
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
-    // Signal now follows polarity math only.
-    return polarityDirection === "buy"
+    // Apply cluster double-sign math to live signal (spec section 9)
+    // Uses same stackCharges logic as replay path
+    let dir = polarityDirection;
+    const liveActiveEvents = newsReaction.nearEvents || [];
+    const directedLive = liveActiveEvents.filter(ev=>Number(ev.polarity)!==0);
+    const liveSlotCharge = et.h24 % 2 === 0 ? 1 : -1;
+
+    // Double-sign cluster flip: -/- = +, +/+ = -, -/+ = -
+    if(directedLive.length >= 2){
+      const charges = directedLive.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
+      let running = charges[0];
+      for(let i=1; i<charges.length; i++) running = stackCharges(running, charges[i]);
+      // If stacked result differs from current direction, flip
+      const stackedDir = running === liveSlotCharge ? "buy" : "sell";
+      if(stackedDir !== dir) dir = stackedDir;
+    }
+
+    // USD anchor override: 2+ rate events active = flip
+    const usdRateLive = liveActiveEvents.filter(ev=>{
+      const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
+      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
+    });
+    if(usdRateLive.length >= 2) dir = dir === "buy" ? "sell" : "buy";
+
+    return dir === "buy"
       ? { label:"BUY",  col:G }
       : { label:"SELL", col:R };
   })();
@@ -1940,45 +1963,75 @@ function App() {
     const activeCount = (activeEvents||[]).length;
 
     if(!activeCount){
-      // No news — use base step direction directly
       return {
         finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
+        chargeFlip: false, clusterResult: null,
         reason: "base polarity held",
-        equation: `${baseDirection.toUpperCase()} + NO NEWS = ${baseDirection.toUpperCase()}`,
-        equationPlain: `${baseDirection.toUpperCase()} + NO NEWS = ${baseDirection.toUpperCase()}`,
+        equation: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
+        equationPlain: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
       };
     }
 
-    // With news: apply spec section 6 decision table
-    // even hour (+) and + news = Buy
-    // even hour (+) and - news = Sell
-    // odd hour (-) and - news = Buy
-    // odd hour (-) and + news = Sell
-    // → same sign = Buy, different sign = Sell
     const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
     const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
     const breakingEvents = (activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length;
     const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
 
+    // STEP 1: single combined news charge
     let newsCharge = 0;
     if(negatives > 0 && positives === 0) newsCharge = -1;
     else if(positives > 0 && negatives === 0) newsCharge = 1;
-    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict = defensive
-    // Breaking news with no polarity field: treated as directional push aligned with slot
+    else if(negatives > 0 && positives > 0) newsCharge = -1;
     else if(breakingEvents > 0 && negatives === 0 && positives === 0) newsCharge = slotCharge;
 
-    // Apply decision table: same sign = buy, different = sell
-    const finalDirection = newsCharge === 0
+    // STEP 2: decision table — same sign = buy, different = sell
+    let finalDirection = newsCharge === 0
       ? baseDirection
       : (newsCharge === slotCharge ? "buy" : "sell");
+
+    // STEP 3: double-sign cluster math (spec section 9)
+    // -/- = + (flip)   +/+ = - (flip)   -/+ = - (no flip)
+    // Applied when 2+ events have actual polarity values
+    let chargeFlip = false;
+    let clusterResult = null;
+    const directedEvents = (activeEvents||[]).filter(ev=>Number(ev.polarity)!==0);
+    if(directedEvents.length >= 2){
+      const charges = directedEvents.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
+      let running = charges[0];
+      const steps = [];
+      for(let i=1; i<charges.length; i++){
+        const prev = running;
+        running = stackCharges(running, charges[i]);
+        steps.push({ prev, next: charges[i], result: running });
+      }
+      clusterResult = { charges, steps, stackedCharge: running };
+      // If stacking flipped the result vs single-event charge, re-apply decision table
+      if(running !== newsCharge && newsCharge !== 0){
+        chargeFlip = true;
+        finalDirection = running === slotCharge ? "buy" : "sell";
+      }
+    }
+
+    // STEP 4: USD anchor override (spec section 9 — 2+ rate events)
+    // If 2+ USD-or-higher interest rate events active simultaneously, flip signal
+    const usdRateEvents = (activeEvents||[]).filter(ev=>{
+      const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
+      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
+    });
+    if(usdRateEvents.length >= 2){
+      chargeFlip = true;
+      finalDirection = finalDirection === "buy" ? "sell" : "buy";
+    }
+
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = finalDirection !== baseDirection;
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const flipNote = chargeFlip ? " [CLUSTER FLIP]" : "";
     const equationPlain = newsCharge === 0
-      ? `${baseDirection.toUpperCase()} + NEWS(NEUTRAL) = ${finalDirection.toUpperCase()}`
-      : `${slotSign} SLOT + ${newsSign} NEWS = ${finalDirection.toUpperCase()}`;
+      ? baseDirection.toUpperCase() + " + NEWS(NEUTRAL) = " + finalDirection.toUpperCase()
+      : slotSign + " SLOT + " + newsSign + " NEWS = " + finalDirection.toUpperCase() + flipNote;
 
     return {
       finalDirection, baseCharge, finalCharge,
@@ -1986,9 +2039,10 @@ function App() {
       negativePressure: negatives + speeches,
       positivePressure: positives,
       breakingCount: breakingEvents,
-      activeCount,
-      reason: newsCharge === 0 ? "news active but no directional polarity"
-        : (newsCharge === slotCharge ? "slot and news same sign → BUY" : "slot and news different sign → SELL"),
+      activeCount, chargeFlip, clusterResult,
+      reason: chargeFlip ? "cluster double-sign flip: " + finalDirection.toUpperCase()
+        : newsCharge === 0 ? "news active but no directional polarity"
+        : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
       equationPlain,
     };
