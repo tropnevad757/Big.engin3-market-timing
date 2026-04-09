@@ -704,6 +704,14 @@ function App() {
   const marketFetchRef = useRef(false);
   const prevRef = useRef([]);
   const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
+  // ── REPLAY STATE — hoisted to App so 1s clock ticks don't wipe results ─────
+  const [rpLoading, setRpLoading] = useState(false);
+  const [rpResults, setRpResults] = useState(null);
+  const [rpError,   setRpError]   = useState("");
+  const [rpPlayIdx, setRpPlayIdx] = useState(0);
+  const [rpPlaying, setRpPlaying] = useState(false);
+  const [rpEnded,   setRpEnded]   = useState(false);
+  const rpTimerRef = useRef(null);
 
   useEffect(()=>{
     try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,400))); }catch(e){}
@@ -2597,209 +2605,229 @@ function App() {
   const ZonesTab = ()=> null;
 
     // ── BACKTEST ──
-  // ── SIGNAL REPLAY — fetches real BTC OHLC + replays engine against last week ──
+  // ══════════════════════════════════════════════════════════════════════════════
+  // REPLAY ENGINE — all logic at App scope so 1s clock ticks never cause remount
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // loggedLastWeek at App scope — survives every clock tick
+  const loggedLastWeek = React.useMemo(
+    ()=>buildUnifiedNewsEvents(Date.now()),
+    [newsArticles, calArticles, ecoArticles, replayEvents]
+  );
+
+  // Timer effect at App scope — never torn down by tab switches or clock ticks
+  useEffect(()=>{
+    if(rpTimerRef.current){ clearInterval(rpTimerRef.current); rpTimerRef.current = null; }
+    if(!rpPlaying || !rpResults?.sessions?.length) return;
+    const last = rpResults.sessions.length - 1;
+    rpTimerRef.current = setInterval(()=>{
+      setRpPlayIdx(prev => {
+        if(prev >= last){
+          clearInterval(rpTimerRef.current); rpTimerRef.current = null;
+          setRpPlaying(false); setRpEnded(true);
+          return last; // freeze on last frame
+        }
+        return prev + 1;
+      });
+    }, 2200);
+    return ()=>{ if(rpTimerRef.current){ clearInterval(rpTimerRef.current); rpTimerRef.current = null; } };
+  },[rpPlaying, rpResults]);
+
+  function rpGetETParts(tsMs){
+    const bag = {};
+    new Intl.DateTimeFormat("en-US",{
+      timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric",
+      hour:"numeric",minute:"2-digit",hour12:true,
+    }).formatToParts(new Date(tsMs)).forEach(p=>{ if(p.type!=="literal") bag[p.type]=p.value; });
+    const hour12=Number(bag.hour||0), minute=Number(bag.minute||0);
+    const dp=String(bag.dayPeriod||"AM").toUpperCase();
+    const h24=(hour12%12)+(dp==="PM"?12:0);
+    return { h24, m:minute, dayStr:`${bag.weekday} ${bag.month} ${bag.day}`, timeStr:`${bag.hour}:${bag.minute} ${dp}` };
+  }
+
+  async function rpFetchCandles(){
+    const cacheKey="engin3ReplayCandles";
+    const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
+    const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
+    const norm=(raw)=>{if(!Array.isArray(raw)||!raw.length)return null;
+      return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
+                .filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close));};
+    const binance="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
+    for(const url of [binance,`https://corsproxy.io/?${encodeURIComponent(binance)}`]){
+      try{ const r=await fetch(url,{cache:"no-cache"}); if(!r.ok)continue; const raw=await r.json(); const c=norm(raw); if(c&&c.length)return persist(c); }catch(e){}
+    }
+    const cg=`https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7`;
+    for(const url of [cg,`https://corsproxy.io/?${encodeURIComponent(cg)}`]){
+      try{ const r=await fetch(url,{cache:"no-cache"}); if(!r.ok)continue; const raw=await r.json(); const c=norm(raw); if(c&&c.length)return persist(c); }catch(e){}
+    }
+    const cached=fromCache(); if(cached)return cached;
+    throw new Error("BTC replay data unavailable");
+  }
+
+  // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
+  // RULE: no-news → use INTERNAL_STEPS step-direction schedule
+  //       news active → use even/odd hour polarity schedule
+  //       news decision: same sign → BUY, different sign → SELL
+  //       (Buy=up=even=+  /  Sell=down=odd=-)
+  function rpSignal(h24, m, activeEvents){
+    // Step 1: get base direction from no-news schedule
+    const step = getInternalStep(h24, m);
+    const connectorMode = getConnectorMode(h24, m);
+    const hasNews = (activeEvents||[]).length > 0;
+
+    // Step 2: slot polarity
+    // No news → connector mode (aligned=+, mirror=-)
+    // News active → even hour=+ / odd hour=-  (spec section 3 & 6)
+    const slotPol = hasNews
+      ? (h24 % 2 === 0 ? "positive" : "negative")
+      : (connectorMode === "aligned" ? "positive" : "negative");
+
+    const pState = buildPolarityState(step.direction, slotPol);
+
+    // Step 3: apply news if present
+    const applied = computeReplayPolarity(pState.baseDirection, slotPol, activeEvents);
+
+    // Step 4: news charge flip — if 2+ USD-or-higher rate news events active → flip
+    const USD_ANCHOR_RATE = USD_RATE; // 3.75 from CHARGE_CURRENCIES
+    const usdOrHigherEvents = (activeEvents||[]).filter(ev=>{
+      const title = String(ev?.title||ev?.l||"").toLowerCase();
+      const isRateEvent = /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(title);
+      return isRateEvent;
+    });
+    let finalDir = applied.finalDirection;
+    const chargeFlip = usdOrHigherEvents.length >= 2;
+    if(chargeFlip) finalDir = finalDir === "buy" ? "sell" : "buy";
+
+    const signal = finalDir === "buy" ? "BUY" : "SELL";
+    return {
+      signal, chargeFlip,
+      mode: connectorMode,
+      flip: applied.finalDirection !== pState.baseDirection,
+      reason: applied.reason,
+      activeEvents, activeCount: applied.activeCount,
+      negativePressure: applied.negativePressure,
+      positivePressure: applied.positivePressure,
+      baseDirection: pState.baseDirection,
+      baseCharge: applied.baseCharge,
+      finalCharge: finalDir === "buy" ? 1 : -1,
+      newsFlip: applied.newsFlip,
+      slotPolarity: slotPol,
+      equation: applied.equationPlain,
+      equationPlain: applied.equationPlain,
+      newsCount: (activeEvents||[]).length,
+      // TP/win info — spec section 13
+      tp1: 0.003, tp2: 0.006, tp3: 0.009,
+    };
+  }
+
+  // ── WIN/LOSS SCORING — spec section 13 ───────────────────────────────────────
+  // BUY win = price reaches TP1(0.3%), TP2(0.6%), TP3(0.9%) above open
+  // SELL win = price reaches TP1(0.3%), TP2(0.6%), TP3(0.9%) below open
+  // Using 1H BTC candle high/low vs open to check if TP was hit
+  // ── SIGNAL WINDOW — determines exit time and TP target from active events ────
+  // Breaking news → 20m burst → small target
+  // 1★ → ±20m → TP1 0.3%
+  // 2★ → ±50m → TP2 0.6%
+  // 3★ → ±80m → TP3 0.9%
+  // No news → hold to next step change → TP1 0.3%
+  // NOTE: 30/60/90 min early visibility is DISPLAY ONLY in news tab — never used here
+  function getSignalWindow(activeEvents){
+    if(!activeEvents || !activeEvents.length){
+      return { type:"none", stars:0, windowMins:0, tp:0.003, tpLabel:"STEP TP", tpPct:"0.3%", exitRule:"next step change" };
+    }
+    const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
+    if(breaking.length > 0){
+      return { type:"break", stars:0, windowMins:20, tp:0.003, tpLabel:"BREAK TP", tpPct:"0.3%", exitRule:"20m burst window" };
+    }
+    const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3", tpPct:"0.9%", exitRule:"±80m window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.006, tpLabel:"TP2", tpPct:"0.6%", exitRule:"±50m window" };
+    return { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"±20m window" };
+  }
+
+  // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
+  // A WIN = price moved the required % in the right direction before the window expired
+  // Using 1H candle H/L as proxy (we have hourly data; window is ≤80min so 1H is fair)
+  function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
+    if(!openPrice) return null;
+    const w = sigWindow || getSignalWindow([]);
+    const { tp, tpLabel, tpPct, exitRule } = w;
+    if(signal==="BUY"){
+      const target = openPrice*(1+tp);
+      const hit = highPrice >= target;
+      return {
+        correct: hit, tp1Hit: hit,
+        label:  hit ? `${tpLabel} (${tpPct})` : "MISS",
+        detail: hit
+          ? `+${tpPct} hit — exit at ${tpLabel} per ${exitRule}`
+          : `Needed +${tpPct} before ${exitRule} — price only reached +${(((highPrice/openPrice)-1)*100).toFixed(2)}%`,
+        windowLabel: exitRule, tp, tpLabel, tpPct,
+      };
+    }
+    if(signal==="SELL"){
+      const target = openPrice*(1-tp);
+      const hit = lowPrice <= target;
+      return {
+        correct: hit, tp1Hit: hit,
+        label:  hit ? `${tpLabel} (${tpPct})` : "MISS",
+        detail: hit
+          ? `-${tpPct} hit — exit at ${tpLabel} per ${exitRule}`
+          : `Needed -${tpPct} before ${exitRule} — price only dropped -${(((openPrice/lowPrice)-1)*100).toFixed(2)}%`,
+        windowLabel: exitRule, tp, tpLabel, tpPct,
+      };
+    }
+    return null;
+  }
+
+  function rpActiveEventsFor(tsMs){
+    return loggedLastWeek.filter(ev=>{
+      const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
+      const w=eventWindowMinutes(ev);
+      return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
+    });
+  }
+
+  async function runReplay(){
+    setRpLoading(true); setRpError(""); setRpResults(null); setRpPlayIdx(0); setRpPlaying(false); setRpEnded(false);
+    try {
+      const candles = await rpFetchCandles();
+      const sessions = [];
+      for(const c of candles){
+        const et = rpGetETParts(c.ts);
+        const activeEvents = rpActiveEventsFor(c.ts);
+        const sigWindow = getSignalWindow(activeEvents);       // window from signal spec
+        const replay = rpSignal(et.h24, et.m, activeEvents);
+        const score  = rpScore(replay.signal, c.open, c.high, c.low, sigWindow);
+        sessions.push({ ts:c.ts, h24:et.h24, m:et.m, dayStr:et.dayStr, timeStr:et.timeStr,
+          open:Math.round(c.open), close:Math.round(c.close), high:Math.round(c.high), low:Math.round(c.low),
+          sigWindow, ...replay, score });
+      }
+      const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
+      const replayRows = actionable.length ? actionable : sessions;
+      const scoredRows = replayRows.filter(s=>typeof s.score?.correct==="boolean");
+      const wins  = scoredRows.filter(s=>s.score.correct===true).length;
+      const losses= scoredRows.filter(s=>s.score.correct===false).length;
+      const total = wins+losses;
+      const wr    = total>0?Math.round((wins/total)*100):0;
+      if(!actionable.length) setRpError("No BUY/SELL actions from current rules this week. Showing all sessions.");
+      setRpResults({ sessions:replayRows, wins, losses, total, wr, eventsUsed:loggedLastWeek.length });
+    } catch(e){
+      const msg=(e&&e.message)?String(e.message):"Replay unavailable";
+      setRpError(msg.includes("BTC replay data unavailable")
+        ?"Replay could not fetch BTC candles. Run once in a browser with internet to cache candles."
+        :`Replay error: ${msg}`);
+    }
+    setRpLoading(false);
+  }
+
+  // ── SIGNAL REPLAY TAB — pure renderer, no state/effects of its own ───────────
+  // (defined inside App for closure access, but stateless so remounts are harmless)
   const ReplayTab = ()=>{
-    const [loading,  setLoading]  = React.useState(false);
-    const [results,  setResults]  = React.useState(null);
-    const [error,    setError]    = React.useState("");
-    const [playIdx,  setPlayIdx]  = React.useState(0);
-    const [playing,  setPlaying]  = React.useState(false);
-    const [ended,    setEnded]    = React.useState(false);
-    const playTimerRef            = React.useRef(null);
+    // Read all state from App scope — no local useState needed
+    const loading=rpLoading, results=rpResults, error=rpError;
+    const playIdx=rpPlayIdx, playing=rpPlaying, ended=rpEnded;
 
-    const loggedLastWeek = React.useMemo(()=>buildUnifiedNewsEvents(Date.now()), [newsArticles, calArticles, ecoArticles, replayEvents]);
-
-    // Stable playback: single timer effect, stops cleanly at last frame
-    React.useEffect(()=>{
-      if(playTimerRef.current){ clearInterval(playTimerRef.current); playTimerRef.current = null; }
-      if(!playing || !results?.sessions?.length) return;
-      const last = results.sessions.length - 1;
-      playTimerRef.current = setInterval(()=>{
-        setPlayIdx(prev => {
-          if(prev >= last){
-            clearInterval(playTimerRef.current);
-            playTimerRef.current = null;
-            setPlaying(false);
-            setEnded(true);
-            return last; // freeze on last frame
-          }
-          return prev + 1;
-        });
-      }, 2200);
-      return ()=>{ if(playTimerRef.current){ clearInterval(playTimerRef.current); playTimerRef.current = null; } };
-    },[playing, results]);
-
-    function getETParts(tsMs){
-      const bag = {};
-      new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/New_York",
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      }).formatToParts(new Date(tsMs)).forEach(p=>{
-        if(p.type !== "literal") bag[p.type] = p.value;
-      });
-      const hour12 = Number(bag.hour || 0);
-      const minute = Number(bag.minute || 0);
-      const dp = String(bag.dayPeriod || "AM").toUpperCase();
-      const h24 = (hour12 % 12) + (dp === "PM" ? 12 : 0);
-      return {
-        h24,
-        m: minute,
-        dayStr: `${bag.weekday} ${bag.month} ${bag.day}`,
-        timeStr: `${bag.hour}:${bag.minute} ${dp}`,
-      };
-    }
-
-    async function fetchReplayCandles(){
-      const cacheKey = "engin3ReplayCandles";
-      const persist = (candles)=>{
-        try{ localStorage.setItem(cacheKey, JSON.stringify(candles)); }catch(e){}
-        return candles;
-      };
-      const fromCache = ()=>{
-        try{
-          const raw = JSON.parse(localStorage.getItem(cacheKey) || "null");
-          return Array.isArray(raw) && raw.length ? raw : null;
-        }catch(e){ return null; }
-      };
-      const normalize = (raw, mode)=>{
-        if(!Array.isArray(raw) || !raw.length) return null;
-        if(mode === "binance") {
-          return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
-                    .filter(k=>Number.isFinite(k.ts) && Number.isFinite(k.open) && Number.isFinite(k.high) && Number.isFinite(k.low) && Number.isFinite(k.close));
-        }
-        return raw.map(k=>({ ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4]) }))
-                  .filter(k=>Number.isFinite(k.ts) && Number.isFinite(k.open) && Number.isFinite(k.high) && Number.isFinite(k.low) && Number.isFinite(k.close));
-      };
-
-      const binance = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
-      for(const url of [binance, `https://corsproxy.io/?${encodeURIComponent(binance)}`]){
-        try{
-          const res = await fetch(url, {cache:"no-cache"});
-          if(!res.ok) continue;
-          const raw = await res.json();
-          const candles = normalize(raw, "binance");
-          if(candles && candles.length) return persist(candles);
-        }catch(e){}
-      }
-      const cgUrl = `https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7`;
-      for(const url of [cgUrl, `https://corsproxy.io/?${encodeURIComponent(cgUrl)}`]){
-        try{
-          const res = await fetch(url, {cache:"no-cache"});
-          if(!res.ok) continue;
-          const raw = await res.json();
-          const candles = normalize(raw, "coingecko");
-          if(candles && candles.length) return persist(candles);
-        }catch(e){}
-      }
-      const cached = fromCache();
-      if(cached) return cached;
-      throw new Error("BTC replay data unavailable");
-    }
-
-    function replaySignal(h24, m, activeEvents) {
-      const step = getInternalStep(h24, m);
-      const connectorMode = getConnectorMode(h24, m);
-      const hasNews = (activeEvents||[]).length > 0;
-      // When news is active: even hour = positive (+), odd hour = negative (-)
-      // When no news: use connector mode (aligned = positive, mirror = negative)
-      const slotPol = hasNews
-        ? (h24 % 2 === 0 ? "positive" : "negative")
-        : (connectorMode === "aligned" ? "positive" : "negative");
-      const polarityState = buildPolarityState(step.direction, slotPol);
-      const applied = computeReplayPolarity(polarityState.baseDirection, slotPol, activeEvents);
-      const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
-      return {
-        signal,
-        mode: connectorMode,
-        flip: applied.finalDirection !== polarityState.baseDirection,
-        reason: applied.reason,
-        activeEvents,
-        activeCount: applied.activeCount,
-        negativePressure: applied.negativePressure,
-        positivePressure: applied.positivePressure,
-        baseDirection: polarityState.baseDirection,
-        baseCharge: applied.baseCharge,
-        finalCharge: applied.finalCharge,
-        newsFlip: applied.newsFlip,
-        slotPolarity: slotPol,
-        equation: applied.equation,
-        equationPlain: applied.equationPlain,
-      };
-    }
-
-    function scoreSignal(signal, openPrice, highPrice, lowPrice) {
-      const tp1 = 0.003, tp2 = 0.006, tp3 = 0.009;
-      if(!openPrice) return null;
-      if(signal === "BUY") {
-        const h1 = openPrice * (1 + tp1), h2 = openPrice * (1 + tp2), h3 = openPrice * (1 + tp3);
-        const t1 = highPrice >= h1, t2 = highPrice >= h2, t3 = highPrice >= h3;
-        return { correct:t1, tp1Hit:t1, tp2Hit:t2, tp3Hit:t3, label:t3?"TP3":t2?"TP2":t1?"TP1":"MISS" };
-      }
-      if(signal === "SELL") {
-        const l1 = openPrice * (1 - tp1), l2 = openPrice * (1 - tp2), l3 = openPrice * (1 - tp3);
-        const t1 = lowPrice <= l1, t2 = lowPrice <= l2, t3 = lowPrice <= l3;
-        return { correct:t1, tp1Hit:t1, tp2Hit:t2, tp3Hit:t3, label:t3?"TP3":t2?"TP2":t1?"TP1":"MISS" };
-      }
-      return null;
-    }
-
-    function activeEventsFor(tsMs){
-      return loggedLastWeek.filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        if(!t || Number.isNaN(t)) return false;
-        const w = eventWindowMinutes(ev);
-        return tsMs >= (t - w.pre*60000) && tsMs <= (t + w.post*60000);
-      });
-    }
-
-    async function runReplay() {
-      setLoading(true); setError(""); setResults(null); setPlayIdx(0); setPlaying(false); setEnded(false);
-      try {
-        const candles = await fetchReplayCandles();
-        const sessions = [];
-        for(const c of candles) {
-          const et = getETParts(c.ts);
-          const activeEvents = activeEventsFor(c.ts);
-          const replay = replaySignal(et.h24, et.m, activeEvents);
-          const score  = scoreSignal(replay.signal, c.open, c.high, c.low);
-          sessions.push({
-            ts: c.ts,
-            h24: et.h24,
-            m: et.m,
-            dayStr: et.dayStr,
-            timeStr: et.timeStr,
-            open: Math.round(c.open),
-            close: Math.round(c.close),
-            high: Math.round(c.high),
-            low: Math.round(c.low),
-            ...replay,
-            score,
-          });
-        }
-        const actionable = sessions.filter(s=>["BUY","SELL"].includes(s.signal));
-        const replayRows = actionable.length ? actionable : sessions;
-        const scoredRows = replayRows.filter(s=>typeof s.score?.correct === "boolean");
-        const wins   = scoredRows.filter(s=>s.score.correct===true).length;
-        const losses = scoredRows.filter(s=>s.score.correct===false).length;
-        const total  = wins + losses;
-        const wr     = total>0 ? Math.round((wins/total)*100) : 0;
-        if(!actionable.length) {
-          setError("Replay ran, but that week produced no BUY/SELL actions from the current rules. Showing all replay sessions instead.");
-        }
-        setResults({ sessions: replayRows, wins, losses, total, wr, eventsUsed: loggedLastWeek.length, byType: actionable.length ? actionable : replayRows });
-      } catch(e) {
-        const msg = (e && e.message) ? String(e.message) : "Replay unavailable";
-        setError(msg.includes("BTC replay data unavailable")
-          ? "Replay could not fetch BTC candles and no saved replay cache was available. Open the file in a normal browser tab with internet, run replay once, then it can reuse cached candles."
-          : `Replay error: ${msg}`);
-      }
-      setLoading(false);
-    }
+    function getETParts(tsMs){ return rpGetETParts(tsMs); }
 
     const sigCol = s => s==="BUY"?G:R;
     const current = results?.sessions?.[playIdx] || null;
@@ -2807,8 +2835,8 @@ function App() {
     return(
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
-        <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now uses the new polarity engine. Scheduled events use symmetric ±20/±50/±80 minute windows, Reuters/Bloomberg breaking news uses 0–20 minute bursts, and the replay scores whether TP1, TP2, or TP3 was reached within each 1H BTC replay candle.
+        <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
+          Exit = signal's own window. No news → next step change (TP1 0.3%). Break → 20m burst (0.3%). 1★ → ±20m (0.3%). 2★ → ±50m (0.6%). 3★ → ±80m (0.9%).
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2831,14 +2859,12 @@ function App() {
           <button onClick={()=>{
             if(!results?.sessions?.length) return;
             const last = results.sessions.length - 1;
-            if(ended || playIdx >= last){
-              if(playTimerRef.current){ clearInterval(playTimerRef.current); playTimerRef.current = null; }
-              setEnded(false);
-              setPlayIdx(0);
-              setTimeout(()=>setPlaying(true), 50);
+            if(ended || rpPlayIdx >= last){
+              if(rpTimerRef.current){ clearInterval(rpTimerRef.current); rpTimerRef.current = null; }
+              setRpEnded(false); setRpPlayIdx(0); setRpPlaying(true);
               return;
             }
-            setPlaying(p=>!p);
+            setRpPlaying(p=>!p);
           }} disabled={!results?.sessions?.length}
             style={{padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"#ddd",fontWeight:800,cursor:results?.sessions?.length?"pointer":"not-allowed"}}>
             {playing?"❚❚":ended?"↺":"▶"}
@@ -2886,22 +2912,50 @@ function App() {
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.dayStr} · {current.timeStr} ET</div>
                   <div style={{fontSize:14,fontWeight:900,color:sigCol(current.signal)}}>{current.signal}</div>
                 </div>
-                <div style={{fontSize:12,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8}}>{current.score?.correct?`✓ ${current.score?.label || "WIN"}`:`✗ ${current.score?.label || "LOSS"}`}</div>
-                <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  Base: {current.baseDirection.toUpperCase()} ({current.baseCharge>0?"+1":"-1"}) · News flip: {current.newsFlip>0?"+1":"-1"} · Final: {current.finalCharge>0?"+1":"-1"}
+
+                {/* EXIT WINDOW — the signal's own lifespan */}
+                <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",marginBottom:6,letterSpacing:1}}>
+                  EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGET: {current.sigWindow?.tpLabel} {current.sigWindow?.tpPct}
                 </div>
-                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equation}</div>
-                <div style={{fontSize:13,color:"#fff",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equationPlain}</div>
-                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                  Slot polarity: {current.slotPolarity} · Active events: {current.activeCount} · Negative pressure: {current.negativePressure} · Positive pressure: {current.positivePressure}
+
+                {/* WIN/LOSS with full reason */}
+                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
+                  {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
                 </div>
-                <div style={{fontSize:12,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
-                  Open ${current.open.toLocaleString()} · High ${current.high.toLocaleString()} · Low ${current.low.toLocaleString()} · Close ${current.close.toLocaleString()}
+
+                {/* Signal math */}
+                <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:4}}>
+                  Base: {current.baseDirection?.toUpperCase()} · Slot: {current.slotPolarity==="positive"?"+":"-"} · Final: {current.finalCharge>0?"+1":"-1"}{current.chargeFlip?" · ⚡ CHARGE FLIP":""}
                 </div>
-                <input type="range" min="0" max={Math.max(0, results.sessions.length-1)} value={playIdx} onChange={e=>{ const next = Number(e.target.value)||0; setPlaying(false); setPlayIdx(next); setEnded(next >= Math.max(0, results.sessions.length-1)); }} style={{width:"100%",marginTop:10}}/>
+                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equationPlain}</div>
+
+                {/* Active news events driving the signal */}
+                {current.activeCount>0 && current.activeEvents?.length>0 ? (
+                  <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
+                    {current.activeEvents.slice(0,4).map((ev,i)=>(
+                      <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
+                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{fontSize:11,color:"#444",...mono,marginBottom:8}}>NO NEWS — step-direction schedule</div>
+                )}
+
+                {/* Price data */}
+                <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
+                  O ${current.open?.toLocaleString()} · H ${current.high?.toLocaleString()} · L ${current.low?.toLocaleString()} · C ${current.close?.toLocaleString()}
+                </div>
+
+                <input type="range" min="0" max={Math.max(0,results.sessions.length-1)} value={playIdx}
+                  onChange={e=>{ const next=Number(e.target.value)||0; setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=Math.max(0,results.sessions.length-1)); }}
+                  style={{width:"100%",marginTop:6}}/>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:8,gap:8}}>
-                  <button onClick={()=>{ setPlaying(false); setPlayIdx(i=>{ const next = Math.max(0,i-1); setEnded(false); return next; }); }} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
-                  <button onClick={()=>{ setPlaying(false); setPlayIdx(i=>{ const next = Math.min((results.sessions.length-1),i+1); setEnded(next >= Math.max(0, results.sessions.length-1)); return next; }); }} style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>STEP →</button>
+                  <button onClick={()=>{ setRpPlaying(false); setRpEnded(false); setRpPlayIdx(i=>Math.max(0,i-1)); }}
+                    style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
+                  <button onClick={()=>{ setRpPlaying(false); setRpPlayIdx(i=>{ const next=Math.min(results.sessions.length-1,i+1); setRpEnded(next>=results.sessions.length-1); return next; }); }}
+                    style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>STEP →</button>
                 </div>
               </div>
             )}
@@ -2909,14 +2963,20 @@ function App() {
             <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 7 DAYS SESSION LOG</div>
             {results.sessions.slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
-              const tagCol = s.score?.tp3Hit ? G : s.score?.tp2Hit ? A : s.score?.tp1Hit ? "#66ccff" : R;
+              const hitCol = s.score?.correct ? G : R;
               return(
-                <div key={i} onClick={()=>{ const next = results.sessions.findIndex(x=>x.ts===s.ts); setPlaying(false); setPlayIdx(next); setEnded(next >= Math.max(0, results.sessions.length-1)); }} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
+                <div key={i} onClick={()=>{ const next=results.sessions.findIndex(x=>x.ts===s.ts); setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=results.sessions.length-1); }}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
                   <div style={{fontSize:10,color:"#444",...mono,minWidth:68}}>{s.dayStr}</div>
                   <div style={{fontSize:11,color:"#aaa",...mono,minWidth:72}}>{s.timeStr}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
-                  <div style={{fontSize:11,color:"#777",...mono,minWidth:56,textAlign:"right"}}>{s.finalCharge>0?"+1":"-1"}</div>
-                  <div style={{fontSize:11,color:tagCol,...mono,minWidth:44,textAlign:"right"}}>{s.score?.label || "MISS"}</div>
+                  <div style={{fontSize:10,color:"#555",...mono,minWidth:40}}>{s.activeCount>0?"📰 "+s.activeCount:""}</div>
+                  <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
+                  <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
+                </div>
+              );
+            })}
+                  <div style={{fontSize:11,color:tagCol,...mono,minWidth:52,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
                   <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
               );
@@ -3607,7 +3667,13 @@ const BacktestTab = ()=>{
         {tab==="clock"    && <ClockTab/>}
         {tab==="news"     && <NewsTab/>}
         {tab==="signals"  && <SignalsTab/>}
-        {tab==="replay"   && <div style={{display:"grid",gap:14}}><ReplayTab/><BacktestTab/></div>}
+        {/* ReplayTab always mounted — never unmounted — prevents blink/glitch */}
+        <div style={{display:tab==="replay"?"block":"none"}}>
+          <div style={{display:"grid",gap:14}}>
+            <ReplayTab/>
+            <BacktestTab/>
+          </div>
+        </div>
         {/* Plan tab removed per user request */}
       </div>
 
