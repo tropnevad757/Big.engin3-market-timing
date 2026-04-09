@@ -711,6 +711,8 @@ function App() {
   const [rpPlayIdx, setRpPlayIdx] = useState(0);
   const [rpPlaying, setRpPlaying] = useState(false);
   const [rpEnded,   setRpEnded]   = useState(false);
+  const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
+  const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const rpTimerRef = useRef(null);
 
   useEffect(()=>{
@@ -2766,37 +2768,37 @@ function App() {
     return { h24, m:minute, dayStr:`${bag.weekday} ${bag.month} ${bag.day}`, timeStr:`${bag.hour}:${bag.minute} ${dp}` };
   }
 
-  async function rpFetchCandles(){
-    // Primary: Kraken public OHLC — native CORS headers, works on iOS Safari
-    // Returns 30m BTC/USD candles, no auth needed, 720 candles = 15 days
-    const cacheKey="engin3Replay30m";
+  async function rpFetchCandles(daysBack=7){
+    // 30m candles — covers all trap(:30) and execute(:00) times
+    const cacheKey="engin3Replay30m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
 
+    const normK=(raw)=>{
+      if(!Array.isArray(raw)||!raw.length) return null;
+      return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
+                .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
+    };
+
     const normKraken=(data)=>{
-      // Kraken returns {result: {XXBTZUSD: [[time_sec, open, high, low, close, vwap, vol, count], ...]}}
       try{
         const pair = data.result && (data.result["XXBTZUSD"] || data.result["XBTUSDT"] || Object.values(data.result).find(v=>Array.isArray(v)));
         if(!Array.isArray(pair)||!pair.length) return null;
         return pair.map(k=>({
-          ts: Number(k[0])*1000, // Kraken uses seconds, we need ms
+          ts: Number(k[0])*1000,
           open: Number(k[1]), high: Number(k[2]),
           low: Number(k[3]),  close: Number(k[4]),
         })).filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
       }catch(e){ return null; }
     };
 
-    const normBinance=(raw)=>{
-      if(!Array.isArray(raw)||!raw.length) return null;
-      return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
-                .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
-    };
-
-    // since = 7 days ago in seconds
-    const since7d = Math.floor((Date.now() - 7*24*60*60*1000)/1000);
+    // Candles needed: daysBack × 48 candles/day (30m)
+    const candleCount = Math.min(daysBack * 48, 720);
+    const sinceMs = Date.now() - daysBack*24*60*60*1000;
+    const sinceSec = Math.floor(sinceMs/1000);
 
     // ── ATTEMPT 1: Kraken 30m (iOS-safe, proper CORS) ────────────────────────
-    const krakenUrl = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=30&since="+since7d;
+    const krakenUrl = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=30&since="+sinceSec;
     try{
       const r = await fetch(krakenUrl, {cache:"no-cache"});
       if(r.ok){
@@ -2809,7 +2811,7 @@ function App() {
     }catch(e){}
 
     // ── ATTEMPT 2: Bybit 30m spot (also iOS-friendly CORS) ───────────────────
-    const bybitUrl = "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=30&limit=336";
+    const bybitUrl = "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=30&limit="+candleCount;
     try{
       const r = await fetch(bybitUrl, {cache:"no-cache"});
       if(r.ok){
@@ -2827,14 +2829,14 @@ function App() {
     }catch(e){}
 
     // ── ATTEMPT 3: Binance 30m + proxy ───────────────────────────────────────
-    const b30 = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=30m&limit=336";
+    const b30 = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=30m&limit="+candleCount;
     for(const url of [b30, "https://corsproxy.io/?"+encodeURIComponent(b30),
                            "https://api.allorigins.win/raw?url="+encodeURIComponent(b30)]){
       try{
         const r = await fetch(url, {cache:"no-cache"});
         if(!r.ok) continue;
         const raw = await r.json();
-        const c = normBinance(Array.isArray(raw)?raw:(raw&&raw.contents?JSON.parse(raw.contents):null));
+        const c = normK(Array.isArray(raw)?raw:(raw&&raw.contents?JSON.parse(raw.contents):null));
         if(c&&c.length>=100) return persist(c);
       }catch(e){}
     }
@@ -2843,7 +2845,7 @@ function App() {
     // Returns hourly prices; we snap each price to nearest :00 ET slot
     // and build a synthetic :30 candle between each pair
     try{
-      const cgUrl = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7";
+      const cgUrl = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days="+daysBack;
       const r = await fetch(cgUrl, {cache:"no-cache"});
       if(r.ok){
         const data = await r.json();
@@ -2873,7 +2875,7 @@ function App() {
     }catch(e){}
 
     // ── ATTEMPT 5: Binance 1h proxy ──────────────────────────────────────────
-    const b1h = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
+    const b1h = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit="+(daysBack*24);
     for(const url of [b1h, "https://corsproxy.io/?"+encodeURIComponent(b1h)]){
       try{
         const r = await fetch(url, {cache:"no-cache"});
@@ -2961,21 +2963,19 @@ function App() {
       equationPlain: applied.equationPlain,
       newsCount: (activeEvents||[]).length,
       // TP/win info — spec section 13
-      tp1: 0.003, tp2: 0.006, tp3: 0.009,
+      tp1: 0.003, tp2: 0.003, tp3: 0.003,
     };
   }
 
   // ── WIN/LOSS SCORING — spec section 13 ───────────────────────────────────────
-  // BUY win = price reaches TP1(0.3%), TP2(0.6%), TP3(0.9%) above open
-  // SELL win = price reaches TP1(0.3%), TP2(0.6%), TP3(0.9%) below open
-  // Using 1H BTC candle high/low vs open to check if TP was hit
-  // ── SIGNAL WINDOW — determines exit time and TP target from active events ────
-  // Breaking news → 20m burst → small target
-  // 1-star 20m → TP1 0.3%
-  // 2-star 50m → TP2 0.6%
-  // 3-star 80m → TP3 0.9%
-  // No news → hold to next step change → TP1 0.3%
-  // NOTE: 30/60/90 min early visibility is DISPLAY ONLY in news tab — never used here
+  // BUY win = price reaches 0.3% above open within the window
+  // SELL win = price reaches 0.3% below open within the window
+  // Star rating determines window size — NOT target size
+  // Breaking news → 61.8 fib → 0.185% (shorter burst target)
+  // 1-star 20m window → 0.3%
+  // 2-star 50m window → 0.3%
+  // 3-star 80m window → 0.3%
+  // No news → hold to next step change → 0.3%
   function getSignalWindow(activeEvents){
     if(!activeEvents || !activeEvents.length){
       return { type:"none", stars:0, windowMins:0, tp:0.003, tpLabel:"STEP TP", tpPct:"0.3%", exitRule:"next step change" };
@@ -2987,8 +2987,8 @@ function App() {
       return { type:"break", stars:0, windowMins:20, tp:tp618, tpLabel:"BREAK TP (61.8)", tpPct:"0.185%", exitRule:"20m burst window" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3", tpPct:"0.9%", exitRule:"80m window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.006, tpLabel:"TP2", tpPct:"0.6%", exitRule:"50m window" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"80m window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"50m window" };
     return { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"20m window" };
   }
 
@@ -3026,15 +3026,14 @@ function App() {
     return null;
   }
 
-  function rpActiveEventsFor(tsMs){
-    return loggedLastWeek.filter(ev=>{
+  function rpActiveEventsFor(tsMs, eventsPool){
+    const pool = eventsPool || loggedLastWeek;
+    return pool.filter(ev=>{
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
     }).map(ev=>{
       // Re-classify polarity on-the-fly using current keyword list
-      // Fixes historical events stored before keyword classification was added (polarity=0)
-      // Only override if currently unclassified — preserves intentionally set polarity
       if(Number(ev.polarity)!==0) return ev;
       const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
       const cls = classifyEcoArticle(text, "");
@@ -3046,9 +3045,16 @@ function App() {
   async function runReplay(){
     setRpLoading(true); setRpError(""); setRpResults(null); setRpPlayIdx(0); setRpPlaying(false); setRpEnded(false);
     try {
-      // Clear old cache so stale 4H data doesn't block fresh 30m fetch
-      try{ localStorage.removeItem("engin3Replay30m"); }catch(e){}
-      const candles = await rpFetchCandles();
+      // Clear old cache so stale data doesn't block fresh fetch
+      try{ localStorage.removeItem("engin3Replay30m_d"+rpDaysBack); }catch(e){}
+      const candles = await rpFetchCandles(rpDaysBack);
+
+      // Filter news events to the same window as the candles
+      const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
+      const replayNewsEvents = loggedLastWeek.filter(ev=>{
+        const t = Date.parse(ev.pub||0);
+        return t && t >= replayWindowStart;
+      });
 
       // ── CLEAN-HOUR ONLY FILTER ────────────────────────────────────────────────
       // Only trade times that own a FULL 60-minute window — no :30 split candles
@@ -3144,7 +3150,7 @@ function App() {
         const et = rpGetETParts(c.ts);
         if(!isCleanHour(et.h24, et.m)) continue; // only :00 slots with full 60m runway
 
-        const activeEvents = rpActiveEventsFor(c.ts);
+        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
         const isExec = isExecHour(et.h24, et.m);
 
@@ -3217,7 +3223,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         sessions, wins, losses, total, wr,
-        eventsUsed: loggedLastWeek.length,
+        eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
         weekPct, weekRegime, weekRegimeCol,
         weekRange: firstC&&lastC ? {
@@ -3255,15 +3261,28 @@ function App() {
           Clean-hour only: 2, 3, 5, 8, 9, 11 AM+PM. Full 60m runway — no :30 split bleed. EXECUTE+NEWS = primary setup.
         </div>
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div style={{borderRadius:12,border:"1px solid rgba(240,160,48,0.25)",background:"rgba(240,160,48,0.06)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>LOGGED EVENTS</div>
             <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.length}</div>
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
-            <div style={{fontSize:22,color:"#ccc",fontWeight:900}}>7D</div>
+            <div style={{fontSize:22,color:"#ccc",fontWeight:900}}>{rpDaysBack}D</div>
           </div>
+        </div>
+
+        {/* Date range selector */}
+        <div style={{display:"flex",gap:6,marginBottom:12}}>
+          {[7,14,21,30].map(d=>(
+            <button key={d} onClick={()=>{setRpDaysBack(d); setRpResults(null);}}
+              style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:12,fontWeight:900,cursor:"pointer",letterSpacing:1,
+                background:rpDaysBack===d?`${A}22`:"rgba(255,255,255,0.03)",
+                border:`1px solid ${rpDaysBack===d?A:"rgba(255,255,255,0.08)"}`,
+                color:rpDaysBack===d?A:"#555",...mono}}>
+              {d}D
+            </button>
+          ))}
         </div>
 
         <div style={{display:"flex",gap:8,marginBottom:12}}>
