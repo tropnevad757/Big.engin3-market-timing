@@ -2733,21 +2733,57 @@ function App() {
   }
 
   async function rpFetchCandles(){
-    const cacheKey="engin3ReplayCandles";
+    // 30m candles — covers all trap(:30) and execute(:00) times
+    // 336 candles = 48 per day x 7 days
+    const cacheKey="engin3Replay30m";
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
-    const norm=(raw)=>{if(!Array.isArray(raw)||!raw.length)return null;
+    const normK=(raw)=>{
+      if(!Array.isArray(raw)||!raw.length) return null;
       return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
-                .filter(k=>Number.isFinite(k.ts)&&Number.isFinite(k.open)&&Number.isFinite(k.high)&&Number.isFinite(k.low)&&Number.isFinite(k.close));};
-    const binance="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
-    for(const url of [binance,`https://corsproxy.io/?${encodeURIComponent(binance)}`]){
-      try{ const r=await fetch(url,{cache:"no-cache"}); if(!r.ok)continue; const raw=await r.json(); const c=norm(raw); if(c&&c.length)return persist(c); }catch(e){}
+                .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
+    };
+
+    // Primary: Binance 30m (most precise — has every :00 and :30)
+    const b30="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=30m&limit=336";
+    for(const url of [b30, "https://corsproxy.io/?"+encodeURIComponent(b30)]){
+      try{
+        const r=await fetch(url,{cache:"no-cache"});
+        if(!r.ok) continue;
+        const raw=await r.json();
+        const c=normK(raw);
+        if(c&&c.length>=100) return persist(c);
+      }catch(e){}
     }
-    const cg=`https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7`;
-    for(const url of [cg,`https://corsproxy.io/?${encodeURIComponent(cg)}`]){
-      try{ const r=await fetch(url,{cache:"no-cache"}); if(!r.ok)continue; const raw=await r.json(); const c=norm(raw); if(c&&c.length)return persist(c); }catch(e){}
+
+    // Fallback A: Binance 1h as backup (still catches :00 execute times)
+    const b1h="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
+    for(const url of [b1h, "https://corsproxy.io/?"+encodeURIComponent(b1h)]){
+      try{
+        const r=await fetch(url,{cache:"no-cache"});
+        if(!r.ok) continue;
+        const raw=await r.json();
+        const c=normK(raw);
+        if(c&&c.length>=50) return persist(c);
+      }catch(e){}
     }
-    const cached=fromCache(); if(cached)return cached;
+
+    // Fallback B: CoinGecko OHLC (4H candles for 7 days — limited but better than nothing)
+    const cg="https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7";
+    for(const url of [cg, "https://corsproxy.io/?"+encodeURIComponent(cg)]){
+      try{
+        const r=await fetch(url,{cache:"no-cache"});
+        if(!r.ok) continue;
+        const raw=await r.json();
+        if(!Array.isArray(raw)||!raw.length) continue;
+        const c=raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
+                   .filter(k=>k.ts>0&&k.open>0);
+        if(c.length>=14) return persist(c);
+      }catch(e){}
+    }
+
+    const cached=fromCache();
+    if(cached) return cached;
     throw new Error("BTC replay data unavailable");
   }
 
@@ -2944,34 +2980,37 @@ function App() {
       }
 
       // ── BUILD SESSIONS — trap/execute times only ───────────────────────────
+      // With 30m candles we get both :00 (execute) and :30 (trap) slots
+      // Score window: current 30m candle + next 30m candle = full 1-hour exit window
       const sessions = [];
       for(const c of candles){
         const et = rpGetETParts(c.ts);
-        if(!isTrapOrExecute(et.h24, et.m)) continue; // skip non-setup times
+        if(!isTrapOrExecute(et.h24, et.m)) continue;
 
         const activeEvents = rpActiveEventsFor(c.ts);
         const hasNews = activeEvents.length > 0;
         const isTrapTime = isTrap(et.h24, et.m);
         const isExecTime = isExecute(et.h24, et.m);
 
-        // Entry qualification (spec: VWAP entry needs news at execute time)
-        // Trap time: always valid (stalk + potential entry)
-        // Execute time: valid with news OR if this is the primary execute slot
-        // We include all for scoring but tag quality
-        const qualified = isTrapTime || isExecTime;
-        if(!qualified) continue;
-
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const nextCandle = getNextCandle(c.ts);
-        const score = rpScore2(replay.signal, c, nextCandle, sigWindow);
+
+        // Use next 30m candle to complete the 1-hour exit window
+        const nextC = getNextCandle(c.ts);
+        const score = rpScore2(replay.signal, c, nextC, sigWindow);
+
+        // Quality tag: EXECUTE+NEWS is the highest-confidence setup per spec
+        const quality = isExecTime && hasNews ? "EXEC+NEWS"
+          : isExecTime && !hasNews             ? "EXEC"
+          : isTrapTime && hasNews              ? "TRAP+NEWS"
+          :                                      "TRAP";
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
           dayStr: et.dayStr, timeStr: et.timeStr,
           open: Math.round(c.open), close: Math.round(c.close),
           high: Math.round(c.high), low: Math.round(c.low),
-          isTrap: isTrapTime, isExecute: isExecTime, hasNews,
+          isTrap: isTrapTime, isExecute: isExecTime, hasNews, quality,
           slotType: isTrapTime ? "TRAP" : "EXECUTE",
           sigWindow, ...replay, score,
         });
@@ -2983,23 +3022,28 @@ function App() {
       const total = wins+losses;
       const wr    = total>0?Math.round((wins/total)*100):0;
 
-      // Win rate breakdown by slot type
-      const trapRows    = scoredRows.filter(s=>s.isTrap);
-      const execRows    = scoredRows.filter(s=>s.isExecute);
-      const newsRows    = scoredRows.filter(s=>s.hasNews);
-      const noNewsRows  = scoredRows.filter(s=>!s.hasNews);
-      const trapWr   = trapRows.length   ? Math.round((trapRows.filter(s=>s.score.correct).length/trapRows.length)*100)   : null;
-      const execWr   = execRows.length   ? Math.round((execRows.filter(s=>s.score.correct).length/execRows.length)*100)   : null;
-      const newsWr   = newsRows.length   ? Math.round((newsRows.filter(s=>s.score.correct).length/newsRows.length)*100)   : null;
-      const noNewsWr = noNewsRows.length ? Math.round((noNewsRows.filter(s=>s.score.correct).length/noNewsRows.length)*100): null;
+      // 4-way breakdown: EXECUTE+NEWS / EXECUTE / TRAP+NEWS / TRAP
+      const wr4 = (label)=>{
+        const rows = scoredRows.filter(s=>s.quality===label);
+        return rows.length ? {
+          wr: Math.round((rows.filter(s=>s.score.correct).length/rows.length)*100),
+          n: rows.length
+        } : null;
+      };
 
-      if(!sessions.length) setRpError("No trap/execute candles found. Candles may not align with setup times — try refreshing candle data.");
+      const breakdown = {
+        execNews:   wr4("EXEC+NEWS"),
+        exec:       wr4("EXEC"),
+        trapNews:   wr4("TRAP+NEWS"),
+        trap:       wr4("TRAP"),
+      };
+
+      const candleNote = candles.length >= 200 ? "30m candles" : candles.length >= 80 ? "1H candles" : "4H candles (limited)";
+      if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         sessions, wins, losses, total, wr,
         eventsUsed: loggedLastWeek.length,
-        breakdown: { trapWr, execWr, newsWr, noNewsWr,
-          trapCount: trapRows.length, execCount: execRows.length,
-          newsCount: newsRows.length, noNewsCount: noNewsRows.length }
+        candleNote, breakdown,
       });
     } catch(e){
       const msg=(e&&e.message)?String(e.message):"Replay unavailable";
@@ -3026,7 +3070,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Only scores TRAP (1:30/4:30/7:30/10:30) and EXECUTE (2/5/8/11) times. Exit = signal window. Checks current + next candle for TP hit.
+          30m candles. Trap (:30) + Execute (:00) times only. EXECUTE+NEWS = highest-confidence setup. Scores 2-candle window per exit rule.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -3075,22 +3119,34 @@ function App() {
             </div>
             {results.breakdown&&(
               <div style={{background:"rgba(255,255,255,0.02)",borderRadius:10,border:"1px solid rgba(255,255,255,0.06)",padding:"10px 12px",marginBottom:12}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:8}}>SETUP BREAKDOWN — TRAP vs EXECUTE vs NEWS</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono}}>SETUP QUALITY BREAKDOWN</div>
+                  {results.candleNote&&<div style={{fontSize:9,color:"#333",...mono}}>{results.candleNote}</div>}
+                </div>
                 {[
-                  {l:"TRAP (1:30/4:30/7:30/10:30)", wr:results.breakdown.trapWr, n:results.breakdown.trapCount, c:A},
-                  {l:"EXECUTE (2/5/8/11)", wr:results.breakdown.execWr, n:results.breakdown.execCount, c:G},
-                  {l:"WITH NEWS", wr:results.breakdown.newsWr, n:results.breakdown.newsCount, c:"#88aaff"},
-                  {l:"NO NEWS", wr:results.breakdown.noNewsWr, n:results.breakdown.noNewsCount, c:"#555"},
-                ].filter(r=>r.n>0).map(r=>(
-                  <div key={r.l} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
-                    <div style={{fontSize:10,color:"#777",...mono,flex:1}}>{r.l}</div>
-                    <div style={{width:52,height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${r.wr||0}%`,background:r.c,borderRadius:2}}/>
+                  {l:"EXECUTE + NEWS", key:"execNews", c:G,     note:"Highest edge — spec primary setup"},
+                  {l:"EXECUTE (no news)", key:"exec",  c:A,     note:"Execute without news confirmation"},
+                  {l:"TRAP + NEWS",    key:"trapNews",  c:"#88aaff", note:"Trap stalk with news context"},
+                  {l:"TRAP (no news)", key:"trap",     c:"#444",    note:"Pure step-direction stalk"},
+                ].map(r=>{
+                  const d = results.breakdown[r.key];
+                  if(!d) return null;
+                  const col = d.wr>=65?G:d.wr>=50?A:R;
+                  return(
+                    <div key={r.l} style={{padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                        <div style={{width:8,height:8,borderRadius:"50%",background:r.c,flexShrink:0}}/>
+                        <div style={{fontSize:11,color:"#aaa",...mono,flex:1}}>{r.l}</div>
+                        <div style={{fontSize:14,fontWeight:900,color:col,...mono}}>{d.wr}%</div>
+                        <div style={{fontSize:10,color:"#444",...mono,minWidth:28,textAlign:"right"}}>{d.n} setups</div>
+                      </div>
+                      <div style={{marginLeft:16,height:4,background:"rgba(255,255,255,0.04)",borderRadius:2,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:d.wr+"%",background:r.c+"99",borderRadius:2,transition:"width 0.5s"}}/>
+                      </div>
+                      <div style={{marginLeft:16,fontSize:9,color:"#333",...mono,marginTop:2}}>{r.note}</div>
                     </div>
-                    <div style={{fontSize:12,fontWeight:900,color:r.wr>=60?G:r.wr>=45?A:R,...mono,width:36,textAlign:"right"}}>{r.wr!=null?r.wr+"%":"—"}</div>
-                    <div style={{fontSize:10,color:"#444",...mono,width:24,textAlign:"right"}}>{r.n}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -3182,7 +3238,7 @@ function App() {
                   style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
                   <div style={{fontSize:10,color:"#444",...mono,minWidth:60}}>{s.dayStr}</div>
                   <div style={{fontSize:11,color:"#aaa",...mono,minWidth:68}}>{s.timeStr}</div>
-                  <div style={{fontSize:9,...mono,color:s.isTrap?A:G,minWidth:28}}>{s.slotType||""}</div>
+                  <div style={{fontSize:9,...mono,color:s.quality==="EXEC+NEWS"?G:s.quality==="EXEC"?A:s.quality==="TRAP+NEWS"?"#88aaff":"#444",minWidth:28}}>{s.slotType||""}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
                   <div style={{fontSize:10,color:"#555",...mono,minWidth:32}}>{s.activeCount>0?"📰"+s.activeCount:""}</div>
                   <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
