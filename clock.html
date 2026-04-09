@@ -2065,44 +2065,59 @@ function App() {
     const directedWithRate = directedEvents.map(ev=>({
       ev,
       charge: Number(ev.polarity) > 0 ? 1 : -1,
+      signWord: Number(ev.polarity) > 0 ? "positive" : "negative",
       rate: rateLookup.get(String(ev.country || ev.currency || inferCountryCode(ev.title||"", "")).toUpperCase()) ?? -999,
       isUsdAnchor: /(^|\W)(usd|us|fomc|fed|federal reserve|powell|rate decision|interest rate)(\W|$)/i.test(String(ev.title||""))
     }));
 
     let newsCharge = 0;
     let dominantSource = "undirected news";
+    let chargeFlip = false;
+    let clusterResult = null;
+
     if(directedWithRate.length){
       directedWithRate.sort((a,b)=>{
         if(b.isUsdAnchor !== a.isUsdAnchor) return Number(b.isUsdAnchor) - Number(a.isUsdAnchor);
         return b.rate - a.rate;
       });
-      newsCharge = directedWithRate[0].charge;
-      dominantSource = directedWithRate[0].isUsdAnchor ? "USD anchor" : `rate leader ${String(directedWithRate[0].ev.country||directedWithRate[0].ev.currency||"?")}`;
-    }
 
-    let chargeFlip = false;
-    let clusterResult = null;
-    if(directedWithRate.length >= 2 && newsCharge !== 0){
-      newsCharge *= -1;
-      chargeFlip = true;
-      clusterResult = {
+      const dominant = directedWithRate[0];
+      dominantSource = dominant.isUsdAnchor
+        ? "USD anchor"
+        : `rate leader ${String(dominant.ev.country||dominant.ev.currency||"?")}`;
+
+      let compositeWord = dominant.signWord;
+      for(let i=1;i<directedWithRate.length;i++){
+        const prevWord = compositeWord;
+        compositeWord = resolveWindowMath(compositeWord, directedWithRate[i].signWord);
+        if(compositeWord !== prevWord) chargeFlip = true;
+      }
+
+      newsCharge = compositeWord === "positive" ? 1 : -1;
+      clusterResult = directedWithRate.length >= 2 ? {
         dominantSource,
         stackSize: directedWithRate.length,
         positiveCount: positives,
         negativeCount: negatives,
-        rule: "2+ stacked directed news events flip the sign"
-      };
+        rule: "overlapping directed news windows collide across full symmetric duration",
+        composite: compositeWord,
+      } : null;
     }
 
-    let finalDirection = newsCharge === 0
+    // Latest rule override:
+    // - In BUY, both + and - news can affect the trade.
+    // - In SELL, only - news can affect it. Positive news is ignored.
+    let sellRestriction = false;
+    if(baseDirection === "sell" && newsCharge === 1){
+      newsCharge = 0;
+      dominantSource = "sell rule ignored + news";
+      sellRestriction = true;
+      chargeFlip = false;
+    }
+
+    const finalDirection = newsCharge === 0
       ? baseDirection
       : (newsCharge === slotCharge ? "buy" : "sell");
-
-    let sellRestriction = false;
-    if(baseDirection === "sell" && newsCharge === -1){
-      finalDirection = "sell";
-      sellRestriction = true;
-    }
 
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = finalDirection !== baseDirection;
@@ -2110,7 +2125,7 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FLIP" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · COLLISION" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection, baseCharge, finalCharge,
@@ -2121,11 +2136,11 @@ function App() {
       activeCount, chargeFlip, clusterResult, dominantSource,
       newsSign, slotSign, sellRestriction,
       reason: newsCharge === 0
-        ? "news active but no directed polarity"
+        ? (sellRestriction ? "+ news ignored on sell setup" : "news active but no directed polarity")
         : sellRestriction
-          ? "sell-side restriction held the trade direction"
+          ? "sell-side restriction ignored + news"
           : chargeFlip
-            ? "stacked news flipped dominant sign"
+            ? "overlapping news windows collided and recalculated the sign"
             : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
       equationPlain,
@@ -3012,7 +3027,7 @@ function App() {
   // No news → hold to next step change → 0.3%
   function getSignalWindow(activeEvents){
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:20, tp:0.003, tpLabel:"STEP TP", tpPct:"0.3%", exitRule:"20m step exit" };
+      return { type:"none", stars:0, windowMins:20, tp:0.003 * (61.8/100), tpLabel:"STEP TP (61.8)", tpPct:"0.185%", exitRule:"20m step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
@@ -3020,9 +3035,10 @@ function App() {
       return { type:"break", stars:0, windowMins:20, tp:tp618, tpLabel:"BREAK TP (61.8)", tpPct:"0.185%", exitRule:"20m burst window" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3 (261)", tpPct:"0.9%", exitRule:"80m symmetric news window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.006, tpLabel:"TP2 (161)", tpPct:"0.6%", exitRule:"50m symmetric news window" };
-    return { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1 (100)", tpPct:"0.3%", exitRule:"20m symmetric news window" };
+    const tp618 = 0.003 * (61.8/100);
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:tp618, tpLabel:"TP (61.8)", tpPct:"0.185%", exitRule:"80m symmetric news window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:tp618, tpLabel:"TP (61.8)", tpPct:"0.185%", exitRule:"50m symmetric news window" };
+    return { type:"star", stars:1, windowMins:20, tp:tp618, tpLabel:"TP (61.8)", tpPct:"0.185%", exitRule:"20m symmetric news window" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
@@ -3111,17 +3127,15 @@ function App() {
       // With 1H candles: 1 candle = 60 min already
       // Active TP based on mode selection
       const tp_618 = 0.003 * (61.8/100); // 0.185%
-      const tp_100 = 0.003;               // 0.300%
-      const activeTP = rpTpMode === "61.8" ? tp_618 : tp_100;
+      const tp_100 = 0.003;               // kept for legacy display only
+      const activeTP = tp_618;            // all replay exits now use 61.8 / 0.185%
 
       function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
         const {tpLabel, tpPct, exitRule} = sigWindow;
         const tp = sigWindow.type === "break" ? sigWindow.tp : activeTP;
-        const tpLabelFinal = sigWindow.type === "break" ? tpLabel
-          : rpTpMode === "61.8" ? "TP (61.8)" : "TP (100)";
-        const tpPctFinal = sigWindow.type === "break" ? tpPct
-          : rpTpMode === "61.8" ? "0.185%" : "0.3%";
+        const tpLabelFinal = sigWindow.type === "break" ? tpLabel : "TP (61.8)";
+        const tpPctFinal = sigWindow.type === "break" ? tpPct : "0.185%";
         const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
         const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
 
