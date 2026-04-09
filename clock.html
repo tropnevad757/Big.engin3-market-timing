@@ -1703,22 +1703,28 @@ function App() {
     const directedLive = liveActiveEvents.filter(ev=>Number(ev.polarity)!==0);
     const liveSlotCharge = et.h24 % 2 === 0 ? 1 : -1;
 
-    // Double-sign cluster flip: -/- = +, +/+ = -, -/+ = -
+    // News cluster reinforcement: +/+ = + (stronger buy), -/- = - (stronger sell), conflict = defensive sell
+    // This applies to news sentiment — different from currency charge flip math (kept for regime engine only)
     if(directedLive.length >= 2){
       const charges = directedLive.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
-      let running = charges[0];
-      for(let i=1; i<charges.length; i++) running = stackCharges(running, charges[i]);
-      // If stacked result differs from current direction, flip
-      const stackedDir = running === liveSlotCharge ? "buy" : "sell";
-      if(stackedDir !== dir) dir = stackedDir;
+      const posCount = charges.filter(c=>c===1).length;
+      const negCount = charges.filter(c=>c===-1).length;
+      // Majority wins — reinforcement, not flip
+      const reinforced = negCount===0 ? 1 : posCount===0 ? -1 : -1; // conflict = defensive
+      const reinforcedDir = reinforced === liveSlotCharge ? "buy" : "sell";
+      if(reinforcedDir !== dir) dir = reinforcedDir;
     }
 
-    // USD anchor override: 2+ rate events active = flip
+    // USD anchor: 2+ rate events — reinforce their actual polarity, not a blind flip
     const usdRateLive = liveActiveEvents.filter(ev=>{
       const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
       return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
     });
-    if(usdRateLive.length >= 2) dir = dir === "buy" ? "sell" : "buy";
+    if(usdRateLive.length >= 2){
+      const ratePol = usdRateLive.filter(ev=>Number(ev.polarity)!==-1).length > usdRateLive.filter(ev=>Number(ev.polarity)===-1).length ? 1 : -1;
+      const rateDir = ratePol === liveSlotCharge ? "buy" : "sell";
+      dir = rateDir;
+    }
 
     return dir === "buy"
       ? { label:"BUY",  col:G }
@@ -2000,48 +2006,58 @@ function App() {
       ? baseDirection
       : (newsCharge === slotCharge ? "buy" : "sell");
 
-    // STEP 3: double-sign cluster math (spec section 9)
-    // -/- = + (flip)   +/+ = - (flip)   -/+ = - (no flip)
-    // Applied when 2+ events have actual polarity values
+    // STEP 3: news cluster reinforcement math
+    // Multiple news events reinforce each other — same direction = stronger signal
+    // +/+ = + (reinforced buy)   -/- = - (reinforced sell)   -/+ = conflict = defensive sell
+    // This replaces the old charge flip model which was designed for currency rates, not news
     let chargeFlip = false;
     let clusterResult = null;
     const directedEvents = (activeEvents||[]).filter(ev=>Number(ev.polarity)!==0);
     if(directedEvents.length >= 2){
       const charges = directedEvents.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
-      let running = charges[0];
-      const steps = [];
-      for(let i=1; i<charges.length; i++){
-        const prev = running;
-        running = stackCharges(running, charges[i]);
-        steps.push({ prev, next: charges[i], result: running });
-      }
-      clusterResult = { charges, steps, stackedCharge: running };
-      // If stacking flipped the result vs single-event charge, re-apply decision table
-      if(running !== newsCharge && newsCharge !== 0){
+      const positiveCount = charges.filter(c=>c===1).length;
+      const negativeCount = charges.filter(c=>c===-1).length;
+      // Reinforcement: majority direction wins
+      // All same sign = reinforced (strengthens existing signal)
+      // Mixed = conflict, default to bearish (defensive)
+      let reinforcedCharge;
+      if(negativeCount === 0)       reinforcedCharge = 1;  // all bullish
+      else if(positiveCount === 0)  reinforcedCharge = -1; // all bearish
+      else                           reinforcedCharge = -1; // conflict = defensive sell
+
+      clusterResult = { charges, positiveCount, negativeCount, reinforcedCharge };
+
+      // Only re-apply if reinforced charge differs from single-event charge
+      if(reinforcedCharge !== newsCharge && newsCharge !== 0){
         chargeFlip = true;
-        finalDirection = running === slotCharge ? "buy" : "sell";
+        finalDirection = reinforcedCharge === slotCharge ? "buy" : "sell";
       }
     }
 
-    // STEP 4: USD anchor override (spec section 9 — 2+ rate events)
-    // If 2+ USD-or-higher interest rate events active simultaneously, flip signal
+    // STEP 4: USD anchor override (2+ rate events simultaneously = reinforced signal)
+    // 2+ macro rate events = strong directional push — reinforce, don't flip
     const usdRateEvents = (activeEvents||[]).filter(ev=>{
       const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
       return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
     });
     if(usdRateEvents.length >= 2){
-      chargeFlip = true;
-      finalDirection = finalDirection === "buy" ? "sell" : "buy";
+      // Reinforce based on their polarity, don't blindly flip
+      const ratePol = usdRateEvents.filter(ev=>Number(ev.polarity)!==-1).length > usdRateEvents.filter(ev=>Number(ev.polarity)===-1).length ? 1 : -1;
+      const rateDir = ratePol === slotCharge ? "buy" : "sell";
+      if(rateDir !== finalDirection){
+        chargeFlip = true;
+        finalDirection = rateDir;
+      }
     }
 
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = finalDirection !== baseDirection;
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
-    const flipNote = chargeFlip ? " [CLUSTER FLIP]" : "";
+    const clusterNote = chargeFlip ? " [REINFORCED]" : "";
     const equationPlain = newsCharge === 0
       ? baseDirection.toUpperCase() + " + NEWS(NEUTRAL) = " + finalDirection.toUpperCase()
-      : slotSign + " SLOT + " + newsSign + " NEWS = " + finalDirection.toUpperCase() + flipNote;
+      : slotSign + " SLOT + " + newsSign + " NEWS = " + finalDirection.toUpperCase() + clusterNote;
 
     return {
       finalDirection, baseCharge, finalCharge,
@@ -2050,7 +2066,7 @@ function App() {
       positivePressure: positives,
       breakingCount: breakingEvents,
       activeCount, chargeFlip, clusterResult,
-      reason: chargeFlip ? "cluster double-sign flip: " + finalDirection.toUpperCase()
+      reason: chargeFlip ? "cluster reinforced: " + finalDirection.toUpperCase()
         : newsCharge === 0 ? "news active but no directional polarity"
         : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
@@ -2911,12 +2927,20 @@ function App() {
     const USD_ANCHOR_RATE = USD_RATE; // 3.75 from CHARGE_CURRENCIES
     const usdOrHigherEvents = (activeEvents||[]).filter(ev=>{
       const title = String(ev?.title||ev?.l||"").toLowerCase();
-      const isRateEvent = /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(title);
-      return isRateEvent;
+      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(title);
     });
+    // Step 4: USD rate reinforcement — 2+ rate events reinforce their actual polarity
+    // No longer blindly flips — uses actual bearish/bullish polarity of the events
     let finalDir = applied.finalDirection;
-    const chargeFlip = usdOrHigherEvents.length >= 2;
-    if(chargeFlip) finalDir = finalDir === "buy" ? "sell" : "buy";
+    let chargeFlip = false;
+    const slotCharge = h24 % 2 === 0 ? 1 : -1;
+    if(usdOrHigherEvents.length >= 2){
+      const rateBearish = usdOrHigherEvents.filter(ev=>Number(ev.polarity)===-1).length;
+      const rateBullish = usdOrHigherEvents.filter(ev=>Number(ev.polarity)===1).length;
+      const ratePol = rateBullish > rateBearish ? 1 : -1;
+      const reinforcedDir = ratePol === slotCharge ? "buy" : "sell";
+      if(reinforcedDir !== finalDir){ chargeFlip = true; finalDir = reinforcedDir; }
+    }
 
     const signal = finalDir === "buy" ? "BUY" : "SELL";
     return {
