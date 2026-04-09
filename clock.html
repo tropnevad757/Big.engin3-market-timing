@@ -183,12 +183,12 @@ const CATS = [
 ];
 
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
-// BUY CORE regime: connector = − (mirror). USD− is anchor.
+// BUY CORE regime: connector = - (mirror). USD- is anchor.
 // SELL RESET regime: connector = + (aligned). USD+ is anchor.
-// Dynamic override: if symbol value ≤ USD anchor rate → invert that symbol's sign.
+// Dynamic override: if symbol value <= USD anchor rate → invert that symbol's sign.
 const REGIME_CURRENCIES = {
   sellReset: {
-    // connector: − (mirror from regime)
+    // connector: - (mirror from regime)
     bearUSD:  ["AOA","EGP","INR","MKD","CLP","SAR","PEN","HKD","MOP","ILS","NOK","MUR","PHP","USD"],
     bullUSD:  ["GBP","CNY","KRW","CAD","NZD","SGD","JPY"],
   },
@@ -210,7 +210,7 @@ const NEWS_REACTION = {
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
-// +/+ = − (sell)  +/− = + (buy)  −/− = + (buy)  −/+ = − (sell)
+// +/+ = - (sell)  +/- = + (buy)  -/- = + (buy)  -/+ = - (sell)
 // ══════════════════════════════════════════════════════════════════════════════
 // TWO-MODE POLARITY MATH ENGINE
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1248,7 +1248,7 @@ function App() {
         const didFlip = prev === higherGroup[i].rawCharge;
         if (didFlip) flipTriggered = true;
         stackSteps.push({
-          a: i === 1 ? higherGroup[0].sym : `prev(${prev > 0 ? "+" : "−"})`,
+          a: i === 1 ? higherGroup[0].sym : `prev(${prev > 0 ? "+" : "-"})`,
           b: higherGroup[i].sym,
           aCharge: prev,
           bCharge: higherGroup[i].rawCharge,
@@ -1437,10 +1437,10 @@ function App() {
     if(vwapTrap.displacement) contextPts += 4;
 
     if(vwapWindow && tradeCount>=2) blocked.push("2 trades already used in this VWAP window");
-    if(vwapTrap.band==="3" && vwapTrap.firstTouch3 && !hasSequence) blocked.push("Do not fade first ±3σ touch");
+    if(vwapTrap.band==="3" && vwapTrap.firstTouch3 && !hasSequence) blocked.push("Do not fade first 3-sigma touch");
     if((executeNow || (vwapWindow && vwapWindow.overnight)) && !hasSequence) blocked.push("Need touch → reaction → failure → entry");
     if(vwapWindow && vwapWindow.overnight){
-      if(!bandOk) blocked.push("Overnight VWAP trap needs 2σ or 3σ touch");
+      if(!bandOk) blocked.push("Overnight VWAP trap needs 2s or 3s band touch");
       if(!eb.zonePolMatch) blocked.push("Overnight VWAP trap needs regime aligned");
       if(!newsActive) blocked.push("Overnight VWAP trap needs news present");
     }
@@ -2726,9 +2726,9 @@ function App() {
   // Using 1H BTC candle high/low vs open to check if TP was hit
   // ── SIGNAL WINDOW — determines exit time and TP target from active events ────
   // Breaking news → 20m burst → small target
-  // 1★ → ±20m → TP1 0.3%
-  // 2★ → ±50m → TP2 0.6%
-  // 3★ → ±80m → TP3 0.9%
+  // 1-star 20m → TP1 0.3%
+  // 2-star 50m → TP2 0.6%
+  // 3-star 80m → TP3 0.9%
   // No news → hold to next step change → TP1 0.3%
   // NOTE: 30/60/90 min early visibility is DISPLAY ONLY in news tab — never used here
   function getSignalWindow(activeEvents){
@@ -2740,14 +2740,14 @@ function App() {
       return { type:"break", stars:0, windowMins:20, tp:0.003, tpLabel:"BREAK TP", tpPct:"0.3%", exitRule:"20m burst window" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3", tpPct:"0.9%", exitRule:"±80m window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.006, tpLabel:"TP2", tpPct:"0.6%", exitRule:"±50m window" };
-    return { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"±20m window" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3", tpPct:"0.9%", exitRule:"80m window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.006, tpLabel:"TP2", tpPct:"0.6%", exitRule:"50m window" };
+    return { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"20m window" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
   // A WIN = price moved the required % in the right direction before the window expired
-  // Using 1H candle H/L as proxy (we have hourly data; window is ≤80min so 1H is fair)
+  // Using 1H candle H/L as proxy (we have hourly data; window is <=80min so 1H is fair)
   function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
     if(!openPrice) return null;
     const w = sigWindow || getSignalWindow([]);
@@ -2836,7 +2836,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Exit = signal's own window. No news → next step change (TP1 0.3%). Break → 20m burst (0.3%). 1★ → ±20m (0.3%). 2★ → ±50m (0.6%). 3★ → ±80m (0.9%).
+          Exit = signal's own window. No news → next step change (TP1 0.3%). Break → 20m burst (0.3%). 1-star 20m (0.3%). 2-star 50m (0.6%). 3-star 80m (0.9%).
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -2972,11 +2972,6 @@ function App() {
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
                   <div style={{fontSize:10,color:"#555",...mono,minWidth:40}}>{s.activeCount>0?"📰 "+s.activeCount:""}</div>
                   <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
-                  <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
-                </div>
-              );
-            })}
-                  <div style={{fontSize:11,color:tagCol,...mono,minWidth:52,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
                   <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
               );
@@ -3298,7 +3293,7 @@ const BacktestTab = ()=>{
                         <button onClick={()=>pushReplayEvent(art,{kind:/powell|speech|remarks|testimony/i.test(art.title||"")?"speech":"breaking"})}
                           style={{fontSize:14,padding:"2px 8px",borderRadius:6,
                             background:"rgba(240,160,48,0.12)",border:`1px solid ${A}44`,color:A,cursor:"pointer",fontWeight:700}}>
-                          ＋ LOG
+                          + LOG
                         </button>
                       </div>
                     </div>
@@ -3394,7 +3389,7 @@ const BacktestTab = ()=>{
                     <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
                     {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
                     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                      {item.feedType==="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {Number(item.stars||1)===3?90:Number(item.stars||1)===2?60:30}m EARLY · WINDOW ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TP {Number(item.stars||1)===3?"261–300":Number(item.stars||1)===2?"161–200":"100–127"}</span>}
+                      {item.feedType==="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {Number(item.stars||1)===3?90:Number(item.stars||1)===2?60:30}m EARLY · WINDOW +/-{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TP {Number(item.stars||1)===3?"261–300":Number(item.stars||1)===2?"161–200":"100–127"}</span>}
                       {item.feedType!=="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>BURST 0–20m · 61.8–78.6</span>}
                     </div>
                   </div>
