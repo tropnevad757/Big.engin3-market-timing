@@ -712,6 +712,8 @@ function App() {
   const [rpPlaying, setRpPlaying] = useState(false);
   const [rpEnded,   setRpEnded]   = useState(false);
   const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
+  const [rpTpMode, setRpTpMode] = useState("100"); // "100" = 0.3%, "61.8" = 0.185%
+  const [rpNewsFilter, setRpNewsFilter] = useState(false); // only take trades when news confirms step
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const rpTimerRef = useRef(null);
 
@@ -1696,42 +1698,13 @@ function App() {
   // Charge engine removed from signal + replay path.
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
+  const liveSignalMath = computeReplayPolarity(et.h24, et.m, _stepDir, liveSlotPolarity, newsReaction.nearEvents || []);
   const finalSignal = (()=>{
-    // Apply cluster double-sign math to live signal (spec section 9)
-    // Uses same stackCharges logic as replay path
-    let dir = polarityDirection;
-    const liveActiveEvents = newsReaction.nearEvents || [];
-    const directedLive = liveActiveEvents.filter(ev=>Number(ev.polarity)!==0);
-    const liveSlotCharge = et.h24 % 2 === 0 ? 1 : -1;
-
-    // News cluster reinforcement: +/+ = + (stronger buy), -/- = - (stronger sell), conflict = defensive sell
-    // This applies to news sentiment — different from currency charge flip math (kept for regime engine only)
-    if(directedLive.length >= 2){
-      const charges = directedLive.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
-      const posCount = charges.filter(c=>c===1).length;
-      const negCount = charges.filter(c=>c===-1).length;
-      // Majority wins — reinforcement, not flip
-      const reinforced = negCount===0 ? 1 : posCount===0 ? -1 : -1; // conflict = defensive
-      const reinforcedDir = reinforced === liveSlotCharge ? "buy" : "sell";
-      if(reinforcedDir !== dir) dir = reinforcedDir;
-    }
-
-    // USD anchor: 2+ rate events — reinforce their actual polarity, not a blind flip
-    const usdRateLive = liveActiveEvents.filter(ev=>{
-      const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
-      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
-    });
-    if(usdRateLive.length >= 2){
-      const ratePol = usdRateLive.filter(ev=>Number(ev.polarity)!==-1).length > usdRateLive.filter(ev=>Number(ev.polarity)===-1).length ? 1 : -1;
-      const rateDir = ratePol === liveSlotCharge ? "buy" : "sell";
-      dir = rateDir;
-    }
-
-    return dir === "buy"
+    return liveSignalMath.finalDirection === "buy"
       ? { label:"BUY",  col:G }
       : { label:"SELL", col:R };
   })();
-    const appReadyColor = finalSignal.col;
+  const appReadyColor = finalSignal.col;
   const appReadyLabel = finalSignal.label;
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
@@ -1974,7 +1947,59 @@ function App() {
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
+  function getChargeSymbolRate(sym){
+    const code = String(sym||"").toUpperCase().trim();
+    if(!code) return null;
+    const row = CHARGE_CURRENCIES.find(c => String(c.sym||"").toUpperCase() === code);
+    return row ? Number(row.rate) : null;
+  }
+
+  function normalizeNewsSymbol(ev){
+    const direct = String(ev?.currency || ev?.country || "").toUpperCase().replace(/[^A-Z]/g, "");
+    if(direct && direct.length <= 4) return direct;
+    const hay = `${ev?.title||ev?.l||""} ${ev?.desc||ev?.note||""}`.toUpperCase();
+    for(const c of CHARGE_CURRENCIES){
+      const code = String(c.sym||"").toUpperCase();
+      if(code && (hay.includes(` ${code} `) || hay.startsWith(code+" ") || hay.includes(`(${code})`) || hay.includes(`/${code}`) || hay.includes(`${code}/`))) return code;
+    }
+    return direct || "";
+  }
+
+  function dominantNewsChargeForSlot(h24, m, activeEvents){
+    const mode = getConnectorMode(h24, m);
+    const usdAnchorSign = mode === "aligned" ? 1 : -1;
+    const mapped = (activeEvents||[]).map(ev=>{
+      const sym = normalizeNewsSymbol(ev);
+      const rate = getChargeSymbolRate(sym);
+      let sign = 0;
+      if(rate != null){
+        sign = rate > USD_RATE ? usdAnchorSign : -usdAnchorSign;
+      } else {
+        const pol = Number(ev?.polarity||0);
+        sign = pol > 0 ? 1 : pol < 0 ? -1 : 0;
+      }
+      return { ev, sym, rate, sign };
+    }).filter(x=>x.sign!==0);
+
+    if(!mapped.length) return { charge:0, usdAnchorSign, used:[], usedCount:0, stacked:false, source:"neutral" };
+
+    const usdOrHigher = mapped.filter(x=>x.rate != null && x.rate >= USD_RATE);
+    if(usdOrHigher.length >= 2){
+      let running = usdOrHigher[0].sign;
+      for(let i=1;i<usdOrHigher.length;i++) running = stackCharges(running, usdOrHigher[i].sign);
+      return { charge:running, usdAnchorSign, used:usdOrHigher, usedCount:usdOrHigher.length, stacked:true, source:"usd_anchor_stack" };
+    }
+
+    const used = usdOrHigher.length ? usdOrHigher : mapped;
+    if(used.length === 1) return { charge:used[0].sign, usdAnchorSign, used, usedCount:1, stacked:false, source: usdOrHigher.length ? "usd_anchor" : "event" };
+
+    const pos = used.filter(x=>x.sign===1).length;
+    const neg = used.filter(x=>x.sign===-1).length;
+    const charge = pos === neg ? used[used.length-1].sign : (pos > neg ? 1 : -1);
+    return { charge, usdAnchorSign, used, usedCount:used.length, stacked:false, source: usdOrHigher.length ? "usd_anchor_majority" : "event_majority" };
+  }
+
+  function computeReplayPolarity(h24, m, baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const activeCount = (activeEvents||[]).length;
@@ -1985,93 +2010,47 @@ function App() {
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
         chargeFlip: false, clusterResult: null,
         reason: "base polarity held",
+        dominantNewsCharge: 0,
         equation: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
         equationPlain: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
       };
     }
 
-    const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
-    const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
-    const breakingEvents = (activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length;
-    const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
+    const info = dominantNewsChargeForSlot(h24, m, activeEvents);
+    const newsCharge = Number(info.charge||0);
 
-    // STEP 1: single combined news charge
-    let newsCharge = 0;
-    if(negatives > 0 && positives === 0) newsCharge = -1;
-    else if(positives > 0 && negatives === 0) newsCharge = 1;
-    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict = defensive
-    // Breaking news with no polarity: truly neutral — don't assume direction
-    // Only apply slot-aligned if there are NO directed events at all AND it's a scheduled (non-breaking) window
-    else if(breakingEvents > 0 && negatives === 0 && positives === 0) newsCharge = 0; // neutral — no keyword match = no signal bias
-
-    // STEP 2: decision table — same sign = buy, different = sell
-    let finalDirection = newsCharge === 0
-      ? baseDirection
-      : (newsCharge === slotCharge ? "buy" : "sell");
-
-    // STEP 3: news cluster reinforcement math
-    // Multiple news events reinforce each other — same direction = stronger signal
-    // +/+ = + (reinforced buy)   -/- = - (reinforced sell)   -/+ = conflict = defensive sell
-    // This replaces the old charge flip model which was designed for currency rates, not news
-    let chargeFlip = false;
-    let clusterResult = null;
-    const directedEvents = (activeEvents||[]).filter(ev=>Number(ev.polarity)!==0);
-    if(directedEvents.length >= 2){
-      const charges = directedEvents.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
-      const positiveCount = charges.filter(c=>c===1).length;
-      const negativeCount = charges.filter(c=>c===-1).length;
-      // Reinforcement: majority direction wins
-      // All same sign = reinforced (strengthens existing signal)
-      // Mixed = conflict, default to bearish (defensive)
-      let reinforcedCharge;
-      if(negativeCount === 0)       reinforcedCharge = 1;  // all bullish
-      else if(positiveCount === 0)  reinforcedCharge = -1; // all bearish
-      else                           reinforcedCharge = -1; // conflict = defensive sell
-
-      clusterResult = { charges, positiveCount, negativeCount, reinforcedCharge };
-
-      // Only re-apply if reinforced charge differs from single-event charge
-      if(reinforcedCharge !== newsCharge && newsCharge !== 0){
-        chargeFlip = true;
-        finalDirection = reinforcedCharge === slotCharge ? "buy" : "sell";
-      }
+    if(newsCharge === 0){
+      return {
+        finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
+        newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount,
+        chargeFlip: false, clusterResult: info,
+        reason: "news active but no dominant sign",
+        dominantNewsCharge: 0,
+        equation: "NEWS ACTIVE · NO DOMINANT SIGN",
+        equationPlain: "NEWS ACTIVE · NO DOMINANT SIGN",
+      };
     }
 
-    // STEP 4: USD anchor override (2+ rate events simultaneously = reinforced signal)
-    // 2+ macro rate events = strong directional push — reinforce, don't flip
-    const usdRateEvents = (activeEvents||[]).filter(ev=>{
-      const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
-      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
-    });
-    if(usdRateEvents.length >= 2){
-      // Reinforce based on their polarity, don't blindly flip
-      const ratePol = usdRateEvents.filter(ev=>Number(ev.polarity)!==-1).length > usdRateEvents.filter(ev=>Number(ev.polarity)===-1).length ? 1 : -1;
-      const rateDir = ratePol === slotCharge ? "buy" : "sell";
-      if(rateDir !== finalDirection){
-        chargeFlip = true;
-        finalDirection = rateDir;
-      }
-    }
-
+    const finalDirection = newsCharge === slotCharge ? "buy" : "sell";
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = finalDirection !== baseDirection;
     const slotSign = slotCharge === 1 ? "+" : "-";
-    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
-    const clusterNote = chargeFlip ? " [REINFORCED]" : "";
-    const equationPlain = newsCharge === 0
-      ? baseDirection.toUpperCase() + " + NEWS(NEUTRAL) = " + finalDirection.toUpperCase()
-      : slotSign + " SLOT + " + newsSign + " NEWS = " + finalDirection.toUpperCase() + clusterNote;
+    const newsSign = newsCharge === 1 ? "+" : "-";
+    const equationPlain = `${slotSign} HOUR × ${newsSign} NEWS = ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection, baseCharge, finalCharge,
       newsFlip: newsFlip ? -1 : 1,
-      negativePressure: negatives + speeches,
-      positivePressure: positives,
-      breakingCount: breakingEvents,
-      activeCount, chargeFlip, clusterResult,
-      reason: chargeFlip ? "cluster reinforced: " + finalDirection.toUpperCase()
-        : newsCharge === 0 ? "news active but no directional polarity"
-        : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
+      negativePressure: info.used.filter(x=>x.sign===-1).length,
+      positivePressure: info.used.filter(x=>x.sign===1).length,
+      breakingCount: (activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length,
+      activeCount,
+      chargeFlip: !!info.stacked,
+      clusterResult: info,
+      dominantNewsCharge: newsCharge,
+      reason: info.stacked
+        ? "USD anchor stack vs odd/even hour"
+        : "dominant news sign vs odd/even hour",
       equation: equationPlain,
       equationPlain,
     };
@@ -2905,9 +2884,8 @@ function App() {
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
   // RULE: no-news → use INTERNAL_STEPS step-direction schedule
-  //       news active → use even/odd hour polarity schedule
-  //       news decision: same sign → BUY, different sign → SELL
-  //       (Buy=up=even=+  /  Sell=down=odd=-)
+  //       news active → use odd/even hour sign against dominant news sign
+  //       same sign → BUY, opposite sign → SELL
   function rpSignal(h24, m, activeEvents){
     // Step 1: get base direction from no-news schedule
     const step = getInternalStep(h24, m);
@@ -2923,28 +2901,12 @@ function App() {
 
     const pState = buildPolarityState(step.direction, slotPol);
 
-    // Step 3: apply news if present
-    const applied = computeReplayPolarity(pState.baseDirection, slotPol, activeEvents);
+    // Step 3: during news, step direction is NOT used in the math.
+    // Final direction comes from odd/even hour sign vs dominant news sign.
+    const applied = computeReplayPolarity(h24, m, pState.baseDirection, slotPol, activeEvents);
 
-    // Step 4: news charge flip — if 2+ USD-or-higher rate news events active → flip
-    const USD_ANCHOR_RATE = USD_RATE; // 3.75 from CHARGE_CURRENCIES
-    const usdOrHigherEvents = (activeEvents||[]).filter(ev=>{
-      const title = String(ev?.title||ev?.l||"").toLowerCase();
-      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(title);
-    });
-    // Step 4: USD rate reinforcement — 2+ rate events reinforce their actual polarity
-    // No longer blindly flips — uses actual bearish/bullish polarity of the events
-    let finalDir = applied.finalDirection;
-    let chargeFlip = false;
-    const slotCharge = h24 % 2 === 0 ? 1 : -1;
-    if(usdOrHigherEvents.length >= 2){
-      const rateBearish = usdOrHigherEvents.filter(ev=>Number(ev.polarity)===-1).length;
-      const rateBullish = usdOrHigherEvents.filter(ev=>Number(ev.polarity)===1).length;
-      const ratePol = rateBullish > rateBearish ? 1 : -1;
-      const reinforcedDir = ratePol === slotCharge ? "buy" : "sell";
-      if(reinforcedDir !== finalDir){ chargeFlip = true; finalDir = reinforcedDir; }
-    }
-
+    const finalDir = applied.finalDirection;
+    const chargeFlip = !!applied.chargeFlip;
     const signal = finalDir === "buy" ? "BUY" : "SELL";
     return {
       signal, chargeFlip,
@@ -3110,35 +3072,51 @@ function App() {
       // ── SCORER — full 60-minute window (current + next 30m candle) ─────────
       // With 30m candles: 2 candles = 60 min = full step window
       // With 1H candles: 1 candle = 60 min already
+      // Active TP based on mode selection
+      const tp_618 = 0.003 * (61.8/100); // 0.185%
+      const tp_100 = 0.003;               // 0.300%
+      const activeTP = rpTpMode === "61.8" ? tp_618 : tp_100;
+
       function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
-        const {tp, tpLabel, tpPct, exitRule} = sigWindow;
+        const {tpLabel, tpPct, exitRule} = sigWindow;
+        const tp = sigWindow.type === "break" ? sigWindow.tp : activeTP;
+        const tpLabelFinal = sigWindow.type === "break" ? tpLabel
+          : rpTpMode === "61.8" ? "TP (61.8)" : "TP (100)";
+        const tpPctFinal = sigWindow.type === "break" ? tpPct
+          : rpTpMode === "61.8" ? "0.185%" : "0.3%";
         const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
         const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
+
         if(signal==="BUY"){
           const target = c1.open*(1+tp);
           const hit = high >= target;
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
+          // Also check 61.8 hit even if using 100 mode (for display)
+          const hit618 = high >= c1.open*(1+tp_618);
+          const hit100 = high >= c1.open*(1+tp_100);
           return {
-            correct: hit, tp1Hit: hit,
-            label:  hit ? tpLabel+" ("+tpPct+")" : "MISS",
+            correct: hit, tp1Hit: hit, hit618, hit100,
+            label:  hit ? tpLabelFinal+" ("+tpPctFinal+")" : "MISS",
             detail: hit
-              ? "+"+tpPct+" hit in 60m window"
-              : "Max move +"+maxMove+"% — needed +"+tpPct,
-            windowLabel: exitRule, tp, tpLabel, tpPct,
+              ? "+"+tpPctFinal+" hit in 60m window"
+              : "Max move +"+maxMove+"% — needed +"+tpPctFinal,
+            windowLabel: exitRule, tp, tpLabel: tpLabelFinal, tpPct: tpPctFinal,
           };
         }
         if(signal==="SELL"){
           const target = c1.open*(1-tp);
           const hit = low <= target;
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
+          const hit618 = low <= c1.open*(1-tp_618);
+          const hit100 = low <= c1.open*(1-tp_100);
           return {
-            correct: hit, tp1Hit: hit,
-            label:  hit ? tpLabel+" ("+tpPct+")" : "MISS",
+            correct: hit, tp1Hit: hit, hit618, hit100,
+            label:  hit ? tpLabelFinal+" ("+tpPctFinal+")" : "MISS",
             detail: hit
-              ? "-"+tpPct+" hit in 60m window"
-              : "Max drop -"+maxDrop+"% — needed -"+tpPct,
-            windowLabel: exitRule, tp, tpLabel, tpPct,
+              ? "-"+tpPctFinal+" hit in 60m window"
+              : "Max drop -"+maxDrop+"% — needed -"+tpPctFinal,
+            windowLabel: exitRule, tp, tpLabel: tpLabelFinal, tpPct: tpPctFinal,
           };
         }
         return null;
@@ -3148,7 +3126,7 @@ function App() {
       const sessions = [];
       for(const c of candles){
         const et = rpGetETParts(c.ts);
-        if(!isCleanHour(et.h24, et.m)) continue; // only :00 slots with full 60m runway
+        if(!isCleanHour(et.h24, et.m)) continue;
 
         const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
@@ -3156,10 +3134,9 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const nextC = getNextCandle(c.ts); // next 30m candle
+        const nextC = getNextCandle(c.ts);
         const score = rpScore2(replay.signal, c, nextC, sigWindow);
 
-        // Quality tag: execute + news is the spec primary setup
         const quality = isExec && hasNews  ? "EXEC+NEWS"
           : isExec && !hasNews             ? "EXEC"
           : !isExec && hasNews             ? "HOUR+NEWS"
@@ -3180,6 +3157,12 @@ function App() {
       const wins   = scoredRows.filter(s=>s.score.correct===true).length;
       const losses = scoredRows.filter(s=>s.score.correct===false).length;
       const total  = wins+losses;
+
+      // Dual TP comparison — compute win rate at BOTH 61.8 and 100 levels
+      const wins618 = scoredRows.filter(s=>s.score?.hit618===true).length;
+      const wins100 = scoredRows.filter(s=>s.score?.hit100===true).length;
+      const wr618 = total>0 ? Math.round((wins618/total)*100) : 0;
+      const wr100 = total>0 ? Math.round((wins100/total)*100) : 0;
       const wr     = total>0?Math.round((wins/total)*100):0;
 
       // 4-way breakdown
@@ -3223,6 +3206,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         sessions, wins, losses, total, wr,
+        wr618, wr100, tpMode: rpTpMode, newsFilter: rpNewsFilter,
         eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
         weekPct, weekRegime, weekRegimeCol,
@@ -3273,7 +3257,7 @@ function App() {
         </div>
 
         {/* Date range selector */}
-        <div style={{display:"flex",gap:6,marginBottom:12}}>
+        <div style={{display:"flex",gap:6,marginBottom:8}}>
           {[7,14,21,30].map(d=>(
             <button key={d} onClick={()=>{setRpDaysBack(d); setRpResults(null);}}
               style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:12,fontWeight:900,cursor:"pointer",letterSpacing:1,
@@ -3283,6 +3267,28 @@ function App() {
               {d}D
             </button>
           ))}
+        </div>
+
+        {/* TP level + news filter toggles */}
+        <div style={{display:"flex",gap:6,marginBottom:12}}>
+          {/* TP selector */}
+          {[["100","TP 0.3%"],["61.8","TP 0.185%"]].map(([mode, label])=>(
+            <button key={mode} onClick={()=>{setRpTpMode(mode); setRpResults(null);}}
+              style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:11,fontWeight:900,cursor:"pointer",
+                background:rpTpMode===mode?`${G}22`:"rgba(255,255,255,0.03)",
+                border:`1px solid ${rpTpMode===mode?G:"rgba(255,255,255,0.08)"}`,
+                color:rpTpMode===mode?G:"#555",...mono}}>
+              {label}
+            </button>
+          ))}
+          {/* News confirms step filter */}
+          <button onClick={()=>{setRpNewsFilter(f=>!f); setRpResults(null);}}
+            style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,cursor:"pointer",
+              background:rpNewsFilter?`rgba(136,170,255,0.15)`:"rgba(255,255,255,0.03)",
+              border:`1px solid ${rpNewsFilter?"#88aaff":"rgba(255,255,255,0.08)"}`,
+              color:rpNewsFilter?"#88aaff":"#555",...mono}}>
+            NEWS↑↓ ONLY
+          </button>
         </div>
 
         <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -3310,6 +3316,33 @@ function App() {
 
         {results&&(
           <>
+            {/* PRIMARY SIGNAL HEADLINE — EXECUTE+NEWS win rate */}
+            {results.breakdown?.execNews&&(
+              <div style={{borderRadius:12,border:`1px solid ${G}44`,background:`${G}0d`,padding:"12px 14px",marginBottom:8}}>
+                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>PRIMARY SETUP — EXECUTE + NEWS</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:6}}>
+                  <div style={{fontSize:36,fontWeight:900,color:results.breakdown.execNews.wr>=50?G:results.breakdown.execNews.wr>=40?A:R,...mono,lineHeight:1}}>
+                    {results.breakdown.execNews.wr}%
+                  </div>
+                  <div style={{fontSize:13,color:"#666",...mono}}>{results.breakdown.execNews.n} setups</div>
+                  {results.newsFilter&&<div style={{fontSize:10,color:"#88aaff",...mono,marginLeft:4}}>NEWS↑↓ FILTERED</div>}
+                </div>
+                {/* Dual TP comparison */}
+                <div style={{display:"flex",gap:8}}>
+                  {[["61.8","0.185%",results.wr618],["100","0.3%",results.wr100]].map(([fib,pct,wr])=>(
+                    <div key={fib} style={{flex:1,borderRadius:8,
+                      background:results.tpMode===fib?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.03)",
+                      border:`1px solid ${results.tpMode===fib?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.06)"}`,
+                      padding:"6px 8px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"#444",...mono,marginBottom:2}}>{fib} FIB · {pct}</div>
+                      <div style={{fontSize:16,fontWeight:900,color:wr>=50?G:wr>=35?A:R,...mono}}>{wr}%</div>
+                      <div style={{fontSize:8,color:"#333",...mono}}>ALL SETUPS</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Week regime banner — context for interpreting the win rate */}
             {results.weekRegime&&(
               <div style={{borderRadius:10,border:`1px solid ${results.weekRegimeCol}33`,background:`${results.weekRegimeCol}0d`,padding:"8px 12px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
