@@ -1797,7 +1797,8 @@ function App() {
     {words:["cpi","consumer price index","inflation"],stars:3},
     {words:["gdp","gross domestic product"],          stars:3},
     {words:["pce","personal consumption"],            stars:3},
-    {words:["emergency","crash","circuit breaker","halt"], stars:3, bearish:true},
+    {words:["emergency","crash","circuit breaker","halt","black monday","market halt","trading halt"], stars:3, bearish:true},
+    {words:["tariff","trade war","trade dispute","sanctions","embargo"],                               stars:3, bearish:true},
     {words:["pmi","manufacturing","services pmi"],    stars:2},
     {words:["jobless claims","unemployment","jobs report"], stars:2},
     {words:["retail sales","consumer confidence","consumer sentiment"], stars:2},
@@ -1805,8 +1806,17 @@ function App() {
     {words:["ecb","boe","boj","rba","rbnz","aud rate","nzd rate"], stars:2},
     {words:["housing","building permits","existing home","new home"], stars:1},
     {words:["flash","preliminary","estimate","revised"], stars:1},
-    {words:["beats","better than expected","surprise upside","strong jobs","lower inflation","rate cut"], bullish:true, stars:2},
-    {words:["misses","worse than expected","surprise downside","weak jobs","hotter inflation","rate hike"], bearish:true, stars:2},
+    // Bullish signals
+    {words:["beats","better than expected","surprise upside","strong jobs","lower inflation",
+            "rate cut","pause","dovish","stimulus","bailout","recovery","rebound",
+            "deal reached","agreement","trade deal","ceasefire"], bullish:true, stars:2},
+    // Bearish signals
+    {words:["misses","worse than expected","surprise downside","weak jobs","hotter inflation",
+            "rate hike","hawkish","recession","contraction","downgrade","default",
+            "selloff","sell-off","plunge","plunges","tumbles","tumble","slides","slumps",
+            "drops sharply","falls sharply","rout","panic","fear","collapse","collapses",
+            "tariff","tariffs","trade war","escalat","retaliat","losses widen",
+            "bank run","contagion","liquidation","margin call"], bearish:true, stars:2},
   ];
 
   function classifyEcoArticle(title, desc) {
@@ -2105,7 +2115,14 @@ function App() {
       if(/reuters/i.test(url)) src="Reuters Markets";
       if(/bloomberg/i.test(url)) src="Bloomberg Markets";
       if(/coindesk/i.test(url)) src="CoinDesk";
-      return fetchRSS(url).then(items=>items.map(item=>{ const norm=normalizeItem(item,src,feed.color); return {...norm, ...classifyEcoArticle(norm.title, norm.desc), kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"breaking", feedType:"news", country:norm.country||inferCountryCode(`${norm.title} ${norm.desc}`)}; }));
+      return fetchRSS(url).then(items=>items.map(item=>{
+        const norm=normalizeItem(item,src,feed.color);
+        const cls=classifyEcoArticle(norm.title, norm.desc);
+        const polarity = cls.bearish ? -1 : cls.bullish ? 1 : 0;
+        return {...norm, ...cls, polarity,
+          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"breaking",
+          feedType:"news", country:norm.country||inferCountryCode(norm.title+" "+(norm.desc||""))};
+      }));
     }))
     .then(groups=>{
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
@@ -2940,7 +2957,9 @@ function App() {
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      return { type:"break", stars:0, windowMins:20, tp:0.003, tpLabel:"BREAK TP", tpPct:"0.3%", exitRule:"20m burst window" };
+      // Breaking news TP = 61.8 fib per spec: 100=0.3% → 61.8=(0.3×61.8/100)=0.185%
+      const tp618 = 0.003 * (61.8/100); // = 0.001854
+      return { type:"break", stars:0, windowMins:20, tp:tp618, tpLabel:"BREAK TP (61.8)", tpPct:"0.185%", exitRule:"20m burst window" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
     if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3", tpPct:"0.9%", exitRule:"80m window" };
@@ -3143,11 +3162,36 @@ function App() {
         : candles.length >= 140 ? "30m synthetic" 
         : candles.length >= 80  ? "1H candles" 
         : "4H candles (limited — re-run for better data)";
+
+      // ── WEEK REGIME — BTC % change over the replay window ─────────────────
+      // Tells you if this was a trend week, crash week, or choppy week
+      const sortedCandles = [...candles].sort((a,b)=>a.ts-b.ts);
+      const firstC = sortedCandles[0];
+      const lastC  = sortedCandles[sortedCandles.length-1];
+      const weekPct = (firstC&&lastC&&firstC.close>0)
+        ? (((lastC.close - firstC.close)/firstC.close)*100)
+        : null;
+      const weekRegime = weekPct === null ? "unknown"
+        : weekPct <= -10 ? "CRASH"
+        : weekPct <= -3  ? "DOWNTREND"
+        : weekPct >= 10  ? "RALLY"
+        : weekPct >= 3   ? "UPTREND"
+        : "CHOPPY";
+      const weekRegimeCol = weekRegime==="CRASH"||weekRegime==="DOWNTREND" ? R
+        : weekRegime==="RALLY"||weekRegime==="UPTREND" ? G : A;
+
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         sessions, wins, losses, total, wr,
         eventsUsed: loggedLastWeek.length,
         candleNote, breakdown,
+        weekPct, weekRegime, weekRegimeCol,
+        weekRange: firstC&&lastC ? {
+          from: new Date(firstC.ts).toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+          to:   new Date(lastC.ts).toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+          open: Math.round(firstC.close),
+          close: Math.round(lastC.close),
+        } : null,
       });
     } catch(e){
       const msg=(e&&e.message)?String(e.message):"Replay unavailable";
@@ -3213,6 +3257,30 @@ function App() {
 
         {results&&(
           <>
+            {/* Week regime banner — context for interpreting the win rate */}
+            {results.weekRegime&&(
+              <div style={{borderRadius:10,border:`1px solid ${results.weekRegimeCol}33`,background:`${results.weekRegimeCol}0d`,padding:"8px 12px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:2}}>REPLAY WEEK REGIME</div>
+                  <div style={{fontSize:14,fontWeight:900,color:results.weekRegimeCol,...mono}}>
+                    {results.weekRegime}
+                    {results.weekPct!=null&&<span style={{fontWeight:400,fontSize:12,marginLeft:6,color:results.weekRegimeCol}}>
+                      {results.weekPct>=0?"+":""}{results.weekPct.toFixed(1)}% BTC
+                    </span>}
+                  </div>
+                  {results.weekRegime==="CRASH"&&<div style={{fontSize:9,color:"#666",...mono,marginTop:2}}>Crash week — BUY signals fighting macro trend</div>}
+                  {results.weekRegime==="DOWNTREND"&&<div style={{fontSize:9,color:"#666",...mono,marginTop:2}}>Down week — expect lower BUY win rate</div>}
+                  {results.weekRegime==="RALLY"&&<div style={{fontSize:9,color:"#666",...mono,marginTop:2}}>Up week — expect higher BUY win rate</div>}
+                  {results.weekRegime==="CHOPPY"&&<div style={{fontSize:9,color:"#666",...mono,marginTop:2}}>Choppy week — mixed signals, news matters more</div>}
+                </div>
+                {results.weekRange&&(
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:9,color:"#444",...mono}}>{results.weekRange.from} → {results.weekRange.to}</div>
+                    <div style={{fontSize:10,color:"#666",...mono}}>${results.weekRange.open.toLocaleString()} → ${results.weekRange.close.toLocaleString()}</div>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
               {[
                 {l:"WIN RATE", v:`${results.wr}%`, c:results.wr>=60?G:results.wr>=45?A:R},
