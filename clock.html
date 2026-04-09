@@ -1604,9 +1604,23 @@ function App() {
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
-    if(newsReaction.activeEvent.isBreaking) return _stepDir==="sell"?"negative":"positive";
+    // Breaking news: use even/odd hour decision table (spec section 6)
+    // Even hour = + slot, Odd hour = - slot
+    // Same sign as news polarity → BUY, opposite → SELL
+    if(newsReaction.activeEvent.isBreaking){
+      // Breaking news has no polarity field — treat as positive directional push
+      // (it burst into the market — aligns with slot direction)
+      const slotIsPositive = et.h24 % 2 === 0;
+      return slotIsPositive ? "positive" : "negative";
+    }
     if(newsReaction.activeEvent.isAfter) return newsReaction.conflict?"negative":"positive";
-    return null;
+    // Scheduled event pre-window: use event polarity vs slot
+    const evPol = Number(newsReaction.activeEvent.polarity||0);
+    if(evPol === 0) return null;
+    const slotIsPositive = et.h24 % 2 === 0;
+    // Same sign = positive result, different sign = negative (per spec section 6)
+    const evIsPositive = evPol > 0;
+    return (slotIsPositive === evIsPositive) ? "positive" : "negative";
   })();
   const timeMathResult   = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "time")   : null;
   const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
@@ -1923,39 +1937,58 @@ function App() {
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
+    const activeCount = (activeEvents||[]).length;
+
+    if(!activeCount){
+      // No news — use base step direction directly
+      return {
+        finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
+        newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
+        reason: "base polarity held",
+        equation: `${baseDirection.toUpperCase()} + NO NEWS = ${baseDirection.toUpperCase()}`,
+        equationPlain: `${baseDirection.toUpperCase()} + NO NEWS = ${baseDirection.toUpperCase()}`,
+      };
+    }
+
+    // With news: apply spec section 6 decision table
+    // even hour (+) and + news = Buy
+    // even hour (+) and - news = Sell
+    // odd hour (-) and - news = Buy
+    // odd hour (-) and + news = Sell
+    // → same sign = Buy, different sign = Sell
     const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
     const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
+    const breakingEvents = (activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length;
     const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
-    const activeCount = (activeEvents||[]).length;
 
     let newsCharge = 0;
     if(negatives > 0 && positives === 0) newsCharge = -1;
     else if(positives > 0 && negatives === 0) newsCharge = 1;
-    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict defaults defensive
+    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict = defensive
+    // Breaking news with no polarity field: treated as directional push aligned with slot
+    else if(breakingEvents > 0 && negatives === 0 && positives === 0) newsCharge = slotCharge;
 
-    const hadNews = activeCount > 0;
-    const finalDirection = !hadNews
+    // Apply decision table: same sign = buy, different = sell
+    const finalDirection = newsCharge === 0
       ? baseDirection
-      : (newsCharge === 0
-          ? baseDirection
-          : (newsCharge === slotCharge ? "buy" : "sell"));
+      : (newsCharge === slotCharge ? "buy" : "sell");
     const finalCharge = finalDirection === "buy" ? 1 : -1;
-    const newsFlip = hadNews && finalDirection !== baseDirection;
-    const equationPlain = !hadNews
-      ? `${baseDirection.toUpperCase()} + NO NEWS = ${finalDirection.toUpperCase()}`
-      : newsCharge === 0
-        ? `${baseDirection.toUpperCase()} + NEWS(NEUTRAL) = ${finalDirection.toUpperCase()}`
-        : `${slotCharge===1?'+':'-'} TIME + ${newsCharge===1?'+':'-'} NEWS = ${finalDirection.toUpperCase()}`;
+    const newsFlip = finalDirection !== baseDirection;
+    const slotSign = slotCharge === 1 ? "+" : "-";
+    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const equationPlain = newsCharge === 0
+      ? `${baseDirection.toUpperCase()} + NEWS(NEUTRAL) = ${finalDirection.toUpperCase()}`
+      : `${slotSign} SLOT + ${newsSign} NEWS = ${finalDirection.toUpperCase()}`;
 
     return {
-      finalDirection,
-      baseCharge,
-      finalCharge,
+      finalDirection, baseCharge, finalCharge,
       newsFlip: newsFlip ? -1 : 1,
       negativePressure: negatives + speeches,
       positivePressure: positives,
+      breakingCount: breakingEvents,
       activeCount,
-      reason: !hadNews ? "base polarity held" : newsCharge===0 ? "news active but no directional polarity" : (newsCharge===slotCharge ? "time sign matched news sign" : "time sign conflicted with news sign"),
+      reason: newsCharge === 0 ? "news active but no directional polarity"
+        : (newsCharge === slotCharge ? "slot and news same sign → BUY" : "slot and news different sign → SELL"),
       equation: equationPlain,
       equationPlain,
     };
