@@ -2733,106 +2733,134 @@ function App() {
   }
 
   async function rpFetchCandles(){
-    // Strategy: build synthetic 30m candles from CoinGecko hourly price data
-    // CoinGecko market_chart returns hourly prices for <=90 days — no CORS issues on iOS
-    // We convert those hourly close prices into OHLC candles for :00 and :30 slots
+    // Primary: Kraken public OHLC — native CORS headers, works on iOS Safari
+    // Returns 30m BTC/USD candles, no auth needed, 720 candles = 15 days
     const cacheKey="engin3Replay30m";
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
 
-    const normK=(raw)=>{
+    const normKraken=(data)=>{
+      // Kraken returns {result: {XXBTZUSD: [[time_sec, open, high, low, close, vwap, vol, count], ...]}}
+      try{
+        const pair = data.result && (data.result["XXBTZUSD"] || data.result["XBTUSDT"] || Object.values(data.result).find(v=>Array.isArray(v)));
+        if(!Array.isArray(pair)||!pair.length) return null;
+        return pair.map(k=>({
+          ts: Number(k[0])*1000, // Kraken uses seconds, we need ms
+          open: Number(k[1]), high: Number(k[2]),
+          low: Number(k[3]),  close: Number(k[4]),
+        })).filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
+      }catch(e){ return null; }
+    };
+
+    const normBinance=(raw)=>{
       if(!Array.isArray(raw)||!raw.length) return null;
       return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
                 .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
     };
 
-    // ── ATTEMPT 1: Binance 30m direct + proxy ────────────────────────────────
-    const b30="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=30m&limit=336";
-    for(const url of [b30, "https://corsproxy.io/?"+encodeURIComponent(b30)]){
-      try{
-        const r=await fetch(url,{cache:"no-cache",mode:"cors"});
-        if(!r.ok) continue;
-        const raw=await r.json();
-        const c=normK(raw);
-        if(c&&c.length>=100) return persist(c);
-      }catch(e){}
-    }
+    // since = 7 days ago in seconds
+    const since7d = Math.floor((Date.now() - 7*24*60*60*1000)/1000);
 
-    // ── ATTEMPT 2: CoinGecko market_chart — hourly prices, iOS-friendly ──────
-    // Returns [{ts, price}] array for last 7 days at hourly resolution
-    // We build synthetic OHLC: each hourly close becomes an OHLC candle
-    // Then we interpolate :30 candles by averaging adjacent hours
+    // ── ATTEMPT 1: Kraken 30m (iOS-safe, proper CORS) ────────────────────────
+    const krakenUrl = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=30&since="+since7d;
     try{
-      const cgChart="https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7&interval=hourly";
-      const r=await fetch(cgChart,{cache:"no-cache"});
+      const r = await fetch(krakenUrl, {cache:"no-cache"});
       if(r.ok){
-        const data=await r.json();
-        const prices=data&&data.prices; // [[ts_ms, price], ...]
-        if(Array.isArray(prices)&&prices.length>=24){
-          // Build hourly OHLC from close prices
-          // Each entry: open=prev close, high=max(open,close)*1.001 (slight spread), low=min*0.999, close=this price
-          const hourly=[];
-          for(let i=1;i<prices.length;i++){
-            const ts=Number(prices[i][0]);
-            const close=Number(prices[i][1]);
-            const open=Number(prices[i-1][1]);
-            const high=Math.max(open,close)*1.0008;
-            const low=Math.min(open,close)*0.9992;
-            hourly.push({ts,open,high,low,close});
-          }
-
-          // Insert synthetic :30 candles between each hourly pair
-          // :30 candle price = midpoint between adjacent hours
-          const candles30m=[];
-          for(let i=0;i<hourly.length;i++){
-            const h=hourly[i];
-            candles30m.push(h); // the :00 candle
-            // Create :30 candle = midpoint to next hour
-            if(i<hourly.length-1){
-              const next=hourly[i+1];
-              const midPrice=(h.close+next.open)/2;
-              const spread=Math.abs(next.open-h.close)/2||h.close*0.0005;
-              candles30m.push({
-                ts: h.ts+30*60*1000, // +30 minutes
-                open: h.close,
-                high: midPrice+spread,
-                low:  midPrice-spread,
-                close: next.open,
-              });
-            }
-          }
-
-          if(candles30m.length>=100) return persist(candles30m);
-          if(hourly.length>=48) return persist(hourly); // hourly fallback within this attempt
+        const data = await r.json();
+        if(!data.error||!data.error.length){
+          const c = normKraken(data);
+          if(c&&c.length>=100) return persist(c);
         }
       }
     }catch(e){}
 
-    // ── ATTEMPT 3: Binance 1h via proxy ──────────────────────────────────────
-    const b1h="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
+    // ── ATTEMPT 2: Bybit 30m spot (also iOS-friendly CORS) ───────────────────
+    const bybitUrl = "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=30&limit=336";
+    try{
+      const r = await fetch(bybitUrl, {cache:"no-cache"});
+      if(r.ok){
+        const data = await r.json();
+        const list = data&&data.result&&data.result.list;
+        if(Array.isArray(list)&&list.length>=100){
+          // Bybit: [startTime, open, high, low, close, volume, turnover]
+          const c = list.map(k=>({
+            ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]),
+            low:Number(k[3]), close:Number(k[4])
+          })).filter(k=>k.ts>0&&k.open>0).sort((a,b)=>a.ts-b.ts);
+          if(c.length>=100) return persist(c);
+        }
+      }
+    }catch(e){}
+
+    // ── ATTEMPT 3: Binance 30m + proxy ───────────────────────────────────────
+    const b30 = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=30m&limit=336";
+    for(const url of [b30, "https://corsproxy.io/?"+encodeURIComponent(b30),
+                           "https://api.allorigins.win/raw?url="+encodeURIComponent(b30)]){
+      try{
+        const r = await fetch(url, {cache:"no-cache"});
+        if(!r.ok) continue;
+        const raw = await r.json();
+        const c = normBinance(Array.isArray(raw)?raw:(raw&&raw.contents?JSON.parse(raw.contents):null));
+        if(c&&c.length>=100) return persist(c);
+      }catch(e){}
+    }
+
+    // ── ATTEMPT 4: CoinGecko market_chart → synthetic 30m ────────────────────
+    // Returns hourly prices; we snap each price to nearest :00 ET slot
+    // and build a synthetic :30 candle between each pair
+    try{
+      const cgUrl = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7";
+      const r = await fetch(cgUrl, {cache:"no-cache"});
+      if(r.ok){
+        const data = await r.json();
+        const prices = data&&data.prices; // [[ts_ms, price], ...]
+        if(Array.isArray(prices)&&prices.length>=48){
+          const candles = [];
+          for(let i=1;i<prices.length;i++){
+            const prevTs = Number(prices[i-1][0]);
+            const prevP  = Number(prices[i-1][1]);
+            const curTs  = Number(prices[i][0]);
+            const curP   = Number(prices[i][1]);
+            const spread = Math.abs(curP-prevP)*0.5 || curP*0.0005;
+            // :00 candle aligned to hour boundary
+            const hourTs = Math.round(curTs/(60*60*1000))*(60*60*1000);
+            candles.push({ts:hourTs, open:prevP, high:Math.max(prevP,curP)+spread, low:Math.min(prevP,curP)-spread, close:curP});
+            // :30 candle = midpoint
+            const midP = (prevP+curP)/2;
+            candles.push({ts:hourTs-30*60*1000, open:prevP, high:midP+spread, low:midP-spread, close:midP});
+          }
+          // Deduplicate by ts, sort ascending
+          const seen = new Set();
+          const deduped = candles.filter(c=>{if(seen.has(c.ts))return false;seen.add(c.ts);return c.open>0;})
+                                 .sort((a,b)=>a.ts-b.ts);
+          if(deduped.length>=80) return persist(deduped);
+        }
+      }
+    }catch(e){}
+
+    // ── ATTEMPT 5: Binance 1h proxy ──────────────────────────────────────────
+    const b1h = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
     for(const url of [b1h, "https://corsproxy.io/?"+encodeURIComponent(b1h)]){
       try{
-        const r=await fetch(url,{cache:"no-cache"});
+        const r = await fetch(url, {cache:"no-cache"});
         if(!r.ok) continue;
-        const raw=await r.json();
-        const c=normK(raw);
+        const raw = await r.json();
+        const c = normBinance(raw);
         if(c&&c.length>=50) return persist(c);
       }catch(e){}
     }
 
-    // ── ATTEMPT 4: CoinGecko OHLC 4H (last resort) ───────────────────────────
-    const cgOhlc="https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7";
-    for(const url of [cgOhlc, "https://corsproxy.io/?"+encodeURIComponent(cgOhlc)]){
-      try{
-        const r=await fetch(url,{cache:"no-cache"});
-        if(!r.ok) continue;
-        const raw=await r.json();
-        if(!Array.isArray(raw)||!raw.length) continue;
-        const c=raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
-                   .filter(k=>k.ts>0&&k.open>0);
-        if(c.length>=14) return persist(c);
-      }catch(e){}
-    }
+    // ── ATTEMPT 6: CoinGecko OHLC 4H (last resort) ───────────────────────────
+    try{
+      const r = await fetch("https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7",{cache:"no-cache"});
+      if(r.ok){
+        const raw = await r.json();
+        if(Array.isArray(raw)&&raw.length>=14){
+          const c = raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])})).filter(k=>k.ts>0&&k.open>0);
+          if(c.length>=14) return persist(c);
+        }
+      }
+    }catch(e){}
 
     const cached=fromCache();
     if(cached) return cached;
@@ -2965,6 +2993,8 @@ function App() {
   async function runReplay(){
     setRpLoading(true); setRpError(""); setRpResults(null); setRpPlayIdx(0); setRpPlaying(false); setRpEnded(false);
     try {
+      // Clear old cache so stale 4H data doesn't block fresh 30m fetch
+      try{ localStorage.removeItem("engin3Replay30m"); }catch(e){}
       const candles = await rpFetchCandles();
 
       // ── TRAP / EXECUTE TIME FILTER ─────────────────────────────────────────
@@ -3090,10 +3120,10 @@ function App() {
         trap:       wr4("TRAP"),
       };
 
-      const candleNote = candles.length >= 280 ? "30m candles (full)" 
-        : candles.length >= 200 ? "30m candles (synth)" 
+      const candleNote = candles.length >= 280 ? "30m candles" 
+        : candles.length >= 140 ? "30m synthetic" 
         : candles.length >= 80  ? "1H candles" 
-        : "4H candles (limited)";
+        : "4H candles (limited — re-run for better data)";
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         sessions, wins, losses, total, wr,
