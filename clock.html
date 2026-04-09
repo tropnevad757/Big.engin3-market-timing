@@ -2733,22 +2733,24 @@ function App() {
   }
 
   async function rpFetchCandles(){
-    // 30m candles — covers all trap(:30) and execute(:00) times
-    // 336 candles = 48 per day x 7 days
+    // Strategy: build synthetic 30m candles from CoinGecko hourly price data
+    // CoinGecko market_chart returns hourly prices for <=90 days — no CORS issues on iOS
+    // We convert those hourly close prices into OHLC candles for :00 and :30 slots
     const cacheKey="engin3Replay30m";
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
+
     const normK=(raw)=>{
       if(!Array.isArray(raw)||!raw.length) return null;
       return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
                 .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
     };
 
-    // Primary: Binance 30m (most precise — has every :00 and :30)
+    // ── ATTEMPT 1: Binance 30m direct + proxy ────────────────────────────────
     const b30="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=30m&limit=336";
     for(const url of [b30, "https://corsproxy.io/?"+encodeURIComponent(b30)]){
       try{
-        const r=await fetch(url,{cache:"no-cache"});
+        const r=await fetch(url,{cache:"no-cache",mode:"cors"});
         if(!r.ok) continue;
         const raw=await r.json();
         const c=normK(raw);
@@ -2756,7 +2758,57 @@ function App() {
       }catch(e){}
     }
 
-    // Fallback A: Binance 1h as backup (still catches :00 execute times)
+    // ── ATTEMPT 2: CoinGecko market_chart — hourly prices, iOS-friendly ──────
+    // Returns [{ts, price}] array for last 7 days at hourly resolution
+    // We build synthetic OHLC: each hourly close becomes an OHLC candle
+    // Then we interpolate :30 candles by averaging adjacent hours
+    try{
+      const cgChart="https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=7&interval=hourly";
+      const r=await fetch(cgChart,{cache:"no-cache"});
+      if(r.ok){
+        const data=await r.json();
+        const prices=data&&data.prices; // [[ts_ms, price], ...]
+        if(Array.isArray(prices)&&prices.length>=24){
+          // Build hourly OHLC from close prices
+          // Each entry: open=prev close, high=max(open,close)*1.001 (slight spread), low=min*0.999, close=this price
+          const hourly=[];
+          for(let i=1;i<prices.length;i++){
+            const ts=Number(prices[i][0]);
+            const close=Number(prices[i][1]);
+            const open=Number(prices[i-1][1]);
+            const high=Math.max(open,close)*1.0008;
+            const low=Math.min(open,close)*0.9992;
+            hourly.push({ts,open,high,low,close});
+          }
+
+          // Insert synthetic :30 candles between each hourly pair
+          // :30 candle price = midpoint between adjacent hours
+          const candles30m=[];
+          for(let i=0;i<hourly.length;i++){
+            const h=hourly[i];
+            candles30m.push(h); // the :00 candle
+            // Create :30 candle = midpoint to next hour
+            if(i<hourly.length-1){
+              const next=hourly[i+1];
+              const midPrice=(h.close+next.open)/2;
+              const spread=Math.abs(next.open-h.close)/2||h.close*0.0005;
+              candles30m.push({
+                ts: h.ts+30*60*1000, // +30 minutes
+                open: h.close,
+                high: midPrice+spread,
+                low:  midPrice-spread,
+                close: next.open,
+              });
+            }
+          }
+
+          if(candles30m.length>=100) return persist(candles30m);
+          if(hourly.length>=48) return persist(hourly); // hourly fallback within this attempt
+        }
+      }
+    }catch(e){}
+
+    // ── ATTEMPT 3: Binance 1h via proxy ──────────────────────────────────────
     const b1h="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168";
     for(const url of [b1h, "https://corsproxy.io/?"+encodeURIComponent(b1h)]){
       try{
@@ -2768,9 +2820,9 @@ function App() {
       }catch(e){}
     }
 
-    // Fallback B: CoinGecko OHLC (4H candles for 7 days — limited but better than nothing)
-    const cg="https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7";
-    for(const url of [cg, "https://corsproxy.io/?"+encodeURIComponent(cg)]){
+    // ── ATTEMPT 4: CoinGecko OHLC 4H (last resort) ───────────────────────────
+    const cgOhlc="https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7";
+    for(const url of [cgOhlc, "https://corsproxy.io/?"+encodeURIComponent(cgOhlc)]){
       try{
         const r=await fetch(url,{cache:"no-cache"});
         if(!r.ok) continue;
@@ -3038,7 +3090,10 @@ function App() {
         trap:       wr4("TRAP"),
       };
 
-      const candleNote = candles.length >= 200 ? "30m candles" : candles.length >= 80 ? "1H candles" : "4H candles (limited)";
+      const candleNote = candles.length >= 280 ? "30m candles (full)" 
+        : candles.length >= 200 ? "30m candles (synth)" 
+        : candles.length >= 80  ? "1H candles" 
+        : "4H candles (limited)";
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         sessions, wins, losses, total, wr,
