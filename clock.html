@@ -1604,21 +1604,20 @@ function App() {
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
     if(newsReaction.conflict) return "negative";
-    // Breaking news: use even/odd hour decision table (spec section 6)
-    // Even hour = + slot, Odd hour = - slot
-    // Same sign as news polarity → BUY, opposite → SELL
     if(newsReaction.activeEvent.isBreaking){
-      // Breaking news has no polarity field — treat as positive directional push
-      // (it burst into the market — aligns with slot direction)
+      // Breaking news: only apply directional push if polarity was classified from keywords
+      // polarity=0 means no keyword match — treat as neutral (don't bias the signal)
+      const evPol = Number(newsReaction.activeEvent.polarity||0);
+      if(evPol === 0) return null; // no classification = neutral, hold base direction
       const slotIsPositive = et.h24 % 2 === 0;
-      return slotIsPositive ? "positive" : "negative";
+      const evIsPositive = evPol > 0;
+      return (slotIsPositive === evIsPositive) ? "positive" : "negative";
     }
     if(newsReaction.activeEvent.isAfter) return newsReaction.conflict?"negative":"positive";
     // Scheduled event pre-window: use event polarity vs slot
     const evPol = Number(newsReaction.activeEvent.polarity||0);
     if(evPol === 0) return null;
     const slotIsPositive = et.h24 % 2 === 0;
-    // Same sign = positive result, different sign = negative (per spec section 6)
     const evIsPositive = evPol > 0;
     return (slotIsPositive === evIsPositive) ? "positive" : "negative";
   })();
@@ -1998,8 +1997,10 @@ function App() {
     let newsCharge = 0;
     if(negatives > 0 && positives === 0) newsCharge = -1;
     else if(positives > 0 && negatives === 0) newsCharge = 1;
-    else if(negatives > 0 && positives > 0) newsCharge = -1;
-    else if(breakingEvents > 0 && negatives === 0 && positives === 0) newsCharge = slotCharge;
+    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict = defensive
+    // Breaking news with no polarity: truly neutral — don't assume direction
+    // Only apply slot-aligned if there are NO directed events at all AND it's a scheduled (non-breaking) window
+    else if(breakingEvents > 0 && negatives === 0 && positives === 0) newsCharge = 0; // neutral — no keyword match = no signal bias
 
     // STEP 2: decision table — same sign = buy, different = sell
     let finalDirection = newsCharge === 0
@@ -3030,6 +3031,15 @@ function App() {
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
+    }).map(ev=>{
+      // Re-classify polarity on-the-fly using current keyword list
+      // Fixes historical events stored before keyword classification was added (polarity=0)
+      // Only override if currently unclassified — preserves intentionally set polarity
+      if(Number(ev.polarity)!==0) return ev;
+      const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
+      const cls = classifyEcoArticle(text, "");
+      const freshPol = cls.bearish ? -1 : cls.bullish ? 1 : 0;
+      return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
     });
   }
 
