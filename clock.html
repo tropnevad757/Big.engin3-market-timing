@@ -1192,6 +1192,20 @@ function App() {
     return { polarity:"positive", sign:"+", minsLeft:0 };
   }
 
+  const REPLAY_SLOT_LABELS = new Map([
+    [30, "RECAL"], [60, "LIQUID"], [90, "TRAP"], [120, "EXECUTE"],
+    [180, "STEP"], [240, "LIQUID"], [270, "TRAP"], [300, "EXECUTE"],
+    [360, "STEP"], [420, "LIQUID"], [450, "TRAP"], [480, "EXECUTE"],
+    [540, "STEP"], [600, "LIQUID"], [630, "TRAP"], [660, "EXECUTE"],
+    [720, "STEP"], [750, "RECAL"], [780, "LIQUID"], [810, "TRAP"], [840, "EXECUTE"],
+    [900, "STEP"], [960, "LIQUID"], [990, "TRAP"], [1020, "EXECUTE"],
+    [1080, "STEP"], [1140, "LIQUID"], [1170, "TRAP"], [1200, "EXECUTE"],
+    [1260, "STEP"], [1320, "LIQUID"], [1350, "TRAP"], [1380, "EXECUTE"], [0, "STEP"]
+  ]);
+  function getReplaySlotLabel(h24, m){
+    return REPLAY_SLOT_LABELS.get(h24*60 + m) || (m===30 ? "STEP" : "SCHEDULE");
+  }
+
   function getMajorRegimeChange(h24, m) {
     const t = h24*60+m;
     // Next change points: 90(1:30), 450(7:30), 810(1:30pm), 1170(7:30pm)
@@ -2029,13 +2043,15 @@ function App() {
     const activeCount = (activeEvents||[]).length;
 
     if(!activeCount){
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
-        chargeFlip: false, clusterResult: null,
-        reason: "no news - step direction held",
-        equation: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
-        equationPlain: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
+        chargeFlip: false, clusterResult: null, dominantSource: "step schedule",
+        newsSign: "0", slotSign: slotCharge===1?"+":"-", sellRestriction: false,
+        reason: "no news - step direction schedule held",
+        equation: equationPlain,
+        equationPlain,
       };
     }
 
@@ -2054,7 +2070,7 @@ function App() {
     }));
 
     let newsCharge = 0;
-    let dominantSource = "none";
+    let dominantSource = "undirected news";
     if(directedWithRate.length){
       directedWithRate.sort((a,b)=>{
         if(b.isUsdAnchor !== a.isUsdAnchor) return Number(b.isUsdAnchor) - Number(a.isUsdAnchor);
@@ -2082,13 +2098,19 @@ function App() {
       ? baseDirection
       : (newsCharge === slotCharge ? "buy" : "sell");
 
+    let sellRestriction = false;
+    if(baseDirection === "sell" && newsCharge === -1){
+      finalDirection = "sell";
+      sellRestriction = true;
+    }
+
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = finalDirection !== baseDirection;
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? baseDirection.toUpperCase() + " + NEWS(NEUTRAL) = " + finalDirection.toUpperCase()
-      : slotSign + " SLOT + " + newsSign + " NEWS = " + finalDirection.toUpperCase() + (chargeFlip ? " [STACK FLIP]" : "");
+      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FLIP" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection, baseCharge, finalCharge,
@@ -2096,16 +2118,17 @@ function App() {
       negativePressure: negatives + speeches,
       positivePressure: positives,
       breakingCount: breakingEvents,
-      activeCount, chargeFlip, clusterResult,
+      activeCount, chargeFlip, clusterResult, dominantSource,
+      newsSign, slotSign, sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : chargeFlip
-          ? "stacked news flipped dominant sign"
-          : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
+        : sellRestriction
+          ? "sell-side restriction held the trade direction"
+          : chargeFlip
+            ? "stacked news flipped dominant sign"
+            : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
       equationPlain,
-      dominantSource,
-      newsCharge,
     };
   }
 
@@ -2941,47 +2964,26 @@ function App() {
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    // Step 1: get base direction from no-news schedule
     const step = getInternalStep(h24, m);
     const newsSlot = getNewsSlotPolarity(h24, m);
     const connectorMode = getConnectorMode(h24, m);
+    const regime = connectorMode === "mirror" ? "CORE" : "RESET";
     const hasNews = (activeEvents||[]).length > 0;
-
-    // Step 2: slot polarity
-    // No news → scheduled step direction stays in control
-    // News active → use the explicit news-time polarity map
     const slotPol = hasNews ? newsSlot.polarity : (step.direction === "buy" ? "positive" : "negative");
-
     const pState = buildPolarityState(step.direction, slotPol);
-
-    // Step 3: apply news if present
     const applied = computeReplayPolarity(pState.baseDirection, slotPol, activeEvents);
-
-    // Step 4: news charge flip — if 2+ USD-or-higher rate news events active → flip
-    const USD_ANCHOR_RATE = USD_RATE; // 3.75 from CHARGE_CURRENCIES
-    const usdOrHigherEvents = (activeEvents||[]).filter(ev=>{
-      const title = String(ev?.title||ev?.l||"").toLowerCase();
-      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(title);
-    });
-    // Step 4: USD rate reinforcement — 2+ rate events reinforce their actual polarity
-    // No longer blindly flips — uses actual bearish/bullish polarity of the events
-    let finalDir = applied.finalDirection;
-    let chargeFlip = false;
-    const slotCharge = h24 % 2 === 0 ? 1 : -1;
-    if(usdOrHigherEvents.length >= 2){
-      const rateBearish = usdOrHigherEvents.filter(ev=>Number(ev.polarity)===-1).length;
-      const rateBullish = usdOrHigherEvents.filter(ev=>Number(ev.polarity)===1).length;
-      const ratePol = rateBullish > rateBearish ? 1 : -1;
-      const reinforcedDir = ratePol === slotCharge ? "buy" : "sell";
-      if(reinforcedDir !== finalDir){ chargeFlip = true; finalDir = reinforcedDir; }
-    }
-
+    const finalDir = applied.finalDirection;
     const signal = finalDir === "buy" ? "BUY" : "SELL";
     return {
-      signal, chargeFlip,
+      signal,
+      chargeFlip: applied.chargeFlip,
       mode: connectorMode,
+      regime,
       flip: applied.finalDirection !== pState.baseDirection,
       reason: applied.reason,
+      dominantSource: applied.dominantSource,
+      clusterResult: applied.clusterResult,
+      sellRestriction: applied.sellRestriction,
       activeEvents, activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
@@ -2990,11 +2992,12 @@ function App() {
       finalCharge: finalDir === "buy" ? 1 : -1,
       newsFlip: applied.newsFlip,
       slotPolarity: slotPol,
+      slotSign: applied.slotSign,
+      newsSign: applied.newsSign,
       equation: applied.equationPlain,
       equationPlain: applied.equationPlain,
       newsCount: (activeEvents||[]).length,
-      // TP/win info — spec section 13
-      tp1: 0.003, tp2: 0.003, tp3: 0.003,
+      tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
   }
 
@@ -3009,18 +3012,17 @@ function App() {
   // No news → hold to next step change → 0.3%
   function getSignalWindow(activeEvents){
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:0, tp:0.003, tpLabel:"STEP TP", tpPct:"0.3%", exitRule:"next step change" };
+      return { type:"none", stars:0, windowMins:20, tp:0.003, tpLabel:"STEP TP", tpPct:"0.3%", exitRule:"20m step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      // Breaking news TP = 61.8 fib per spec: 100=0.3% → 61.8=(0.3×61.8/100)=0.185%
-      const tp618 = 0.003 * (61.8/100); // = 0.001854
+      const tp618 = 0.003 * (61.8/100);
       return { type:"break", stars:0, windowMins:20, tp:tp618, tpLabel:"BREAK TP (61.8)", tpPct:"0.185%", exitRule:"20m burst window" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"80m window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"50m window" };
-    return { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1", tpPct:"0.3%", exitRule:"20m window" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3 (261)", tpPct:"0.9%", exitRule:"80m symmetric news window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.006, tpLabel:"TP2 (161)", tpPct:"0.6%", exitRule:"50m symmetric news window" };
+    return { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1 (100)", tpPct:"0.3%", exitRule:"20m symmetric news window" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
@@ -3086,46 +3088,12 @@ function App() {
         const t = Date.parse(ev.pub||0);
         return t && t >= replayWindowStart;
       });
-
-      // ── CLEAN-HOUR ONLY FILTER ────────────────────────────────────────────────
-      // Only trade times that own a FULL 60-minute window — no :30 split candles
-      //
-      // Full-60-min slots (direction holds the entire candle before next step change):
-      //   2:00  → next step at 3:00  (60 min runway)
-      //   3:00  → next step at 4:00  (60 min)
-      //   5:00  → next step at 6:00  (60 min)
-      //   8:00  → next step at 9:00  (60 min)
-      //   9:00  → next step at 10:00 (60 min)
-      //  11:00  → next step at 12:00 (60 min)
-      //  ... same pattern repeats PM (+12h)
-      //
-      // EXCLUDED (:30 split — only 30 min runway, bleed into opposite direction):
-      //   1:30, 4:30, 7:30, 10:30 — direction flips at very next candle
-      //
-      // 2 and 11 are EXECUTE times. 3, 5, 9 are bonus clean hours with full runway.
-      // 8 is also execute AND has news-window alignment.
-      const CLEAN_HOURS = new Set([
-        // AM
-        2*60,   // 2:00 AM  execute
-        3*60,   // 3:00 AM  full-hour bonus
-        5*60,   // 5:00 AM  execute
-        8*60,   // 8:00 AM  execute
-        9*60,   // 9:00 AM  full-hour bonus
-        11*60,  // 11:00 AM execute
-        // PM (same hours +12)
-        14*60,  // 2:00 PM
-        15*60,  // 3:00 PM
-        17*60,  // 5:00 PM
-        20*60,  // 8:00 PM
-        21*60,  // 9:00 PM
-        23*60,  // 11:00 PM
-      ]);
-
-      // Execute times (2, 5, 8, 11 AM+PM) — spec-defined entry points
-      const EXECUTE_SET = new Set([2*60, 5*60, 8*60, 11*60, 14*60, 17*60, 20*60, 23*60]);
-
-      function isCleanHour(h24, m){ return m===0 && CLEAN_HOURS.has(h24*60); }
-      function isExecHour(h24, m){  return m===0 && EXECUTE_SET.has(h24*60); }
+      // ── FULL SCHEDULE SLOT FILTER ─────────────────────────────────────────────
+      // Replay now honors the full programmed schedule, including half-hour slots.
+      const SCHEDULE_SLOTS = new Set(INTERNAL_STEPS.slice(0,-1).map(s=>s[0]));
+      const EXECUTE_SET = new Set([120,300,480,660,840,1020,1200,1380]);
+      function isReplaySlot(h24, m){ return SCHEDULE_SLOTS.has(h24*60 + m); }
+      function isExecHour(h24, m){  return EXECUTE_SET.has(h24*60 + m); }
 
       // ── CANDLE LOOKUP ─────────────────────────────────────────────────────
       const candleByTs = {};
@@ -3195,11 +3163,12 @@ function App() {
       const sessions = [];
       for(const c of candles){
         const et = rpGetETParts(c.ts);
-        if(!isCleanHour(et.h24, et.m)) continue;
+        if(!isReplaySlot(et.h24, et.m)) continue;
 
         const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
         const isExec = isExecHour(et.h24, et.m);
+        const slotLabel = getReplaySlotLabel(et.h24, et.m);
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
@@ -3221,16 +3190,16 @@ function App() {
 
         const quality = isExec && hasNews  ? "EXEC+NEWS"
           : isExec && !hasNews             ? "EXEC"
-          : !isExec && hasNews             ? "HOUR+NEWS"
-          :                                  "HOUR";
+          : !isExec && hasNews             ? "SCHED+NEWS"
+          :                                  "SCHED";
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
           dayStr: et.dayStr, timeStr: et.timeStr,
           open: Math.round(c.open), close: Math.round(c.close),
           high: Math.round(c.high), low: Math.round(c.low),
-          isExecute: isExec, isTrap: false, hasNews, quality,
-          slotType: isExec ? "EXECUTE" : "HOUR",
+          isExecute: isExec, isTrap: slotLabel==="TRAP", hasNews, quality,
+          slotType: slotLabel,
           sigWindow, ...replay, score,
         });
       }
@@ -3259,8 +3228,8 @@ function App() {
       const breakdown = {
         execNews:  wr4("EXEC+NEWS"),
         exec:      wr4("EXEC"),
-        trapNews:  wr4("HOUR+NEWS"),
-        trap:      wr4("HOUR"),
+        trapNews:  wr4("SCHED+NEWS"),
+        trap:      wr4("SCHED"),
       };
 
       const candleNote = candles.length >= 280 ? "30m candles" 
@@ -3324,7 +3293,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Clean-hour only: 2, 3, 5, 8, 9, 11 AM+PM. Full 60m runway — no :30 split bleed. EXECUTE+NEWS = primary setup.
+          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, step-direction fallback, stack-flip logic, and advance event windows.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3401,7 +3370,7 @@ function App() {
             {/* PRIMARY SIGNAL HEADLINE — EXECUTE+NEWS win rate */}
             {results.breakdown?.execNews&&(
               <div style={{borderRadius:12,border:`1px solid ${G}44`,background:`${G}0d`,padding:"12px 14px",marginBottom:8}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>PRIMARY SETUP — EXECUTE + NEWS</div>
+                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>PRIMARY SETUP — EXECUTE + NEWS (FULL LOGIC)</div>
                 <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:6}}>
                   <div style={{fontSize:36,fontWeight:900,color:results.breakdown.execNews.wr>=50?G:results.breakdown.execNews.wr>=40?A:R,...mono,lineHeight:1}}>
                     {results.breakdown.execNews.wr}%
@@ -3466,10 +3435,10 @@ function App() {
                 {/* All 4 quality tiers — clean-hour scoring */}
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY SETUP QUALITY</div>
                 {[
-                  {l:"EXECUTE + NEWS  (2/5/8/11)", key:"execNews", c:G,         note:"Primary setup — execute + news"},
-                  {l:"EXECUTE no news (2/5/8/11)", key:"exec",     c:A,         note:"Execute time, pure step direction"},
-                  {l:"HOUR + NEWS  (3/9)",          key:"trapNews", c:"#88aaff", note:"Full-60m bonus slot with news"},
-                  {l:"HOUR no news (3/9)",           key:"trap",    c:"#444",    note:"Full-60m slot, pure step direction"},
+                  {l:"EXECUTE + NEWS", key:"execNews", c:G,         note:"Primary setup — execute slot with news"},
+                  {l:"EXECUTE no news", key:"exec",     c:A,         note:"Execute slot, no-news step direction"},
+                  {l:"SCHEDULE + NEWS",          key:"trapNews", c:"#88aaff", note:"Scheduled slot with news / half-hour included"},
+                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled slot, no-news step direction"},
                 ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -3563,9 +3532,12 @@ function App() {
 
                 {/* Signal math */}
                 <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:4}}>
-                  Base: {current.baseDirection?.toUpperCase()} · Slot: {current.slotPolarity==="positive"?"+":"-"} · Final: {current.finalCharge>0?"+1":"-1"}{current.chargeFlip?" · ⚡ CHARGE FLIP":""}
+                  Base: {current.baseDirection?.toUpperCase()} · Regime: {current.regime} · Slot: {current.slotSign|| (current.slotPolarity==="positive"?"+":"-")} · News: {current.newsSign||"0"} · Final: {current.signal}{current.chargeFlip?" · STACK FLIP":""}{current.sellRestriction?" · SELL RULE HOLD":""}
                 </div>
-                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>{current.equationPlain}</div>
+                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:2}}>{current.equationPlain}</div>
+                <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>
+                  Dominant: {current.dominantSource||"step schedule"}{current.clusterResult?.stackSize?` · Stack ${current.clusterResult.stackSize}`:""} · Reason: {current.reason}
+                </div>
 
                 {/* Active news events driving the signal */}
                 {current.activeCount>0 && current.activeEvents?.length>0 ? (
