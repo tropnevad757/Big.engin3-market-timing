@@ -713,7 +713,7 @@ function App() {
   const [rpEnded,   setRpEnded]   = useState(false);
   const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
   const [rpTpMode, setRpTpMode] = useState("100"); // "100" = 0.3%, "61.8" = 0.185%
-  const [rpNewsFilter, setRpNewsFilter] = useState(false); // only take trades when news confirms step
+  const [rpNewsFilter, setRpNewsFilter] = useState(false); // legacy toggle kept in UI; news path now uses regime math
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const rpTimerRef = useRef(null);
 
@@ -1698,13 +1698,23 @@ function App() {
   // Charge engine removed from signal + replay path.
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
-  const liveSignalMath = computeReplayPolarity(et.h24, et.m, _stepDir, liveSlotPolarity, newsReaction.nearEvents || []);
   const finalSignal = (()=>{
-    return liveSignalMath.finalDirection === "buy"
+    // No news = base step direction.
+    if(!newsReaction.active){
+      return polarityDirection === "buy"
+        ? { label:"BUY",  col:G }
+        : { label:"SELL", col:R };
+    }
+
+    // News = odd/even hour sign against dominant regime/news sign.
+    // Same sign => BUY, opposite sign => SELL.
+    const liveSlotCharge = et.h24 % 2 === 0 ? 1 : -1;
+    const engine = computeChargeEngine(et.h24, et.m, liveSlotCharge);
+    return engine.finalCharge === 1
       ? { label:"BUY",  col:G }
       : { label:"SELL", col:R };
   })();
-  const appReadyColor = finalSignal.col;
+    const appReadyColor = finalSignal.col;
   const appReadyLabel = finalSignal.label;
 
   const updateItem = (cid,iid,upd) => setCats(p=>p.map(c=>c.id!==cid?c:{...c,items:c.items.map(i=>i.id!==iid?i:{...i,...upd})}));
@@ -1947,59 +1957,7 @@ function App() {
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
-  function getChargeSymbolRate(sym){
-    const code = String(sym||"").toUpperCase().trim();
-    if(!code) return null;
-    const row = CHARGE_CURRENCIES.find(c => String(c.sym||"").toUpperCase() === code);
-    return row ? Number(row.rate) : null;
-  }
-
-  function normalizeNewsSymbol(ev){
-    const direct = String(ev?.currency || ev?.country || "").toUpperCase().replace(/[^A-Z]/g, "");
-    if(direct && direct.length <= 4) return direct;
-    const hay = `${ev?.title||ev?.l||""} ${ev?.desc||ev?.note||""}`.toUpperCase();
-    for(const c of CHARGE_CURRENCIES){
-      const code = String(c.sym||"").toUpperCase();
-      if(code && (hay.includes(` ${code} `) || hay.startsWith(code+" ") || hay.includes(`(${code})`) || hay.includes(`/${code}`) || hay.includes(`${code}/`))) return code;
-    }
-    return direct || "";
-  }
-
-  function dominantNewsChargeForSlot(h24, m, activeEvents){
-    const mode = getConnectorMode(h24, m);
-    const usdAnchorSign = mode === "aligned" ? 1 : -1;
-    const mapped = (activeEvents||[]).map(ev=>{
-      const sym = normalizeNewsSymbol(ev);
-      const rate = getChargeSymbolRate(sym);
-      let sign = 0;
-      if(rate != null){
-        sign = rate > USD_RATE ? usdAnchorSign : -usdAnchorSign;
-      } else {
-        const pol = Number(ev?.polarity||0);
-        sign = pol > 0 ? 1 : pol < 0 ? -1 : 0;
-      }
-      return { ev, sym, rate, sign };
-    }).filter(x=>x.sign!==0);
-
-    if(!mapped.length) return { charge:0, usdAnchorSign, used:[], usedCount:0, stacked:false, source:"neutral" };
-
-    const usdOrHigher = mapped.filter(x=>x.rate != null && x.rate >= USD_RATE);
-    if(usdOrHigher.length >= 2){
-      let running = usdOrHigher[0].sign;
-      for(let i=1;i<usdOrHigher.length;i++) running = stackCharges(running, usdOrHigher[i].sign);
-      return { charge:running, usdAnchorSign, used:usdOrHigher, usedCount:usdOrHigher.length, stacked:true, source:"usd_anchor_stack" };
-    }
-
-    const used = usdOrHigher.length ? usdOrHigher : mapped;
-    if(used.length === 1) return { charge:used[0].sign, usdAnchorSign, used, usedCount:1, stacked:false, source: usdOrHigher.length ? "usd_anchor" : "event" };
-
-    const pos = used.filter(x=>x.sign===1).length;
-    const neg = used.filter(x=>x.sign===-1).length;
-    const charge = pos === neg ? used[used.length-1].sign : (pos > neg ? 1 : -1);
-    return { charge, usdAnchorSign, used, usedCount:used.length, stacked:false, source: usdOrHigher.length ? "usd_anchor_majority" : "event_majority" };
-  }
-
-  function computeReplayPolarity(h24, m, baseDirection, slotPolarity, activeEvents){
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const activeCount = (activeEvents||[]).length;
@@ -2010,47 +1968,93 @@ function App() {
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
         chargeFlip: false, clusterResult: null,
         reason: "base polarity held",
-        dominantNewsCharge: 0,
         equation: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
         equationPlain: baseDirection.toUpperCase() + " + NO NEWS = " + baseDirection.toUpperCase(),
       };
     }
 
-    const info = dominantNewsChargeForSlot(h24, m, activeEvents);
-    const newsCharge = Number(info.charge||0);
+    const negatives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === -1).length;
+    const positives = (activeEvents||[]).filter(ev=>Number(ev.polarity) === 1).length;
+    const breakingEvents = (activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length;
+    const speeches  = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
 
-    if(newsCharge === 0){
-      return {
-        finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
-        newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount,
-        chargeFlip: false, clusterResult: info,
-        reason: "news active but no dominant sign",
-        dominantNewsCharge: 0,
-        equation: "NEWS ACTIVE · NO DOMINANT SIGN",
-        equationPlain: "NEWS ACTIVE · NO DOMINANT SIGN",
-      };
+    // STEP 1: single combined news charge
+    let newsCharge = 0;
+    if(negatives > 0 && positives === 0) newsCharge = -1;
+    else if(positives > 0 && negatives === 0) newsCharge = 1;
+    else if(negatives > 0 && positives > 0) newsCharge = -1; // conflict = defensive
+    // Breaking news with no polarity: truly neutral — don't assume direction
+    // Only apply slot-aligned if there are NO directed events at all AND it's a scheduled (non-breaking) window
+    else if(breakingEvents > 0 && negatives === 0 && positives === 0) newsCharge = 0; // neutral — no keyword match = no signal bias
+
+    // STEP 2: decision table — same sign = buy, different = sell
+    let finalDirection = newsCharge === 0
+      ? baseDirection
+      : (newsCharge === slotCharge ? "buy" : "sell");
+
+    // STEP 3: news cluster reinforcement math
+    // Multiple news events reinforce each other — same direction = stronger signal
+    // +/+ = + (reinforced buy)   -/- = - (reinforced sell)   -/+ = conflict = defensive sell
+    // This replaces the old charge flip model which was designed for currency rates, not news
+    let chargeFlip = false;
+    let clusterResult = null;
+    const directedEvents = (activeEvents||[]).filter(ev=>Number(ev.polarity)!==0);
+    if(directedEvents.length >= 2){
+      const charges = directedEvents.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
+      const positiveCount = charges.filter(c=>c===1).length;
+      const negativeCount = charges.filter(c=>c===-1).length;
+      // Reinforcement: majority direction wins
+      // All same sign = reinforced (strengthens existing signal)
+      // Mixed = conflict, default to bearish (defensive)
+      let reinforcedCharge;
+      if(negativeCount === 0)       reinforcedCharge = 1;  // all bullish
+      else if(positiveCount === 0)  reinforcedCharge = -1; // all bearish
+      else                           reinforcedCharge = -1; // conflict = defensive sell
+
+      clusterResult = { charges, positiveCount, negativeCount, reinforcedCharge };
+
+      // Only re-apply if reinforced charge differs from single-event charge
+      if(reinforcedCharge !== newsCharge && newsCharge !== 0){
+        chargeFlip = true;
+        finalDirection = reinforcedCharge === slotCharge ? "buy" : "sell";
+      }
     }
 
-    const finalDirection = newsCharge === slotCharge ? "buy" : "sell";
+    // STEP 4: USD anchor override (2+ rate events simultaneously = reinforced signal)
+    // 2+ macro rate events = strong directional push — reinforce, don't flip
+    const usdRateEvents = (activeEvents||[]).filter(ev=>{
+      const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
+      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
+    });
+    if(usdRateEvents.length >= 2){
+      // Reinforce based on their polarity, don't blindly flip
+      const ratePol = usdRateEvents.filter(ev=>Number(ev.polarity)!==-1).length > usdRateEvents.filter(ev=>Number(ev.polarity)===-1).length ? 1 : -1;
+      const rateDir = ratePol === slotCharge ? "buy" : "sell";
+      if(rateDir !== finalDirection){
+        chargeFlip = true;
+        finalDirection = rateDir;
+      }
+    }
+
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = finalDirection !== baseDirection;
     const slotSign = slotCharge === 1 ? "+" : "-";
-    const newsSign = newsCharge === 1 ? "+" : "-";
-    const equationPlain = `${slotSign} HOUR × ${newsSign} NEWS = ${finalDirection.toUpperCase()}`;
+    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const clusterNote = chargeFlip ? " [REINFORCED]" : "";
+    const equationPlain = newsCharge === 0
+      ? baseDirection.toUpperCase() + " + NEWS(NEUTRAL) = " + finalDirection.toUpperCase()
+      : slotSign + " SLOT + " + newsSign + " NEWS = " + finalDirection.toUpperCase() + clusterNote;
 
     return {
       finalDirection, baseCharge, finalCharge,
       newsFlip: newsFlip ? -1 : 1,
-      negativePressure: info.used.filter(x=>x.sign===-1).length,
-      positivePressure: info.used.filter(x=>x.sign===1).length,
-      breakingCount: (activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length,
-      activeCount,
-      chargeFlip: !!info.stacked,
-      clusterResult: info,
-      dominantNewsCharge: newsCharge,
-      reason: info.stacked
-        ? "USD anchor stack vs odd/even hour"
-        : "dominant news sign vs odd/even hour",
+      negativePressure: negatives + speeches,
+      positivePressure: positives,
+      breakingCount: breakingEvents,
+      activeCount, chargeFlip, clusterResult,
+      reason: chargeFlip ? "cluster reinforced: " + finalDirection.toUpperCase()
+        : newsCharge === 0 ? "news active but no directional polarity"
+        : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
       equationPlain,
     };
@@ -2884,47 +2888,64 @@ function App() {
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
   // RULE: no-news → use INTERNAL_STEPS step-direction schedule
-  //       news active → use odd/even hour sign against dominant news sign
-  //       same sign → BUY, opposite sign → SELL
+  //       news active → use even/odd hour polarity schedule
+  //       news decision: same sign → BUY, different sign → SELL
+  //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    // Step 1: get base direction from no-news schedule
     const step = getInternalStep(h24, m);
     const connectorMode = getConnectorMode(h24, m);
     const hasNews = (activeEvents||[]).length > 0;
-
-    // Step 2: slot polarity
-    // No news → connector mode (aligned=+, mirror=-)
-    // News active → even hour=+ / odd hour=-  (spec section 3 & 6)
     const slotPol = hasNews
       ? (h24 % 2 === 0 ? "positive" : "negative")
       : (connectorMode === "aligned" ? "positive" : "negative");
 
-    const pState = buildPolarityState(step.direction, slotPol);
+    // No news = pure step direction.
+    if(!hasNews){
+      return {
+        signal: step.direction === "buy" ? "BUY" : "SELL",
+        chargeFlip: false,
+        mode: connectorMode,
+        flip: false,
+        reason: "step_only",
+        activeEvents, activeCount: 0,
+        negativePressure: 0,
+        positivePressure: 0,
+        baseDirection: step.direction,
+        baseCharge: step.direction === "buy" ? 1 : -1,
+        finalCharge: step.direction === "buy" ? 1 : -1,
+        newsFlip: false,
+        slotPolarity: slotPol,
+        equation: "NO NEWS → STEP DIRECTION",
+        equationPlain: "NO NEWS → STEP DIRECTION",
+        newsCount: 0,
+        tp1: 0.003, tp2: 0.003, tp3: 0.003,
+      };
+    }
 
-    // Step 3: during news, step direction is NOT used in the math.
-    // Final direction comes from odd/even hour sign vs dominant news sign.
-    const applied = computeReplayPolarity(h24, m, pState.baseDirection, slotPol, activeEvents);
+    // News = dominant regime/news sign versus odd/even hour sign.
+    // Same sign => BUY, opposite sign => SELL.
+    const slotCharge = h24 % 2 === 0 ? 1 : -1;
+    const engine = computeChargeEngine(h24, m, slotCharge);
+    const finalDir = engine.finalCharge === 1 ? "buy" : "sell";
 
-    const finalDir = applied.finalDirection;
-    const chargeFlip = !!applied.chargeFlip;
-    const signal = finalDir === "buy" ? "BUY" : "SELL";
     return {
-      signal, chargeFlip,
+      signal: finalDir === "buy" ? "BUY" : "SELL",
+      chargeFlip: !!engine.flipTriggered,
       mode: connectorMode,
-      flip: applied.finalDirection !== pState.baseDirection,
-      reason: applied.reason,
-      activeEvents, activeCount: applied.activeCount,
-      negativePressure: applied.negativePressure,
-      positivePressure: applied.positivePressure,
-      baseDirection: pState.baseDirection,
-      baseCharge: applied.baseCharge,
-      finalCharge: finalDir === "buy" ? 1 : -1,
-      newsFlip: applied.newsFlip,
+      flip: finalDir !== step.direction,
+      reason: "regime_news_math",
+      activeEvents, activeCount: (activeEvents||[]).length,
+      negativePressure: engine.negative,
+      positivePressure: engine.positive,
+      baseDirection: step.direction,
+      baseCharge: engine.rateCharge,
+      finalCharge: engine.finalCharge,
+      newsFlip: !!engine.flipTriggered,
       slotPolarity: slotPol,
-      equation: applied.equationPlain,
-      equationPlain: applied.equationPlain,
+      equation: `${engine.rateCharge > 0 ? "+" : "-"} vs ${slotCharge > 0 ? "+" : "-"} = ${engine.finalCharge > 0 ? "BUY" : "SELL"}`,
+      equationPlain: `${engine.rateCharge > 0 ? "+" : "-"} vs ${slotCharge > 0 ? "+" : "-"} = ${engine.finalCharge > 0 ? "BUY" : "SELL"}`,
       newsCount: (activeEvents||[]).length,
-      // TP/win info — spec section 13
+      engine,
       tp1: 0.003, tp2: 0.003, tp3: 0.003,
     };
   }
@@ -3136,6 +3157,19 @@ function App() {
         const replay = rpSignal(et.h24, et.m, activeEvents);
         const nextC = getNextCandle(c.ts);
         const score = rpScore2(replay.signal, c, nextC, sigWindow);
+
+        // News-confirms-step filter:
+        // When enabled, skip setups where news polarity conflicts with step direction
+        // Only take trades where news AGREES with the step — reduces setups, raises quality
+        if(rpNewsFilter && hasNews){
+          const directedEvs = activeEvents.filter(ev=>Number(ev.polarity)!==0);
+          if(directedEvs.length > 0){
+            const newsIsBullish = directedEvs.filter(ev=>Number(ev.polarity)>0).length >
+                                  directedEvs.filter(ev=>Number(ev.polarity)<0).length;
+            const stepIsBuy = replay.baseDirection === "buy";
+            if(newsIsBullish !== stepIsBuy) continue; // skip conflict
+          }
+        }
 
         const quality = isExec && hasNews  ? "EXEC+NEWS"
           : isExec && !hasNews             ? "EXEC"
