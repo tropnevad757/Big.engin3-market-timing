@@ -3432,13 +3432,13 @@ function App() {
                   <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono}}>SETUP QUALITY BREAKDOWN</div>
                   {results.candleNote&&<div style={{fontSize:9,color:"#333",...mono}}>{results.candleNote}</div>}
                 </div>
-                {/* All 4 quality tiers — replay slot scoring */}
+                {/* All 4 quality tiers — clean-hour scoring */}
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY SETUP QUALITY</div>
                 {[
                   {l:"EXECUTE + NEWS", key:"execNews", c:G,         note:"Primary setup — execute slot with news"},
                   {l:"EXECUTE no news", key:"exec",     c:A,         note:"Execute slot, no-news step direction"},
-                  {l:"SCHEDULE + NEWS",          key:"trapNews", c:"#88aaff", note:"Scheduled replay slot with news / half-hour included"},
-                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled replay slot, no-news step direction"},
+                  {l:"SCHEDULE + NEWS",          key:"trapNews", c:"#88aaff", note:"Scheduled slot with news / half-hour included"},
+                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled slot, no-news step direction"},
                 ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -4276,8 +4276,8 @@ const BacktestTab = ()=>{
         {/* ReplayTab always mounted — never unmounted — prevents blink/glitch */}
         <div style={{display:tab==="replay"?"block":"none"}}>
           <div style={{display:"grid",gap:14}}>
-            <ReplayTab/>
-            <BacktestTab/>
+            {ReplayTab()}
+            {BacktestTab()}
           </div>
         </div>
         {/* Plan tab removed per user request */}
