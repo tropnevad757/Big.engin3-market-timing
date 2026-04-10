@@ -272,7 +272,7 @@ function buildPolarityState(baseDir, slotPol) {
 //           null     → no news, return baseDirection as-is
 function applyNewsToSlot(polarityState, newsPolarity, calcType) {
   if(!newsPolarity || !calcType) {
-    // No news — natural base direction wins
+    // No news — natural parity direction wins
     return {
       finalDirection: polarityState.baseDirection,
       finalMovement:  polarityState.movement,
@@ -714,6 +714,7 @@ function App() {
   const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
   const [rpTpMode, setRpTpMode] = useState("100"); // "100" = 0.3%, "61.8" = 0.185%
   const [rpNewsFilter, setRpNewsFilter] = useState(false); // only take trades when news confirms step
+  const [rpOverlapOnly, setRpOverlapOnly] = useState(false); // only take overlap / stacked news trades
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const rpTimerRef = useRef(null);
 
@@ -1073,44 +1074,16 @@ function App() {
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
-    // No-news scheduled programming — exact repeating AM + PM
-    [   0,  "buy",  "Up"  ],  // 12:00 AM
-    [  30,  "sell", "Down"],  // 12:30 AM
-    [  60,  "buy",  "Up"  ],  // 1:00 AM
-    [  90,  "sell", "Down"],  // 1:30 AM
-    [ 120,  "buy",  "Up"  ],  // 2:00 AM
-    [ 180,  "sell", "Down"],  // 3:00 AM
-    [ 240,  "buy",  "Up"  ],  // 4:00 AM
-    [ 270,  "sell", "Down"],  // 4:30 AM
-    [ 300,  "buy",  "Up"  ],  // 5:00 AM
-    [ 360,  "sell", "Down"],  // 6:00 AM
-    [ 390,  "buy",  "Up"  ],  // 6:30 AM
-    [ 420,  "sell", "Down"],  // 7:00 AM
-    [ 450,  "buy",  "Up"  ],  // 7:30 AM
-    [ 480,  "sell", "Down"],  // 8:00 AM
-    [ 540,  "buy",  "Up"  ],  // 9:00 AM
-    [ 600,  "sell", "Down"],  // 10:00 AM
-    [ 630,  "buy",  "Up"  ],  // 10:30 AM
-    [ 660,  "sell", "Down"],  // 11:00 AM
-    [ 720,  "buy",  "Up"  ],  // 12:00 PM
-    [ 750,  "sell", "Down"],  // 12:30 PM
-    [ 780,  "buy",  "Up"  ],  // 1:00 PM
-    [ 810,  "sell", "Down"],  // 1:30 PM
-    [ 840,  "buy",  "Up"  ],  // 2:00 PM
-    [ 900,  "sell", "Down"],  // 3:00 PM
-    [ 960,  "buy",  "Up"  ],  // 4:00 PM
-    [ 990,  "sell", "Down"],  // 4:30 PM
-    [1020,  "buy",  "Up"  ],  // 5:00 PM
-    [1080,  "sell", "Down"],  // 6:00 PM
-    [1110,  "buy",  "Up"  ],  // 6:30 PM
-    [1140,  "sell", "Down"],  // 7:00 PM
-    [1170,  "buy",  "Up"  ],  // 7:30 PM
-    [1200,  "sell", "Down"],  // 8:00 PM
-    [1260,  "buy",  "Up"  ],  // 9:00 PM
-    [1320,  "sell", "Down"],  // 10:00 PM
-    [1350,  "buy",  "Up"  ],  // 10:30 PM
-    [1380,  "sell", "Down"],  // 11:00 PM
-    [1440,  "buy",  "Up"  ],  // sentinel
+    // No-news scheduled programming — simple hour parity rule
+    // even hours = BUY, odd hours = SELL, AM and PM
+    ...Array.from({length:48}, (_,i)=>{
+      const mins = i*30;
+      const h24 = Math.floor((mins%1440)/60);
+      const dir = (h24 % 2 === 0) ? "buy" : "sell";
+      const label = dir === "buy" ? "BUY" : "SELL";
+      return [mins, dir, label];
+    }),
+    [1440, "buy", "BUY"], // sentinel
   ];
 
   const NEWS_SLOT_STEPS = [
@@ -1173,7 +1146,7 @@ function App() {
         };
       }
     }
-    return { direction:"buy", label:"Up", col:G, minsLeft:0, nextLabel:"Down", nextDir:"sell", nextCol:R };
+    return { direction:"buy", label:"BUY", col:G, minsLeft:0, nextLabel:"SELL", nextDir:"sell", nextCol:R };
   }
 
   function getNewsSlotPolarity(h24, m) {
@@ -2049,7 +2022,7 @@ function App() {
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
         chargeFlip: false, clusterResult: null, dominantSource: "step schedule",
         newsSign: "0", slotSign: slotCharge===1?"+":"-", sellRestriction: false,
-        reason: "no news - step direction schedule held",
+        reason: "no news - parity schedule held",
         equation: equationPlain,
         equationPlain,
       };
@@ -2065,43 +2038,33 @@ function App() {
     const directedWithRate = directedEvents.map(ev=>({
       ev,
       charge: Number(ev.polarity) > 0 ? 1 : -1,
-      signWord: Number(ev.polarity) > 0 ? "positive" : "negative",
       rate: rateLookup.get(String(ev.country || ev.currency || inferCountryCode(ev.title||"", "")).toUpperCase()) ?? -999,
       isUsdAnchor: /(^|\W)(usd|us|fomc|fed|federal reserve|powell|rate decision|interest rate)(\W|$)/i.test(String(ev.title||""))
     }));
 
     let newsCharge = 0;
     let dominantSource = "undirected news";
-    let chargeFlip = false;
-    let clusterResult = null;
-
     if(directedWithRate.length){
       directedWithRate.sort((a,b)=>{
         if(b.isUsdAnchor !== a.isUsdAnchor) return Number(b.isUsdAnchor) - Number(a.isUsdAnchor);
         return b.rate - a.rate;
       });
+      newsCharge = directedWithRate[0].charge;
+      dominantSource = directedWithRate[0].isUsdAnchor ? "USD anchor" : `rate leader ${String(directedWithRate[0].ev.country||directedWithRate[0].ev.currency||"?")}`;
+    }
 
-      const dominant = directedWithRate[0];
-      dominantSource = dominant.isUsdAnchor
-        ? "USD anchor"
-        : `rate leader ${String(dominant.ev.country||dominant.ev.currency||"?")}`;
-
-      let compositeWord = dominant.signWord;
-      for(let i=1;i<directedWithRate.length;i++){
-        const prevWord = compositeWord;
-        compositeWord = resolveWindowMath(compositeWord, directedWithRate[i].signWord);
-        if(compositeWord !== prevWord) chargeFlip = true;
-      }
-
-      newsCharge = compositeWord === "positive" ? 1 : -1;
-      clusterResult = directedWithRate.length >= 2 ? {
+    let chargeFlip = false;
+    let clusterResult = null;
+    if(directedWithRate.length >= 2 && newsCharge !== 0){
+      newsCharge *= -1;
+      chargeFlip = true;
+      clusterResult = {
         dominantSource,
         stackSize: directedWithRate.length,
         positiveCount: positives,
         negativeCount: negatives,
-        rule: "overlapping directed news windows collide across full symmetric duration",
-        composite: compositeWord,
-      } : null;
+        rule: "2+ stacked directed news events flip the sign"
+      };
     }
 
     // Latest rule override:
@@ -2113,9 +2076,10 @@ function App() {
       dominantSource = "sell rule ignored + news";
       sellRestriction = true;
       chargeFlip = false;
+      clusterResult = null;
     }
 
-    const finalDirection = newsCharge === 0
+    let finalDirection = newsCharge === 0
       ? baseDirection
       : (newsCharge === slotCharge ? "buy" : "sell");
 
@@ -2125,7 +2089,7 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · COLLISION" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FLIP" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection, baseCharge, finalCharge,
@@ -2140,7 +2104,7 @@ function App() {
         : sellRestriction
           ? "sell-side restriction ignored + news"
           : chargeFlip
-            ? "overlapping news windows collided and recalculated the sign"
+            ? "stacked news flipped dominant sign"
             : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
       equationPlain,
@@ -3181,6 +3145,8 @@ function App() {
 
         const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
+        const directedActiveEvents = activeEvents.filter(ev=>Number(ev?.polarity)!==0);
+        const overlapNews = directedActiveEvents.length >= 2;
         const isExec = isExecHour(et.h24, et.m);
         const slotLabel = getReplaySlotLabel(et.h24, et.m);
 
@@ -3201,18 +3167,20 @@ function App() {
             if(newsIsBullish !== stepIsBuy) continue; // skip conflict
           }
         }
+        if(rpOverlapOnly && !overlapNews) continue;
 
-        const quality = isExec && hasNews  ? "EXEC+NEWS"
-          : isExec && !hasNews             ? "EXEC"
-          : !isExec && hasNews             ? "SCHED+NEWS"
-          :                                  "SCHED";
+        const quality = overlapNews        ? "OVERLAP+NEWS"
+          : isExec && hasNews             ? "EXEC+NEWS"
+          : isExec && !hasNews            ? "EXEC"
+          : !isExec && hasNews            ? "SCHED+NEWS"
+          :                                 "SCHED";
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
           dayStr: et.dayStr, timeStr: et.timeStr,
           open: Math.round(c.open), close: Math.round(c.close),
           high: Math.round(c.high), low: Math.round(c.low),
-          isExecute: isExec, isTrap: slotLabel==="TRAP", hasNews, quality,
+          isExecute: isExec, isTrap: slotLabel==="TRAP", hasNews, overlapNews, quality,
           slotType: slotLabel,
           sigWindow, ...replay, score,
         });
@@ -3242,6 +3210,7 @@ function App() {
       const breakdown = {
         execNews:  wr4("EXEC+NEWS"),
         exec:      wr4("EXEC"),
+        overlap:   wr4("OVERLAP+NEWS"),
         trapNews:  wr4("SCHED+NEWS"),
         trap:      wr4("SCHED"),
       };
@@ -3271,7 +3240,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         sessions, wins, losses, total, wr,
-        wr618, wr100, tpMode: rpTpMode, newsFilter: rpNewsFilter,
+        wr618, wr100, tpMode: rpTpMode, newsFilter: rpNewsFilter, overlapOnly: rpOverlapOnly,
         eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
         weekPct, weekRegime, weekRegimeCol,
@@ -3307,7 +3276,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, step-direction fallback, stack-flip logic, and advance event windows.
+          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, even-hour buy / odd-hour sell step logic, stack-flip logic, overlap-window collision logic, and advance event windows.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3354,6 +3323,13 @@ function App() {
               color:rpNewsFilter?"#88aaff":"#555",...mono}}>
             NEWS↑↓ ONLY
           </button>
+          <button onClick={()=>{setRpOverlapOnly(f=>!f); setRpResults(null);}}
+            style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,cursor:"pointer",
+              background:rpOverlapOnly?`rgba(240,160,48,0.15)`:"rgba(255,255,255,0.03)",
+              border:`1px solid ${rpOverlapOnly?A:"rgba(255,255,255,0.08)"}`,
+              color:rpOverlapOnly?A:"#555",...mono}}>
+            OVERLAP NEWS ONLY
+          </button>
         </div>
 
         <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -3391,6 +3367,7 @@ function App() {
                   </div>
                   <div style={{fontSize:13,color:"#666",...mono}}>{results.breakdown.execNews.n} setups</div>
                   {results.newsFilter&&<div style={{fontSize:10,color:"#88aaff",...mono,marginLeft:4}}>NEWS↑↓ FILTERED</div>}
+                  {results.overlapOnly&&<div style={{fontSize:10,color:A,...mono,marginLeft:4}}>OVERLAP ONLY</div>}
                 </div>
                 {/* Dual TP comparison */}
                 <div style={{display:"flex",gap:8}}>
@@ -3450,9 +3427,10 @@ function App() {
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY SETUP QUALITY</div>
                 {[
                   {l:"EXECUTE + NEWS", key:"execNews", c:G,         note:"Primary setup — execute slot with news"},
-                  {l:"EXECUTE no news", key:"exec",     c:A,         note:"Execute slot, no-news step direction"},
+                  {l:"EXECUTE no news", key:"exec",     c:A,         note:"Execute slot, no-news parity rule"},
+                  {l:"OVERLAP + NEWS", key:"overlap",  c:"#ffcc66", note:"2+ directed news windows active and colliding"},
                   {l:"SCHEDULE + NEWS",          key:"trapNews", c:"#88aaff", note:"Scheduled slot with news / half-hour included"},
-                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled slot, no-news step direction"},
+                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled slot, no-news parity rule"},
                 ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -3550,7 +3528,7 @@ function App() {
                 </div>
                 <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:2}}>{current.equationPlain}</div>
                 <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>
-                  Dominant: {current.dominantSource||"step schedule"}{current.clusterResult?.stackSize?` · Stack ${current.clusterResult.stackSize}`:""} · Reason: {current.reason}
+                  Dominant: {current.dominantSource||"parity schedule"}{current.overlapNews?" · OVERLAP":""}{current.clusterResult?.stackSize?` · Stack ${current.clusterResult.stackSize}`:""} · Reason: {current.reason}
                 </div>
 
                 {/* Active news events driving the signal */}
@@ -3564,7 +3542,7 @@ function App() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{fontSize:11,color:"#444",...mono,marginBottom:8}}>NO NEWS — step-direction schedule</div>
+                  <div style={{fontSize:11,color:"#444",...mono,marginBottom:8}}>NO NEWS — even hour BUY / odd hour SELL</div>
                 )}
 
                 {/* Price data */}
@@ -3595,7 +3573,7 @@ function App() {
                   <div style={{fontSize:11,color:"#aaa",...mono,minWidth:68}}>{s.timeStr}</div>
                   <div style={{fontSize:9,...mono,color:s.quality==="EXEC+NEWS"?G:s.quality==="EXEC"?A:s.quality==="HOUR+NEWS"?"#88aaff":"#444",minWidth:36}}>{s.slotType||""}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
-                  <div style={{fontSize:10,color:"#555",...mono,minWidth:32}}>{s.activeCount>0?"📰"+s.activeCount:""}</div>
+                  <div style={{fontSize:10,color:"#555",...mono,minWidth:42}}>{s.activeCount>0?"📰"+s.activeCount:""}{s.overlapNews?"⚡":""}</div>
                   <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
                   <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
