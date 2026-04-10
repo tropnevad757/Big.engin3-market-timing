@@ -1944,9 +1944,12 @@ function App() {
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
+      const ts = Number(raw?.ts || overrides.ts || 0) || 0;
+      const date = raw?.date || overrides.date || "";
+      const time = raw?.time || overrides.time || raw?.t || "";
       const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note };
+      return { title, source, stars, polarity, kind, pub, ts, date, time, country, note };
     };
 
     const scheduled = [
@@ -1962,10 +1965,10 @@ function App() {
 
     return dedupeFeedItems([...scheduled, ...breaking, ...manual])
       .filter(ev=>{
-        const t = Date.parse(ev.pub||0);
+        const t = rpEventTs(ev);
         return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
       })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+      .sort((a,b)=>(rpEventTs(a)||0)-(rpEventTs(b)||0));
   }
 
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
@@ -2915,6 +2918,18 @@ function App() {
   function isScheduledReplayMinute(h24,m){ return Object.prototype.hasOwnProperty.call(NEWS_STEP_SIGNS, hhmmET(h24,m)); }
   function isExecuteLabel(h24,m){ return REPLAY_LABEL_MAP[hhmmET(h24,m)] === "EXECUTE"; }
   function getClockLabel(h24,m){ return REPLAY_LABEL_MAP[hhmmET(h24,m)] || ""; }
+  function rpEventTs(ev){
+    const fromPub = Date.parse(ev?.pub || 0);
+    if(fromPub && !Number.isNaN(fromPub)) return fromPub;
+    if(ev?.date && ev?.time){
+      const time = String(ev.time).replace(/\s/g,"");
+      const dt = Date.parse(`${ev.date}T${time.length===5?time+":00":time}`);
+      if(dt && !Number.isNaN(dt)) return dt;
+    }
+    const rawTs = Number(ev?.ts || 0);
+    if(Number.isFinite(rawTs) && rawTs>0) return rawTs;
+    return 0;
+  }
   function parityBaseSignal(h24){ return (h24 % 2 === 0) ? { sign:"+", signal:"BUY", baseDirection:"buy" } : { sign:"-", signal:"SELL", baseDirection:"sell" }; }
   function getRegimeByET(h24,m){
     const mins = h24*60+m;
@@ -3037,7 +3052,7 @@ function App() {
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
     return pool.filter(ev=>{
-      const t = Date.parse(ev.pub || ev.date || ev.ts || 0);
+      const t = rpEventTs(ev);
       if(!t || Number.isNaN(t)) return false;
       const kind = replayEventType(ev);
       if(kind === "breaking") return tsMs >= t && tsMs <= (t + 20*60000);
@@ -3062,10 +3077,16 @@ function App() {
       const candles = await rpFetchCandles(rpDaysBack);
 
       // Filter news events to the same window as the candles
-      const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
+      const sortedReplayCandles = [...candles].sort((a,b)=>a.ts-b.ts);
+      const replayWindowStart = sortedReplayCandles[0]?.ts || (Date.now() - rpDaysBack*24*60*60*1000);
+      const replayWindowEnd = sortedReplayCandles[sortedReplayCandles.length-1]?.ts || Date.now();
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        return t && t >= replayWindowStart;
+        const t = rpEventTs(ev);
+        if(!t || Number.isNaN(t)) return false;
+        const isBreaking = replayEventType(ev) === "breaking";
+        const padBefore = isBreaking ? 0 : 90*60000;
+        const padAfter = isBreaking ? 20*60000 : 80*60000;
+        return t >= (replayWindowStart - padBefore) && t <= (replayWindowEnd + padAfter);
       });
 
       // ── SCHEDULED REPLAY FILTER ─────────────────────────────────────────────
