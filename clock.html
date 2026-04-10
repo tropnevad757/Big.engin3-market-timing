@@ -3960,52 +3960,85 @@ const BacktestTab = ()=>{
                 feedType:"breaking"
               }));
 
-              const timeline = dedupeFeedItems([
-                ...calendarTimeline,
-                ...breakingTimeline
-              ]).sort((a,b)=>{
-                const ta = Date.parse(a.pub||0) || 0;
-                const tb = Date.parse(b.pub||0) || 0;
-                const now = Date.now();
-                const aUpcoming = ta >= now;
-                const bUpcoming = tb >= now;
-                if(a.feedType === "calendar" && b.feedType === "calendar"){
-                  if(aUpcoming && bUpcoming) return ta - tb;
-                  if(aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+              // ── BUCKET SORT: LIVE → UPCOMING → PAST ──────────────────────────────
+              const nowMs = Date.now();
+              const classify = (item) => {
+                const t = Date.parse(item.pub||0) || 0;
+                if(!t) return "past";
+                if(item.feedType === "breaking") {
+                  const age = nowMs - t;
+                  return age >= 0 && age <= 20*60*1000 ? "live" : "past";
                 }
-                return tb - ta;
-              });
-              if(!newsLoading && !calLoading && timeline.length===0){
+                const stars = Math.max(1, Math.min(3, Number(item.stars||1)));
+                const winMs = (stars===3?80:stars===2?50:20)*60*1000;
+                if(t > nowMs) return "upcoming";
+                if(nowMs - t <= winMs) return "live";
+                return "past";
+              };
+              const allMerged = dedupeFeedItems([...calendarTimeline, ...breakingTimeline]);
+              const live     = allMerged.filter(i=>classify(i)==="live").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
+              const upcoming = allMerged.filter(i=>classify(i)==="upcoming").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
+              const past     = allMerged.filter(i=>classify(i)==="past").sort((a,b)=>Date.parse(b.pub)-Date.parse(a.pub));
+              const sectioned = [
+                ...live.map(i=>({...i,_b:"live"})),
+                ...upcoming.map(i=>({...i,_b:"upcoming"})),
+                ...past.map(i=>({...i,_b:"past"})),
+              ];
+              if(!newsLoading && !calLoading && sectioned.length===0){
                 return <div style={{textAlign:"center",padding:"24px",color:"#777",fontFamily:"'Share Tech Mono',monospace",fontSize:13}}>No unified events yet — tap refresh.</div>;
               }
-              return timeline.map((item,i)=>(
-                <div key={i}
-                  onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
-                  style={{
-                    background:"rgba(255,255,255,0.025)",border:"1px solid rgba(255,255,255,0.07)",
-                    borderRadius:12,padding:"12px 14px",marginBottom:8,
-                    cursor:item.link?"pointer":"default",position:"relative",overflow:"hidden"
-                  }}>
-                  <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:item.color||"#888"}}/>
-                  <div style={{paddingLeft:12}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
-                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:13,color:item.feedType==="calendar"?"#6fcf97":(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 BREAK"}</span>
-                        <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
-                        {!!item.country && <span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
-                        {item.feedType==="calendar" && <span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1, Math.min(3, Number(item.stars||1))))}</span>}
+              const bucketMeta = {
+                live:     {label:"⚡ LIVE NOW",  col:G},
+                upcoming: {label:"⏰ UPCOMING", col:A},
+                past:     {label:"📁 PAST",      col:"#444"},
+              };
+              let lastB = null;
+              return sectioned.map((item,i)=>{
+                const bChanged = item._b !== lastB;
+                lastB = item._b;
+                const bm = bucketMeta[item._b];
+                const isLive = item._b === "live";
+                const isUpcoming = item._b === "upcoming";
+                return (
+                  <React.Fragment key={i}>
+                    {bChanged && (
+                      <div style={{display:"flex",alignItems:"center",gap:8,margin:"12px 0 8px",opacity:0.85}}>
+                        <div style={{flex:1,height:1,background:bm.col+"44"}}/>
+                        <span style={{fontSize:10,color:bm.col,fontWeight:900,letterSpacing:2,fontFamily:"'Share Tech Mono',monospace"}}>{bm.label}</span>
+                        <div style={{flex:1,height:1,background:bm.col+"44"}}/>
                       </div>
-                      <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
+                    )}
+                    <div
+                      onClick={()=>{ if(item.link) window.open(item.link,"_blank","noopener,noreferrer"); }}
+                      style={{
+                        background: isLive ? `${G}0d` : isUpcoming ? `${A}07` : "rgba(255,255,255,0.02)",
+                        border: `1px solid ${isLive ? G+"44" : isUpcoming ? A+"33" : "rgba(255,255,255,0.07)"}`,
+                        borderRadius:12, padding:"12px 14px", marginBottom:8,
+                        cursor:item.link?"pointer":"default", position:"relative", overflow:"hidden",
+                        opacity: item._b==="past" ? 0.7 : 1,
+                      }}>
+                      <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:isLive?G:isUpcoming?A:(item.color||"#555")}}/>
+                      <div style={{paddingLeft:12}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
+                          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                            <span style={{fontSize:13,color:isLive?G:isUpcoming?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 BREAK"}</span>
+                            <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
+                            {!!item.country && <span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
+                            {item.feedType==="calendar" && <span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1, Math.min(3, Number(item.stars||1))))}</span>}
+                          </div>
+                          <span style={{fontSize:13,color:"#bbb",fontFamily:"'Share Tech Mono',monospace"}}>{fmtDate(item.pub)}</span>
+                        </div>
+                        <div style={{fontSize:13,fontWeight:700,color:isLive?G:isUpcoming?"#ffe":("#ddd"),lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
+                        {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
+                        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
+                          {item.feedType==="calendar" && <span style={{fontSize:12,color:isLive?G+"cc":isUpcoming?A+"cc":"#556",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {Number(item.stars||1)===3?90:Number(item.stars||1)===2?60:30}m EARLY · WINDOW +/-{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TP {Number(item.stars||1)===3?"261–300":Number(item.stars||1)===2?"161–200":"100–127"}</span>}
+                          {item.feedType!=="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>BURST 0–20m · 61.8–78.6</span>}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{fontSize:13,fontWeight:700,color:"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
-                    {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
-                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                      {item.feedType==="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {Number(item.stars||1)===3?90:Number(item.stars||1)===2?60:30}m EARLY · WINDOW +/-{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TP {Number(item.stars||1)===3?"261–300":Number(item.stars||1)===2?"161–200":"100–127"}</span>}
-                      {item.feedType!=="calendar" && <span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>BURST 0–20m · 61.8–78.6</span>}
-                    </div>
-                  </div>
-                </div>
-              ));
+                  </React.Fragment>
+                );
+              });
             })()}
           </>
         )}
