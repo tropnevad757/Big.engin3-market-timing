@@ -1977,18 +1977,20 @@ function App() {
     return nowMs >= (t - pre*60000) && nowMs <= (t + post*60000);
   }
 
-  function buildUnifiedNewsEvents(nowMs = Date.now()){
+  function buildUnifiedNewsEvents(){
     const toEvent = (raw, overrides={})=>{
       const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
       if(!title) return null;
       const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
-      const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
+      const inferredText = `${title} ${raw?.desc||raw?.note||raw?.btc||""} ${raw?.source||raw?.feedLabel||raw?.cat||""}`;
+      const inferredCountry = raw?.country || raw?.currency || overrides.country || inferCountryCode(inferredText) || "";
+      const inferredPolarity = classifyEcoArticle(inferredText, inferredCountry || "");
+      const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : inferredPolarity?.bearish ? -1 : inferredPolarity?.bullish ? 1 : 0));
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note };
+      return { title, source, stars, polarity, kind, pub, country: inferredCountry, note };
     };
 
     const scheduled = [
@@ -2005,7 +2007,7 @@ function App() {
     return dedupeFeedItems([...scheduled, ...breaking, ...manual])
       .filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
+        return t && !Number.isNaN(t);
       })
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
@@ -3046,10 +3048,11 @@ function App() {
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
     }).map(ev=>{
-      // Re-classify polarity on-the-fly using current keyword list
+      // Re-classify polarity on-the-fly using current keyword list.
+      // Include note/source/country so replay uses the same richer news scoring as the feed.
       if(Number(ev.polarity)!==0) return ev;
-      const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
-      const cls = classifyEcoArticle(text, "");
+      const text = `${ev.title||ev.l||""} ${ev.desc||ev.note||""} ${ev.source||""}`;
+      const cls = classifyEcoArticle(text, ev.country||ev.currency||"");
       const freshPol = cls.bearish ? -1 : cls.bullish ? 1 : 0;
       return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
     });
@@ -3062,11 +3065,14 @@ function App() {
       try{ localStorage.removeItem("engin3Replay30m_d"+rpDaysBack); }catch(e){}
       const candles = await rpFetchCandles(rpDaysBack);
 
-      // Filter news events to the same window as the candles
-      const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
+      // Filter news events to the actual candle window, not the current clock.
+      const replayWindowStart = candles.length ? Math.min(...candles.map(c=>Number(c.ts)||0)) : 0;
+      const replayWindowEnd   = candles.length ? Math.max(...candles.map(c=>Number(c.ts)||0)) : 0;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && t >= replayWindowStart;
+        if(!t || Number.isNaN(t)) return false;
+        // Keep events that fall near the replay window so their symmetric windows can still score.
+        return t >= (replayWindowStart - 24*60*60*1000) && t <= (replayWindowEnd + 24*60*60*1000);
       });
       // ── FULL SCHEDULE SLOT FILTER ─────────────────────────────────────────────
       // Replay now honors the full programmed schedule, including half-hour slots.
