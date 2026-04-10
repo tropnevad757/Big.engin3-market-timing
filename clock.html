@@ -1751,18 +1751,19 @@ function App() {
       urls:[
         "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Reuters+Markets+OR+Bloomberg+Markets+BTC+OR+stocks+OR+rates&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"reuters", label:"Reuters", color:"#ff6b35",
-      // Locked to reuters.com — last 24h — same as Feedly reuters/businessNews
       urls:[
         "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Reuters+Markets+OR+Reuters+business&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"bloomberg", label:"Bloomberg", color:"#f0a030",
-      // Locked to bloomberg.com markets — last 24h
       urls:[
         "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=Bloomberg+Markets+OR+Bloomberg+business&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
@@ -1839,7 +1840,7 @@ function App() {
 
   // ── Shared fetch helper — rss2json primary, allorigins fallback, corsproxy.io second fallback ──
   function fetchRSS(url) {
-    const TIMEOUT = 9000;
+    const TIMEOUT = 12000;
     function withTimeout(p) { return Promise.race([p, new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),TIMEOUT))]); }
 
     function parseXML(xml) {
@@ -1848,31 +1849,30 @@ function App() {
         return Array.from(doc.querySelectorAll("item,entry")).map(el=>{
           const g=t=>(el.querySelector(t)||{textContent:""}).textContent.trim();
           const lk=el.querySelector("link[href]");
-          return {title:g("title"),link:lk?lk.getAttribute("href"):g("link"),pubDate:g("pubDate")||g("published")||"",description:g("description")||g("summary")||""};
-        });
+          return {
+            title:g("title"),
+            link:lk?lk.getAttribute("href"):g("link"),
+            pubDate:g("pubDate")||g("published")||g("updated")||"",
+            description:g("description")||g("summary")||g("content")||""
+          };
+        }).filter(item=>item.title||item.description);
       } catch(e) { return []; }
     }
 
-    // Try rss2json first (most reliable for Google News RSS)
-    const api = "https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(url)+"&api_key=public&count=25";
-    return withTimeout(fetch(api,{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()))
-      .then(d=>{
-        if(d.status==="ok"&&d.items&&d.items.length) return d.items;
-        return Promise.reject();
-      })
-      .catch(()=>{
-        // Fallback 1: allorigins
-        const p1="https://api.allorigins.win/raw?url="+encodeURIComponent(url);
-        return withTimeout(fetch(p1,{cache:"no-cache"}).then(r=>r.ok?r.text():Promise.reject()))
-          .then(xml=>{ const items=parseXML(xml); if(items.length) return items; return Promise.reject(); })
-          .catch(()=>{
-            // Fallback 2: corsproxy.io
-            const p2="https://corsproxy.io/?"+encodeURIComponent(url);
-            return withTimeout(fetch(p2,{cache:"no-cache"}).then(r=>r.ok?r.text():Promise.reject()))
-              .then(xml=>parseXML(xml))
-              .catch(()=>[]);
-          });
-      });
+    const attempts = [
+      () => withTimeout(fetch("https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(url)+"&count=25",{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()))
+        .then(d=>d && d.items && d.items.length ? d.items : Promise.reject()),
+      () => withTimeout(fetch("https://api.allorigins.win/raw?url="+encodeURIComponent(url),{cache:"no-cache"}).then(r=>r.ok?r.text():Promise.reject()))
+        .then(xml=>{ const items=parseXML(xml); return items.length ? items : Promise.reject(); }),
+      () => withTimeout(fetch("https://api.allorigins.win/get?url="+encodeURIComponent(url),{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()))
+        .then(d=>{ const items=parseXML(d.contents||""); return items.length ? items : Promise.reject(); }),
+      () => withTimeout(fetch("https://corsproxy.io/?"+encodeURIComponent(url),{cache:"no-cache"}).then(r=>r.ok?r.text():Promise.reject()))
+        .then(xml=>{ const items=parseXML(xml); return items.length ? items : Promise.reject(); }),
+      () => withTimeout(fetch(url,{cache:"no-cache",mode:"cors"}).then(r=>r.ok?r.text():Promise.reject()))
+        .then(xml=>{ const items=parseXML(xml); return items.length ? items : Promise.reject(); })
+    ];
+
+    return attempts.reduce((p,attempt)=>p.catch(attempt), Promise.reject()).catch(()=>[]);
   }
 
   function cleanReplayText(s){
@@ -2141,10 +2141,10 @@ function App() {
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
       arts=dedupeFeedItems(arts);
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
-      setNewsArticles(arts.slice(0,30));
-      setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
+      setNewsArticles(arts.slice(0,40));
+      setNewsError(arts.length?"":"No recent articles found from the live RSS sources. Tap refresh to retry.");
     })
-    .catch(()=>setNewsError("Feed unavailable. Try another source."))
+    .catch((err)=>setNewsError("Feed unavailable right now. RSS/proxy request failed."))
     .finally(()=>{ setNewsLoading(false); fetchNewsRef.current=false; });
   },[]);
 
