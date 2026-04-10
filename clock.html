@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>BiG ENGiN3 · Zone Clock Pro · No-News Only Flip</title>
+<title>BiG ENGiN3 · Zone Clock Pro</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -1072,47 +1072,46 @@ function App() {
   }
 
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
-  // TEST BUILD: no-news schedule fully flipped. News polarity map unchanged.
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
     // No-news scheduled programming — exact repeating AM + PM
-    [   0,  "sell",  "Down"  ],  // 12:00 AM
-    [  30,  "buy", "Up"],  // 12:30 AM
-    [  60,  "sell",  "Down"  ],  // 1:00 AM
-    [  90,  "buy", "Up"],  // 1:30 AM
-    [ 120,  "sell",  "Down"  ],  // 2:00 AM
-    [ 180,  "buy", "Up"],  // 3:00 AM
-    [ 240,  "sell",  "Down"  ],  // 4:00 AM
-    [ 270,  "buy", "Up"],  // 4:30 AM
-    [ 300,  "sell",  "Down"  ],  // 5:00 AM
-    [ 360,  "buy", "Up"],  // 6:00 AM
-    [ 390,  "sell",  "Down"  ],  // 6:30 AM
-    [ 420,  "buy", "Up"],  // 7:00 AM
-    [ 450,  "sell",  "Down"  ],  // 7:30 AM
-    [ 480,  "buy", "Up"],  // 8:00 AM
-    [ 540,  "sell",  "Down"  ],  // 9:00 AM
-    [ 600,  "buy", "Up"],  // 10:00 AM
-    [ 630,  "sell",  "Down"  ],  // 10:30 AM
-    [ 660,  "buy", "Up"],  // 11:00 AM
-    [ 720,  "sell",  "Down"  ],  // 12:00 PM
-    [ 750,  "buy", "Up"],  // 12:30 PM
-    [ 780,  "sell",  "Down"  ],  // 1:00 PM
-    [ 810,  "buy", "Up"],  // 1:30 PM
-    [ 840,  "sell",  "Down"  ],  // 2:00 PM
-    [ 900,  "buy", "Up"],  // 3:00 PM
-    [ 960,  "sell",  "Down"  ],  // 4:00 PM
-    [ 990,  "buy", "Up"],  // 4:30 PM
-    [1020,  "sell",  "Down"  ],  // 5:00 PM
-    [1080,  "buy", "Up"],  // 6:00 PM
-    [1110,  "sell",  "Down"  ],  // 6:30 PM
-    [1140,  "buy", "Up"],  // 7:00 PM
-    [1170,  "sell",  "Down"  ],  // 7:30 PM
-    [1200,  "buy", "Up"],  // 8:00 PM
-    [1260,  "sell",  "Down"  ],  // 9:00 PM
-    [1320,  "buy", "Up"],  // 10:00 PM
-    [1350,  "sell",  "Down"  ],  // 10:30 PM
-    [1380,  "buy", "Up"],  // 11:00 PM
-    [1440,  "sell",  "Down"  ],  // sentinel
+    [   0,  "buy",  "Up"  ],  // 12:00 AM
+    [  30,  "sell", "Down"],  // 12:30 AM
+    [  60,  "buy",  "Up"  ],  // 1:00 AM
+    [  90,  "sell", "Down"],  // 1:30 AM
+    [ 120,  "buy",  "Up"  ],  // 2:00 AM
+    [ 180,  "sell", "Down"],  // 3:00 AM
+    [ 240,  "buy",  "Up"  ],  // 4:00 AM
+    [ 270,  "sell", "Down"],  // 4:30 AM
+    [ 300,  "buy",  "Up"  ],  // 5:00 AM
+    [ 360,  "sell", "Down"],  // 6:00 AM
+    [ 390,  "buy",  "Up"  ],  // 6:30 AM
+    [ 420,  "sell", "Down"],  // 7:00 AM
+    [ 450,  "buy",  "Up"  ],  // 7:30 AM
+    [ 480,  "sell", "Down"],  // 8:00 AM
+    [ 540,  "buy",  "Up"  ],  // 9:00 AM
+    [ 600,  "sell", "Down"],  // 10:00 AM
+    [ 630,  "buy",  "Up"  ],  // 10:30 AM
+    [ 660,  "sell", "Down"],  // 11:00 AM
+    [ 720,  "buy",  "Up"  ],  // 12:00 PM
+    [ 750,  "sell", "Down"],  // 12:30 PM
+    [ 780,  "buy",  "Up"  ],  // 1:00 PM
+    [ 810,  "sell", "Down"],  // 1:30 PM
+    [ 840,  "buy",  "Up"  ],  // 2:00 PM
+    [ 900,  "sell", "Down"],  // 3:00 PM
+    [ 960,  "buy",  "Up"  ],  // 4:00 PM
+    [ 990,  "sell", "Down"],  // 4:30 PM
+    [1020,  "buy",  "Up"  ],  // 5:00 PM
+    [1080,  "sell", "Down"],  // 6:00 PM
+    [1110,  "buy",  "Up"  ],  // 6:30 PM
+    [1140,  "sell", "Down"],  // 7:00 PM
+    [1170,  "buy",  "Up"  ],  // 7:30 PM
+    [1200,  "sell", "Down"],  // 8:00 PM
+    [1260,  "buy",  "Up"  ],  // 9:00 PM
+    [1320,  "sell", "Down"],  // 10:00 PM
+    [1350,  "buy",  "Up"  ],  // 10:30 PM
+    [1380,  "sell", "Down"],  // 11:00 PM
+    [1440,  "buy",  "Up"  ],  // sentinel
   ];
 
   const NEWS_SLOT_STEPS = [
