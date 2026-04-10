@@ -1547,11 +1547,11 @@ function App() {
       const isBreaking = replayEventType(ev) === "breaking";
       const isSpeech = replayEventType(ev) === "speech";
       const isAfter = minsUntil < 0;
-      const active = isBreaking || isSpeech
+      const active = isBreaking
         ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
-        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
+        : (minsUntil >= (-1 * win.pre) && minsUntil <= win.post);
       if(!active) return null;
-      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
+      const windowSize = isBreaking ? win.post : Math.max(win.pre, win.post);
       const absMins = Math.abs(minsUntil);
       const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
       const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
@@ -1661,11 +1661,11 @@ function App() {
   const connectorMode      = getConnectorMode(et.h24, et.m);
   // Step logic removed from live signal path.
 
-  // ── LIVE PARITY LOGIC ──
-  // No news: even hour BUY, odd hour SELL
-  // With news: even hour +, odd hour -
-  const parityBaseDirection = (et.h24 % 2 === 0) ? "buy" : "sell";
-  const liveSlotPolarity = (et.h24 % 2 === 0) ? "positive" : "negative";
+  // ── LIVE BiGENGiN3 TIME LOGIC ──
+  // No news = programmed no-news schedule
+  // With news = programmed news polarity schedule
+  const parityBaseDirection = getInternalStep(et.h24, et.m).direction;
+  const liveSlotPolarity = getNewsSlotPolarity(et.h24, et.m).polarity;
   const polarityState = buildPolarityState(parityBaseDirection, liveSlotPolarity);
   const _newsPol = (()=>{
     if(!newsReaction.active||!newsReaction.activeEvent) return null;
@@ -1675,7 +1675,7 @@ function App() {
       // polarity=0 means no keyword match — treat as neutral (don't bias the signal)
       const evPol = Number(newsReaction.activeEvent.polarity||0);
       if(evPol === 0) return null; // no classification = neutral, hold base direction
-      const slotIsPositive = et.h24 % 2 === 0;
+      const slotIsPositive = liveSlotPolarity === "positive";
       const evIsPositive = evPol > 0;
       return (slotIsPositive === evIsPositive) ? "positive" : "negative";
     }
@@ -1963,8 +1963,10 @@ function App() {
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
+    // THE BiGENGiN3 OF TIME spec:
+    // breaking news = 0-20m burst after print
+    // scheduled calendar / speech events = symmetric windows by stars
     if(type === "breaking") return {pre:0, post:20};
-    if(type === "speech") return {pre:0, post:45};
     if(stars === 1) return {pre:20, post:20};
     if(stars === 2) return {pre:50, post:50};
     return {pre:80, post:80};
@@ -2054,7 +2056,7 @@ function App() {
         newsSign: "0",
         slotSign,
         sellRestriction: false,
-        reason: "no news - even hours buy, odd hours sell",
+        reason: "no news - programmed BiGENGiN3 schedule active",
         equation: equationPlain,
         equationPlain,
         baseDirection,
@@ -2998,8 +3000,9 @@ function App() {
     const connectorMode = getConnectorMode(h24, m);
     const regime = connectorMode === "mirror" ? "CORE" : "RESET";
     const hasNews = (activeEvents||[]).length > 0;
-    const baseDir = (h24 % 2 === 0) ? "buy" : "sell";
-    const slotPol = (h24 % 2 === 0) ? "positive" : "negative";
+    const baseDir = getInternalStep(h24, m).direction;
+    const slotInfo = getNewsSlotPolarity(h24, m);
+    const slotPol = slotInfo.polarity;
     const pState = buildPolarityState(baseDir, slotPol);
     const applied = computeReplayPolarity(pState.baseDirection, slotPol, activeEvents);
     const finalDir = applied.finalDirection;
@@ -3027,6 +3030,7 @@ function App() {
       equation: applied.equationPlain,
       equationPlain: applied.equationPlain,
       newsCount: (activeEvents||[]).length,
+      hasNews,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
   }
@@ -3037,9 +3041,9 @@ function App() {
   // Star rating determines window size — NOT target size
   // Breaking news → 61.8 fib → 0.185% (shorter burst target)
   // 1-star 20m window → 0.3%
-  // 2-star 50m window → 0.3%
-  // 3-star 80m window → 0.3%
-  // No news → hold to next step change → 0.3%
+  // 2-star 50m window → 0.185%
+  // 3-star 80m window → 0.185%
+  // No news → use programmed schedule and score the selected TP mode
   function getSignalWindow(activeEvents){
     if(!activeEvents || !activeEvents.length){
       return { type:"none", stars:0, windowMins:60, tp:0.00185, tpLabel:"EXIT (61.8)", tpPct:"0.185%", exitRule:"next parity change", statsTargets:[0.3,0.6,0.9,1.2] };
