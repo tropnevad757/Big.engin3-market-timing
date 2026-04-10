@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>BiG ENGiN3 · Zone Clock Pro</title>
+<title>BiG ENGiN3 · Zone Clock Pro · ALT 6:30–12:30 Flip</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -1072,6 +1072,7 @@ function App() {
   }
 
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
+  // ALT TEST BUILD: 6:30 through 12:30 block flipped for both AM and PM in no-news and news slot maps.
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
     // No-news scheduled programming — exact repeating AM + PM
@@ -1085,16 +1086,16 @@ function App() {
     [ 270,  "sell", "Down"],  // 4:30 AM
     [ 300,  "buy",  "Up"  ],  // 5:00 AM
     [ 360,  "sell", "Down"],  // 6:00 AM
-    [ 390,  "buy",  "Up"  ],  // 6:30 AM
-    [ 420,  "sell", "Down"],  // 7:00 AM
-    [ 450,  "buy",  "Up"  ],  // 7:30 AM
-    [ 480,  "sell", "Down"],  // 8:00 AM
-    [ 540,  "buy",  "Up"  ],  // 9:00 AM
-    [ 600,  "sell", "Down"],  // 10:00 AM
-    [ 630,  "buy",  "Up"  ],  // 10:30 AM
-    [ 660,  "sell", "Down"],  // 11:00 AM
-    [ 720,  "buy",  "Up"  ],  // 12:00 PM
-    [ 750,  "sell", "Down"],  // 12:30 PM
+    [ 390,  "sell", "Down"],  // 6:30 AM  [ALT flipped block]
+    [ 420,  "buy",  "Up"  ],  // 7:00 AM  [ALT flipped block]
+    [ 450,  "sell", "Down"],  // 7:30 AM  [ALT flipped block]
+    [ 480,  "buy",  "Up"  ],  // 8:00 AM  [ALT flipped block]
+    [ 540,  "sell", "Down"],  // 9:00 AM  [ALT flipped block]
+    [ 600,  "buy",  "Up"  ],  // 10:00 AM  [ALT flipped block]
+    [ 630,  "sell", "Down"],  // 10:30 AM  [ALT flipped block]
+    [ 660,  "buy",  "Up"  ],  // 11:00 AM  [ALT flipped block]
+    [ 720,  "sell", "Down"],  // 12:00 PM  [ALT flipped block]
+    [ 750,  "buy",  "Up"  ],  // 12:30 PM  [ALT flipped block]
     [ 780,  "buy",  "Up"  ],  // 1:00 PM
     [ 810,  "sell", "Down"],  // 1:30 PM
     [ 840,  "buy",  "Up"  ],  // 2:00 PM
@@ -1103,14 +1104,14 @@ function App() {
     [ 990,  "sell", "Down"],  // 4:30 PM
     [1020,  "buy",  "Up"  ],  // 5:00 PM
     [1080,  "sell", "Down"],  // 6:00 PM
-    [1110,  "buy",  "Up"  ],  // 6:30 PM
-    [1140,  "sell", "Down"],  // 7:00 PM
-    [1170,  "buy",  "Up"  ],  // 7:30 PM
-    [1200,  "sell", "Down"],  // 8:00 PM
-    [1260,  "buy",  "Up"  ],  // 9:00 PM
-    [1320,  "sell", "Down"],  // 10:00 PM
-    [1350,  "buy",  "Up"  ],  // 10:30 PM
-    [1380,  "sell", "Down"],  // 11:00 PM
+    [1110,  "sell", "Down"],  // 6:30 PM  [ALT flipped block]
+    [1140,  "buy",  "Up"  ],  // 7:00 PM  [ALT flipped block]
+    [1170,  "sell", "Down"],  // 7:30 PM  [ALT flipped block]
+    [1200,  "buy",  "Up"  ],  // 8:00 PM  [ALT flipped block]
+    [1260,  "sell", "Down"],  // 9:00 PM  [ALT flipped block]
+    [1320,  "buy",  "Up"  ],  // 10:00 PM  [ALT flipped block]
+    [1350,  "sell", "Down"],  // 10:30 PM  [ALT flipped block]
+    [1380,  "buy",  "Up"  ],  // 11:00 PM  [ALT flipped block]
     [1440,  "buy",  "Up"  ],  // sentinel
   ];
 
@@ -1126,16 +1127,16 @@ function App() {
     [ 270,  "positive", "+" ], // 4:30 AM
     [ 300,  "negative", "-" ], // 5:00 AM
     [ 360,  "positive", "+" ], // 6:00 AM
-    [ 390,  "positive", "+" ], // 6:30 AM
-    [ 420,  "negative", "-" ], // 7:00 AM
-    [ 450,  "negative", "-" ], // 7:30 AM
-    [ 480,  "positive", "+" ], // 8:00 AM
-    [ 540,  "negative", "-" ], // 9:00 AM
-    [ 600,  "positive", "+" ], // 10:00 AM
-    [ 630,  "positive", "+" ], // 10:30 AM
-    [ 660,  "negative", "-" ], // 11:00 AM
-    [ 720,  "positive", "+" ], // 12:00 PM
-    [ 750,  "positive", "+" ], // 12:30 PM
+    [ 390,  "negative", "-" ], // 6:30 AM [ALT flipped block]
+    [ 420,  "positive", "+" ], // 7:00 AM [ALT flipped block]
+    [ 450,  "positive", "+" ], // 7:30 AM [ALT flipped block]
+    [ 480,  "negative", "-" ], // 8:00 AM [ALT flipped block]
+    [ 540,  "positive", "+" ], // 9:00 AM [ALT flipped block]
+    [ 600,  "negative", "-" ], // 10:00 AM [ALT flipped block]
+    [ 630,  "negative", "-" ], // 10:30 AM [ALT flipped block]
+    [ 660,  "positive", "+" ], // 11:00 AM [ALT flipped block]
+    [ 720,  "negative", "-" ], // 12:00 PM [ALT flipped block]
+    [ 750,  "negative", "-" ], // 12:30 PM [ALT flipped block]
     [ 780,  "negative", "-" ], // 1:00 PM
     [ 810,  "negative", "-" ], // 1:30 PM
     [ 840,  "positive", "+" ], // 2:00 PM
@@ -1144,14 +1145,14 @@ function App() {
     [ 990,  "positive", "+" ], // 4:30 PM
     [1020,  "negative", "-" ], // 5:00 PM
     [1080,  "positive", "+" ], // 6:00 PM
-    [1110,  "positive", "+" ], // 6:30 PM
-    [1140,  "negative", "-" ], // 7:00 PM
-    [1170,  "negative", "-" ], // 7:30 PM
-    [1200,  "positive", "+" ], // 8:00 PM
-    [1260,  "negative", "-" ], // 9:00 PM
-    [1320,  "positive", "+" ], // 10:00 PM
-    [1350,  "positive", "+" ], // 10:30 PM
-    [1380,  "negative", "-" ], // 11:00 PM
+    [1110,  "negative", "-" ], // 6:30 PM [ALT flipped block]
+    [1140,  "positive", "+" ], // 7:00 PM [ALT flipped block]
+    [1170,  "positive", "+" ], // 7:30 PM [ALT flipped block]
+    [1200,  "negative", "-" ], // 8:00 PM [ALT flipped block]
+    [1260,  "positive", "+" ], // 9:00 PM [ALT flipped block]
+    [1320,  "negative", "-" ], // 10:00 PM [ALT flipped block]
+    [1350,  "negative", "-" ], // 10:30 PM [ALT flipped block]
+    [1380,  "positive", "+" ], // 11:00 PM [ALT flipped block]
     [1440,  "positive", "+" ], // sentinel
   ];
 
