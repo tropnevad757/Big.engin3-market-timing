@@ -713,7 +713,7 @@ function App() {
   const [rpEnded,   setRpEnded]   = useState(false);
   const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
   const [rpTpMode, setRpTpMode] = useState("100"); // "100" = 0.3%, "61.8" = 0.185%
-  const [rpNewsFilter, setRpNewsFilter] = useState(false); // only take trades when news confirms step
+  const [rpNewsFilter, setRpNewsFilter] = useState(true); // NEWS ONLY replay mode
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const [showNewsDebug, setShowNewsDebug] = useState(false);
   const rpTimerRef = useRef(null);
@@ -3208,18 +3208,9 @@ function App() {
         const nextC = getNextCandle(c.ts);
         const score = rpScore2(replay.signal, c, nextC, sigWindow);
 
-        // News-confirms-step filter:
-        // When enabled, skip setups where news polarity conflicts with step direction
-        // Only take trades where news AGREES with the step — reduces setups, raises quality
-        if(rpNewsFilter && hasNews){
-          const directedEvs = activeEvents.filter(ev=>Number(ev.polarity)!==0);
-          if(directedEvs.length > 0){
-            const newsIsBullish = directedEvs.filter(ev=>Number(ev.polarity)>0).length >
-                                  directedEvs.filter(ev=>Number(ev.polarity)<0).length;
-            const stepIsBuy = replay.baseDirection === "buy";
-            if(newsIsBullish !== stepIsBuy) continue; // skip conflict
-          }
-        }
+        // NEWS ONLY mode:
+        // skip every no-news setup and only keep slots with active news windows
+        if(rpNewsFilter && !hasNews) continue;
 
         const quality = isExec && hasNews  ? "EXEC+NEWS"
           : isExec && !hasNews             ? "EXEC"
@@ -3337,7 +3328,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, step-direction fallback, stack-flip logic, and advance event windows.
+          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, step-direction fallback, stack-flip logic, advance event windows, and NEWS ONLY replay mode.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3374,7 +3365,7 @@ function App() {
               background:rpNewsFilter?`rgba(136,170,255,0.15)`:"rgba(255,255,255,0.03)",
               border:`1px solid ${rpNewsFilter?"#88aaff":"rgba(255,255,255,0.08)"}`,
               color:rpNewsFilter?"#88aaff":"#555",...mono}}>
-            NEWS↑↓ ONLY
+            NEWS ONLY
           </button>
           <button onClick={()=>setShowNewsDebug(v=>!v)}
             style={{padding:"7px 10px",borderRadius:8,fontSize:10,fontWeight:900,cursor:"pointer",background:showNewsDebug?"rgba(136,170,255,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${showNewsDebug?"#88aaff":"rgba(255,255,255,0.08)"}`,color:showNewsDebug?"#88aaff":"#555",...mono}}>
