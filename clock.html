@@ -715,6 +715,7 @@ function App() {
   const [rpTpMode, setRpTpMode] = useState("100"); // "100" = 0.3%, "61.8" = 0.185%
   const [rpNewsFilter, setRpNewsFilter] = useState(false); // only take trades when news confirms step
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
+  const [showNewsDebug, setShowNewsDebug] = useState(false);
   const rpTimerRef = useRef(null);
 
   useEffect(()=>{
@@ -1666,31 +1667,33 @@ function App() {
   const _stepDir = internalStep.direction;
   const liveSlotPolarity = newsReaction.active
     ? ((et.h24 % 2 === 0) ? "positive" : "negative")
-    : (connectorMode === "aligned" ? "positive" : "negative");
+    : (_stepDir === "buy" ? "positive" : "negative");
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
-  const _newsPol = (()=>{
-    if(!newsReaction.active||!newsReaction.activeEvent) return null;
-    if(newsReaction.conflict) return "negative";
-    if(newsReaction.activeEvent.isBreaking){
-      // Breaking news: only apply directional push if polarity was classified from keywords
-      // polarity=0 means no keyword match — treat as neutral (don't bias the signal)
-      const evPol = Number(newsReaction.activeEvent.polarity||0);
-      if(evPol === 0) return null; // no classification = neutral, hold base direction
-      const slotIsPositive = et.h24 % 2 === 0;
-      const evIsPositive = evPol > 0;
-      return (slotIsPositive === evIsPositive) ? "positive" : "negative";
-    }
-    if(newsReaction.activeEvent.isAfter) return newsReaction.conflict?"negative":"positive";
-    // Scheduled event pre-window: use event polarity vs slot
-    const evPol = Number(newsReaction.activeEvent.polarity||0);
-    if(evPol === 0) return null;
-    const slotIsPositive = et.h24 % 2 === 0;
-    const evIsPositive = evPol > 0;
-    return (slotIsPositive === evIsPositive) ? "positive" : "negative";
-  })();
-  const timeMathResult   = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "time")   : null;
-  const windowMathResult = _newsPol ? applyNewsToSlot(polarityState, _newsPol, "window") : null;
-  const polarityDirection = timeMathResult ? timeMathResult.finalDirection : polarityState.baseDirection;
+  const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || []);
+  const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
+  const polarityDirection = livePolarityApplied.finalDirection;
+  const liveNewsDebug = {
+    activeCount: (newsReaction.nearEvents||[]).length,
+    activeEvents: (newsReaction.nearEvents||[]).map(ev=>({
+      title: ev.title||"",
+      type: replayEventType(ev),
+      sign: Number(ev.polarity)>0?"+":Number(ev.polarity)<0?"-":"0",
+      qualifiesForStack: Number(ev.polarity)!==0,
+      windowMinutes: eventWindowMinutes(ev),
+      pub: ev.pub||"",
+      country: ev.country||""
+    })),
+    directedCount: directedLiveEvents.length,
+    activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
+    stackingActive: directedLiveEvents.length >= 2,
+    stackRule: "-/- = +, +/+ = -, -/+ = -",
+    finalResolvedSign: livePolarityApplied.newsSign || "0",
+    finalSlotSign: livePolarityApplied.slotSign || (liveSlotPolarity === "positive" ? "+" : "-"),
+    flippedByStacking: !!livePolarityApplied.chargeFlip,
+    dominantSource: livePolarityApplied.dominantSource || "step schedule",
+    reason: livePolarityApplied.reason || "",
+    finalDirection: livePolarityApplied.finalDirection
+  };
 
   const appChecks = [
     // 1. DXY — confirms charge direction (not major regime)
@@ -1713,13 +1716,11 @@ function App() {
       label: "NEWS",
       passes: (()=>{
         if(!newsReaction.active) return null;
-        if(newsReaction.conflict) return false;
-        if(newsReaction.activeEvent?.isBreaking) return true;
-        if(newsReaction.activeEvent?.isAfter && !newsReaction.conflict) return true;
-        return null;
+        if(livePolarityApplied.newsSign === "0") return null;
+        return true;
       })(),
-      value: newsReaction.active && newsReaction.activeEvent
-        ? `${newsReaction.conflict?"CONFLICT":newsReaction.activeEvent.isBreaking?"BREAK":newsReaction.activeEvent.isAfter?"POST":"PRE"} ${"★".repeat(newsReaction.activeEvent.stars||0)||""}`
+      value: newsReaction.active
+        ? `STACK ${liveNewsDebug.directedCount} · NEWS ${liveNewsDebug.finalResolvedSign}`
         : "Clear",
     },
     // 3. Day quality — shows only when today is best or worst day
@@ -1762,36 +1763,7 @@ function App() {
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
-    // Apply cluster double-sign math to live signal (spec section 9)
-    // Uses same stackCharges logic as replay path
-    let dir = polarityDirection;
-    const liveActiveEvents = newsReaction.nearEvents || [];
-    const directedLive = liveActiveEvents.filter(ev=>Number(ev.polarity)!==0);
-    const liveSlotCharge = et.h24 % 2 === 0 ? 1 : -1;
-
-    // News cluster reinforcement: +/+ = + (stronger buy), -/- = - (stronger sell), conflict = defensive sell
-    // This applies to news sentiment — different from currency charge flip math (kept for regime engine only)
-    if(directedLive.length >= 2){
-      const charges = directedLive.map(ev=>Number(ev.polarity)>0 ? 1 : -1);
-      const posCount = charges.filter(c=>c===1).length;
-      const negCount = charges.filter(c=>c===-1).length;
-      // Majority wins — reinforcement, not flip
-      const reinforced = negCount===0 ? 1 : posCount===0 ? -1 : -1; // conflict = defensive
-      const reinforcedDir = reinforced === liveSlotCharge ? "buy" : "sell";
-      if(reinforcedDir !== dir) dir = reinforcedDir;
-    }
-
-    // USD anchor: 2+ rate events — reinforce their actual polarity, not a blind flip
-    const usdRateLive = liveActiveEvents.filter(ev=>{
-      const t = String(ev && (ev.title||ev.l)||"").toLowerCase();
-      return /fomc|rate decision|federal reserve|powell|rate hike|rate cut|interest rate|nfp|non-farm|payroll|cpi|inflation|gdp|pce/.test(t);
-    });
-    if(usdRateLive.length >= 2){
-      const ratePol = usdRateLive.filter(ev=>Number(ev.polarity)!==-1).length > usdRateLive.filter(ev=>Number(ev.polarity)===-1).length ? 1 : -1;
-      const rateDir = ratePol === liveSlotCharge ? "buy" : "sell";
-      dir = rateDir;
-    }
-
+    const dir = livePolarityApplied.finalDirection === "buy" ? "buy" : "sell";
     return dir === "buy"
       ? { label:"BUY",  col:G }
       : { label:"SELL", col:R };
@@ -1824,20 +1796,20 @@ function App() {
   const NEWS_FEEDS = [
     { id:"combo", label:"R + B", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:30d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:30d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"reuters", label:"Reuters", color:"#ff6b35",
       // Locked to reuters.com — last 24h — same as Feedly reuters/businessNews
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:30d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"bloomberg", label:"Bloomberg", color:"#f0a030",
       // Locked to bloomberg.com markets — last 24h
       urls:[
-        "https://news.google.com/rss/search?q=when:1d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:30d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
@@ -1854,12 +1826,12 @@ function App() {
       url:"https://www.myfxbook.com/rss/forex-economic-calendar-events" },
     // Trading Economics Google News (their own content indexed by Google)
     { label:"Trading Economics",  color:"#f0a030",  type:"rss",
-      url:"https://news.google.com/rss/search?q=%22trading+economics%22+OR+%22economic+calendar%22+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22&hl=en-US&gl=US&ceid=US:en" },
+      url:"https://news.google.com/rss/search?q=when:30d+(%22trading+economics%22+OR+%22economic+calendar%22+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22)&hl=en-US&gl=US&ceid=US:en" },
     // Reuters + Bloomberg economic news for breaking events not on static calendar
     { label:"Reuters Econ",       color:"#ff6b35",  type:"rss",
-      url:"https://news.google.com/rss/search?q=Reuters+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22&hl=en-US&gl=US&ceid=US:en" },
+      url:"https://news.google.com/rss/search?q=when:30d+(Reuters+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22)&hl=en-US&gl=US&ceid=US:en" },
     { label:"Bloomberg Econ",     color:"#f0a030",  type:"rss",
-      url:"https://news.google.com/rss/search?q=Bloomberg+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22rates%22&hl=en-US&gl=US&ceid=US:en" },
+      url:"https://news.google.com/rss/search?q=when:30d+(Bloomberg+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22rates%22)&hl=en-US&gl=US&ceid=US:en" },
   ];
 
   // ECO_KEYWORDS for feed classification
@@ -2134,6 +2106,11 @@ function App() {
     };
   }
 
+
+
+  function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents){
+    return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
+  }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
   }
@@ -2217,8 +2194,8 @@ function App() {
     ecoLoadedRef.current=true;
     setEcoLoading(true);
     const ECO_URLS = [
-      {url:"https://news.google.com/rss/search?q=CPI+OR+NFP+OR+FOMC+OR+GDP+OR+PCE+OR+PMI+OR+%22jobless+claims%22+OR+%22interest+rate%22+OR+%22non-farm+payrolls%22&hl=en-US&gl=US&ceid=US:en", label:"Google Econ", color:"#00aaff"},
-      {url:"https://news.google.com/rss/search?q=Federal+Reserve+OR+Powell+OR+%22rate+decision%22+OR+%22rate+hike%22+OR+%22rate+cut%22&hl=en-US&gl=US&ceid=US:en", label:"Google Fed", color:"#aa88ff"},
+      {url:"https://news.google.com/rss/search?q=when:30d+(CPI+OR+NFP+OR+FOMC+OR+GDP+OR+PCE+OR+PMI+OR+%22jobless+claims%22+OR+%22interest+rate%22+OR+%22non-farm+payrolls%22)&hl=en-US&gl=US&ceid=US:en", label:"Google Econ", color:"#00aaff"},
+      {url:"https://news.google.com/rss/search?q=when:30d+(Federal+Reserve+OR+Powell+OR+%22rate+decision%22+OR+%22rate+hike%22+OR+%22rate+cut%22)&hl=en-US&gl=US&ceid=US:en", label:"Google Fed", color:"#aa88ff"},
     ];
     Promise.all(ECO_URLS.map(f=>
       fetchRSS(f.url).then(items=>items.map(item=>{
@@ -2243,6 +2220,7 @@ function App() {
     setCalLoading(true);
     const todayStr     = new Date().toISOString().slice(0,10);
     const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const historyStr   = new Date(Date.now()-30*86400000).toISOString().slice(0,10);
 
     // Impact map for ForexFactory: Low/Medium/High → 1/2/3 stars
     function ffStars(impact){
@@ -2263,7 +2241,7 @@ function App() {
       ]).then(data=>{
         if(!Array.isArray(data)) return [];
         return data
-          .filter(ev=>ev.date&&ev.date.slice(0,10)>=yesterdayStr)
+          .filter(ev=>ev.date&&ev.date.slice(0,10)>=historyStr)
           .map(ev=>({
             title: (ev.title||ev.name||"").trim(),
             pub: ev.date,
@@ -2303,7 +2281,7 @@ function App() {
               kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
               polarity:Number(norm?.polarity ?? (norm?.bearish ? -1 : norm?.bullish ? 1 : 0)),
             };
-          }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=yesterdayStr||!a.date))
+          }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=historyStr||!a.date))
         ).catch(()=>[])
       )).then(groups=>groups.flat());
     }
@@ -2464,6 +2442,16 @@ function App() {
           </div>
         );
       })()}
+
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+        <button onClick={()=>setShowNewsDebug(v=>!v)} style={{padding:"6px 10px",borderRadius:8,background:showNewsDebug?"rgba(136,170,255,0.18)":"rgba(255,255,255,0.03)",border:`1px solid ${showNewsDebug?"#88aaff":"rgba(255,255,255,0.08)"}`,color:showNewsDebug?"#88aaff":"#777",fontSize:10,fontWeight:900,cursor:"pointer",...mono}}>
+          {showNewsDebug?"HIDE":"SHOW"} LIVE DEBUG
+        </button>
+      </div>
+      {showNewsDebug&&(<div style={{marginBottom:10,borderRadius:10,border:"1px solid rgba(136,170,255,0.25)",background:"rgba(136,170,255,0.06)",padding:"10px 12px"}}>
+        <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:6,...mono}}>LIVE STACK DEBUG</div>
+        <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify(liveNewsDebug,null,2)}</pre>
+      </div>)}
 
       {/* BIAS — DXY · NEWS · DAY — secondary, below signal */}
       <div style={{display:"flex",gap:6,marginBottom:10}}>
@@ -2973,7 +2961,7 @@ function App() {
     const hasNews = (activeEvents||[]).length > 0;
     const slotPol = hasNews ? newsSlot.polarity : (step.direction === "buy" ? "positive" : "negative");
     const pState = buildPolarityState(step.direction, slotPol);
-    const applied = computeReplayPolarity(pState.baseDirection, slotPol, activeEvents);
+    const applied = resolveStackedNewsSign(pState.baseDirection, slotPol, activeEvents);
     const finalDir = applied.finalDirection;
     const signal = finalDir === "buy" ? "BUY" : "SELL";
     return {
@@ -3346,6 +3334,10 @@ function App() {
               color:rpNewsFilter?"#88aaff":"#555",...mono}}>
             NEWS↑↓ ONLY
           </button>
+          <button onClick={()=>setShowNewsDebug(v=>!v)}
+            style={{padding:"7px 10px",borderRadius:8,fontSize:10,fontWeight:900,cursor:"pointer",background:showNewsDebug?"rgba(136,170,255,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${showNewsDebug?"#88aaff":"rgba(255,255,255,0.08)"}`,color:showNewsDebug?"#88aaff":"#555",...mono}}>
+            {showNewsDebug?"HIDE":"SHOW"} DEBUG
+          </button>
         </div>
 
         <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -3567,6 +3559,22 @@ function App() {
                 ) : (
                   <div style={{fontSize:11,color:"#444",...mono,marginBottom:8}}>NO NEWS — step-direction schedule</div>
                 )}
+
+                {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                  <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({
+                    activeCount: current.activeCount||0,
+                    activeEvents: (current.activeEvents||[]).map(ev=>({title:ev.title||'', type:replayEventType(ev), sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0', qualifiesForStack:Number(ev.polarity)!==0, pub:ev.pub||'', country:ev.country||''})),
+                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,
+                    stackRule: '-/- = +, +/+ = -, -/+ = -',
+                    finalResolvedSign: current.newsSign||'0',
+                    finalSlotSign: current.slotSign||'',
+                    flippedByStacking: !!current.chargeFlip,
+                    dominantSource: current.dominantSource||'step schedule',
+                    reason: current.reason||'',
+                    finalDirection: current.signal
+                  }, null, 2)}</pre>
+                </div>)}
 
                 {/* Price data */}
                 <div style={{fontSize:12,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:10}}>
@@ -3987,7 +3995,17 @@ const BacktestTab = ()=>{
                 if(nowMs-t<=winMs) return "live";
                 return "past";
               };
-              const allMerged = dedupeFeedItems([...calendarTimeline,...breakingTimeline]);
+              const manualTimeline = (replayEvents||[]).map(item=>({
+                ...item,
+                isUnified:true,
+                pub:item.pub||"",
+                country:item.country || inferCountryCode(`${item.title||""} ${item.note||item.desc||""}`, item.country||""),
+                feedType:item.kind==="breaking"?"breaking":"calendar",
+                desc:item.note||item.desc||"",
+                source:item.source||"Manual Replay",
+                color:item.kind==="breaking"?"#ff6b35":"#00aaff"
+              }));
+              const allMerged = dedupeFeedItems([...calendarTimeline,...breakingTimeline,...manualTimeline]);
               const liveBucket     = allMerged.filter(i=>classify(i)==="live").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const upcomingBucket = allMerged.filter(i=>classify(i)==="upcoming").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const pastBucket     = allMerged.filter(i=>classify(i)==="past").sort((a,b)=>Date.parse(b.pub)-Date.parse(a.pub));
