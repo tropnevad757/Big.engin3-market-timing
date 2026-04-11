@@ -1074,44 +1074,44 @@ function App() {
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
-    // No-news scheduled programming — STEP DIRECTION FLIPPED for test
-    [   0,  "sell",  "Down"  ],  // 12:00 AM
-    [  30,  "buy", "Up"],  // 12:30 AM
-    [  60,  "sell",  "Down"  ],  // 1:00 AM
-    [  90,  "buy", "Up"],  // 1:30 AM
-    [ 120,  "sell",  "Down"  ],  // 2:00 AM
-    [ 180,  "buy", "Up"],  // 3:00 AM
-    [ 240,  "sell",  "Down"  ],  // 4:00 AM
-    [ 270,  "buy", "Up"],  // 4:30 AM
-    [ 300,  "sell",  "Down"  ],  // 5:00 AM
-    [ 360,  "buy", "Up"],  // 6:00 AM
-    [ 390,  "sell",  "Down"  ],  // 6:30 AM
-    [ 420,  "buy", "Up"],  // 7:00 AM
-    [ 450,  "sell",  "Down"  ],  // 7:30 AM
-    [ 480,  "buy", "Up"],  // 8:00 AM
-    [ 540,  "sell",  "Down"  ],  // 9:00 AM
-    [ 600,  "buy", "Up"],  // 10:00 AM
-    [ 630,  "sell",  "Down"  ],  // 10:30 AM
-    [ 660,  "buy", "Up"],  // 11:00 AM
-    [ 720,  "sell",  "Down"  ],  // 12:00 PM
-    [ 750,  "buy", "Up"],  // 12:30 PM
-    [ 780,  "sell",  "Down"  ],  // 1:00 PM
-    [ 810,  "buy", "Up"],  // 1:30 PM
-    [ 840,  "sell",  "Down"  ],  // 2:00 PM
-    [ 900,  "buy", "Up"],  // 3:00 PM
-    [ 960,  "sell",  "Down"  ],  // 4:00 PM
-    [ 990,  "buy", "Up"],  // 4:30 PM
-    [1020,  "sell",  "Down"  ],  // 5:00 PM
-    [1080,  "buy", "Up"],  // 6:00 PM
-    [1110,  "sell",  "Down"  ],  // 6:30 PM
-    [1140,  "buy", "Up"],  // 7:00 PM
-    [1170,  "sell",  "Down"  ],  // 7:30 PM
-    [1200,  "buy", "Up"],  // 8:00 PM
-    [1260,  "sell",  "Down"  ],  // 9:00 PM
-    [1320,  "buy", "Up"],  // 10:00 PM
-    [1350,  "sell",  "Down"  ],  // 10:30 PM
-    [1380,  "buy", "Up"],  // 11:00 PM
-    [1440,  "sell",  "Down"  ],  // sentinel
+    // No-news scheduled programming — exact repeating AM + PM
+    [   0,  "buy",  "Up"  ],  // 12:00 AM
+    [  30,  "sell", "Down"],  // 12:30 AM
+    [  60,  "buy",  "Up"  ],  // 1:00 AM
+    [  90,  "sell", "Down"],  // 1:30 AM
+    [ 120,  "buy",  "Up"  ],  // 2:00 AM
+    [ 180,  "sell", "Down"],  // 3:00 AM
+    [ 240,  "buy",  "Up"  ],  // 4:00 AM
+    [ 270,  "sell", "Down"],  // 4:30 AM
+    [ 300,  "buy",  "Up"  ],  // 5:00 AM
+    [ 360,  "sell", "Down"],  // 6:00 AM
+    [ 390,  "buy",  "Up"  ],  // 6:30 AM
+    [ 420,  "sell", "Down"],  // 7:00 AM
+    [ 450,  "buy",  "Up"  ],  // 7:30 AM
+    [ 480,  "sell", "Down"],  // 8:00 AM
+    [ 540,  "buy",  "Up"  ],  // 9:00 AM
+    [ 600,  "sell", "Down"],  // 10:00 AM
+    [ 630,  "buy",  "Up"  ],  // 10:30 AM
+    [ 660,  "sell", "Down"],  // 11:00 AM
+    [ 720,  "buy",  "Up"  ],  // 12:00 PM
+    [ 750,  "sell", "Down"],  // 12:30 PM
+    [ 780,  "buy",  "Up"  ],  // 1:00 PM
+    [ 810,  "sell", "Down"],  // 1:30 PM
+    [ 840,  "buy",  "Up"  ],  // 2:00 PM
+    [ 900,  "sell", "Down"],  // 3:00 PM
+    [ 960,  "buy",  "Up"  ],  // 4:00 PM
+    [ 990,  "sell", "Down"],  // 4:30 PM
+    [1020,  "buy",  "Up"  ],  // 5:00 PM
+    [1080,  "sell", "Down"],  // 6:00 PM
+    [1110,  "buy",  "Up"  ],  // 6:30 PM
+    [1140,  "sell", "Down"],  // 7:00 PM
+    [1170,  "buy",  "Up"  ],  // 7:30 PM
+    [1200,  "sell", "Down"],  // 8:00 PM
+    [1260,  "buy",  "Up"  ],  // 9:00 PM
+    [1320,  "sell", "Down"],  // 10:00 PM
+    [1350,  "buy",  "Up"  ],  // 10:30 PM
+    [1380,  "sell", "Down"],  // 11:00 PM
+    [1440,  "buy",  "Up"  ],  // sentinel
   ];
 
   const NEWS_SLOT_STEPS = [
@@ -1165,18 +1165,22 @@ function App() {
         current = INTERNAL_STEPS[i];
         const next = INTERNAL_STEPS[i+1];
         const minsLeft = INTERNAL_STEPS[i+1][0] - t;
+        const flippedDirection = current[1] === "buy" ? "sell" : "buy";
+        const flippedLabel = current[1] === "buy" ? "Down" : "Up";
+        const flippedNextDir = next[1] === "buy" ? "sell" : "buy";
+        const flippedNextLabel = next[1] === "buy" ? "Down" : "Up";
         return {
-          direction: current[1],
-          label:     current[2],
-          col:       current[1]==="buy" ? G : R,
+          direction: flippedDirection,
+          label: flippedLabel,
+          col: flippedDirection === "buy" ? G : R,
           minsLeft,
-          nextLabel: next[2],
-          nextDir:   next[1],
-          nextCol:   next[1]==="buy" ? G : R,
+          nextLabel: flippedNextLabel,
+          nextDir: flippedNextDir,
+          nextCol: flippedNextDir === "buy" ? G : R,
         };
       }
     }
-    return { direction:"buy", label:"Up", col:G, minsLeft:0, nextLabel:"Down", nextDir:"sell", nextCol:R };
+    return { direction:"sell", label:"Down", col:R, minsLeft:0, nextLabel:"Up", nextDir:"buy", nextCol:G };
   }
 
   function getNewsSlotPolarity(h24, m) {
@@ -2023,7 +2027,7 @@ function App() {
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
         chargeFlip: false, clusterResult: null, dominantSource: "step schedule",
         newsSign: "0", slotSign: slotCharge===1?"+":"-", sellRestriction: false,
-        reason: "no news - flipped step direction schedule held",
+        reason: "no news - step direction schedule held",
         equation: equationPlain,
         equationPlain,
       };
@@ -3295,7 +3299,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, flipped-step fallback, stack-flip logic, and advance event windows.
+          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, flipped step-direction fallback, stack-flip logic, and advance event windows.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
