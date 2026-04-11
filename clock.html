@@ -256,7 +256,7 @@ function resolveTimeMath(a, b) {
 // slotPol: "positive" | "negative" (from ZONE_WINDOWS pol field)
 function buildPolarityState(baseDir, slotPol) {
   return {
-    baseDirection: baseDir,          // "buy" | "sell" — natural movement, no news
+    baseDirection: baseDir,          // "buy" | "sell" — structural base direction used by resolver
     slotPolarity:  slotPol,          // "positive" | "negative" — used in time math
     movement:      baseDir === "buy" ? "up" : "down",  // display direction
   };
@@ -269,10 +269,10 @@ function buildPolarityState(baseDir, slotPol) {
 // newsPolarity: "positive" | "negative" | null
 // calcType: "time"   → TIME MATH  (slot vs news)
 //           "window" → WINDOW MATH (news vs news)
-//           null     → no news, return baseDirection as-is
+//           null     → guard path only; live/replay UI stays news-driven
 function applyNewsToSlot(polarityState, newsPolarity, calcType) {
   if(!newsPolarity || !calcType) {
-    // No news — natural base direction wins
+    // No active news — return unchanged base direction (guard only)
     return {
       finalDirection: polarityState.baseDirection,
       finalMovement:  polarityState.movement,
@@ -713,7 +713,7 @@ function App() {
   const [rpEnded,   setRpEnded]   = useState(false);
   const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
   const [rpTpMode, setRpTpMode] = useState("100"); // "100" = 0.3%, "61.8" = 0.185%
-  const [rpNewsFilter, setRpNewsFilter] = useState(true); // NEWS ONLY replay mode
+  const rpNewsFilter = true; // fixed NEWS ONLY replay mode
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const [showNewsDebug, setShowNewsDebug] = useState(false);
   const rpTimerRef = useRef(null);
@@ -1053,7 +1053,8 @@ function App() {
   // ══════════════════════════════════════════════════════════════════════
 
   // LAYER 1 — Major regime
-  // BUY CORE windows and SELL RESET windows are defined in INTERNAL_STEPS below
+  // 1:30–7:30 ET = BUY zone (both AM and PM)
+  // 7:30–1:30 ET = SELL zone (both AM and PM)
   function getMajorRegime(h24, m) {
     const t = h24*60+m;
     // 1:30 (90) to 7:30 (450) = BUY
@@ -1073,23 +1074,44 @@ function App() {
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
-    // Regime schedule — repeating AM + PM
-    // BUY CORE REGIME  : 12:30–1:30 / 4:30–6:30 / 7:30–10:30
-    // SELL RESET REGIME: 1:30–4:30 / 6:30–7:30 / 10:30–12:30
-    [   0,  "sell", "Down"],  // 12:00 AM  (tail of prior sell-reset block)
-    [  30,  "buy",  "Up"  ],  // 12:30 AM
+    // No-news scheduled programming — exact repeating AM + PM
+    [   0,  "buy",  "Up"  ],  // 12:00 AM
+    [  30,  "sell", "Down"],  // 12:30 AM
+    [  60,  "buy",  "Up"  ],  // 1:00 AM
     [  90,  "sell", "Down"],  // 1:30 AM
-    [ 270,  "buy",  "Up"  ],  // 4:30 AM
-    [ 390,  "sell", "Down"],  // 6:30 AM
+    [ 120,  "buy",  "Up"  ],  // 2:00 AM
+    [ 180,  "sell", "Down"],  // 3:00 AM
+    [ 240,  "buy",  "Up"  ],  // 4:00 AM
+    [ 270,  "sell", "Down"],  // 4:30 AM
+    [ 300,  "buy",  "Up"  ],  // 5:00 AM
+    [ 360,  "sell", "Down"],  // 6:00 AM
+    [ 390,  "buy",  "Up"  ],  // 6:30 AM
+    [ 420,  "sell", "Down"],  // 7:00 AM
     [ 450,  "buy",  "Up"  ],  // 7:30 AM
-    [ 630,  "sell", "Down"],  // 10:30 AM
-    [ 750,  "buy",  "Up"  ],  // 12:30 PM
+    [ 480,  "sell", "Down"],  // 8:00 AM
+    [ 540,  "buy",  "Up"  ],  // 9:00 AM
+    [ 600,  "sell", "Down"],  // 10:00 AM
+    [ 630,  "buy",  "Up"  ],  // 10:30 AM
+    [ 660,  "sell", "Down"],  // 11:00 AM
+    [ 720,  "buy",  "Up"  ],  // 12:00 PM
+    [ 750,  "sell", "Down"],  // 12:30 PM
+    [ 780,  "buy",  "Up"  ],  // 1:00 PM
     [ 810,  "sell", "Down"],  // 1:30 PM
-    [ 990,  "buy",  "Up"  ],  // 4:30 PM
-    [1110,  "sell", "Down"],  // 6:30 PM
+    [ 840,  "buy",  "Up"  ],  // 2:00 PM
+    [ 900,  "sell", "Down"],  // 3:00 PM
+    [ 960,  "buy",  "Up"  ],  // 4:00 PM
+    [ 990,  "sell", "Down"],  // 4:30 PM
+    [1020,  "buy",  "Up"  ],  // 5:00 PM
+    [1080,  "sell", "Down"],  // 6:00 PM
+    [1110,  "buy",  "Up"  ],  // 6:30 PM
+    [1140,  "sell", "Down"],  // 7:00 PM
     [1170,  "buy",  "Up"  ],  // 7:30 PM
-    [1350,  "sell", "Down"],  // 10:30 PM
-    [1440,  "sell", "Down"],  // sentinel
+    [1200,  "sell", "Down"],  // 8:00 PM
+    [1260,  "buy",  "Up"  ],  // 9:00 PM
+    [1320,  "sell", "Down"],  // 10:00 PM
+    [1350,  "buy",  "Up"  ],  // 10:30 PM
+    [1380,  "sell", "Down"],  // 11:00 PM
+    [1440,  "buy",  "Up"  ],  // sentinel
   ];
 
   const NEWS_SLOT_STEPS = [
@@ -1674,7 +1696,7 @@ function App() {
     finalResolvedSign: livePolarityApplied.newsSign || "0",
     finalSlotSign: livePolarityApplied.slotSign || (liveSlotPolarity === "positive" ? "+" : "-"),
     flippedByStacking: !!livePolarityApplied.chargeFlip,
-    dominantSource: livePolarityApplied.dominantSource || "step schedule",
+    dominantSource: livePolarityApplied.dominantSource || "none",
     reason: livePolarityApplied.reason || "",
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
@@ -2010,13 +2032,13 @@ function App() {
     const activeCount = (activeEvents||[]).length;
 
     if(!activeCount){
-      const equationPlain = `BASE ${baseDirection.toUpperCase()} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?"+":"-"} · NO ACTIVE NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
-        chargeFlip: false, clusterResult: null, dominantSource: "step schedule",
+        chargeFlip: false, clusterResult: null, dominantSource: "none",
         newsSign: "0", slotSign: slotCharge===1?"+":"-", sellRestriction: false,
-        reason: "no news - step direction schedule held",
+        reason: "no active news",
         equation: equationPlain,
         equationPlain,
       };
@@ -2969,10 +2991,10 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: no-news → use INTERNAL_STEPS step-direction schedule
-  //       news active → use even/odd hour polarity schedule
-  //       news decision: same sign → BUY, different sign → SELL
-  //       (Buy=up=even=+  /  Sell=down=odd=-)
+  // NEWS ONLY:
+  // active news windows use the shared stacking resolver for both
+  // scheduled economic events and breaking-news events.
+  // (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const step = getInternalStep(h24, m);
     const newsSlot = getNewsSlotPolarity(h24, m);
@@ -3019,7 +3041,7 @@ function App() {
   // 1-star 20m window → 0.3%
   // 2-star 50m window → 0.3%
   // 3-star 80m window → 0.3%
-  // No news → hold to next step change → 0.3%
+  // Inactive path unused in NEWS ONLY replay
   function getSignalWindow(activeEvents){
     // CANONICAL SPEC (both doc 1 & doc 2):
     // Breaking: 0–20m burst → 38.2 fib (0.1146%)
@@ -3028,7 +3050,7 @@ function App() {
     const TP_BREAK_VAL = 0.001146;
     const TP_STAR_VAL  = 0.00185;
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:30, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"step exit" };
+      return { type:"inactive", stars:0, windowMins:0, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"inactive news window" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
@@ -3181,19 +3203,16 @@ function App() {
         const isExec = isExecHour(et.h24, et.m);
         const slotLabel = getReplaySlotLabel(et.h24, et.m);
 
+        // NEWS ONLY mode:
+        // skip every non-news slot before any signal / scoring work runs
+        if(rpNewsFilter && !hasNews) continue;
+
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
         const nextC = getNextCandle(c.ts);
         const score = rpScore2(replay.signal, c, nextC, sigWindow);
 
-        // NEWS ONLY mode:
-        // skip every no-news setup and only keep slots with active news windows
-        if(rpNewsFilter && !hasNews) continue;
-
-        const quality = isExec && hasNews  ? "EXEC+NEWS"
-          : isExec && !hasNews             ? "EXEC"
-          : !isExec && hasNews             ? "SCHED+NEWS"
-          :                                  "SCHED";
+        const quality = isExec ? "EXEC+NEWS" : "SCHED+NEWS";
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
@@ -3206,7 +3225,8 @@ function App() {
         });
       }
 
-      const scoredRows = sessions.filter(s=>typeof s.score?.correct==="boolean");
+      const newsSessions = sessions.filter(s=>s.hasNews);
+      const scoredRows = newsSessions.filter(s=>typeof s.score?.correct==="boolean");
       const wins   = scoredRows.filter(s=>s.score.correct===true).length;
       const losses = scoredRows.filter(s=>s.score.correct===false).length;
       const total  = wins+losses;
@@ -3238,9 +3258,7 @@ function App() {
 
       const breakdown = {
         execNews:  wr4("EXEC+NEWS"),
-        exec:      wr4("EXEC"),
         trapNews:  wr4("SCHED+NEWS"),
-        trap:      wr4("SCHED"),
       };
 
       const candleNote = candles.length >= 280 ? "30m candles" 
@@ -3267,7 +3285,7 @@ function App() {
 
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
-        sessions, wins, losses, total, wr,
+        newsSessions, wins, losses, total, wr,
         wins185, wins300, wins600, wins900, wins1200,
         wr185, wr300, wr600, wr900, wr1200,
         wr618, wr100, newsFilter: rpNewsFilter,
@@ -3300,13 +3318,13 @@ function App() {
     function getETParts(tsMs){ return rpGetETParts(tsMs); }
 
     const sigCol = s => s==="BUY"?G:R;
-    const current = results?.sessions?.[playIdx] || null;
+    const current = results?.newsSessions?.[playIdx] || null;
 
     return(
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Full programmed schedule: hourly and half-hour slots. Replay now follows explicit news-time polarity, step-direction fallback, stack-flip logic, advance event windows, and NEWS ONLY replay mode.
+          Replay now runs in NEWS ONLY mode. It trades scheduled economic news and breaking news windows only.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3338,13 +3356,13 @@ function App() {
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.185% (61.8 fib) · BREAK: 0.1146% (38.2)</span>
           </div>
-          <button onClick={()=>{setRpNewsFilter(f=>!f); setRpResults(null);}}
-            style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,cursor:"pointer",
-              background:rpNewsFilter?`rgba(136,170,255,0.15)`:"rgba(255,255,255,0.03)",
-              border:`1px solid ${rpNewsFilter?"#88aaff":"rgba(255,255,255,0.08)"}`,
-              color:rpNewsFilter?"#88aaff":"#555",...mono}}>
+          <div
+            style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
+              background:`rgba(136,170,255,0.15)`,
+              border:`1px solid #88aaff`,
+              color:"#88aaff",...mono,textAlign:"center"}}>
             NEWS ONLY
-          </button>
+          </div>
           <button onClick={()=>setShowNewsDebug(v=>!v)}
             style={{padding:"7px 10px",borderRadius:8,fontSize:10,fontWeight:900,cursor:"pointer",background:showNewsDebug?"rgba(136,170,255,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${showNewsDebug?"#88aaff":"rgba(255,255,255,0.08)"}`,color:showNewsDebug?"#88aaff":"#555",...mono}}>
             {showNewsDebug?"HIDE":"SHOW"} DEBUG
@@ -3358,8 +3376,8 @@ function App() {
             {loading?"⏳ RUNNING...":"▶ RUN REPLAY"}
           </button>
           <button onClick={()=>{
-            if(!results?.sessions?.length) return;
-            const last = results.sessions.length - 1;
+            if(!(results?.newsSessions||[]).length) return;
+            const last = (results.newsSessions||[]).length - 1;
             if(ended || rpPlayIdx >= last){
               if(rpTimerRef.current){ clearInterval(rpTimerRef.current); rpTimerRef.current = null; }
               setRpEnded(false); setRpPlayIdx(0); setRpPlaying(true);
@@ -3385,7 +3403,7 @@ function App() {
                     {results.breakdown.execNews.wr}%
                   </div>
                   <div style={{fontSize:13,color:"#666",...mono}}>{results.breakdown.execNews.n} setups</div>
-                  {results.newsFilter&&<div style={{fontSize:10,color:"#88aaff",...mono,marginLeft:4}}>NEWS↑↓ FILTERED</div>}
+                  
                 </div>
                 {/* 5-level TP hit ladder per spec */}
                 <div style={{marginBottom:6}}>
@@ -3451,13 +3469,11 @@ function App() {
                   {results.candleNote&&<div style={{fontSize:9,color:"#333",...mono}}>{results.candleNote}</div>}
                 </div>
                 {/* All 4 quality tiers — clean-hour scoring */}
-                <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY SETUP QUALITY</div>
+                <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY NEWS SETUP</div>
                 {[
                   {l:"EXECUTE + NEWS", key:"execNews", c:G,         note:"Primary setup — execute slot with news"},
-                  {l:"EXECUTE no news", key:"exec",     c:A,         note:"Execute slot, no-news step direction"},
-                  {l:"SCHEDULE + NEWS",          key:"trapNews", c:"#88aaff", note:"Scheduled slot with news / half-hour included"},
-                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled slot, no-news step direction"},
-                ].map(r=>{
+                                    {l:"SCHEDULE + NEWS",          key:"trapNews", c:"#88aaff", note:"Scheduled slot with news / half-hour included"},
+                                  ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
                   const col = d.wr>=60?G:d.wr>=45?A:R;
@@ -3466,28 +3482,6 @@ function App() {
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
                         <div style={{width:7,height:7,borderRadius:"50%",background:r.c,flexShrink:0}}/>
                         <div style={{fontSize:11,color:"#aaa",...mono,flex:1}}>{r.l}</div>
-                        <div style={{fontSize:14,fontWeight:900,color:col,...mono}}>{d.wr}%</div>
-                        <div style={{fontSize:10,color:"#444",...mono,minWidth:32,textAlign:"right"}}>{d.n}</div>
-                      </div>
-                      <div style={{marginLeft:15,height:4,background:"rgba(255,255,255,0.04)",borderRadius:2,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:d.wr+"%",background:r.c+"99",borderRadius:2}}/>
-                      </div>
-                      <div style={{marginLeft:15,fontSize:9,color:"#333",...mono,marginTop:2}}>{r.note}</div>
-                    </div>
-                  );
-                })}
-                {/* placeholder so the old trap section doesn't break */}
-                {[
-                  {l:"_unused", key:"_x", c:"#000", note:""},
-                ].map(r=>{
-                  const d = results.breakdown[r.key];
-                  if(!d) return null;
-                  const col = d.wr>=65?G:d.wr>=50?A:R;
-                  return(
-                    <div key={r.l} style={{padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,0.03)"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                        <div style={{width:7,height:7,borderRadius:"50%",background:r.c,flexShrink:0}}/>
-                        <div style={{fontSize:11,color:"#888",...mono,flex:1}}>{r.l}</div>
                         <div style={{fontSize:14,fontWeight:900,color:col,...mono}}>{d.wr}%</div>
                         <div style={{fontSize:10,color:"#444",...mono,minWidth:32,textAlign:"right"}}>{d.n}</div>
                       </div>
@@ -3509,8 +3503,8 @@ function App() {
             <div style={{marginBottom:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.07)",background:"rgba(255,255,255,0.02)",padding:"12px 14px"}}>
               <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:10}}>BY SIGNAL TYPE</div>
               {["BUY","SELL"].map(t=>{
-                const tw = results.sessions.filter(s=>s.signal===t&&s.score?.correct===true).length;
-                const tl = results.sessions.filter(s=>s.signal===t&&s.score?.correct===false).length;
+                const tw = (results.newsSessions||[]).filter(s=>s.signal===t&&s.score?.correct===true).length;
+                const tl = (results.newsSessions||[]).filter(s=>s.signal===t&&s.score?.correct===false).length;
                 const tt = tw+tl;
                 if(!tt) return null;
                 const twr = Math.round((tw/tt)*100);
@@ -3550,30 +3544,28 @@ function App() {
 
                 {/* Signal math */}
                 <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:4}}>
-                  Base: {current.baseDirection?.toUpperCase()} · Regime: {current.regime} · Slot: {current.slotSign|| (current.slotPolarity==="positive"?"+":"-")} · News: {current.newsSign||"0"} · Final: {current.signal}{current.chargeFlip?" · STACK FLIP":""}{current.sellRestriction?" · SELL RULE HOLD":""}
+                  Slot: {current.slotSign|| (current.slotPolarity==="positive"?"+":"-")} · News: {current.newsSign||"0"} · Final: {current.signal}{current.chargeFlip?" · STACK FLIP":""}{current.sellRestriction?" · SELL RULE HOLD":""}
                 </div>
                 <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:2}}>{current.equationPlain}</div>
                 <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>
-                  Dominant: {current.dominantSource||"step schedule"}{current.clusterResult?.stackSize?` · Stack ${current.clusterResult.stackSize}`:""} · Reason: {current.reason}
+                  Dominant: {current.dominantSource||"none"}{current.clusterResult?.stackSize?` · Stack ${current.clusterResult.stackSize}`:""} · Reason: {current.reason}
                 </div>
 
                 {/* Active news events driving the signal */}
                 {current.activeCount>0 && current.activeEvents?.length>0 ? (
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
-                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
+                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>ACTIVE NEWS ({current.activeCount})</div>
                     {current.activeEvents.slice(0,4).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
                         {"★".repeat(ev.stars||1)} {replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div style={{fontSize:11,color:"#444",...mono,marginBottom:8}}>NO NEWS — step-direction schedule</div>
-                )}
+                ) : null}
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    dominantSource: current.dominantSource||'step schedule',                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    dominantSource: current.dominantSource||'none',                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
@@ -3581,30 +3573,31 @@ function App() {
                   O ${current.open?.toLocaleString()} · H ${current.high?.toLocaleString()} · L ${current.low?.toLocaleString()} · C ${current.close?.toLocaleString()}
                 </div>
 
-                <input type="range" min="0" max={Math.max(0,results.sessions.length-1)} value={playIdx}
-                  onChange={e=>{ const next=Number(e.target.value)||0; setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=Math.max(0,results.sessions.length-1)); }}
+                <input type="range" min="0" max={Math.max(0,(results.newsSessions||[]).length-1)} value={playIdx}
+                  onChange={e=>{ const next=Number(e.target.value)||0; setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=Math.max(0,(results.newsSessions||[]).length-1)); }}
                   style={{width:"100%",marginTop:6}}/>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:8,gap:8}}>
                   <button onClick={()=>{ setRpPlaying(false); setRpEnded(false); setRpPlayIdx(i=>Math.max(0,i-1)); }}
                     style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>← STEP</button>
-                  <button onClick={()=>{ setRpPlaying(false); setRpPlayIdx(i=>{ const next=Math.min(results.sessions.length-1,i+1); setRpEnded(next>=results.sessions.length-1); return next; }); }}
+                  <button onClick={()=>{ setRpPlaying(false); setRpPlayIdx(i=>{ const next=Math.min((results.newsSessions||[]).length-1,i+1); setRpEnded(next>=(results.newsSessions||[]).length-1); return next; }); }}
                     style={{flex:1,padding:"8px 0",borderRadius:8,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"#ddd",cursor:"pointer"}}>STEP →</button>
                 </div>
               </div>
             )}
 
             <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 7 DAYS SESSION LOG</div>
-            {results.sessions.slice().reverse().map((s,i)=>{
+            {(results.newsSessions||[]).slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
               const hitCol = s.score?.correct ? G : R;
               return(
-                <div key={i} onClick={()=>{ const next=results.sessions.findIndex(x=>x.ts===s.ts); setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=results.sessions.length-1); }}
+                <div key={i} onClick={()=>{ const next=(results.newsSessions||[]).findIndex(x=>x.ts===s.ts); setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=(results.newsSessions||[]).length-1); }}
                   style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
                   <div style={{fontSize:10,color:"#444",...mono,minWidth:60}}>{s.dayStr}</div>
                   <div style={{fontSize:11,color:"#aaa",...mono,minWidth:68}}>{s.timeStr}</div>
-                  <div style={{fontSize:9,...mono,color:s.quality==="EXEC+NEWS"?G:s.quality==="EXEC"?A:s.quality==="HOUR+NEWS"?"#88aaff":"#444",minWidth:36}}>{s.slotType||""}</div>
+                  <div style={{fontSize:9,...mono,color:s.quality==="EXEC+NEWS"?G:"#88aaff",minWidth:36}}>{s.slotType||""}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
-                  <div style={{fontSize:10,color:"#555",...mono,minWidth:32}}>{s.activeCount>0?"📰"+s.activeCount:""}</div>
+                  <div style={{fontSize:9,color:"#777",...mono,minWidth:70,textAlign:"right"}}>{`${(s.activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length}⚡ ${(s.activeEvents||[]).filter(ev=>replayEventType(ev)!=="breaking").length}🗓`}</div>
+                  <div style={{fontSize:10,color:"#555",...mono,minWidth:32}}>{"📰"+(s.activeCount||0)}</div>
                   <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
                   <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
@@ -3616,7 +3609,7 @@ function App() {
         {!results&&!loading&&(
           <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
             Log news and calendar items in the polarity tab, then run replay.<br/>
-            Replay uses the new logic only and scores the last 7 days of BTC signals.
+            Replay uses the shared news resolver only and scores the last 7 days of BTC news signals.
           </div>
         )}
       </div>
