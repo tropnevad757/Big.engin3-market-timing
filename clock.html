@@ -1672,6 +1672,8 @@ function App() {
   const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || []);
   const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
   const polarityDirection = livePolarityApplied.finalDirection;
+  // ── LIVE NEWS DEBUG — same fields as replay, single source of truth ─────────
+  // liveNewsDebug mirrors the replay debug shape so both paths are comparable.
   const liveNewsDebug = {
     activeCount: (newsReaction.nearEvents||[]).length,
     activeEvents: (newsReaction.nearEvents||[]).map(ev=>({
@@ -1685,14 +1687,21 @@ function App() {
     })),
     directedCount: directedLiveEvents.length,
     activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
+    // STACKING STATE
     stackingActive: directedLiveEvents.length >= 2,
-    stackRule: "-/- = +, +/+ = -, -/+ = -",
+    stackRule: livePolarityApplied.clusterResult?.rule || "-/- = +, +/+ = -, -/+ = -",
+    posCount: directedLiveEvents.filter(ev=>Number(ev.polarity)>0).length,
+    negCount: directedLiveEvents.filter(ev=>Number(ev.polarity)<0).length,
+    // RESOLVED SIGNS
     finalResolvedSign: livePolarityApplied.newsSign || "0",
     finalSlotSign: livePolarityApplied.slotSign || (liveSlotPolarity === "positive" ? "+" : "-"),
     flippedByStacking: !!livePolarityApplied.chargeFlip,
     dominantSource: livePolarityApplied.dominantSource || "step schedule",
     reason: livePolarityApplied.reason || "",
-    finalDirection: livePolarityApplied.finalDirection
+    equation: livePolarityApplied.equationPlain || "",
+    finalDirection: livePolarityApplied.finalDirection,
+    // SELF-CHECK: live and replay use the same function (resolveStackedNewsSign)
+    engineUsed: "computeReplayPolarity (shared live+replay)"
   };
 
   const appChecks = [
@@ -2003,10 +2012,16 @@ function App() {
 
     const manual = (replayEvents||[]).map(ev=>toEvent(ev)).filter(Boolean);
 
+    // Calendar/eco events: keep 90 days for backtest viewing
+    // Breaking/manual events: keep 7 days (live news)
     return dedupeFeedItems([...scheduled, ...breaking, ...manual])
       .filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && !Number.isNaN(t) && (nowMs - t) <= 7*24*60*60*1000;
+        if(!t || Number.isNaN(t)) return false;
+        const age = nowMs - t;
+        const isCalendar = ev.kind === "event" || ev.kind === "speech";
+        const maxAge = isCalendar ? 90*24*60*60*1000 : 7*24*60*60*1000;
+        return age <= maxAge;
       })
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
@@ -2056,15 +2071,38 @@ function App() {
 
     let chargeFlip = false;
     let clusterResult = null;
-    if(directedWithRate.length >= 2 && newsCharge !== 0){
-      newsCharge *= -1;
-      chargeFlip = true;
+    // ── CANONICAL STACKING CHARGE MATH ─────────────────────────────────────
+    // Spec: -/- = +   +/+ = -   -/+ = -
+    // Only applies when 2+ directed (non-zero polarity) events are active.
+    // Single event: use its adjusted polarity directly, no flip.
+    if(directedWithRate.length >= 2){
+      const stackedPositives = positives;
+      const stackedNegatives = negatives;
+      let stackedCharge;
+      let stackRule;
+      if(stackedNegatives >= 2 && stackedPositives === 0){
+        // -/- = +  (all negative stack → flips to positive)
+        stackedCharge = 1;
+        stackRule = "-/- = + (all-negative stack)";
+      } else if(stackedPositives >= 2 && stackedNegatives === 0){
+        // +/+ = -  (all positive stack → flips to negative)
+        stackedCharge = -1;
+        stackRule = "+/+ = - (all-positive stack)";
+      } else {
+        // -/+ = -  (mixed stack → stays negative)
+        stackedCharge = -1;
+        stackRule = "-/+ = - (mixed stack, stays negative)";
+      }
+      if(stackedCharge !== newsCharge){
+        chargeFlip = true;
+      }
+      newsCharge = stackedCharge;
       clusterResult = {
         dominantSource,
         stackSize: directedWithRate.length,
-        positiveCount: positives,
-        negativeCount: negatives,
-        rule: "2+ stacked directed news events flip the sign"
+        positiveCount: stackedPositives,
+        negativeCount: stackedNegatives,
+        rule: stackRule
       };
     }
 
@@ -2221,6 +2259,8 @@ function App() {
     const todayStr     = new Date().toISOString().slice(0,10);
     const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
     const historyStr   = new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+    // Expanded history for past economic events (backtest review)
+    const historyStr90 = new Date(Date.now()-90*86400000).toISOString().slice(0,10);
 
     // Impact map for ForexFactory: Low/Medium/High → 1/2/3 stars
     function ffStars(impact){
@@ -2241,7 +2281,7 @@ function App() {
       ]).then(data=>{
         if(!Array.isArray(data)) return [];
         return data
-          .filter(ev=>ev.date&&ev.date.slice(0,10)>=historyStr)
+          .filter(ev=>ev.date&&ev.date.slice(0,10)>=historyStr90) // 90-day history for backtest
           .map(ev=>({
             title: (ev.title||ev.name||"").trim(),
             pub: ev.date,
@@ -2281,7 +2321,7 @@ function App() {
               kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
               polarity:Number(norm?.polarity ?? (norm?.bearish ? -1 : norm?.bullish ? 1 : 0)),
             };
-          }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=historyStr||!a.date))
+          }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=historyStr90||!a.date)) // 90-day history
         ).catch(()=>[])
       )).then(groups=>groups.flat());
     }
@@ -2388,37 +2428,39 @@ function App() {
         ))}
       </div>
 
-      {/* POLARITY MATH ROW */}
-      {(timeMathResult||windowMathResult)&&(()=>{
-        const tCol = timeMathResult?.finalDirection==="buy"?G:R;
-        const wCol = windowMathResult?.result==="positive"?G:R;
-        const pdCol = polarityDirection==="buy"?G:R;
+      {/* POLARITY MATH ROW — uses livePolarityApplied (same engine as replay) */}
+      {newsReaction.active&&(()=>{
+        const slotSign  = liveNewsDebug.finalSlotSign || (polarityState.slotPolarity==="positive" ? "+" : "-");
+        const newsSign  = liveNewsDebug.finalResolvedSign || "0";
+        const pdCol     = polarityDirection==="buy" ? G : R;
+        const slotCol   = slotSign==="+" ? G : R;
+        const nCol      = newsSign==="+" ? G : newsSign==="-" ? R : "#888";
+        const stackLabel = liveNewsDebug.stackingActive ? " ⚡ STACKED" : "";
+        const flipLabel  = liveNewsDebug.flippedByStacking ? " · FLIP" : "";
         return(
           <div style={{marginBottom:10,borderRadius:14,border:`1px solid ${pdCol}33`,
             background:"rgba(255,255,255,0.02)",padding:"11px 14px"}}>
             <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>
-              POLARITY MATH
+              POLARITY MATH{stackLabel}{flipLabel}
             </div>
             <div style={{display:"flex",gap:6}}>
               <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${wCol}10`,border:`1px solid ${wCol}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>WINDOW</div>
-                <div style={{fontSize:16,fontWeight:900,color:wCol,...mono}}>
-                  {polarityState.slotPolarity==="positive" ? "+" : "-"}
-                </div>
+                background:`${slotCol}10`,border:`1px solid ${slotCol}22`}}>
+                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SLOT</div>
+                <div style={{fontSize:16,fontWeight:900,color:slotCol,...mono}}>{slotSign}</div>
               </div>
               <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
-                background:`${A}08`,border:`1px solid ${A}22`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>NEWS</div>
-                <div style={{fontSize:16,fontWeight:900,color:A,...mono}}>
-                  {_newsPol==="positive" ? "+" : _newsPol==="negative" ? "-" : (polarityState.slotPolarity==="positive" ? "+" : "-")}
+                background:`${nCol}10`,border:`1px solid ${nCol}22`}}>
+                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>
+                  NEWS{liveNewsDebug.activeCount>1?` (${liveNewsDebug.activeCount})`:""}
                 </div>
+                <div style={{fontSize:16,fontWeight:900,color:nCol,...mono}}>{newsSign||"0"}</div>
               </div>
               <div style={{flex:1,textAlign:"center",padding:"7px 4px",borderRadius:8,
                 background:`${pdCol}18`,border:`1px solid ${pdCol}44`}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>RESULT</div>
+                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,...mono,marginBottom:4}}>SIGNAL</div>
                 <div style={{fontSize:16,fontWeight:900,color:pdCol,...mono}}>
-                  {polarityDirection==="buy" ? "+" : "-"}
+                  {polarityDirection==="buy" ? "BUY" : "SELL"}
                 </div>
               </div>
             </div>
@@ -3562,18 +3604,7 @@ function App() {
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({
-                    activeCount: current.activeCount||0,
-                    activeEvents: (current.activeEvents||[]).map(ev=>({title:ev.title||'', type:replayEventType(ev), sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0', qualifiesForStack:Number(ev.polarity)!==0, pub:ev.pub||'', country:ev.country||''})),
-                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,
-                    stackRule: '-/- = +, +/+ = -, -/+ = -',
-                    finalResolvedSign: current.newsSign||'0',
-                    finalSlotSign: current.slotSign||'',
-                    flippedByStacking: !!current.chargeFlip,
-                    dominantSource: current.dominantSource||'step schedule',
-                    reason: current.reason||'',
-                    finalDirection: current.signal
-                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    dominantSource: current.dominantSource||'step schedule',                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
@@ -3948,8 +3979,11 @@ const BacktestTab = ()=>{
         {/* ── MIXED FEED (events + breaking news together) ── */}
         {newsView==="feed"&&(
           <>
-            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
+            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
               <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR + BREAKING NEWS</div>
+              <div style={{fontSize:10,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginLeft:4}}>
+                {calArticles.length>0&&`${calArticles.length} events (90d)`}
+              </div>
               <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
@@ -3964,6 +3998,8 @@ const BacktestTab = ()=>{
             )}
 
             {(()=>{
+              // Show ALL calendar events (no pre-filter) so PAST bucket is populated.
+              // The classify() function below handles live/upcoming/past sorting.
               const calendarTimeline = (calArticles||[])
                 .map(item=>({
                   ...item,
@@ -3973,7 +4009,11 @@ const BacktestTab = ()=>{
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
                   feedType:"calendar"
                 }))
-                .filter(item=>isCalendarEventVisible(item, Date.now()));
+                .filter(item=>{
+                  // Only filter out items with no parseable date
+                  const t = Date.parse(item.pub||0)||0;
+                  return t > 0;
+                });
 
               const breakingTimeline = (newsArticles||[]).map(item=>({
                 ...item,
