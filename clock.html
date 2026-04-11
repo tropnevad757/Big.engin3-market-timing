@@ -1114,43 +1114,43 @@ function App() {
   ];
 
   const NEWS_SLOT_STEPS = [
-    // News-time polarity — new spec: 12:30=−, 1:00=+, 1:30=−, 2:00=+, 3:00=−, 4:00=+
-    // 4:30=−, 5:00=+, 6:00=−, 6:30=+, 7:00=−, 7:30=+, 8:00=−, 9:00=+
-    // 10:00=−, 10:30=+, 11:00=−, 12:00=+  (AM + PM mirror)
+    // News-time polarity — CANONICAL SPEC (both doc 1 & doc 2 agree)
+    // 12:00=+ 12:30=+ 1:00=- 1:30=- 2:00=+ 3:00=- 4:00=+ 4:30=+
+    // 5:00=- 6:00=+ 6:30=+ 7:00=- 7:30=- 8:00=+ 9:00=- 10:00=+ 10:30=+ 11:00=-
     [    0,  "positive", "+" ], // 12:00 AM
-    [   30,  "negative", "-" ], // 12:30 AM
-    [   60,  "positive", "+" ], // 1:00 AM
+    [   30,  "positive", "+" ], // 12:30 AM
+    [   60,  "negative", "-" ], // 1:00 AM
     [   90,  "negative", "-" ], // 1:30 AM
     [  120,  "positive", "+" ], // 2:00 AM
     [  180,  "negative", "-" ], // 3:00 AM
     [  240,  "positive", "+" ], // 4:00 AM
-    [  270,  "negative", "-" ], // 4:30 AM
-    [  300,  "positive", "+" ], // 5:00 AM
-    [  360,  "negative", "-" ], // 6:00 AM
+    [  270,  "positive", "+" ], // 4:30 AM
+    [  300,  "negative", "-" ], // 5:00 AM
+    [  360,  "positive", "+" ], // 6:00 AM
     [  390,  "positive", "+" ], // 6:30 AM
     [  420,  "negative", "-" ], // 7:00 AM
-    [  450,  "positive", "+" ], // 7:30 AM
-    [  480,  "negative", "-" ], // 8:00 AM
-    [  540,  "positive", "+" ], // 9:00 AM
-    [  600,  "negative", "-" ], // 10:00 AM
+    [  450,  "negative", "-" ], // 7:30 AM
+    [  480,  "positive", "+" ], // 8:00 AM
+    [  540,  "negative", "-" ], // 9:00 AM
+    [  600,  "positive", "+" ], // 10:00 AM
     [  630,  "positive", "+" ], // 10:30 AM
     [  660,  "negative", "-" ], // 11:00 AM
     [  720,  "positive", "+" ], // 12:00 PM
-    [  750,  "negative", "-" ], // 12:30 PM
-    [  780,  "positive", "+" ], // 1:00 PM
+    [  750,  "positive", "+" ], // 12:30 PM
+    [  780,  "negative", "-" ], // 1:00 PM
     [  810,  "negative", "-" ], // 1:30 PM
     [  840,  "positive", "+" ], // 2:00 PM
     [  900,  "negative", "-" ], // 3:00 PM
     [  960,  "positive", "+" ], // 4:00 PM
-    [  990,  "negative", "-" ], // 4:30 PM
-    [ 1020,  "positive", "+" ], // 5:00 PM
-    [ 1080,  "negative", "-" ], // 6:00 PM
+    [  990,  "positive", "+" ], // 4:30 PM
+    [ 1020,  "negative", "-" ], // 5:00 PM
+    [ 1080,  "positive", "+" ], // 6:00 PM
     [ 1110,  "positive", "+" ], // 6:30 PM
     [ 1140,  "negative", "-" ], // 7:00 PM
-    [ 1170,  "positive", "+" ], // 7:30 PM
-    [ 1200,  "negative", "-" ], // 8:00 PM
-    [ 1260,  "positive", "+" ], // 9:00 PM
-    [ 1320,  "negative", "-" ], // 10:00 PM
+    [ 1170,  "negative", "-" ], // 7:30 PM
+    [ 1200,  "positive", "+" ], // 8:00 PM
+    [ 1260,  "negative", "-" ], // 9:00 PM
+    [ 1320,  "positive", "+" ], // 10:00 PM
     [ 1350,  "positive", "+" ], // 10:30 PM
     [ 1380,  "negative", "-" ], // 11:00 PM
     [ 1440,  "positive", "+" ], // sentinel
@@ -3013,19 +3013,23 @@ function App() {
   // 3-star 80m window → 0.3%
   // No news → hold to next step change → 0.3%
   function getSignalWindow(activeEvents){
-    // SPEC: Breaking=61.8-78.6 fib (0.185%), 1★=TP1 100 (0.3%), 2★=TP2 161 (0.6%), 3★=TP3 261 (0.9%)
-    // Risk: "Exit at 61.8" — primary exit=0.185%, track hit counts at 0.3/0.6/0.9/1.2%
+    // CANONICAL SPEC (both doc 1 & doc 2):
+    // Breaking: 0–20m burst → 38.2 fib (0.1146%)
+    // ⭐ ±20m   ⭐⭐ ±50m   ⭐⭐⭐ ±80m   → all 61.8 fib (0.185%)
+    // Risk: exit at 0.185%, show hit counts for 0.3%/0.6%/0.9%/1.2%
+    const TP_BREAK_VAL = 0.001146;
+    const TP_STAR_VAL  = 0.00185;
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:30, tp:0.00185, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"step exit" };
+      return { type:"none", stars:0, windowMins:30, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      return { type:"break", stars:0, windowMins:20, tp:0.00185, tpLabel:"61.8-78.6 fib", tpPct:"0.185%", exitRule:"0-20m burst window" };
+      return { type:"break", stars:0, windowMins:20, tp:TP_BREAK_VAL, tpLabel:"38.2 fib", tpPct:"0.1146%", exitRule:"0-20m burst" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:0.009, tpLabel:"TP3 261", tpPct:"0.9%",  exitRule:"±80m symmetric window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:0.006, tpLabel:"TP2 161", tpPct:"0.6%",  exitRule:"±50m symmetric window" };
-    return             { type:"star", stars:1, windowMins:20, tp:0.003, tpLabel:"TP1 100",  tpPct:"0.3%",  exitRule:"±20m symmetric window" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"±80m symmetric window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"±50m symmetric window" };
+    return             { type:"star", stars:1, windowMins:20, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"±20m symmetric window" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
@@ -3109,14 +3113,14 @@ function App() {
         return candleByTs[sortedTs[idx+1]]||null;
       }
 
-      // ── SCORER — SPEC: Break=61.8-78.6, 1★=0.3%, 2★=0.6%, 3★=0.9% ─────────
-      // Multi-level hit tracking for "show hit counts" per risk rules
-      const TP_BREAK = 0.00185;  // 61.8 fib — breaking news (~0.185%)
-      const TP_300   = 0.003;    // TP1 (100)  0.3% — 1★ primary exit
-      const TP_600   = 0.006;    // TP2 (161)  0.6% — 2★ primary exit
-      const TP_900   = 0.009;    // TP3 (261)  0.9% — 3★ primary exit
-      const TP_1200  = 0.012;    // .12% extension
-      const TP_185   = 0.00185;  // 61.8 alias
+      // ── SCORER — CANONICAL SPEC: Break=0.1146%(38.2), Stars=0.185%(61.8) ─────
+      // Multi-level tracking: 0.185%, 0.3%, 0.6%, 0.9%, 1.2% (risk rule display)
+      const TP_BREAK = 0.001146; // 38.2 fib — breaking news exit
+      const TP_185   = 0.00185;  // 61.8 fib — all star exits
+      const TP_300   = 0.003;    // 0.3% extension level
+      const TP_600   = 0.006;    // 0.6% extension level
+      const TP_900   = 0.009;    // 0.9% extension level
+      const TP_1200  = 0.012;    // 1.2% extension level (.12%)
 
       function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
