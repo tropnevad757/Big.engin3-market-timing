@@ -1667,7 +1667,7 @@ function App() {
   const _stepDir = internalStep.direction;
   const liveSlotPolarity = newsReaction.active
     ? ((et.h24 % 2 === 0) ? "positive" : "negative")
-    : ((et.h24 % 2 !== 0) ? "positive" : "negative"); // NO-NEWS FALLBACK: odd=BUY / even=SELL
+    : ((et.h24 % 2 === 0) ? "positive" : "negative"); // NO-NEWS FALLBACK: odd=SELL / even=BUY
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
   const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || []);
   const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
@@ -1696,12 +1696,12 @@ function App() {
     finalResolvedSign: livePolarityApplied.newsSign || "0",
     finalSlotSign: livePolarityApplied.slotSign || (liveSlotPolarity === "positive" ? "+" : "-"),
     flippedByStacking: !!livePolarityApplied.chargeFlip,
-    dominantSource: livePolarityApplied.dominantSource || "even/odd parity (odd=BUY)",
+    dominantSource: livePolarityApplied.dominantSource || "even/odd parity (odd=SELL)",
     reason: livePolarityApplied.reason || "",
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
     // SELF-CHECK: live and replay use the same function (resolveStackedNewsSign)
-    engineUsed: "computeReplayPolarity (shared live+replay) | no-news: odd=BUY / even=SELL"
+    engineUsed: "computeReplayPolarity (shared live+replay) | no-news: odd=SELL / even=BUY"
   };
 
   const appChecks = [
@@ -2036,9 +2036,9 @@ function App() {
       return {
         finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
         newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
-        chargeFlip: false, clusterResult: null, dominantSource: "even/odd parity (odd=BUY)",
+        chargeFlip: false, clusterResult: null, dominantSource: "even/odd parity (odd=SELL)",
         newsSign: "0", slotSign: slotCharge===1?"+":"-", sellRestriction: false,
-        reason: "no news - odd=BUY / even=SELL parity held",
+        reason: "no news - odd=SELL / even=BUY parity held",
         equation: equationPlain,
         equationPlain,
       };
@@ -2991,7 +2991,7 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: no-news → odd hour → positive (BUY) / even hour → negative (SELL)
+  // RULE: no-news → even hour → positive (BUY) / odd hour → negative (SELL)
   //       news active → use even/odd hour polarity schedule
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
@@ -3001,7 +3001,7 @@ function App() {
     const connectorMode = getConnectorMode(h24, m);
     const regime = connectorMode === "mirror" ? "CORE" : "RESET";
     const hasNews = (activeEvents||[]).length > 0;
-    const slotPol = hasNews ? newsSlot.polarity : ((h24 % 2 !== 0) ? "positive" : "negative"); // NO-NEWS FALLBACK: odd=BUY / even=SELL
+    const slotPol = hasNews ? newsSlot.polarity : ((h24 % 2 === 0) ? "positive" : "negative"); // NO-NEWS FALLBACK: odd=SELL / even=BUY
     const pState = buildPolarityState(step.direction, slotPol);
     const applied = resolveStackedNewsSign(pState.baseDirection, slotPol, activeEvents);
     const finalDir = applied.finalDirection;
@@ -3485,9 +3485,9 @@ function App() {
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY SETUP QUALITY</div>
                 {[
                   {l:"EXECUTE + NEWS", key:"execNews", c:G,         note:"Primary setup — execute slot with news"},
-                  {l:"EXECUTE no news", key:"exec",     c:A,         note:"Execute slot — odd=BUY / even=SELL"},
+                  {l:"EXECUTE no news", key:"exec",     c:A,         note:"Execute slot — odd=SELL / even=BUY"},
                   {l:"SCHEDULE + NEWS",          key:"trapNews", c:"#88aaff", note:"Scheduled slot with news / half-hour included"},
-                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled slot — odd=BUY / even=SELL"},
+                  {l:"SCHEDULE no news",           key:"trap",    c:"#444",    note:"Scheduled slot — odd=SELL / even=BUY"},
                 ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -3599,7 +3599,7 @@ function App() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{fontSize:11,color:"#444",...mono,marginBottom:8}}>NO NEWS — odd=BUY / even=SELL</div>
+                  <div style={{fontSize:11,color:"#444",...mono,marginBottom:8}}>NO NEWS — odd=SELL / even=BUY</div>
                 )}
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
