@@ -1803,22 +1803,22 @@ function App() {
   // Reuters: google news search locked to reuters.com domain
   // Bloomberg: google news search locked to bloomberg.com domain
   const NEWS_FEEDS = [
-    { id:"combo", label:"R + B", color:"#ffb347",
+    { id:"combo", label:"MARKET + BREAKING", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=when:30d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:30d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar+-forexfactory+-myfxbook&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"reuters", label:"Reuters", color:"#ff6b35",
-      // Locked to reuters.com — last 24h — same as Feedly reuters/businessNews
+    { id:"markets", label:"Bloomberg Markets", color:"#f0a030",
       urls:[
-        "https://news.google.com/rss/search?q=when:30d+allinurl:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"bloomberg", label:"Bloomberg", color:"#f0a030",
-      // Locked to bloomberg.com markets — last 24h
+    { id:"breaking", label:"Breaking Markets", color:"#ff6b35",
       urls:[
-        "https://news.google.com/rss/search?q=when:30d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar+-forexfactory+-myfxbook&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
@@ -1826,22 +1826,7 @@ function App() {
     // ── CALENDAR FEEDS ─────────────────────────────────────────────────────────────
   // ForexFactory JSON is the most reliable free cross-origin economic calendar
   // same underlying data Myfxbook and TradingEconomics aggregate
-  const CALENDAR_FEEDS = [
-    // ForexFactory this-week JSON — free, no auth, reliable CORS
-    { label:"ForexFactory",      color:"#ff6b35",  type:"ff_json",
-      url:"https://nfs.faireconomy.media/ff_calendar_thisweek.json?version=1" },
-    // Myfxbook RSS via proxy
-    { label:"Myfxbook",          color:"#00aaff",  type:"rss",
-      url:"https://www.myfxbook.com/rss/forex-economic-calendar-events" },
-    // Trading Economics Google News (their own content indexed by Google)
-    { label:"Trading Economics",  color:"#f0a030",  type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+(%22trading+economics%22+OR+%22economic+calendar%22+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22)&hl=en-US&gl=US&ceid=US:en" },
-    // Reuters + Bloomberg economic news for breaking events not on static calendar
-    { label:"Reuters Econ",       color:"#ff6b35",  type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+(Reuters+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22)&hl=en-US&gl=US&ceid=US:en" },
-    { label:"Bloomberg Econ",     color:"#f0a030",  type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+(Bloomberg+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22rates%22)&hl=en-US&gl=US&ceid=US:en" },
-  ];
+  const CALENDAR_FEEDS = [];
 
   // ECO_KEYWORDS for feed classification
   const ECO_KEYWORDS = [
@@ -2029,11 +2014,11 @@ function App() {
       return {
         finalDirection: null, baseCharge: 0, finalCharge: 0,
         newsFlip: 0, negativePressure: 0, positivePressure: 0, activeCount,
-        chargeFlip: false, clusterResult: null, dominantSource: "breaking only",
+        chargeFlip: false, clusterResult: null, dominantSource: "market + breaking",
         newsSign: "0", slotSign: "", sellRestriction: false,
-        reason: activeCount ? "breaking news active but no directed polarity" : "no active breaking news",
-        equation: "NO DIRECTED BREAKING NEWS",
-        equationPlain: "NO DIRECTED BREAKING NEWS",
+        reason: activeCount ? "market-moving news active but no directed polarity" : "no active market-moving news",
+        equation: "NO DIRECTED MARKET / BREAKING NEWS",
+        equationPlain: "NO DIRECTED MARKET / BREAKING NEWS",
       };
     }
 
@@ -2055,7 +2040,7 @@ function App() {
 
     const finalDirection = stackedCharge === 1 ? "buy" : "sell";
     const newsSign = stackedCharge === 1 ? "+" : "-";
-    const equationPlain = `BREAKING ${newsSign} · FINAL ${finalDirection.toUpperCase()}${orderedDirected.length>=2 ? " · STACK FOLD" : ""}`;
+    const equationPlain = `MARKET NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${orderedDirected.length>=2 ? " · STACK FOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2068,7 +2053,7 @@ function App() {
       activeCount,
       chargeFlip: orderedDirected.length >= 2,
       clusterResult: orderedDirected.length >= 2 ? {
-        dominantSource: "breaking only",
+        dominantSource: "market + breaking",
         stackSize: orderedDirected.length,
         positiveCount: positives,
         negativeCount: negatives,
@@ -2076,13 +2061,13 @@ function App() {
         orderedTitles: orderedDirected.map(x=>String(x.ev?.title || "").slice(0,80)),
         rule: `${stackTrace.join(" -> ")} => ${newsSign} (pair fold)`
       } : null,
-      dominantSource: "breaking only",
+      dominantSource: "market + breaking",
       newsSign,
       slotSign: "",
       sellRestriction: false,
       reason: orderedDirected.length >= 2
-        ? "stacked breaking news resolved by pair-fold collision math"
-        : "single directed breaking news drives signal",
+        ? "stacked market-moving news resolved by pair-fold collision math"
+        : "single directed market-moving news drives signal",
       equation: equationPlain,
       equationPlain,
     };
@@ -2171,137 +2156,29 @@ function App() {
 
   // ── fetchEcoNews — eco classification for FEED tab ───────────────────────────
   const fetchEcoNews = useCallback(()=>{
-    if(ecoLoadedRef.current) return;
     ecoLoadedRef.current=true;
-    setEcoLoading(true);
-    const ECO_URLS = [
-      {url:"https://news.google.com/rss/search?q=when:30d+(CPI+OR+NFP+OR+FOMC+OR+GDP+OR+PCE+OR+PMI+OR+%22jobless+claims%22+OR+%22interest+rate%22+OR+%22non-farm+payrolls%22)&hl=en-US&gl=US&ceid=US:en", label:"Google Econ", color:"#00aaff"},
-      {url:"https://news.google.com/rss/search?q=when:30d+(Federal+Reserve+OR+Powell+OR+%22rate+decision%22+OR+%22rate+hike%22+OR+%22rate+cut%22)&hl=en-US&gl=US&ceid=US:en", label:"Google Fed", color:"#aa88ff"},
-    ];
-    Promise.all(ECO_URLS.map(f=>
-      fetchRSS(f.url).then(items=>items.map(item=>{
-        const norm=normalizeItem(item,f.label,f.color);
-        const cls=classifyEcoArticle(norm.title,norm.desc); return {...norm,...cls, polarity: cls.bearish?-1:cls.bullish?1:0, kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event", feedType:"eco"};
-      }).filter(a=>a.title&&a.title.length>3&&a.stars>0)).catch(()=>[])
-    )).then(results=>{
-      const all=results.flat();
-      const seen=new Set();
-      const deduped=all.filter(a=>{ const k=a.title.slice(0,40).toLowerCase(); if(seen.has(k))return false; seen.add(k); return true; });
-      deduped.sort((a,b)=>(b.stars-a.stars)||new Date(b.pub)-new Date(a.pub));
-      setEcoArticles(deduped);
-      const recent3=deduped.find(a=>a.stars===3&&!breakingAnchor&&(Date.now()-new Date(a.pub).getTime())<30*60000);
-      if(recent3){ const pol=recent3.bearish?-1:recent3.bullish?1:0; if(pol!==0) setBreakingAnchor({title:recent3.title,polarity:pol,expiresAt:Date.now()+15*60*1000,stars:3,auto:true}); }
-    }).finally(()=>setEcoLoading(false));
+    setEcoLoading(false);
+    setEcoArticles([]);
   },[breakingAnchor]);
 
   // ── fetchCalendar — ForexFactory JSON (primary) + Myfxbook/Reuters/Bloomberg RSS (fallback) ──
   const fetchCalendar = useCallback(()=>{
-    if(calLoadedRef.current) return;
     calLoadedRef.current=true;
-    setCalLoading(true);
-    const todayStr     = new Date().toISOString().slice(0,10);
-    const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
-    const historyStr   = new Date(Date.now()-30*86400000).toISOString().slice(0,10);
-    // Expanded history for past economic events (backtest review)
-    const historyStr90 = new Date(Date.now()-90*86400000).toISOString().slice(0,10);
-
-    // Impact map for ForexFactory: Low/Medium/High → 1/2/3 stars
-    function ffStars(impact){
-      if(!impact) return 1;
-      const i = impact.toLowerCase();
-      if(i==="high") return 3;
-      if(i==="medium"||i==="med") return 2;
-      return 1;
-    }
-
-    // Fetch ForexFactory JSON (primary — free, no CORS issues, same data as Myfxbook/TE)
-    function fetchFF(){
-      const feeds = CALENDAR_FEEDS.filter(f=>f.type==="ff_json");
-      if(!feeds.length) return Promise.resolve([]);
-      return Promise.race([
-        fetch(feeds[0].url,{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()),
-        new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),8000))
-      ]).then(data=>{
-        if(!Array.isArray(data)) return [];
-        return data
-          .filter(ev=>ev.date&&ev.date.slice(0,10)>=historyStr90) // 90-day history for backtest
-          .map(ev=>({
-            title: (ev.title||ev.name||"").trim(),
-            pub: ev.date,
-            link: "",
-            source: "ForexFactory",
-            color: "#ff6b35",
-            stars: ffStars(ev.impact),
-            currency: ev.currency||"",
-            country: inferCountryCode(ev.currency||"", ev.currency||""),
-            forecast: ev.forecast||"",
-            previous: ev.previous||"",
-            date: ev.date.slice(0,10),
-            time: ev.date.slice(11,16)||"",
-            isLive: true, feedType:"calendar", kind:/powell|speech|remarks|testimony|presser|press conference/i.test((ev.title||ev.name||""))?"speech":"event", polarity:0,
-          }))
-          .filter(ev=>ev.title&&ev.title.length>2&&ev.stars>=1);
-      }).catch(()=>[]);
-    }
-
-    // Fetch RSS-based feeds (Myfxbook, Reuters Econ, Bloomberg Econ)
-    function fetchRSSFeeds(){
-      const rssFeeds = CALENDAR_FEEDS.filter(f=>f.type==="rss"||f.type==="rss_proxy");
-      return Promise.all(rssFeeds.map(f=>
-        fetchRSS(f.url).then(items=>
-          items.map(item=>{
-            const norm = normalizeItem(item, f.label, f.color);
-            const d = norm.pub ? new Date(norm.pub) : null;
-            const dateStr = d && !isNaN(d) ? d.toISOString().slice(0,10) : "";
-            return {
-              ...norm,
-              stars: classifyEcoArticle(norm.title, norm.desc).stars || calStars(norm.title) || 1,
-              country: norm.country || inferCountryCode(`${norm.title} ${norm.desc}`),
-              date: dateStr,
-              time: d && !isNaN(d) ? d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}) : "",
-              isLive: true,
-              feedType:"calendar",
-              kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
-              polarity:Number(norm?.polarity ?? (norm?.bearish ? -1 : norm?.bullish ? 1 : 0)),
-            };
-          }).filter(a=>a.title&&a.title.length>3&&a.stars>=1&&(a.date>=historyStr90||!a.date)) // 90-day history
-        ).catch(()=>[])
-      )).then(groups=>groups.flat());
-    }
-
-    // Run both in parallel, merge, dedupe, sort
-    Promise.all([fetchFF(), fetchRSSFeeds()])
-    .then(([ffItems, rssItems])=>{
-      const all = [...ffItems, ...rssItems];
-      const seen = new Set();
-      const deduped = all.filter(a=>{
-        // Fingerprint = first 40 chars of title + date — catches cross-source duplicates
-        const title = (a.title||"").toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,40);
-        const k = title + (a.date||"");
-        if(!title||seen.has(k)) return false;
-        seen.add(k); return true;
-      });
-      // Sort: today first (by time), then upcoming by date
-      deduped.sort((a,b)=>{
-        if(a.date===b.date) return (a.time||"").localeCompare(b.time||"");
-        return (a.date||"9999").localeCompare(b.date||"9999");
-      });
-      setCalArticles(deduped);
-    })
-    .finally(()=>setCalLoading(false));
+    setCalLoading(false);
+    setCalArticles([]);
   },[]);
 
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
     if(newsView==="feed") {
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
-      if(!calLoadedRef.current) fetchCalendar();
+
     }
-    if(newsView==="calendar") { calLoadedRef.current=false; fetchCalendar(); }
+
   },[newsView,newsSrc]);
 
-  // On mount, pre-load default feed + calendar
-  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; fetchCalendar(); },[]);
+  // On mount, pre-load market-moving news only
+  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -3089,7 +2966,7 @@ function App() {
         const t = Date.parse(ev.pub||0);
         return t && t >= replayWindowStart && replayEventType(ev)==="breaking";
       });
-      // ── BREAKING-NEWS-ONLY REPLAY ─────────────────────────────────────────────
+      // ── MARKET-MOVING-NEWS-ONLY REPLAY ─────────────────────────────────────────────
       // No schedule slots, no execute/trap framework. Any candle with active
       // directed breaking-news qualifies for replay.
       function isReplaySlot(h24, m){ return true; }
@@ -3285,7 +3162,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now runs in BREAKING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
+          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3432,7 +3309,7 @@ function App() {
                 {/* All 4 quality tiers — clean-hour scoring */}
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY NEWS SETUP</div>
                 {[
-                  {l:"BREAKING ONLY", key:"breakingOnly", c:G, note:"Directed breaking-news windows only"},
+                  {l:"MARKET + BREAKING ONLY", key:"breakingOnly", c:G, note:"Directed breaking-news windows only"},
                                   ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -3791,8 +3668,8 @@ const BacktestTab = ()=>{
     const LINKS = [
       { label:"Bloomberg Markets",  color:"#00ff88",  url:"https://www.bloomberg.com/markets",                       desc:"Markets, rates & macro news" },
       { label:"Myfxbook News",      color:"#00aaff",  url:"https://www.myfxbook.com/forex-news",                     desc:"Forex news & live sentiment" },
-      { label:"Myfxbook Calendar",  color:"#88aaff",  url:"https://www.myfxbook.com/forex-economic-calendar",        desc:"FX economic calendar" },
-      { label:"Trading Economics",  color:"#f0a030",  url:"https://tradingeconomics.com/calendar",                   desc:"Global economic calendar & data" },
+      { label:"Bloomberg Markets", color:"#f0a030", url:"https://www.bloomberg.com/markets", desc:"Bloomberg market coverage" },
+      { label:"Reuters Markets",   color:"#ff6b35", url:"https://www.reuters.com/markets/", desc:"Reuters market coverage" },
     ];
 
     function fmtDate(s){
@@ -3812,7 +3689,7 @@ const BacktestTab = ()=>{
 
         {/* Toggle */}
         <div style={{display:"none",gap:6,marginBottom:14}}>
-          {[{id:"feed",l:"📰 FEED"},{id:"calendar",l:"📅 CALENDAR"},{id:"events",l:"⚡ POLARITY"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
+          {[{id:"feed",l:"📰 FEED"},{id:"events",l:"⚡ POLARITY"},{id:"links",l:"🔗 SOURCES"}].map(v=>(
             <button key={v.id} onClick={()=>setNewsView(v.id)} style={{flex:1,padding:"9px 0",borderRadius:10,
               background:newsView===v.id?`${A}22`:"transparent",
               border:`1px solid ${newsView===v.id?A:"#1e1e2e"}`,
@@ -3870,7 +3747,7 @@ const BacktestTab = ()=>{
               </button>
             </div>
 
-            {ecoLoading&&<div style={{textAlign:"center",padding:"24px",color:"#999",...mono,fontSize:13}}>⏳ Loading live economic news…</div>}
+            {ecoLoading&&<div style={{textAlign:"center",padding:"24px",color:"#999",...mono,fontSize:13}}>⏳ Loading live market-moving news…</div>}
 
             {/* Live eco news cards */}
             {!ecoLoading&&(ecoArticles.filter(a=>a.stars>=ecoStarFilter||(ecoStarFilter===0))).map((art,i)=>{
@@ -3923,11 +3800,11 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR + BREAKING NEWS</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · MARKET + BREAKING NEWS</div>
               <div style={{fontSize:10,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginLeft:4}}>
                 {calArticles.length>0&&`${calArticles.length} events (90d)`}
               </div>
-              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
+              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
             {(newsLoading||calLoading)&&(
@@ -3943,14 +3820,14 @@ const BacktestTab = ()=>{
             {(()=>{
               // Show ALL calendar events (no pre-filter) so PAST bucket is populated.
               // The classify() function below handles live/upcoming/past sorting.
-              const calendarTimeline = (calArticles||[])
+              const calendarTimeline = ([])
                 .map(item=>({
                   ...item,
                   kind:"event",
                   isUnified:true,
                   pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
-                  feedType:"calendar"
+                  feedType:"news"
                 }))
                 .filter(item=>{
                   // Only filter out items with no parseable date
@@ -4026,7 +3903,7 @@ const BacktestTab = ()=>{
                       <div style={{paddingLeft:12}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                           <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 BREAK"}</span>
+                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 MARKET"}</span>
                             <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
                             {!!item.country&&<span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
                             {item.feedType==="calendar"&&<span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1,Math.min(3,Number(item.stars||1))))}</span>}
@@ -4037,7 +3914,7 @@ const BacktestTab = ()=>{
                         {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
                         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
                           {item.feedType==="calendar"&&<span style={{fontSize:12,color:isLive?G+"cc":isUp?A+"cc":"#556",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {Number(item.stars||1)===3?90:Number(item.stars||1)===2?60:30}m EARLY · WIN ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · {Number(item.stars||1)===3?"TP3 0.9%":Number(item.stars||1)===2?"TP2 0.6%":"TP1 0.3%"}</span>}
-                          {item.feedType!=="calendar"&&<span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>BURST 0–20m · 61.8–78.6 fib</span>}
+                          {item.feedType!=="calendar"&&<span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>MARKET BURST 0–20m · 61.8–78.6 fib</span>}
                         </div>
                       </div>
                     </div>
@@ -4118,133 +3995,14 @@ const BacktestTab = ()=>{
         )}
 
         {/* ── ECONOMIC EVENTS ── */}
-        {newsView==="calendar"&&(
-          <>
-            {/* Day picker + refresh */}
-            <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-              {[
-                {id:"yesterday",l:"Yesterday"},
-                {id:"today",    l:"Today"},
-              ].map(d=>(
-                <button key={d.id} onClick={()=>setCalDay(d.id)} style={{
-                  flex:1,padding:"8px 0",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",
-                  background:calDay===d.id?`${A}22`:"transparent",
-                  border:`1px solid ${calDay===d.id?A:"#1e1e2e"}`,
-                  color:calDay===d.id?A:"#aaa",letterSpacing:.5,
-                }}>{d.l}</button>
-              ))}
-              <button onClick={()=>{calLoadedRef.current=false;fetchCalendar();}}
-                style={{padding:"8px 10px",borderRadius:10,fontSize:13,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer",flexShrink:0}}>
-                ↻
-              </button>
-            </div>
-
-            {calLoading&&<div style={{textAlign:"center",padding:"28px",...mono,fontSize:13,color:"#aaa"}}>⏳ Loading calendar…</div>}
-
-            {!calLoading&&(()=>{
-              const todayStr     = new Date().toISOString().slice(0,10);
-              const tomorrowStr  = new Date(Date.now()+86400000).toISOString().slice(0,10);
-              const yesterdayStr = new Date(Date.now()-86400000).toISOString().slice(0,10);
-              const starCol      = [null,"#aaa","#f0a030","#ff3355"];
-
-              const targetDate = calDay==="yesterday"?yesterdayStr:calDay==="tomorrow"?tomorrowStr:todayStr;
-
-              // Static ECON fallback — include yesterday too
-              const staticItems = ECON
-                .filter(e=>e.d>=yesterdayStr)
-                .slice(0,30)
-                .map(e=>({
-                  title:e.l, pub:e.d+"T"+e.t+":00", link:"",
-                  source:"Calendar", color:IC[e.imp]||"#888",
-                  stars:e.imp==="high"?3:e.imp==="med"?2:1,
-                  cat:e.cat, btc:e.btc, date:e.d, time:e.t, isStatic:true,
-                }));
-
-              const liveItems = calArticles.filter(a=>isCalendarEventVisible(a, Date.now())).map(a=>({
-                ...a,
-                date: a.date || (a.pub ? new Date(a.pub).toISOString().slice(0,10) : ""),
-                time: a.time || (a.pub && !isNaN(new Date(a.pub)) ? new Date(a.pub).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:false}).slice(0,5) : ""),
-              }));
-
-              const seen = new Set();
-              const merged = [...liveItems, ...staticItems].filter(a=>{
-                const k=(a.title||"").toLowerCase().slice(0,45);
-                if(!k||seen.has(k)) return false;
-                seen.add(k); return true;
-              });
-
-              merged.sort((a,b)=>{
-                const dc=(a.date||"9999").localeCompare(b.date||"9999");
-                return dc!==0?dc:(a.time||"").localeCompare(b.time||"");
-              });
-
-              const dayEvs = merged.filter(a=>a.date===targetDate);
-
-              if(!dayEvs.length)
-                return(
-                  <div style={{textAlign:"center",padding:"32px",color:"#999",...mono,fontSize:13}}>
-                    No {calDay} events found — tap ↻ to refresh.
-                  </div>
-                );
-
-              function EventCard({ev}){
-                const sc   = starCol[ev.stars]||"#888";
-                const key  = calDay+ev.title;
-                const open = newsExpanded===key;
-                return(
-                  <div onClick={()=>setNewsExpanded(open?null:key)}
-                    style={{background:open?`${sc}10`:`${sc}07`,border:`1px solid ${sc}${open?"55":"28"}`,
-                      borderRadius:12,padding:"13px 14px",marginBottom:8,cursor:"pointer",position:"relative",overflow:"hidden"}}>
-                    {calDay==="today"&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:sc}}/>}
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:14,fontWeight:700,color:"#fff",lineHeight:1.35,marginBottom:5}}>{ev.title}</div>
-                        <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-                          <span style={{fontSize:13,color:sc,fontWeight:900}}>{"★".repeat(ev.stars||1)}</span>
-                          {ev.currency&&<span style={{fontSize:13,color:"#aaa",background:"rgba(255,255,255,0.07)",borderRadius:5,padding:"2px 7px",...mono}}>{ev.currency}</span>}
-                          {ev.cat&&<span style={{fontSize:13,color:CC[ev.cat]||"#888",background:`${CC[ev.cat]||"#555"}18`,borderRadius:5,padding:"2px 7px"}}>{ev.cat}</span>}
-                          <span style={{fontSize:13,color:"#888",...mono}}>{ev.source}</span>
-                        </div>
-                        {(ev.forecast||ev.previous)&&(
-                          <div style={{fontSize:13,color:"#777",...mono,marginTop:4}}>
-                            {ev.forecast&&<span>Forecast: <span style={{color:"#ccc"}}>{ev.forecast}</span></span>}
-                            {ev.previous&&<span style={{marginLeft:8}}>Prev: <span style={{color:"#ccc"}}>{ev.previous}</span></span>}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{textAlign:"right",flexShrink:0,minWidth:72}}>
-                        {ev.time&&<div style={{fontSize:13,fontWeight:900,color:calDay==="today"?A:"#ccc",...mono}}>{ev.time} ET</div>}
-                        {ev.link&&<a href={ev.link} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} style={{fontSize:13,color:A,...mono,textDecoration:"none",display:"block",marginTop:3}}>↗ Read</a>}
-                      </div>
-                    </div>
-                    {open&&(ev.btc||ev.desc)&&(
-                      <div style={{marginTop:9,paddingTop:9,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-                        {ev.btc&&<div style={{fontSize:13,color:A,fontWeight:700,letterSpacing:1,marginBottom:4}}>₿ BTC IMPACT</div>}
-                        <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.85}}>{ev.btc||ev.desc}</div>
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              return(
-                <div>
-                  <div style={{fontSize:13,letterSpacing:2,color:calDay==="today"?A:calDay==="yesterday"?"#888":"#aaa",fontWeight:700,marginBottom:10}}>
-                    {calDay==="yesterday"?"⬅ YESTERDAY":calDay==="tomorrow"?"TOMORROW ➡":"📅 TODAY · "+dayEvs.length+" EVENTS"}
-                  </div>
-                  {dayEvs.map((ev,i)=><EventCard key={i} ev={ev}/>)}
-                </div>
-              );
-            })()}
-          </>
-        )}
+        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Calendar removed in this version. This build uses Google-searched market-moving news, Bloomberg Markets, Reuters Markets, and breaking news only.</div>)}
 
 
         {/* ── SOURCES ── */}
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Myfxbook + Trading Economics calendar events with Reuters + Bloomberg breaking news in one on-page timeline, including country codes.</div>
+              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Google-searched market-moving news with Bloomberg Markets, Reuters Markets, and breaking news in one on-page timeline. No economic calendar in this version.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
