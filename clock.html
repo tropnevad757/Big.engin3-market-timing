@@ -1541,7 +1541,7 @@ function App() {
     const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    const allEvents = filterTradeableNewsEvents(buildUnifiedNewsEvents(nowMs).map(ev=>{
+    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
       const t = Date.parse(ev.pub||0);
       if(!t || Number.isNaN(t)) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
@@ -1562,7 +1562,7 @@ function App() {
       else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
       else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
-    }).filter(Boolean)).sort((a,b)=>a.absMins-b.absMins);
+    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
 
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
@@ -1978,16 +1978,6 @@ function App() {
   }
 
 
-  function filterTradeableNewsEvents(activeEvents){
-    const events = Array.isArray(activeEvents) ? activeEvents.filter(Boolean) : [];
-    if(!events.length) return [];
-    const hasScheduledSymmetric = events.some(ev => replayEventType(ev) === "scheduled");
-    if(!hasScheduledSymmetric) return events;
-    // Hard guard: breaking / unscheduled items do not trade inside symmetric calendar windows.
-    return events.filter(ev => replayEventType(ev) === "scheduled");
-  }
-
-
   function isCalendarEventVisible(item, nowMs = Date.now()){
     const t = Date.parse(item?.pub || ((item?.date && item?.time) ? `${item.date}T${String(item.time).replace(/\s/g,"")}` : "") || 0);
     if(!t || Number.isNaN(t)) return false;
@@ -2039,80 +2029,69 @@ function App() {
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
-    const activeCount = (activeEvents||[]).length;
+    const allActive = Array.isArray(activeEvents) ? activeEvents : [];
+    const activeCount = allActive.length;
+    const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0);
+    const directedCount = directedEvents.length;
+    const negatives = directedEvents.filter(ev=>Number(ev?.polarity) < 0).length;
+    const positives = directedEvents.filter(ev=>Number(ev?.polarity) > 0).length;
+    const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
+    const speeches = allActive.filter(ev=>replayEventType(ev)==="speech").length;
 
     if(!activeCount){
-      const equationPlain = `BASE ${baseDirection.toUpperCase()} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
-        finalDirection: baseDirection, baseCharge, finalCharge: baseCharge,
-        newsFlip: 1, negativePressure: 0, positivePressure: 0, activeCount: 0,
-        chargeFlip: false, clusterResult: null, dominantSource: "step schedule",
-        newsSign: "0", slotSign: slotCharge===1?"+":"-", sellRestriction: false,
+        finalDirection: baseDirection,
+        baseCharge,
+        finalCharge: baseCharge,
+        newsFlip: 1,
+        negativePressure: 0,
+        positivePressure: 0,
+        breakingCount: 0,
+        activeCount: 0,
+        chargeFlip: false,
+        clusterResult: null,
+        dominantSource: "step schedule",
+        newsSign: "0",
+        slotSign: slotCharge===1?"+":"-",
+        sellRestriction: false,
         reason: "no news - step direction schedule held",
         equation: equationPlain,
         equationPlain,
       };
     }
 
-    const directedEvents = (activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0);
-    const negatives = directedEvents.filter(ev=>Number(ev.polarity) === -1).length;
-    const positives = directedEvents.filter(ev=>Number(ev.polarity) === 1).length;
-    const breakingEvents = (activeEvents||[]).filter(ev=>replayEventType(ev)==="breaking").length;
-    const speeches = (activeEvents||[]).filter(ev=>replayEventType(ev)==="speech").length;
-
-    const rateLookup = new Map(CHARGE_CURRENCIES.map(c=>[String(c.sym||"").toUpperCase(), Number(c.rate||0)]));
-    const directedWithRate = directedEvents.map(ev=>({
-      ev,
-      charge: Number(ev.polarity) > 0 ? 1 : -1,
-      rate: rateLookup.get(String(ev.country || ev.currency || inferCountryCode(ev.title||"", "")).toUpperCase()) ?? -999,
-      isUsdAnchor: /(^|\W)(usd|us|fomc|fed|federal reserve|powell|rate decision|interest rate)(\W|$)/i.test(String(ev.title||""))
-    }));
-
     let newsCharge = 0;
-    let dominantSource = "undirected news";
-    if(directedWithRate.length){
-      directedWithRate.sort((a,b)=>{
-        if(b.isUsdAnchor !== a.isUsdAnchor) return Number(b.isUsdAnchor) - Number(a.isUsdAnchor);
-        return b.rate - a.rate;
-      });
-      newsCharge = directedWithRate[0].charge;
-      dominantSource = directedWithRate[0].isUsdAnchor ? "USD anchor" : `rate leader ${String(directedWithRate[0].ev.country||directedWithRate[0].ev.currency||"?")}`;
-    }
-
     let chargeFlip = false;
     let clusterResult = null;
-    // ── CANONICAL STACKING CHARGE MATH ─────────────────────────────────────
-    // Spec: -/- = +   +/+ = -   -/+ = -
-    // Only applies when 2+ directed (non-zero polarity) events are active.
-    // Single event: use its adjusted polarity directly, no flip.
-    if(directedWithRate.length >= 2){
-      const stackedPositives = positives;
-      const stackedNegatives = negatives;
-      let stackedCharge;
-      let stackRule;
-      if(stackedNegatives >= 2 && stackedPositives === 0){
-        // -/- = +  (all negative stack → flips to positive)
-        stackedCharge = 1;
-        stackRule = "-/- = + (all-negative stack)";
-      } else if(stackedPositives >= 2 && stackedNegatives === 0){
-        // +/+ = -  (all positive stack → flips to negative)
-        stackedCharge = -1;
-        stackRule = "+/+ = - (all-positive stack)";
-      } else {
-        // -/+ = -  (mixed stack → stays negative)
-        stackedCharge = -1;
-        stackRule = "-/+ = - (mixed stack, stays negative)";
+    let dominantSource = directedCount ? "scheduled + breaking shared stack" : "undirected news";
+
+    const combineCharges = (leftCharge, rightCharge)=>{
+      if(leftCharge === -1 && rightCharge === -1) return 1;
+      if(leftCharge === 1 && rightCharge === 1) return -1;
+      return -1;
+    };
+
+    if(directedCount === 1){
+      newsCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
+      dominantSource = replayEventType(directedEvents[0]) || dominantSource;
+    } else if(directedCount >= 2){
+      const foldSteps = [];
+      newsCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
+      for(let i=1;i<directedCount;i++){
+        const nextCharge = Number(directedEvents[i].polarity) > 0 ? 1 : -1;
+        const prevCharge = newsCharge;
+        newsCharge = combineCharges(newsCharge, nextCharge);
+        foldSteps.push(`${prevCharge===1?'+':'-'} ${nextCharge===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
       }
-      if(stackedCharge !== newsCharge){
-        chargeFlip = true;
-      }
-      newsCharge = stackedCharge;
+      chargeFlip = directedCount >= 2;
       clusterResult = {
         dominantSource,
-        stackSize: directedWithRate.length,
-        positiveCount: stackedPositives,
-        negativeCount: stackedNegatives,
-        rule: stackRule
+        stackSize: directedCount,
+        positiveCount: positives,
+        negativeCount: negatives,
+        rule: "-/- = +, +/+ = -, -/+ = -",
+        foldSteps,
       };
     }
 
@@ -2132,28 +2111,34 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FLIP" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
-      finalDirection, baseCharge, finalCharge,
+      finalDirection,
+      baseCharge,
+      finalCharge,
       newsFlip: newsFlip ? -1 : 1,
       negativePressure: negatives + speeches,
       positivePressure: positives,
       breakingCount: breakingEvents,
-      activeCount, chargeFlip, clusterResult, dominantSource,
-      newsSign, slotSign, sellRestriction,
+      activeCount,
+      chargeFlip,
+      clusterResult,
+      dominantSource,
+      newsSign,
+      slotSign,
+      sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
         : sellRestriction
           ? "sell-side restriction held the trade direction"
           : chargeFlip
-            ? "stacked news flipped dominant sign"
+            ? "scheduled economic and breaking news used the same stack fold"
             : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
       equationPlain,
     };
   }
-
 
 
   function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents){
@@ -3108,7 +3093,7 @@ function App() {
 
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
-    return filterTradeableNewsEvents(pool.filter(ev=>{
+    return pool.filter(ev=>{
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
@@ -3119,7 +3104,7 @@ function App() {
       const cls = classifyEcoArticle(text, "");
       const freshPol = cls.bearish ? -1 : cls.bullish ? 1 : 0;
       return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
-    }));
+    });
   }
 
   async function runReplay(){
