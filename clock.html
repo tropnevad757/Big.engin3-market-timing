@@ -2145,6 +2145,14 @@ function App() {
   function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents){
     return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
   }
+
+  function getSixHourFallback_430_1030_standard(h24, m){
+    const t = h24*60 + m;
+    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
+    return inSellWindow
+      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
+      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
+  }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
   }
@@ -2883,23 +2891,10 @@ function App() {
   //       news active → use even/odd hour polarity schedule
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
-  function getHalfdayFallback(h24, m, invert=false){
-    const t = h24*60 + m;
-    const buyWindow = (t >= 390 && t < 750) || (t >= 1110 && t < 1470);
-    const baseDirection = invert ? (buyWindow ? "sell" : "buy") : (buyWindow ? "buy" : "sell");
-    const slotPolarity = baseDirection === "buy" ? "positive" : "negative";
-    return {
-      baseDirection,
-      slotPolarity,
-      slotSign: slotPolarity === "positive" ? "+" : "-",
-      label: baseDirection === "buy" ? "BUY" : "SELL",
-      windowLabel: buyWindow ? "6:30-12:30" : "12:30-6:30",
-    };
-  }
-
   function rpSignal(h24, m, activeEvents){
-    const fallback = getHalfdayFallback(h24, m, true);
-    const applied = resolveStackedNewsSign(fallback.baseDirection, fallback.slotPolarity, activeEvents);
+    const fallback = getSixHourFallback_430_1030_standard(h24, m);
+    const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
+    const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -2915,16 +2910,17 @@ function App() {
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection: fallback.baseDirection,
-        baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
+        baseDirection: fallback.direction,
+        baseCharge: fallback.direction === "buy" ? 1 : -1,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: fallback.slotPolarity,
-        slotSign: fallback.slotSign,
+        slotPolarity: fallback.polarity,
+        slotSign: fallback.sign,
         newsSign: applied.newsSign,
-        equation: applied.equationPlain,
-        equationPlain: applied.equationPlain,
+        equation: equationPlain,
+        equationPlain,
         newsCount: (activeEvents||[]).length,
+        fallbackWindow: fallback.window,
         tp1: 0.003, tp2: 0.006, tp3: 0.009,
       };
     }
@@ -2938,21 +2934,22 @@ function App() {
       reason: applied.reason,
       dominantSource: applied.dominantSource,
       clusterResult: applied.clusterResult,
-      sellRestriction: false,
+      sellRestriction: applied.sellRestriction,
       activeEvents,
       activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
-      baseDirection: fallback.baseDirection,
-      baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
+      baseDirection: fallback.direction,
+      baseCharge: fallback.direction === "buy" ? 1 : -1,
       finalCharge: applied.finalCharge,
-      newsFlip: 1,
-      slotPolarity: fallback.slotPolarity,
-      slotSign: fallback.slotSign,
+      newsFlip: applied.newsFlip,
+      slotPolarity: fallback.polarity,
+      slotSign: fallback.sign,
       newsSign: applied.newsSign,
-      equation: applied.equationPlain,
-      equationPlain: applied.equationPlain,
+      equation: equationPlain,
+      equationPlain,
       newsCount: (activeEvents||[]).length,
+      fallbackWindow: fallback.window,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
   }
