@@ -2883,8 +2883,23 @@ function App() {
   //       news active → use even/odd hour polarity schedule
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
+  function getHalfdayFallback(h24, m, invert=false){
+    const t = h24*60 + m;
+    const buyWindow = (t >= 390 && t < 750) || (t >= 1110 && t < 1470);
+    const baseDirection = invert ? (buyWindow ? "sell" : "buy") : (buyWindow ? "buy" : "sell");
+    const slotPolarity = baseDirection === "buy" ? "positive" : "negative";
+    return {
+      baseDirection,
+      slotPolarity,
+      slotSign: slotPolarity === "positive" ? "+" : "-",
+      label: baseDirection === "buy" ? "BUY" : "SELL",
+      windowLabel: buyWindow ? "6:30-12:30" : "12:30-6:30",
+    };
+  }
+
   function rpSignal(h24, m, activeEvents){
-    const applied = resolveStackedNewsSign("buy", "positive", activeEvents);
+    const fallback = getHalfdayFallback(h24, m, false);
+    const applied = resolveStackedNewsSign(fallback.baseDirection, fallback.slotPolarity, activeEvents);
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -2900,12 +2915,12 @@ function App() {
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection: null,
-        baseCharge: 0,
+        baseDirection: fallback.baseDirection,
+        baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: null,
-        slotSign: "",
+        slotPolarity: fallback.slotPolarity,
+        slotSign: fallback.slotSign,
         newsSign: applied.newsSign,
         equation: applied.equationPlain,
         equationPlain: applied.equationPlain,
@@ -2928,12 +2943,12 @@ function App() {
       activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
-      baseDirection: null,
-      baseCharge: 0,
+      baseDirection: fallback.baseDirection,
+      baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
       finalCharge: applied.finalCharge,
       newsFlip: 1,
-      slotPolarity: null,
-      slotSign: "",
+      slotPolarity: fallback.slotPolarity,
+      slotSign: fallback.slotSign,
       newsSign: applied.newsSign,
       equation: applied.equationPlain,
       equationPlain: applied.equationPlain,
