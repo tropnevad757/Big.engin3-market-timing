@@ -2039,7 +2039,7 @@ function App() {
     const speeches = allActive.filter(ev=>replayEventType(ev)==="speech").length;
 
     if(!activeCount){
-      const equationPlain = `STEP ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection,
         baseCharge,
@@ -2110,8 +2110,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2878,60 +2878,37 @@ function App() {
     throw new Error("BTC replay data unavailable");
   }
 
-  // ── REPLAY SIGNAL — custom 1:30/7:30 fallback map ─────────────────────────────
-  // 1:30–7:30 AM/PM  -> BUY fallback / + slot
-  // 7:30–1:30 AM/PM  -> SELL fallback / - slot
-  function getReplayFallback130730(h24, m){
-    const t = h24 * 60 + m;
-    const buyRanges = [
-      [90, 450],   // 1:30 AM -> 7:30 AM
-      [810, 1170], // 1:30 PM -> 7:30 PM
-    ];
-    const inBuy = buyRanges.some(([a,b]) => t >= a && t < b);
-    return inBuy
-      ? { baseDirection: "buy", slotPolarity: "positive", slotSign: "+" }
-      : { baseDirection: "sell", slotPolarity: "negative", slotSign: "-" };
+
+  function getFallback39(h24, m){
+    const mins = ((h24%24)*60) + (m||0);
+    const inBuy = (mins >= 3*60 and mins < 9*60) or (mins >= 15*60 and mins < 21*60);
+    if(inBuy){
+      return { direction:"buy", polarity:"positive", label:"STEP BUY" };
+    }
+    return { direction:"sell", polarity:"negative", label:"STEP SELL" };
   }
 
+  // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
+  // RULE: no-news → use INTERNAL_STEPS step-direction schedule
+  //       news active → use even/odd hour polarity schedule
+  //       news decision: same sign → BUY, different sign → SELL
+  //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    const fallback = getReplayFallback130730(h24, m);
-    const applied = resolveStackedNewsSign(fallback.baseDirection, fallback.slotPolarity, activeEvents);
-    if(!applied.finalDirection){
-      return {
-        signal: null,
-        chargeFlip: false,
-        mode: "breaking-only",
-        regime: "BREAKING_ONLY",
-        flip: false,
-        reason: applied.reason,
-        dominantSource: applied.dominantSource,
-        clusterResult: applied.clusterResult,
-        sellRestriction: false,
-        activeEvents,
-        activeCount: applied.activeCount,
-        negativePressure: applied.negativePressure,
-        positivePressure: applied.positivePressure,
-        baseDirection: fallback.baseDirection,
-        baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
-        finalCharge: 0,
-        newsFlip: 0,
-        slotPolarity: fallback.slotPolarity,
-        slotSign: fallback.slotSign,
-        newsSign: applied.newsSign,
-        equation: applied.equationPlain,
-        equationPlain: applied.equationPlain,
-        newsCount: (activeEvents||[]).length,
-        tp1: 0.003, tp2: 0.006, tp3: 0.009,
-      };
-    }
-    const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
+    const fb = getFallback39(h24, m);
+    const applied = resolveStackedNewsSign(fb.direction, fb.polarity, activeEvents);
+    const hasDirectedNews = !!applied.finalDirection;
+    const finalDirection = applied.finalDirection || fb.direction;
+    const signal = finalDirection === "buy" ? "BUY" : "SELL";
+    const eq = hasDirectedNews
+      ? String(applied.equationPlain || "").replace(/\bBASE\b/g, "STEP")
+      : `${fb.label} · NO DIRECTED NEWS · FINAL ${signal}`;
     return {
       signal,
-      chargeFlip: applied.chargeFlip,
+      chargeFlip: hasDirectedNews ? applied.chargeFlip : false,
       mode: "breaking-only",
       regime: "BREAKING_ONLY",
       flip: false,
-      reason: applied.reason,
+      reason: hasDirectedNews ? applied.reason : "fallback-step",
       dominantSource: applied.dominantSource,
       clusterResult: applied.clusterResult,
       sellRestriction: false,
@@ -2939,15 +2916,15 @@ function App() {
       activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
-      baseDirection: fallback.baseDirection,
-      baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
-      finalCharge: applied.finalCharge,
-      newsFlip: 1,
-      slotPolarity: fallback.slotPolarity,
-      slotSign: fallback.slotSign,
+      baseDirection: fb.direction,
+      baseCharge: fb.direction === "buy" ? 1 : -1,
+      finalCharge: hasDirectedNews ? applied.finalCharge : (fb.direction === "buy" ? 1 : -1),
+      newsFlip: hasDirectedNews ? 1 : 0,
+      slotPolarity: fb.polarity,
+      slotSign: fb.polarity === "positive" ? "+" : "-",
       newsSign: applied.newsSign,
-      equation: applied.equationPlain,
-      equationPlain: applied.equationPlain,
+      equation: eq,
+      equationPlain: eq,
       newsCount: (activeEvents||[]).length,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
