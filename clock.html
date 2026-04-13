@@ -2146,12 +2146,12 @@ function App() {
     return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
   }
 
-  function getSixHourFallback_430_1030_standard(h24, m){
+  function getSixHourFallback_430_1030_inverted(h24, m){
     const t = h24*60 + m;
-    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
-    return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
+    const inBuyWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
+    return inBuyWindow
+      ? { direction:"buy", polarity:"positive", sign:"+", window:"4:30-10:30 BUY" }
+      : { direction:"sell", polarity:"negative", sign:"-", window:"10:30-4:30 SELL" };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
@@ -2892,7 +2892,7 @@ function App() {
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    const fallback = getSixHourFallback_430_1030_standard(h24, m);
+    const fallback = getSixHourFallback_430_1030_inverted(h24, m);
     const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
