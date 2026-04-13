@@ -2884,35 +2884,28 @@ function App() {
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    const step = getInternalStep(h24, m);
-    const newsSlot = getNewsSlotPolarity(h24, m);
-    const connectorMode = getConnectorMode(h24, m);
-    const regime = connectorMode === "mirror" ? "CORE" : "RESET";
-    const hasNews = (activeEvents||[]).length > 0;
-    const slotPol = hasNews ? newsSlot.polarity : (step.direction === "buy" ? "positive" : "negative");
-    const pState = buildPolarityState(step.direction, slotPol);
-    const applied = resolveStackedNewsSign(pState.baseDirection, slotPol, activeEvents);
+    const applied = resolveStackedNewsSign("buy", "positive", activeEvents);
     if(!applied.finalDirection){
       return {
         signal: null,
         chargeFlip: false,
-        mode: connectorMode,
-        regime,
+        mode: "breaking-only",
+        regime: "BREAKING_ONLY",
         flip: false,
         reason: applied.reason,
         dominantSource: applied.dominantSource,
         clusterResult: applied.clusterResult,
-        sellRestriction: applied.sellRestriction,
+        sellRestriction: false,
         activeEvents,
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection: pState.baseDirection,
-        baseCharge: pState.baseCharge,
+        baseDirection: null,
+        baseCharge: 0,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: slotPol,
-        slotSign: applied.slotSign,
+        slotPolarity: null,
+        slotSign: "",
         newsSign: applied.newsSign,
         equation: applied.equationPlain,
         equationPlain: applied.equationPlain,
@@ -2924,23 +2917,23 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: connectorMode,
-      regime,
-      flip: applied.finalDirection !== pState.baseDirection,
+      mode: "breaking-only",
+      regime: "BREAKING_ONLY",
+      flip: false,
       reason: applied.reason,
       dominantSource: applied.dominantSource,
       clusterResult: applied.clusterResult,
-      sellRestriction: applied.sellRestriction,
+      sellRestriction: false,
       activeEvents,
       activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
-      baseDirection: pState.baseDirection,
-      baseCharge: applied.baseCharge,
+      baseDirection: null,
+      baseCharge: 0,
       finalCharge: applied.finalCharge,
-      newsFlip: applied.newsFlip,
-      slotPolarity: slotPol,
-      slotSign: applied.slotSign,
+      newsFlip: 1,
+      slotPolarity: null,
+      slotSign: "",
       newsSign: applied.newsSign,
       equation: applied.equationPlain,
       equationPlain: applied.equationPlain,
