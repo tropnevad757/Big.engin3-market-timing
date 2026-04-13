@@ -2898,7 +2898,7 @@ function App() {
   }
 
   function rpSignal(h24, m, activeEvents){
-    const fallback = getHalfdayFallback(h24, m, false);
+    const fallback = getHalfdayFallback(h24, m, true);
     const applied = resolveStackedNewsSign(fallback.baseDirection, fallback.slotPolarity, activeEvents);
     if(!applied.finalDirection){
       return {
