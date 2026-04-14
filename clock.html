@@ -85,30 +85,30 @@ const A = "#f0a030";   // accent / orange
 const BG = "#06071a";
 
 // ─── TRAP TIMES (anchor points) ET ────────────────────────────────────────────
-// AM/PM major boundaries: 5:30, 11:30, 5:30, 11:30
+// AM/PM major boundaries: 3:30, 9:30, 3:30, 9:30
 const TRAP_TIMES = [
-  { id:"t1", label:"BOUNDARY A1", h:5,  m:30, period:"AM" },
-  { id:"t2", label:"BOUNDARY A2", h:11, m:30, period:"AM" },
-  { id:"t3", label:"BOUNDARY P1", h:17, m:30, period:"PM" },
-  { id:"t4", label:"BOUNDARY P2", h:23, m:30, period:"PM" },
+  { id:"t1", label:"BOUNDARY A1", h:3,  m:30, period:"AM" },
+  { id:"t2", label:"BOUNDARY A2", h:9,  m:30, period:"AM" },
+  { id:"t3", label:"BOUNDARY P1", h:15, m:30, period:"PM" },
+  { id:"t4", label:"BOUNDARY P2", h:21, m:30, period:"PM" },
 ];
 
 // ─── ZONES (times hidden from display) ────────────────────────────────────────
-// BUY fallback: 5:30–11:30 AM/PM
-// SELL fallback: 11:30–5:30 AM/PM
+// BUY fallback: 3:30–9:30 AM/PM
+// SELL fallback: 9:30–3:30 AM/PM
 const BASE_ZONES = [
-  { id:"buy_am",  type:"buy",  h1:5,  m1:30, h2:11, m2:30, label:"BUY AM",
-    pocket:{ label:"BUY FALLBACK", note:"5:30–11:30 AM fallback regime." },
-    subStart:{ h:3, m:0 }, subEnd:{ h:9, m:0 }, starRating:3 },
-  { id:"sell_am", type:"sell", h1:11, m1:30, h2:17, m2:30, label:"SELL AM",
-    pocket:{ label:"SELL FALLBACK", note:"11:30 AM–5:30 PM fallback regime." },
-    subStart:{ h:9, m:0 }, subEnd:{ h:15, m:0 }, starRating:3 },
-  { id:"buy_pm",  type:"buy",  h1:17, m1:30, h2:23, m2:30, label:"BUY PM",
-    pocket:{ label:"BUY FALLBACK", note:"5:30–11:30 PM fallback regime." },
-    subStart:{ h:15, m:0 }, subEnd:{ h:21, m:0 }, starRating:3 },
-  { id:"sell_pm", type:"sell", h1:23, m1:30, h2:5,  m2:30, label:"SELL PM",
-    pocket:{ label:"SELL FALLBACK", note:"11:30 PM–5:30 AM fallback regime." },
-    subStart:{ h:21, m:0 }, subEnd:{ h:3, m:0 }, starRating:3 },
+  { id:"buy_am",  type:"buy",  h1:3,  m1:30, h2:9,  m2:30, label:"BUY AM",
+    pocket:{ label:"BUY FALLBACK", note:"3:30–9:30 AM fallback regime." },
+    subStart:{ h:3, m:30 }, subEnd:{ h:9, m:30 }, starRating:3 },
+  { id:"sell_am", type:"sell", h1:9,  m1:30, h2:15, m2:30, label:"SELL AM",
+    pocket:{ label:"SELL FALLBACK", note:"9:30 AM–3:30 PM fallback regime." },
+    subStart:{ h:9, m:30 }, subEnd:{ h:15, m:30 }, starRating:3 },
+  { id:"buy_pm",  type:"buy",  h1:15, m1:30, h2:21, m2:30, label:"BUY PM",
+    pocket:{ label:"BUY FALLBACK", note:"3:30–9:30 PM fallback regime." },
+    subStart:{ h:15, m:30 }, subEnd:{ h:21, m:30 }, starRating:3 },
+  { id:"sell_pm", type:"sell", h1:21, m1:30, h2:3,  m2:30, label:"SELL PM",
+    pocket:{ label:"SELL FALLBACK", note:"9:30 PM–3:30 AM fallback regime." },
+    subStart:{ h:21, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
 ];
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
 const CATS = [
@@ -718,12 +718,13 @@ function App() {
   const prevPolarityRef = useRef(null);
   const prevWindowRef   = useRef(null);
 
-  const VWAP_EXECUTE_POINTS = [330,690,1050,1410];
+  const VWAP_EXECUTE_POINTS = [210,570,930,1290];
   const VWAP_EXECUTION_WINDOWS = [
-    { key:"am_0530_1130", from:330,  to:690,  label:"5:30–11:30 AM", overnight:false },
-    { key:"am_1130_0530", from:690,  to:1050, label:"11:30 AM–5:30 PM", overnight:false },
-    { key:"pm_0530_1130", from:1050, to:1410, label:"5:30–11:30 PM", overnight:false },
-    { key:"pm_1130_0530", from:1410, to:1770, label:"11:30 PM–5:30 AM", overnight:true },
+    { key:"am_0330_0930", from:210,  to:570,  label:"3:30–9:30 AM", overnight:false },
+    { key:"am_0930_0330", from:570,  to:930,  label:"9:30 AM–3:30 PM", overnight:false },
+    { key:"pm_0330_0930", from:930,  to:1290, label:"3:30–9:30 PM", overnight:false },
+    { key:"pm_0930_0330", from:1290, to:1770, label:"9:30 PM–3:30 AM", overnight:true },
+    { key:"am_0000_0330", from:0,    to:210,  label:"12:00–3:30 AM", overnight:false },
   ];
   function getVwapExecutionWindow(h24,m){
     const mins=h24*60+m;
@@ -928,23 +929,23 @@ function App() {
   //          = Trade Confidence (0–100) + Traffic Light + Setup Type
   //
   // TIMING MAP (ET):
-  // 5:30  → BUY fallback opens
-  // 11:30 → SELL fallback opens
-  // 5:30  → BUY fallback opens (PM repeat)
-  // 11:30 → SELL fallback opens (PM repeat)
+  // 3:30  → BUY fallback opens
+  // 9:30  → SELL fallback opens
+  // 3:30  → BUY fallback opens (PM repeat)
+  // 9:30  → SELL fallback opens (PM repeat)
   // ══════════════════════════════════════════════════════════════════════════════
 
   const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
 
   // ── POLARITY CLOCK — exact fallback regime sequence (ET, repeats AM + PM) ─────
-  // BUY fallback: 5:30–11:30 AM/PM
-  // SELL fallback: 11:30–5:30 AM/PM
+  // BUY fallback: 3:30–9:30 AM/PM
+  // SELL fallback: 9:30–3:30 AM/PM
   const ZONE_WINDOWS = [
-    { from:   0, to: 330,  pol:-1, tier:3, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
-    { from: 330, to: 690, pol:+1, tier:4, role:"BUY",  setup:"fallback", label:"BUY FALLBACK" },
-    { from: 690, to:1050, pol:-1, tier:4, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
-    { from:1050, to:1410, pol:+1, tier:4, role:"BUY",  setup:"fallback", label:"BUY FALLBACK" },
-    { from:1410, to:1440, pol:-1, tier:3, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
+    { from:   0, to: 210, pol:-1, tier:3, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
+    { from: 210, to: 570, pol:+1, tier:4, role:"BUY",  setup:"fallback", label:"BUY FALLBACK" },
+    { from: 570, to: 930, pol:-1, tier:4, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
+    { from: 930, to:1290, pol:+1, tier:4, role:"BUY",  setup:"fallback", label:"BUY FALLBACK" },
+    { from:1290, to:1440, pol:-1, tier:3, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
   ];
 
   // ══════════════════════════════════════════════════════════════════════
@@ -952,11 +953,11 @@ function App() {
   // ══════════════════════════════════════════════════════════════════════
 
   // LAYER 1 — Major regime
-  // 5:30–11:30 ET = BUY zone (both AM and PM)
-  // 11:30–5:30 ET = SELL zone (both AM and PM)
+  // 3:30–9:30 ET = BUY zone (both AM and PM)
+  // 9:30–3:30 ET = SELL zone (both AM and PM)
   function getMajorRegime(h24, m) {
     const t = h24*60+m;
-    const BUY_RANGES  = [[330,690],[1050,1410]];
+    const BUY_RANGES  = [[210,570],[930,1290]];
     const isBuy = BUY_RANGES.some(([s,e]) => t >= s && t < e);
     return {
       direction: isBuy ? "buy" : "sell",
@@ -969,19 +970,19 @@ function App() {
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
     [   0,  "sell", "STEP SELL" ],
-    [ 330,  "buy",  "STEP BUY"  ],
-    [ 690,  "sell", "STEP SELL" ],
-    [1050,  "buy",  "STEP BUY"  ],
-    [1410,  "sell", "STEP SELL" ],
+    [ 210,  "buy",  "STEP BUY"  ],
+    [ 570,  "sell", "STEP SELL" ],
+    [ 930,  "buy",  "STEP BUY"  ],
+    [1290,  "sell", "STEP SELL" ],
     [1440,  "buy",  "STEP BUY"  ], // sentinel
   ];
 
   const NEWS_SLOT_STEPS = [
     [   0,  "negative", "-" ],
-    [ 330,  "positive", "+" ],
-    [ 690,  "negative", "-" ],
-    [1050,  "positive", "+" ],
-    [1410,  "negative", "-" ],
+    [ 210,  "positive", "+" ],
+    [ 570,  "negative", "-" ],
+    [ 930,  "positive", "+" ],
+    [1290,  "negative", "-" ],
     [1440,  "positive", "+" ], // sentinel
   ]
 
@@ -1024,7 +1025,7 @@ function App() {
   }
 
   const REPLAY_SLOT_LABELS = new Map([
-    [0, "STEP"], [330, "STEP"], [690, "STEP"], [1050, "STEP"], [1410, "STEP"]
+    [0, "STEP"], [180, "STEP"], [540, "STEP"], [900, "STEP"], [1260, "STEP"]
   ]);
   function getReplaySlotLabel(h24, m){
     return REPLAY_SLOT_LABELS.get(h24*60 + m) || (m===30 ? "STEP" : "SCHEDULE");
@@ -1032,7 +1033,7 @@ function App() {
 
   function getMajorRegimeChange(h24, m) {
     const t = h24*60+m;
-    const CHANGES = [330,690,1050,1410];
+    const CHANGES = [180,540,900,1260];
     const next = CHANGES.find(c => c > t) || (CHANGES[0]+1440);
     return next - t;
   }
@@ -1180,17 +1181,17 @@ function App() {
 
   function getMinutesToNextZone(h24, m) {
     const t = h24*60+m;
-    const ZONE_OPENS = [330,690,1050,1410];
+    const ZONE_OPENS = [180,540,900,1260];
     const next = ZONE_OPENS.find(z => z > t) || (ZONE_OPENS[0] + 1440);
     return next - t;
   }
 
   // Execute windows: first 90 minutes after each fallback boundary
-  const EXECUTE_WINDOWS = [330,690,1050,1410].map(s=>({from:s, to:s+90}));
+  const EXECUTE_WINDOWS = [180,540,900,1260].map(s=>({from:s, to:s+90}));
   function getExecuteState(h24, m) {
     const t = h24*60+m;
     const inExecute = EXECUTE_WINDOWS.some(w => t >= w.from && t < w.to);
-    const inTrap = [330,690,1050,1410].some(tr => t >= tr && t < tr+30);
+    const inTrap = [180,540,900,1260].some(tr => t >= tr && t < tr+30);
     return { inExecute, inTrap };
   }
 
@@ -1581,7 +1582,7 @@ function App() {
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ── INTEREST RATE CONFIRMATION ───────────────────────────────────────────────
-  // Charge direction = major regime (5:30-11:30 BUY, 11:30-5:30 SELL)
+  // Charge direction = major regime (3:30-9:30 BUY, 9:30-3:30 SELL)
   // Interest rates confirm or conflict the regime strength
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 3: FINAL SIGNAL TRANSLATOR
@@ -2696,14 +2697,14 @@ function App() {
     throw new Error("BTC replay data unavailable");
   }
 
-  // ── REPLAY SIGNAL — custom 5:30/11:30 fallback map ─────────────────────────────
-  // 5:30–11:30 AM/PM -> BUY fallback / + slot
-  // 11:30–5:30 AM/PM -> SELL fallback / - slot
-  function getReplayFallback531130(h24, m){
+  // ── REPLAY SIGNAL — custom 3:30/9:30 fallback map ─────────────────────────────
+  // 3:30–9:30 AM/PM  -> BUY fallback / + slot
+  // 9:30–3:30 AM/PM  -> SELL fallback / - slot
+  function getReplayFallback3930(h24, m){
     const t = h24 * 60 + m;
     const buyRanges = [
-      [330, 690],   // 5:30 AM -> 11:30 AM
-      [1050, 1410], // 5:30 PM -> 11:30 PM
+      [210, 570],   // 3:30 AM -> 9:30 AM
+      [930, 1290],  // 3:30 PM -> 9:30 PM
     ];
     const inBuy = buyRanges.some(([a,b]) => t >= a && t < b);
     return inBuy
@@ -2712,7 +2713,7 @@ function App() {
   }
 
   function rpSignal(h24, m, activeEvents){
-    const fallback = getReplayFallback531130(h24, m);
+    const fallback = getReplayFallback3930(h24, m);
     const applied = resolveStackedNewsSign(fallback.baseDirection, fallback.slotPolarity, activeEvents);
     if(!applied.finalDirection){
       return {
