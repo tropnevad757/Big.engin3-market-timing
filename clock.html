@@ -184,35 +184,22 @@ const CATS = [
 
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // BUY CORE REGIME
-// Connector: - = mirror
-// 12:30-1:30 - 4:30-6:30
-// AOA-
-// AUD-
-// USD- (interest rate% Anchor)
-// GBP+
-// JPY+
-//
+// Connector: − = mirror
+// 12:30-1:30 / 4:30-6:30 / 7:30-10:30
+// Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
 // SELL RESET REGIME
 // Connector: + = aligned
-// 6:30-7:30 - 10:30-12:30
-// AOA+
-// AUD+
-// USD+ (interest rate% Anchor)
-// GBP-
-// JPY-
-//
-// Dynamic override remains live-rate based: symbols above/below the USD anchor
-// can flip based on the active charge engine inputs.
+// 6:30-7:30 / 10:30-12:30 / 1:30-4:30
 const REGIME_CURRENCIES = {
-  buyCore: {
-    // connector: - (mirror from regime)
-    bearUSD: ["AOA", "AUD", "USD"],
-    bullUSD: ["GBP", "JPY"],
-  },
   sellReset: {
-    // connector: + (aligned with regime)
-    bullUSD: ["AOA", "AUD", "USD"],
-    bearUSD: ["GBP", "JPY"],
+    // connector: + (aligned)
+    bullUSD: ["AOA","AUD","USD"],
+    bearUSD: ["GBP","JPY"],
+  },
+  buyCore: {
+    // connector: − (mirror)
+    bearUSD: ["AOA","AUD","USD"],
+    bullUSD: ["GBP","JPY"],
   },
 };
 
@@ -1239,9 +1226,10 @@ function App() {
   // ══════════════════════════════════════════════════════════════════════
   // CONNECTOR + CHARGE ENGINE — exact no-duplicate version
   // ══════════════════════════════════════════════════════════════════════
-  const USD_RATE = 3.75;
-  const CHARGE_CURRENCIES = [
+  let USD_RATE = 3.75;
+  let CHARGE_CURRENCIES = [
     { sym:"USD", rate:3.75 },
+    { sym:"AOA", rate:3.75 },
     { sym:"AUD", rate:4.10 },
     { sym:"NOK", rate:4.00 },
     { sym:"GBP", rate:3.75 },
@@ -1272,6 +1260,65 @@ function App() {
     { sym:"TWD", rate:2.00  },
     { sym:"THB", rate:2.00  },
   ];
+  const LIVE_RATE_REFRESH_MS = 5 * 60 * 1000;
+  const LIVE_RATE_SOURCES = [
+    (typeof window !== "undefined" && window.LIVE_RATES_URL) ? window.LIVE_RATES_URL : null,
+    "./live-rates.json",
+    "/live-rates.json",
+  ].filter(Boolean);
+
+  function normalizeLiveRatePayload(payload) {
+    if (!payload) return null;
+    if (Array.isArray(payload)) {
+      const items = payload
+        .map(x => ({ sym: String(x.sym || x.code || x.currency || "").toUpperCase(), rate: Number(x.rate ?? x.value ?? x.percent) }))
+        .filter(x => x.sym && Number.isFinite(x.rate));
+      return items.length ? items : null;
+    }
+    if (payload.rates && typeof payload.rates === "object") {
+      const items = Object.entries(payload.rates)
+        .map(([sym, rate]) => ({ sym: String(sym).toUpperCase(), rate: Number(rate) }))
+        .filter(x => x.sym && Number.isFinite(x.rate));
+      return items.length ? items : null;
+    }
+    const keys = Object.keys(payload);
+    if (keys.length) {
+      const items = keys
+        .map(sym => ({ sym: String(sym).toUpperCase(), rate: Number(payload[sym]) }))
+        .filter(x => x.sym && Number.isFinite(x.rate));
+      return items.length ? items : null;
+    }
+    return null;
+  }
+
+  async function loadLiveRates() {
+    for (const src of LIVE_RATE_SOURCES) {
+      try {
+        const res = await fetch(src, { cache: "no-cache" });
+        if (!res.ok) continue;
+        const payload = await res.json();
+        const incoming = normalizeLiveRatePayload(payload);
+        if (!incoming) continue;
+        const merged = new Map(CHARGE_CURRENCIES.map(c => [c.sym, { ...c }]));
+        incoming.forEach(item => merged.set(item.sym, { sym: item.sym, rate: item.rate }));
+        CHARGE_CURRENCIES = Array.from(merged.values());
+        const usd = CHARGE_CURRENCIES.find(c => c.sym === "USD");
+        if (usd && Number.isFinite(usd.rate)) USD_RATE = usd.rate;
+        if (typeof window !== "undefined") {
+          window.__LIVE_RATES__ = CHARGE_CURRENCIES;
+          window.dispatchEvent(new Event("live-rates-updated"));
+        }
+        console.log("[rates] live rates loaded from", src, CHARGE_CURRENCIES);
+        return true;
+      } catch (err) {
+        console.warn("[rates] live rate source failed", src, err);
+      }
+    }
+    return false;
+  }
+
+  loadLiveRates();
+  setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
   const MIRROR_RANGES = [
     [30, 90], [270, 390], [450, 630],
