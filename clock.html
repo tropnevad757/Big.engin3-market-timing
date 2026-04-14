@@ -183,19 +183,36 @@ const CATS = [
 ];
 
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
-// BUY CORE regime: connector = - (mirror). USD- is anchor.
-// SELL RESET regime: connector = + (aligned). USD+ is anchor.
-// Dynamic override: if symbol value <= USD anchor rate → invert that symbol's sign.
+// BUY CORE REGIME
+// Connector: - = mirror
+// 12:30-1:30 - 4:30-6:30
+// AOA-
+// AUD-
+// USD- (interest rate% Anchor)
+// GBP+
+// JPY+
+//
+// SELL RESET REGIME
+// Connector: + = aligned
+// 6:30-7:30 - 10:30-12:30
+// AOA+
+// AUD+
+// USD+ (interest rate% Anchor)
+// GBP-
+// JPY-
+//
+// Dynamic override remains live-rate based: symbols above/below the USD anchor
+// can flip based on the active charge engine inputs.
 const REGIME_CURRENCIES = {
-  sellReset: {
-    // connector: - (mirror from regime)
-    bearUSD:  ["AOA","EGP","INR","MKD","CLP","SAR","PEN","HKD","MOP","ILS","NOK","MUR","PHP","USD"],
-    bullUSD:  ["GBP","CNY","KRW","CAD","NZD","SGD","JPY"],
-  },
   buyCore: {
+    // connector: - (mirror from regime)
+    bearUSD: ["AOA", "AUD", "USD"],
+    bullUSD: ["GBP", "JPY"],
+  },
+  sellReset: {
     // connector: + (aligned with regime)
-    bullUSD:  ["AOA","EGP","INR","MKD","CLP","SAR","PEN","HKD","MOP","ILS","NOK","MUR","PHP","AUD","USD"],
-    bearUSD:  ["GBP","CNY","KRW","CAD","NZD","SGD","JPY"],
+    bullUSD: ["AOA", "AUD", "USD"],
+    bearUSD: ["GBP", "JPY"],
   },
 };
 
@@ -1763,7 +1780,7 @@ function App() {
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ── INTEREST RATE CONFIRMATION ───────────────────────────────────────────────
-  // Charge direction = fallback regime (11:00-5:00 BUY, 5:00-11:00 SELL)
+  // Charge direction = major regime (1:30-7:30 BUY, 7:30-1:30 SELL)
   // Interest rates confirm or conflict the regime strength
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 3: FINAL SIGNAL TRANSLATOR
@@ -2146,12 +2163,12 @@ function App() {
     return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
   }
 
-  function getSixHourFallback_500_1100_standard(h24, m){
+  function getSixHourFallback_430_1030_standard(h24, m){
     const t = h24*60 + m;
-    const inSellWindow = (t >= 300 && t < 660) || (t >= 1020 && t < 1380); // 5:00-11:00 AM/PM
+    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
     return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"5:00-11:00 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"11:00-5:00 BUY" };
+      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
+      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
@@ -2892,7 +2909,7 @@ function App() {
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    const fallback = getSixHourFallback_500_1100_standard(h24, m);
+    const fallback = getSixHourFallback_430_1030_standard(h24, m);
     const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
