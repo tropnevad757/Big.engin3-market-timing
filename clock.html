@@ -85,30 +85,60 @@ const A = "#f0a030";   // accent / orange
 const BG = "#06071a";
 
 // ─── TRAP TIMES (anchor points) ET ────────────────────────────────────────────
-// AM/PM major boundaries: 3:30, 9:30, 3:30, 9:30
+// AM: 1:30, 4:30, 7:30, 10:30   PM: 1:30, 4:30, 7:30, 10:30
 const TRAP_TIMES = [
-  { id:"t1", label:"BOUNDARY A1", h:3,  m:30, period:"AM" },
-  { id:"t2", label:"BOUNDARY A2", h:9,  m:30, period:"AM" },
-  { id:"t3", label:"BOUNDARY P1", h:15, m:30, period:"PM" },
-  { id:"t4", label:"BOUNDARY P2", h:21, m:30, period:"PM" },
+  { id:"t1",  label:"ANCHOR A1",  h:1,  m:30, period:"AM" },
+  { id:"t2",  label:"ANCHOR A2",  h:4,  m:30, period:"AM" },
+  { id:"t3",  label:"ANCHOR A3",  h:7,  m:30, period:"AM" },
+  { id:"t4",  label:"ANCHOR A4", h:10, m:30, period:"AM" },
+  { id:"t5",  label:"ANCHOR P1",  h:13, m:30, period:"PM" },
+  { id:"t6",  label:"ANCHOR P2",  h:16, m:30, period:"PM" },
+  { id:"t7",  label:"ANCHOR P3",  h:19, m:30, period:"PM" },
+  { id:"t8",  label:"ANCHOR P4", h:22, m:30, period:"PM" },
 ];
 
 // ─── ZONES (times hidden from display) ────────────────────────────────────────
-// BUY fallback: 3:30–9:30 AM/PM
-// SELL fallback: 9:30–3:30 AM/PM
+// All 6 transitions per cycle: 1:30 · 4:30 · 6:30 · 7:30 · 10:30 · 12:30
+// Z1=sell Z4=buy Z6=sell Z7=buy Z10=sell Z12=buy (AM+PM)
 const BASE_ZONES = [
-  { id:"buy_am",  type:"buy",  h1:3,  m1:30, h2:9,  m2:30, label:"BUY AM",
-    pocket:{ label:"BUY FALLBACK", note:"3:30–9:30 AM fallback regime." },
-    subStart:{ h:3, m:30 }, subEnd:{ h:9, m:30 }, starRating:3 },
-  { id:"sell_am", type:"sell", h1:9,  m1:30, h2:15, m2:30, label:"SELL AM",
-    pocket:{ label:"SELL FALLBACK", note:"9:30 AM–3:30 PM fallback regime." },
-    subStart:{ h:9, m:30 }, subEnd:{ h:15, m:30 }, starRating:3 },
-  { id:"buy_pm",  type:"buy",  h1:15, m1:30, h2:21, m2:30, label:"BUY PM",
-    pocket:{ label:"BUY FALLBACK", note:"3:30–9:30 PM fallback regime." },
-    subStart:{ h:15, m:30 }, subEnd:{ h:21, m:30 }, starRating:3 },
-  { id:"sell_pm", type:"sell", h1:21, m1:30, h2:3,  m2:30, label:"SELL PM",
-    pocket:{ label:"SELL FALLBACK", note:"9:30 PM–3:30 AM fallback regime." },
-    subStart:{ h:21, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
+  // ── AM ZONES ──────────────────────────────────────────────────────────────
+  { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
+    pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Asian session momentum." },
+    subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
+  { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
+    pocket:{ label:"PRE-MARKET BUY", note:"Anchor. London open overlap." },
+    subStart:{ h:5, m:0 }, subEnd:{ h:6, m:0 }, starRating:4 },
+  { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
+    pocket:{ label:"TRANSITION FLUSH", note:"Anchor. Short flush before NY open." },
+    subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
+  { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
+    pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open. Highest institutional volume." },
+    subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
+  { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
+    pocket:{ label:"LONDON CLOSE FLUSH", note:"London banks close. AM trend exhausts." },
+    subStart:{ h:10, m:45 }, subEnd:{ h:11, m:30 }, starRating:4 },
+  { id:"z12_am", type:"buy",  h1:12, m1:30, h2:1,  m2:30, label:"Z12",
+    pocket:{ label:"LUNCH REVERSAL", note:"Regime switch. Post-lunch liquidity grab." },
+    subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
+  // ── PM ZONES ──────────────────────────────────────────────────────────────
+  { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1",
+    pocket:{ label:"POWER HOUR CLOSE", note:"Fund rebalancing. CME close." },
+    subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
+  { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
+    pocket:{ label:"DAILY CLOSE TRAP", note:"Bank reset. Forex stops run before close." },
+    subStart:{ h:16, m:45 }, subEnd:{ h:17, m:15 }, starRating:3 },
+  { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6",
+    pocket:{ label:"EVENING TRANSITION", note:"Anchor. Short flush — thin volume." },
+    subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
+  { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
+    pocket:{ label:"ASIAN PRE-MARKET", note:"Overnight levels set here." },
+    subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
+  { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
+    pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Late Asia sell into midnight." },
+    subStart:{ h:23, m:0 }, subEnd:{ h:0, m:0 }, starRating:2 },
+  { id:"z12_pm", type:"buy",  h1:0,  m1:30, h2:1,  m2:30, label:"Z12",
+    pocket:{ label:"PRE-DAWN BUY", note:"Counter move before anchor fires." },
+    subStart:{ h:0, m:45 }, subEnd:{ h:1, m:15 }, starRating:1 },
 ];
 // ─── INSTRUMENTS BY CATEGORY ─────────────────────────────────────────────────
 const CATS = [
@@ -718,13 +748,12 @@ function App() {
   const prevPolarityRef = useRef(null);
   const prevWindowRef   = useRef(null);
 
-  const VWAP_EXECUTE_POINTS = [210,570,930,1290];
+  const VWAP_EXECUTE_POINTS = [90,120,270,300,450,480,630,660,810,840,990,1020,1170,1200,1350,1380];
   const VWAP_EXECUTION_WINDOWS = [
-    { key:"am_0330_0930", from:210,  to:570,  label:"3:30–9:30 AM", overnight:false },
-    { key:"am_0930_0330", from:570,  to:930,  label:"9:30 AM–3:30 PM", overnight:false },
-    { key:"pm_0330_0930", from:930,  to:1290, label:"3:30–9:30 PM", overnight:false },
-    { key:"pm_0930_0330", from:1290, to:1770, label:"9:30 PM–3:30 AM", overnight:true },
-    { key:"am_0000_0330", from:0,    to:210,  label:"12:00–3:30 AM", overnight:false },
+    { key:"am_0130_0430", from:90,  to:270,  label:"1:30–4:30 AM", overnight:true },
+    { key:"am_0730_1030", from:450, to:630,  label:"7:30–10:30 AM", overnight:false },
+    { key:"pm_0130_0430", from:810, to:990,  label:"1:30–4:30 PM", overnight:false },
+    { key:"pm_0730_1030", from:1170,to:1350, label:"7:30–10:30 PM", overnight:false },
   ];
   function getVwapExecutionWindow(h24,m){
     const mins=h24*60+m;
@@ -929,23 +958,94 @@ function App() {
   //          = Trade Confidence (0–100) + Traffic Light + Setup Type
   //
   // TIMING MAP (ET):
-  // 3:30  → BUY fallback opens
-  // 9:30  → SELL fallback opens
-  // 3:30  → BUY fallback opens (PM repeat)
-  // 9:30  → SELL fallback opens (PM repeat)
+  // 1:30  → SWITCH    Z1 SELL opens. Polarity flips bearish. Stalk shorts.
+  // 4:30  → RESET     Z4 BUY opens. Overnight sell exhausts. Counter reversal.
+  // 6:30  → DANGER    Z6 SELL — 60-min flush only. Transition. High risk.
+  // 7:30  → PRIMARY   Z7 BUY — highest edge. NYSE prep. ICT kill zone.
+  // 10:30 → TRAP/FADE Z10 SELL — AM exhaustion + London close.
+  // 12:30 → REVERSAL  Z12 BUY — post-lunch liquidity grab. Short window.
   // ══════════════════════════════════════════════════════════════════════════════
 
   const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
 
-  // ── POLARITY CLOCK — exact fallback regime sequence (ET, repeats AM + PM) ─────
-  // BUY fallback: 3:30–9:30 AM/PM
-  // SELL fallback: 9:30–3:30 AM/PM
+  // ── POLARITY CLOCK — exact regime sequence (ET, repeats AM + PM) ─────────────
+  // Source: BiG ENGiN3 time regime without news disruption
+  // VWAP Anchors: 1:30 · 4:30 · 7:30 · 10:30 (AM + PM)
+  // UP = buy | DOWN = sell
   const ZONE_WINDOWS = [
-    { from:   0, to: 210, pol:-1, tier:3, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
-    { from: 210, to: 570, pol:+1, tier:4, role:"BUY",  setup:"fallback", label:"BUY FALLBACK" },
-    { from: 570, to: 930, pol:-1, tier:4, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
-    { from: 930, to:1290, pol:+1, tier:4, role:"BUY",  setup:"fallback", label:"BUY FALLBACK" },
-    { from:1290, to:1440, pol:-1, tier:3, role:"SELL", setup:"fallback", label:"SELL FALLBACK" },
+    // ─── AM CYCLE ────────────────────────────────────────────────────────────
+    // 12:30–1:00 AM : DOWN (tail of previous 12:30 cycle)
+    { from:   0, to:  60, pol:+1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
+    // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
+    { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
+    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 2:00–3:00 AM  : UP (counter inside Z1)
+    { from: 120, to: 180, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 3:00–4:00 AM  : DOWN (continuation sell)
+    { from: 180, to: 240, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    // 4:00–4:30 AM  : UP (pre-anchor stalk)
+    { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
+    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 5:00–6:00 AM  : UP (Z4 recovery buy)
+    { from: 300, to: 360, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
+    { from: 360, to: 390, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    // 6:30–7:00 AM  : UP (Z6 counter move)
+    { from: 390, to: 420, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 7:00–7:30 AM  : DOWN (final flush before NY open)
+    { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
+    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"TRAP ↑" },
+    // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
+    { from: 480, to: 540, pol:+1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    // 9:00–10:00 AM : UP (NYSE open expansion)
+    { from: 540, to: 600, pol:-1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
+    // 10:00–10:30 AM: DOWN (AM exhaustion / pre-Z10)
+    { from: 600, to: 630, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    // 10:30–11:00 AM: UP ★ VWAP ANCHOR (initial Z10 spike — sell the rip)
+    { from: 630, to: 660, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
+    // 11:00–12:00 AM: DOWN (Z10 sell momentum / London close)
+    { from: 660, to: 720, pol:+1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
+    // 12:00–12:30 AM: UP (pre-Z12 stalk)
+    { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
+    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"RECAL ↓" },
+
+    // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
+    // 1:00–1:30 PM  : UP
+    { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
+    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 2:00–3:00 PM  : UP
+    { from: 840, to: 900, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 3:00–4:00 PM  : DOWN
+    { from: 900, to: 960, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    // 4:00–4:30 PM  : UP
+    { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
+    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 5:00–6:00 PM  : UP
+    { from:1020, to:1080, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    // 6:00–6:30 PM  : DOWN
+    { from:1080, to:1110, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    // 6:30–7:00 PM  : UP
+    { from:1110, to:1140, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 7:00–7:30 PM  : DOWN
+    { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
+    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"TRAP ↑" },
+    // 8:00–9:00 PM  : DOWN
+    { from:1200, to:1260, pol:+1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    // 9:00–10:00 PM : UP
+    { from:1260, to:1320, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
+    // 10:00–10:30 PM: DOWN
+    { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    // 10:30–11:00 PM: UP ★ VWAP ANCHOR
+    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"TRAP ↑" },
+    // 11:00–12:00 AM: DOWN
+    { from:1380, to:1440, pol:+1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
   ];
 
   // ══════════════════════════════════════════════════════════════════════
@@ -953,12 +1053,17 @@ function App() {
   // ══════════════════════════════════════════════════════════════════════
 
   // LAYER 1 — Major regime
-  // 3:30–9:30 ET = BUY zone (both AM and PM)
-  // 9:30–3:30 ET = SELL zone (both AM and PM)
+  // 1:30–7:30 ET = BUY zone (both AM and PM)
+  // 7:30–1:30 ET = SELL zone (both AM and PM)
   function getMajorRegime(h24, m) {
     const t = h24*60+m;
-    const BUY_RANGES  = [[210,570],[930,1290]];
+    // 1:30 (90) to 7:30 (450) = BUY
+    // 7:30 (450) to 13:30 (810) = SELL
+    // 13:30 (810) to 19:30 (1170) = BUY  (PM repeat)
+    // 19:30 (1170) to 25:30/90 = SELL (PM repeat)
+    const BUY_RANGES  = [[90,450],[810,1170]];
     const isBuy = BUY_RANGES.some(([s,e]) => t >= s && t < e);
+    // Also handle overnight: 0–90 = tail of SELL, 1170–1440 = SELL
     return {
       direction: isBuy ? "buy" : "sell",
       label:     isBuy ? "BUY" : "SELL",
@@ -969,21 +1074,87 @@ function App() {
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
-    [   0,  "sell", "STEP SELL" ],
-    [ 210,  "buy",  "STEP BUY"  ],
-    [ 570,  "sell", "STEP SELL" ],
-    [ 930,  "buy",  "STEP BUY"  ],
-    [1290,  "sell", "STEP SELL" ],
-    [1440,  "buy",  "STEP BUY"  ], // sentinel
+    // No-news scheduled programming — exact repeating AM + PM
+    [   0,  "buy",  "Up"  ],  // 12:00 AM
+    [  30,  "sell", "Down"],  // 12:30 AM
+    [  60,  "buy",  "Up"  ],  // 1:00 AM
+    [  90,  "sell", "Down"],  // 1:30 AM
+    [ 120,  "buy",  "Up"  ],  // 2:00 AM
+    [ 180,  "sell", "Down"],  // 3:00 AM
+    [ 240,  "buy",  "Up"  ],  // 4:00 AM
+    [ 270,  "sell", "Down"],  // 4:30 AM
+    [ 300,  "buy",  "Up"  ],  // 5:00 AM
+    [ 360,  "sell", "Down"],  // 6:00 AM
+    [ 390,  "buy",  "Up"  ],  // 6:30 AM
+    [ 420,  "sell", "Down"],  // 7:00 AM
+    [ 450,  "buy",  "Up"  ],  // 7:30 AM
+    [ 480,  "sell", "Down"],  // 8:00 AM
+    [ 540,  "buy",  "Up"  ],  // 9:00 AM
+    [ 600,  "sell", "Down"],  // 10:00 AM
+    [ 630,  "buy",  "Up"  ],  // 10:30 AM
+    [ 660,  "sell", "Down"],  // 11:00 AM
+    [ 720,  "buy",  "Up"  ],  // 12:00 PM
+    [ 750,  "sell", "Down"],  // 12:30 PM
+    [ 780,  "buy",  "Up"  ],  // 1:00 PM
+    [ 810,  "sell", "Down"],  // 1:30 PM
+    [ 840,  "buy",  "Up"  ],  // 2:00 PM
+    [ 900,  "sell", "Down"],  // 3:00 PM
+    [ 960,  "buy",  "Up"  ],  // 4:00 PM
+    [ 990,  "sell", "Down"],  // 4:30 PM
+    [1020,  "buy",  "Up"  ],  // 5:00 PM
+    [1080,  "sell", "Down"],  // 6:00 PM
+    [1110,  "buy",  "Up"  ],  // 6:30 PM
+    [1140,  "sell", "Down"],  // 7:00 PM
+    [1170,  "buy",  "Up"  ],  // 7:30 PM
+    [1200,  "sell", "Down"],  // 8:00 PM
+    [1260,  "buy",  "Up"  ],  // 9:00 PM
+    [1320,  "sell", "Down"],  // 10:00 PM
+    [1350,  "buy",  "Up"  ],  // 10:30 PM
+    [1380,  "sell", "Down"],  // 11:00 PM
+    [1440,  "buy",  "Up"  ],  // sentinel
   ];
 
   const NEWS_SLOT_STEPS = [
-    [   0,  "negative", "-" ],
-    [ 210,  "positive", "+" ],
-    [ 570,  "negative", "-" ],
-    [ 930,  "positive", "+" ],
-    [1290,  "negative", "-" ],
-    [1440,  "positive", "+" ], // sentinel
+    // News-time polarity — CANONICAL SPEC (both doc 1 & doc 2 agree)
+    // 12:00=+ 12:30=+ 1:00=- 1:30=- 2:00=+ 3:00=- 4:00=+ 4:30=+
+    // 5:00=- 6:00=+ 6:30=+ 7:00=- 7:30=- 8:00=+ 9:00=- 10:00=+ 10:30=+ 11:00=-
+    [    0,  "positive", "+" ], // 12:00 AM
+    [   30,  "positive", "+" ], // 12:30 AM
+    [   60,  "negative", "-" ], // 1:00 AM
+    [   90,  "negative", "-" ], // 1:30 AM
+    [  120,  "positive", "+" ], // 2:00 AM
+    [  180,  "negative", "-" ], // 3:00 AM
+    [  240,  "positive", "+" ], // 4:00 AM
+    [  270,  "positive", "+" ], // 4:30 AM
+    [  300,  "negative", "-" ], // 5:00 AM
+    [  360,  "positive", "+" ], // 6:00 AM
+    [  390,  "positive", "+" ], // 6:30 AM
+    [  420,  "negative", "-" ], // 7:00 AM
+    [  450,  "negative", "-" ], // 7:30 AM
+    [  480,  "positive", "+" ], // 8:00 AM
+    [  540,  "negative", "-" ], // 9:00 AM
+    [  600,  "positive", "+" ], // 10:00 AM
+    [  630,  "positive", "+" ], // 10:30 AM
+    [  660,  "negative", "-" ], // 11:00 AM
+    [  720,  "positive", "+" ], // 12:00 PM
+    [  750,  "positive", "+" ], // 12:30 PM
+    [  780,  "negative", "-" ], // 1:00 PM
+    [  810,  "negative", "-" ], // 1:30 PM
+    [  840,  "positive", "+" ], // 2:00 PM
+    [  900,  "negative", "-" ], // 3:00 PM
+    [  960,  "positive", "+" ], // 4:00 PM
+    [  990,  "positive", "+" ], // 4:30 PM
+    [ 1020,  "negative", "-" ], // 5:00 PM
+    [ 1080,  "positive", "+" ], // 6:00 PM
+    [ 1110,  "positive", "+" ], // 6:30 PM
+    [ 1140,  "negative", "-" ], // 7:00 PM
+    [ 1170,  "negative", "-" ], // 7:30 PM
+    [ 1200,  "positive", "+" ], // 8:00 PM
+    [ 1260,  "negative", "-" ], // 9:00 PM
+    [ 1320,  "positive", "+" ], // 10:00 PM
+    [ 1350,  "positive", "+" ], // 10:30 PM
+    [ 1380,  "negative", "-" ], // 11:00 PM
+    [ 1440,  "positive", "+" ], // sentinel
   ]
 
   function getInternalStep(h24, m) {
@@ -1005,7 +1176,7 @@ function App() {
         };
       }
     }
-    return { direction:"sell", label:"STEP SELL", col:R, minsLeft:0, nextLabel:"STEP BUY", nextDir:"buy", nextCol:G };
+    return { direction:"buy", label:"Up", col:G, minsLeft:0, nextLabel:"Down", nextDir:"sell", nextCol:R };
   }
 
   function getNewsSlotPolarity(h24, m) {
@@ -1025,7 +1196,14 @@ function App() {
   }
 
   const REPLAY_SLOT_LABELS = new Map([
-    [0, "STEP"], [180, "STEP"], [540, "STEP"], [900, "STEP"], [1260, "STEP"]
+    [30, "RECAL"], [60, "LIQUID"], [90, "TRAP"], [120, "EXECUTE"],
+    [180, "STEP"], [240, "LIQUID"], [270, "TRAP"], [300, "EXECUTE"],
+    [360, "STEP"], [420, "LIQUID"], [450, "TRAP"], [480, "EXECUTE"],
+    [540, "STEP"], [600, "LIQUID"], [630, "TRAP"], [660, "EXECUTE"],
+    [720, "STEP"], [750, "RECAL"], [780, "LIQUID"], [810, "TRAP"], [840, "EXECUTE"],
+    [900, "STEP"], [960, "LIQUID"], [990, "TRAP"], [1020, "EXECUTE"],
+    [1080, "STEP"], [1140, "LIQUID"], [1170, "TRAP"], [1200, "EXECUTE"],
+    [1260, "STEP"], [1320, "LIQUID"], [1350, "TRAP"], [1380, "EXECUTE"], [0, "STEP"]
   ]);
   function getReplaySlotLabel(h24, m){
     return REPLAY_SLOT_LABELS.get(h24*60 + m) || (m===30 ? "STEP" : "SCHEDULE");
@@ -1033,7 +1211,8 @@ function App() {
 
   function getMajorRegimeChange(h24, m) {
     const t = h24*60+m;
-    const CHANGES = [180,540,900,1260];
+    // Next change points: 90(1:30), 450(7:30), 810(1:30pm), 1170(7:30pm)
+    const CHANGES = [90,450,810,1170];
     const next = CHANGES.find(c => c > t) || (CHANGES[0]+1440);
     return next - t;
   }
@@ -1181,17 +1360,19 @@ function App() {
 
   function getMinutesToNextZone(h24, m) {
     const t = h24*60+m;
-    const ZONE_OPENS = [180,540,900,1260];
+    // All 8 zone opens: 1:30, 4:30, 7:30, 10:30 AM and PM
+    const ZONE_OPENS = [90, 270, 450, 630, 810, 990, 1170, 1350];
     const next = ZONE_OPENS.find(z => z > t) || (ZONE_OPENS[0] + 1440);
     return next - t;
   }
 
-  // Execute windows: first 90 minutes after each fallback boundary
-  const EXECUTE_WINDOWS = [180,540,900,1260].map(s=>({from:s, to:s+90}));
+  // Execute windows: 30 min after each trap, lasting 60 min
+  // Trap: 1:30,4:30,7:30,10:30 AM+PM → Execute: 2:00-3:00, 5:00-6:00, 8:00-9:00, 11:00-12:00
+  const EXECUTE_WINDOWS = [120,300,480,660,840,1020,1200,1380].map(s=>({from:s, to:s+60}));
   function getExecuteState(h24, m) {
     const t = h24*60+m;
     const inExecute = EXECUTE_WINDOWS.some(w => t >= w.from && t < w.to);
-    const inTrap = [180,540,900,1260].some(tr => t >= tr && t < tr+30);
+    const inTrap = [90,270,450,630,810,990,1170,1350].some(tr => t >= tr && t < tr+30);
     return { inExecute, inTrap };
   }
 
@@ -1582,7 +1763,7 @@ function App() {
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ── INTEREST RATE CONFIRMATION ───────────────────────────────────────────────
-  // Charge direction = major regime (3:30-9:30 BUY, 9:30-3:30 SELL)
+  // Charge direction = major regime (1:30-7:30 BUY, 7:30-1:30 SELL)
   // Interest rates confirm or conflict the regime strength
   // ═══════════════════════════════════════════════════════════════════════════
   // PART 3: FINAL SIGNAL TRANSLATOR
@@ -1858,7 +2039,7 @@ function App() {
     const speeches = allActive.filter(ev=>replayEventType(ev)==="speech").length;
 
     if(!activeCount){
-      const equationPlain = `STEP ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection,
         baseCharge,
@@ -1929,8 +2110,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -1963,6 +2144,14 @@ function App() {
 
   function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents){
     return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
+  }
+
+  function getSixHourFallback_430_1030_standard(h24, m){
+    const t = h24*60 + m;
+    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
+    return inSellWindow
+      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
+      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
@@ -2697,24 +2886,15 @@ function App() {
     throw new Error("BTC replay data unavailable");
   }
 
-  // ── REPLAY SIGNAL — custom 3:30/9:30 fallback map ─────────────────────────────
-  // 3:30–9:30 AM/PM  -> BUY fallback / + slot
-  // 9:30–3:30 AM/PM  -> SELL fallback / - slot
-  function getReplayFallback3930(h24, m){
-    const t = h24 * 60 + m;
-    const buyRanges = [
-      [210, 570],   // 3:30 AM -> 9:30 AM
-      [930, 1290],  // 3:30 PM -> 9:30 PM
-    ];
-    const inBuy = buyRanges.some(([a,b]) => t >= a && t < b);
-    return inBuy
-      ? { baseDirection: "buy", slotPolarity: "positive", slotSign: "+" }
-      : { baseDirection: "sell", slotPolarity: "negative", slotSign: "-" };
-  }
-
+  // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
+  // RULE: no-news → use INTERNAL_STEPS step-direction schedule
+  //       news active → use even/odd hour polarity schedule
+  //       news decision: same sign → BUY, different sign → SELL
+  //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    const fallback = getReplayFallback3930(h24, m);
-    const applied = resolveStackedNewsSign(fallback.baseDirection, fallback.slotPolarity, activeEvents);
+    const fallback = getSixHourFallback_430_1030_standard(h24, m);
+    const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
+    const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -2730,16 +2910,17 @@ function App() {
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection: fallback.baseDirection,
-        baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
+        baseDirection: fallback.direction,
+        baseCharge: fallback.direction === "buy" ? 1 : -1,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: fallback.slotPolarity,
-        slotSign: fallback.slotSign,
+        slotPolarity: fallback.polarity,
+        slotSign: fallback.sign,
         newsSign: applied.newsSign,
-        equation: applied.equationPlain,
-        equationPlain: applied.equationPlain,
+        equation: equationPlain,
+        equationPlain,
         newsCount: (activeEvents||[]).length,
+        fallbackWindow: fallback.window,
         tp1: 0.003, tp2: 0.006, tp3: 0.009,
       };
     }
@@ -2753,21 +2934,22 @@ function App() {
       reason: applied.reason,
       dominantSource: applied.dominantSource,
       clusterResult: applied.clusterResult,
-      sellRestriction: false,
+      sellRestriction: applied.sellRestriction,
       activeEvents,
       activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
-      baseDirection: fallback.baseDirection,
-      baseCharge: fallback.baseDirection === "buy" ? 1 : -1,
+      baseDirection: fallback.direction,
+      baseCharge: fallback.direction === "buy" ? 1 : -1,
       finalCharge: applied.finalCharge,
-      newsFlip: 1,
-      slotPolarity: fallback.slotPolarity,
-      slotSign: fallback.slotSign,
+      newsFlip: applied.newsFlip,
+      slotPolarity: fallback.polarity,
+      slotSign: fallback.sign,
       newsSign: applied.newsSign,
-      equation: applied.equationPlain,
-      equationPlain: applied.equationPlain,
+      equation: equationPlain,
+      equationPlain,
       newsCount: (activeEvents||[]).length,
+      fallbackWindow: fallback.window,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
   }
@@ -3553,7 +3735,7 @@ const BacktestTab = ()=>{
       {d:"2026-04-17",t:"08:30",l:"Jobless Claims",           imp:"med",  cat:"LABOR",     btc:"Weekly labor check. Part of ongoing Fed data watch."},
       {d:"2026-04-30",t:"08:30",l:"GDP Q1 Advance Estimate",  imp:"high", cat:"MACRO",     btc:"First GDP read. Below 0 = recession fear = BTC volatile."},
       {d:"2026-05-06",t:"14:00",l:"FOMC Rate Decision",       imp:"high", cat:"FED",       btc:"Single biggest BTC catalyst. Rate cut = BTC rocket. Hike = dump."},
-      {d:"2026-05-06",t:"19:00",l:"Powell Press Conference",  imp:"high", cat:"FED",       btc:"Fed chair words move BTC 3-8% in minutes. Watch tone on future cuts."},
+      {d:"2026-05-06",t:"14:30",l:"Powell Press Conference",  imp:"high", cat:"FED",       btc:"Fed chair words move BTC 3-8% in minutes. Watch tone on future cuts."},
       {d:"2026-05-12",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"May CPI — watch if inflation trend confirms Fed pivot narrative."},
       {d:"2026-05-22",t:"14:00",l:"FOMC Minutes Release",     imp:"high", cat:"FED",       btc:"Detailed meeting notes. Markets read for rate path clues."},
       {d:"2026-06-10",t:"08:30",l:"CPI Inflation Report",     imp:"high", cat:"INFLATION", btc:"Q2 inflation check. Key for summer Fed decision."},
