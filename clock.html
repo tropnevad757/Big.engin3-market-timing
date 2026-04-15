@@ -2212,13 +2212,13 @@ function App() {
 
   function getSixHourFallback_430_1030_standard(h24, m){
     const step = getInternalStep(h24, m);
-    const direction = step.direction === "sell" ? "sell" : "buy";
+    const direction = step.direction === "sell" ? "buy" : "sell";
     return {
       direction,
       polarity: direction === "sell" ? "negative" : "positive",
       sign: direction === "sell" ? "-" : "+",
-      window: `STEP FALLBACK · ${direction.toUpperCase()}`,
-      source: "internal step schedule"
+      window: `INVERTED STEP FALLBACK · ${direction.toUpperCase()}`,
+      source: "inverted internal step schedule"
     };
   }
   function safeJsonParse(v, fallback){
@@ -2955,7 +2955,7 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: no-news → use INTERNAL_STEPS step-direction schedule
+  // RULE: no-news → use inverted INTERNAL_STEPS step-direction schedule
   //       news active → use even/odd hour polarity schedule
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
