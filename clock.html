@@ -2212,10 +2212,10 @@ function App() {
 
   function getSixHourFallback_430_1030_standard(h24, m){
     const t = h24*60 + m;
-    const inSellWindow = (t >= 390 && t < 750) || (t >= 1110 && t < 1440) || (t >= 0 && t < 30); // 6:30-12:30 AM/PM
+    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
     return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"6:30-12:30 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"12:30-6:30 BUY" };
+      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
+      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
