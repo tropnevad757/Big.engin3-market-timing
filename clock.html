@@ -2215,13 +2215,13 @@ function App() {
     const cycle = ((t - 630) % 720 + 720) % 720; // anchor cycle at 10:30, repeat every 12h
 
     if(cycle < 180){
-      return { direction:"buy", polarity:"positive", sign:"+", window:"10:30-1:30 BUY" };
+      return { direction:"sell", polarity:"negative", sign:"-", window:"10:30-1:30 SELL" };
     }
     if(cycle < 360){
       return { direction:"sell", polarity:"negative", sign:"-", window:"1:30-4:30 SELL" };
     }
     if(cycle < 540){
-      return { direction:"buy", polarity:"positive", sign:"+", window:"4:30-7:30 BUY" };
+      return { direction:"sell", polarity:"negative", sign:"-", window:"4:30-7:30 SELL" };
     }
     return { direction:"sell", polarity:"negative", sign:"-", window:"7:30-10:30 SELL" };
   }
