@@ -99,10 +99,10 @@ const TRAP_TIMES = [
 
 // ─── ZONES (times hidden from display) ────────────────────────────────────────
 // All 6 transitions per cycle: 1:30 · 4:30 · 6:30 · 7:30 · 10:30 · 12:30
-// Z1=buy Z4=buy Z6=sell Z7=sell Z10=sell Z12=buy (AM+PM) [test flip of 1:30–4:30 and 7:30–10:30]
+// Z1=sell Z4=buy Z6=sell Z7=buy Z10=sell Z12=buy (AM+PM)
 const BASE_ZONES = [
   // ── AM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_am",  type:"buy", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
+  { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
     pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Asian session momentum." },
     subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
   { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
@@ -111,7 +111,7 @@ const BASE_ZONES = [
   { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
     pocket:{ label:"TRANSITION FLUSH", note:"Anchor. Short flush before NY open." },
     subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
-  { id:"z7_am",  type:"sell",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
+  { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
     pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open. Highest institutional volume." },
     subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
   { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
@@ -121,7 +121,7 @@ const BASE_ZONES = [
     pocket:{ label:"LUNCH REVERSAL", note:"Regime switch. Post-lunch liquidity grab." },
     subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
   // ── PM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_pm",  type:"buy", h1:13, m1:30, h2:16, m2:30, label:"Z1",
+  { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1",
     pocket:{ label:"POWER HOUR CLOSE", note:"Fund rebalancing. CME close." },
     subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
   { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
@@ -130,7 +130,7 @@ const BASE_ZONES = [
   { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6",
     pocket:{ label:"EVENING TRANSITION", note:"Anchor. Short flush — thin volume." },
     subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
-  { id:"z7_pm",  type:"sell",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
+  { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
     pocket:{ label:"ASIAN PRE-MARKET", note:"Overnight levels set here." },
     subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
   { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
@@ -2212,10 +2212,10 @@ function App() {
 
   function getSixHourFallback_430_1030_standard(h24, m){
     const t = h24*60 + m;
-    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
-    return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
+    const inBuyWindow = (t >= 30 && t < 390) || (t >= 750 && t < 1110); // 12:30-6:30 AM/PM
+    return inBuyWindow
+      ? { direction:"buy", polarity:"positive", sign:"+", window:"12:30-6:30 BUY" }
+      : { direction:"sell", polarity:"negative", sign:"-", window:"6:30-12:30 SELL" };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
