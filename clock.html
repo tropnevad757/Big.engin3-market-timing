@@ -185,11 +185,11 @@ const CATS = [
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // BUY CORE REGIME
 // Connector: − = mirror
-// 12:30-1:30 / 4:30-6:30 / 7:30-10:30
+// 12:30-1:30 / 4:30-6:30
 // Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
 // SELL RESET REGIME
 // Connector: + = aligned
-// 6:30-7:30 / 10:30-12:30 / 1:30-4:30
+// 6:30-7:30 / 10:30-12:30
 const REGIME_CURRENCIES = {
   sellReset: {
     // connector: + (aligned)
@@ -1321,13 +1321,13 @@ function App() {
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
   const MIRROR_RANGES = [
-    [30, 90], [270, 390], [450, 630],
-    [750, 810], [990, 1110], [1170, 1350],
+    [30, 90], [270, 390],
+    [750, 810], [990, 1110],
   ];
 
   const ALIGNED_RANGES = [
-    [0, 30], [90, 270], [390, 450], [630, 750],
-    [810, 990], [1110, 1170], [1350, 1440],
+    [0, 30], [90, 270], [390, 750],
+    [810, 990], [1110, 1440],
   ];
 
   function getConnectorMode(h24, m) {
@@ -2103,7 +2103,7 @@ function App() {
     const speeches = allActive.filter(ev=>replayEventType(ev)==="speech").length;
 
     if(!activeCount){
-      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const equationPlain = `STEP ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection,
         baseCharge,
@@ -2174,8 +2174,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      ? `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
+      : `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2210,12 +2210,12 @@ function App() {
     return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
   }
 
-  function getSixHourFallback_430_1030_standard(h24, m){
+  function getSixHourFallback_430_1030_buy_standard(h24, m){
     const t = h24*60 + m;
-    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
-    return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
+    const inBuyWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
+    return inBuyWindow
+      ? { direction:"buy", polarity:"positive", sign:"+", window:"4:30-10:30 BUY" }
+      : { direction:"sell", polarity:"negative", sign:"-", window:"10:30-4:30 SELL" };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
@@ -2956,7 +2956,7 @@ function App() {
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    const fallback = getSixHourFallback_430_1030_standard(h24, m);
+    const fallback = getSixHourFallback_430_1030_buy_standard(h24, m);
     const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
