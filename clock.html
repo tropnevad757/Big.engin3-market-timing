@@ -99,10 +99,10 @@ const TRAP_TIMES = [
 
 // ─── ZONES (times hidden from display) ────────────────────────────────────────
 // All 6 transitions per cycle: 1:30 · 4:30 · 6:30 · 7:30 · 10:30 · 12:30
-// Z1=sell Z4=buy Z6=sell Z7=buy Z10=sell Z12=buy (AM+PM)
+// Z1=buy Z4=buy Z6=sell Z7=sell Z10=sell Z12=buy (AM+PM) [test flip of 1:30–4:30 and 7:30–10:30]
 const BASE_ZONES = [
   // ── AM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_am",  type:"sell", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
+  { id:"z1_am",  type:"buy", h1:1,  m1:30, h2:4,  m2:30, label:"Z1",
     pocket:{ label:"OVERNIGHT SELL", note:"Anchor. Asian session momentum." },
     subStart:{ h:2, m:30 }, subEnd:{ h:3, m:30 }, starRating:3 },
   { id:"z4_am",  type:"buy",  h1:4,  m1:30, h2:6,  m2:30, label:"Z4",
@@ -111,7 +111,7 @@ const BASE_ZONES = [
   { id:"z6_am",  type:"sell", h1:6,  m1:30, h2:7,  m2:30, label:"Z6",
     pocket:{ label:"TRANSITION FLUSH", note:"Anchor. Short flush before NY open." },
     subStart:{ h:6, m:30 }, subEnd:{ h:7, m:15 }, starRating:1 },
-  { id:"z7_am",  type:"buy",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
+  { id:"z7_am",  type:"sell",  h1:7,  m1:30, h2:10, m2:30, label:"Z7",
     pocket:{ label:"NEW YORK KILL ZONE", note:"NYSE open. Highest institutional volume." },
     subStart:{ h:9, m:30 }, subEnd:{ h:10, m:30 }, starRating:5 },
   { id:"z10_am", type:"sell", h1:10, m1:30, h2:12, m2:30, label:"Z10",
@@ -121,7 +121,7 @@ const BASE_ZONES = [
     pocket:{ label:"LUNCH REVERSAL", note:"Regime switch. Post-lunch liquidity grab." },
     subStart:{ h:1, m:0 }, subEnd:{ h:1, m:30 }, starRating:2 },
   // ── PM ZONES ──────────────────────────────────────────────────────────────
-  { id:"z1_pm",  type:"sell", h1:13, m1:30, h2:16, m2:30, label:"Z1",
+  { id:"z1_pm",  type:"buy", h1:13, m1:30, h2:16, m2:30, label:"Z1",
     pocket:{ label:"POWER HOUR CLOSE", note:"Fund rebalancing. CME close." },
     subStart:{ h:15, m:0 }, subEnd:{ h:16, m:15 }, starRating:4 },
   { id:"z4_pm",  type:"buy",  h1:16, m1:30, h2:18, m2:30, label:"Z4",
@@ -130,7 +130,7 @@ const BASE_ZONES = [
   { id:"z6_pm",  type:"sell", h1:18, m1:30, h2:19, m2:30, label:"Z6",
     pocket:{ label:"EVENING TRANSITION", note:"Anchor. Short flush — thin volume." },
     subStart:{ h:18, m:30 }, subEnd:{ h:19, m:15 }, starRating:1 },
-  { id:"z7_pm",  type:"buy",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
+  { id:"z7_pm",  type:"sell",  h1:19, m1:30, h2:22, m2:30, label:"Z7",
     pocket:{ label:"ASIAN PRE-MARKET", note:"Overnight levels set here." },
     subStart:{ h:20, m:30 }, subEnd:{ h:21, m:30 }, starRating:2 },
   { id:"z10_pm", type:"sell", h1:22, m1:30, h2:0,  m2:30, label:"Z10",
@@ -2103,7 +2103,7 @@ function App() {
     const speeches = allActive.filter(ev=>replayEventType(ev)==="speech").length;
 
     if(!activeCount){
-      const equationPlain = `STEP ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection,
         baseCharge,
@@ -2174,8 +2174,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2210,12 +2210,12 @@ function App() {
     return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
   }
 
-  function getSixHourFallback_430_1030_buy_standard(h24, m){
+  function getSixHourFallback_430_1030_standard(h24, m){
     const t = h24*60 + m;
-    const inBuyWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
-    return inBuyWindow
-      ? { direction:"buy", polarity:"positive", sign:"+", window:"4:30-10:30 BUY" }
-      : { direction:"sell", polarity:"negative", sign:"-", window:"10:30-4:30 SELL" };
+    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
+    return inSellWindow
+      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
+      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
@@ -2956,7 +2956,7 @@ function App() {
   //       news decision: same sign → BUY, different sign → SELL
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
-    const fallback = getSixHourFallback_430_1030_buy_standard(h24, m);
+    const fallback = getSixHourFallback_430_1030_standard(h24, m);
     const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
