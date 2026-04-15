@@ -2211,11 +2211,15 @@ function App() {
   }
 
   function getSixHourFallback_430_1030_standard(h24, m){
-    const t = h24*60 + m;
-    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
-    return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
+    const step = getInternalStep(h24, m);
+    const direction = step.direction === "sell" ? "sell" : "buy";
+    return {
+      direction,
+      polarity: direction === "sell" ? "negative" : "positive",
+      sign: direction === "sell" ? "-" : "+",
+      window: `STEP FALLBACK · ${direction.toUpperCase()}`,
+      source: "internal step schedule"
+    };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
