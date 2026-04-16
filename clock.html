@@ -1867,74 +1867,47 @@ function App() {
   // Reuters: google news search locked to reuters.com domain
   // Bloomberg: google news search locked to bloomberg.com domain
   const NEWS_FEEDS = [
-    { id:"combo", label:"ROBUST MARKET + CALENDAR + BREAKING", color:"#ffb347",
+    { id:"combo", label:"MARKET + CALENDAR + BREAKING", color:"#ffb347",
       urls:[
-        "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:investing.com+(economic+calendar+OR+market+news+OR+forex+news+OR+stocks)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:forexfactory.com+(calendar+OR+news+OR+fomc+OR+cpi+OR+nfp)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:tradingview.com+(economic+calendar+OR+market+news+OR+forex+OR+stocks)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:cnbc.com+(markets+OR+stocks+OR+forex+OR+fed)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:marketwatch.com+(markets+OR+economy+OR+fed+OR+stocks)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar&hl=en-US&gl=US&ceid=US:en"
-      ],
-      apiSources:["newsapi","alphavantage","benzinga"]
-    },
-    { id:"google_only", label:"GOOGLE MULTI-SOURCE", color:"#ffb347",
-      urls:[
         "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:investing.com+(economic+calendar+OR+market+news)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:forexfactory.com+(calendar+OR+news)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:tradingview.com+(economic+calendar+OR+market+news)&hl=en-US&gl=US&ceid=US:en"
+        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar+-forexfactory+-myfxbook&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"api_only", label:"API NEWS STACK", color:"#8fd3ff",
-      urls:[],
-      apiSources:["newsapi","alphavantage","benzinga"]
-    },
-    { id:"breaking", label:"BREAKING + MARKETS", color:"#ff6b35",
+    { id:"markets", label:"Bloomberg Markets", color:"#f0a030",
       urls:[
+        "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+      ]
+    },
+    { id:"breaking", label:"Breaking + Markets", color:"#ff6b35",
+      urls:[
+        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar+-forexfactory+-myfxbook&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+site:cnbc.com+(markets+OR+stocks+OR+forex+OR+fed)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)&hl=en-US&gl=US&ceid=US:en"
-      ],
-      apiSources:["newsapi","benzinga"]
+      ]
     },
   ];
 
-  const ROBUST_NEWS_API_KEYS = {
-    newsapi: (typeof window !== "undefined" && (window.NEWSAPI_KEY || window.NEWS_API_KEY)) ? (window.NEWSAPI_KEY || window.NEWS_API_KEY) : "",
-    alphavantage: (typeof window !== "undefined" && (window.ALPHAVANTAGE_KEY || window.ALPHA_VANTAGE_KEY)) ? (window.ALPHAVANTAGE_KEY || window.ALPHA_VANTAGE_KEY) : "",
-    benzinga: (typeof window !== "undefined" && window.BENZINGA_KEY) ? window.BENZINGA_KEY : "",
-  };
-
-  const ROBUST_NEWS_PROXY_PREFIXES = [
-    "",
-    "https://corsproxy.io/?",
-    "https://api.allorigins.win/raw?url="
-  ];
-const CALENDAR_FEEDS = [
-    { label:"ForexFactory", color:"#ff6b35", type:"ff_json",
+    // ── CALENDAR FEEDS ─────────────────────────────────────────────────────────────
+  // ForexFactory JSON is the most reliable free cross-origin economic calendar
+  // same underlying data Myfxbook and TradingEconomics aggregate
+  const CALENDAR_FEEDS = [
+    // ForexFactory this-week JSON — free, no auth, reliable CORS
+    { label:"ForexFactory",      color:"#ff6b35",  type:"ff_json",
       url:"https://nfs.faireconomy.media/ff_calendar_thisweek.json?version=1" },
-    { label:"Myfxbook", color:"#00aaff", type:"rss",
+    // Myfxbook RSS via proxy
+    { label:"Myfxbook",          color:"#00aaff",  type:"rss",
       url:"https://www.myfxbook.com/rss/forex-economic-calendar-events" },
-    { label:"Investing.com Calendar", color:"#f0a030", type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+site:investing.com+(economic+calendar+OR+NFP+OR+CPI+OR+FOMC+OR+GDP+OR+PMI)&hl=en-US&gl=US&ceid=US:en" },
-    { label:"TradingView Calendar", color:"#7e57ff", type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+site:tradingview.com+(economic+calendar+OR+NFP+OR+CPI+OR+FOMC+OR+GDP+OR+PMI)&hl=en-US&gl=US&ceid=US:en" },
-    { label:"Trading Economics", color:"#f0a030", type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+(%22trading+economics%22+OR+%22economic+calendar%22+OR+NFP+OR+CPI+OR+FOMC+OR+GDP+OR+PMI)&hl=en-US&gl=US&ceid=US:en" },
-    { label:"Reuters Econ", color:"#ff6b35", type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+(Reuters+economic+OR+NFP+OR+CPI+OR+FOMC+OR+GDP+OR+PMI)&hl=en-US&gl=US&ceid=US:en" },
-    { label:"Bloomberg Econ", color:"#f0a030", type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+(Bloomberg+economic+OR+NFP+OR+CPI+OR+FOMC+OR+GDP+OR+rates)&hl=en-US&gl=US&ceid=US:en" },
-    { label:"ForexFactory News", color:"#ff6b35", type:"rss",
-      url:"https://news.google.com/rss/search?q=when:30d+site:forexfactory.com+(calendar+OR+news+OR+fomc+OR+cpi+OR+nfp)&hl=en-US&gl=US&ceid=US:en" }
+    // Trading Economics Google News (their own content indexed by Google)
+    { label:"Trading Economics",  color:"#f0a030",  type:"rss",
+      url:"https://news.google.com/rss/search?q=when:30d+(%22trading+economics%22+OR+%22economic+calendar%22+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22)&hl=en-US&gl=US&ceid=US:en" },
+    // Reuters + Bloomberg economic news for breaking events not on static calendar
+    { label:"Reuters Econ",       color:"#ff6b35",  type:"rss",
+      url:"https://news.google.com/rss/search?q=when:30d+(Reuters+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22)&hl=en-US&gl=US&ceid=US:en" },
+    { label:"Bloomberg Econ",     color:"#f0a030",  type:"rss",
+      url:"https://news.google.com/rss/search?q=when:30d+(Bloomberg+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22rates%22)&hl=en-US&gl=US&ceid=US:en" },
   ];
 
-  const ROBUST_CALENDAR_API_SOURCES = ["alphavantage"];
-// ECO_KEYWORDS for feed classification
+  // ECO_KEYWORDS for feed classification
   const ECO_KEYWORDS = [
     {words:["non-farm payrolls","nfp","payrolls"],    stars:3},
     {words:["fomc","rate decision","federal reserve","powell","rate hike","rate cut"], stars:3},
@@ -2022,102 +1995,7 @@ const CALENDAR_FEEDS = [
       });
   }
 
-  function fetchJsonFlexible(url) {
-    const TIMEOUT = 9000;
-    const attempt = (u) => Promise.race([
-      fetch(u, {cache:"no-cache"}).then(r=>r.ok ? r.json() : Promise.reject(new Error("bad status"))),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), TIMEOUT))
-    ]);
-    const tries = ROBUST_NEWS_PROXY_PREFIXES.map(prefix => prefix ? `${prefix}${encodeURIComponent(url)}` : url);
-    let p = Promise.reject();
-    tries.forEach(u => { p = p.catch(()=>attempt(u)); });
-    return p.catch(()=>null);
-  }
-
-  function normalizeApiArticle(item, source, color) {
-    const title = String(item?.title || item?.headline || item?.summary || "").trim();
-    if(!title) return null;
-    const desc = String(item?.description || item?.summary || item?.teaser || item?.content || "").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,200);
-    const link = item?.url || item?.link || item?.news_url || item?.canonical_url || "";
-    const pub = item?.publishedAt || item?.time_published || item?.created || item?.updated || item?.datetime || item?.date || "";
-    return { title, desc, link, pub, source, color, country: inferCountryCode(`${title} ${desc}`) };
-  }
-
-  function parseAlphaVantageTimestamp(v) {
-    const s = String(v || "").trim();
-    if(!s) return "";
-    if(/^\d{8}T\d{6}$/.test(s)) {
-      const y=s.slice(0,4), mo=s.slice(4,6), d=s.slice(6,8), h=s.slice(9,11), mi=s.slice(11,13), se=s.slice(13,15);
-      return `${y}-${mo}-${d}T${h}:${mi}:${se}Z`;
-    }
-    return s;
-  }
-
-  function fetchOptionalApiNews(apiSources=[]) {
-    const jobs = [];
-    if(apiSources.includes("newsapi") && ROBUST_NEWS_API_KEYS.newsapi) {
-      const q = encodeURIComponent('(markets OR economy OR forex OR stocks OR fed OR cpi OR nfp OR fomc)');
-      const url = `https://newsapi.org/v2/everything?q=${q}&language=en&sortBy=publishedAt&pageSize=40&apiKey=${encodeURIComponent(ROBUST_NEWS_API_KEYS.newsapi)}`;
-      jobs.push(fetchJsonFlexible(url).then(d => ((d?.articles)||[]).map(a => normalizeApiArticle(a, "NewsAPI", "#8fd3ff")).filter(Boolean)));
-    }
-    if(apiSources.includes("alphavantage") && ROBUST_NEWS_API_KEYS.alphavantage) {
-      const topics = encodeURIComponent('economy_macro,financial_markets,technology');
-      const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=${topics}&limit=50&apikey=${encodeURIComponent(ROBUST_NEWS_API_KEYS.alphavantage)}`;
-      jobs.push(fetchJsonFlexible(url).then(d => ((d?.feed)||[]).map(a => {
-        const n = normalizeApiArticle({...a, publishedAt: parseAlphaVantageTimestamp(a?.time_published)}, "Alpha Vantage", "#69c0ff");
-        return n;
-      }).filter(Boolean)));
-    }
-    if(apiSources.includes("benzinga") && ROBUST_NEWS_API_KEYS.benzinga) {
-      const url = `https://api.benzinga.com/api/v2/news?token=${encodeURIComponent(ROBUST_NEWS_API_KEYS.benzinga)}&pagesize=50&displayOutput=full`;
-      jobs.push(fetchJsonFlexible(url).then(d => {
-        const rows = Array.isArray(d) ? d : (d?.data || d?.news || []);
-        return rows.map(a => normalizeApiArticle(a, "Benzinga", "#ff9f43")).filter(Boolean);
-      }));
-    }
-    if(!jobs.length) return Promise.resolve([]);
-    return Promise.all(jobs).then(groups => groups.flat().filter(Boolean)).catch(()=>[]);
-  }
-
-  function normalizeCalendarItem(raw, source, color) {
-    const title = String(raw?.title || raw?.event || raw?.name || raw?.label || raw?.country_event || "").trim();
-    if(!title) return null;
-    const country = String(raw?.country || raw?.currency || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "").toUpperCase();
-    const stars = Math.max(1, Math.min(3, Number(raw?.stars || raw?.impact || raw?.importance || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || calStars(title) || 1)));
-    const pub = raw?.pub || raw?.date || raw?.datetime || raw?.publishedAt || ((raw?.d && raw?.t) ? `${raw.d}T${raw.t}:00` : "");
-    const desc = String(raw?.desc || raw?.description || raw?.note || "").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,200);
-    const bearish = /rate hike|higher inflation|hotter than expected|hawkish|tariff|sanctions|trade war|crash|halt|selloff/i.test(`${title} ${desc}`);
-    const bullish = /rate cut|cooler inflation|dovish|stimulus|beats expectations|soft landing/i.test(`${title} ${desc}`);
-    return { title, desc, pub, source, color, country, stars, bearish, bullish, kind:/powell|speech|remarks|testimony|presser|press conference/i.test(title)?"speech":"event", link: raw?.link || raw?.url || "" };
-  }
-
-  function fetchCalendarSource(feed) {
-    if(feed.type === "ff_json") {
-      return fetchJsonFlexible(feed.url).then(rows => {
-        const arr = Array.isArray(rows) ? rows : [];
-        return arr.map(item => {
-          const dt = `${item.date || item.d || ""}T${(item.time || item.t || "00:00").replace(/\s/g,"")}`;
-          const stars = String(item.impact || item.imp || "").toLowerCase().includes("high") ? 3 :
-                        String(item.impact || item.imp || "").toLowerCase().includes("med") ? 2 :
-                        Math.max(1, calStars(item.title || item.event || ""));
-          return normalizeCalendarItem({
-            title: item.title || item.event,
-            desc: item.detail || item.note || "",
-            country: item.currency || item.country,
-            stars,
-            pub: dt
-          }, feed.label, feed.color);
-        }).filter(Boolean);
-      }).catch(()=>[]);
-    }
-    return fetchRSS(feed.url).then(items => items.map(item => {
-      const norm = normalizeItem(item, feed.label, feed.color);
-      const cls = classifyEcoArticle(norm.title, norm.desc);
-      return normalizeCalendarItem({...norm, stars: cls.stars || calStars(norm.title), bearish: cls.bearish, bullish: cls.bullish}, feed.label, feed.color);
-    }).filter(Boolean)).catch(()=>[]);
-  }
-
-function cleanReplayText(s){
+  function cleanReplayText(s){
     return String(s||"")
       .toLowerCase()
       .replace(/<[^>]+>/g," ")
@@ -2212,7 +2090,6 @@ function cleanReplayText(s){
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
-
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
@@ -2251,7 +2128,7 @@ function cleanReplayText(s){
     let newsCharge = 0;
     let chargeFlip = false;
     let clusterResult = null;
-    let dominantSource = directedCount ? "dominant interest-rate sign first" : "undirected news";
+    let dominantSource = directedCount ? "scheduled + breaking shared stack" : "undirected news";
 
     const combineCharges = (leftCharge, rightCharge)=>{
       if(leftCharge === -1 && rightCharge === -1) return 1;
@@ -2259,54 +2136,25 @@ function cleanReplayText(s){
       return -1;
     };
 
-    const resolveGroupedCharge = (signCharge, count)=>{
-      if(count <= 0) return 0;
-      if(count === 1) return signCharge;
-      return -signCharge; // 2 or more flips once and holds there
-    };
-
     if(directedCount === 1){
       newsCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
       dominantSource = replayEventType(directedEvents[0]) || dominantSource;
     } else if(directedCount >= 2){
-      const firstCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
-      const dominantCharge = positives > negatives ? 1 : negatives > positives ? -1 : firstCharge;
-      const secondaryCharge = dominantCharge === 1 ? -1 : 1;
-      const dominantCount = dominantCharge === 1 ? positives : negatives;
-      const secondaryCount = secondaryCharge === 1 ? positives : negatives;
-
-      const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
-      const secondaryResolved = resolveGroupedCharge(secondaryCharge, secondaryCount);
-
       const foldSteps = [];
-      foldSteps.push(
-        `DOMINANT ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
-      );
-      if(secondaryCount > 0){
-        foldSteps.push(
-          `SECONDARY ${secondaryCharge===1?'+':'-'} x${secondaryCount} -> ${secondaryResolved===1?'+':'-'}`
-        );
+      newsCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
+      for(let i=1;i<directedCount;i++){
+        const nextCharge = Number(directedEvents[i].polarity) > 0 ? 1 : -1;
+        const prevCharge = newsCharge;
+        newsCharge = combineCharges(newsCharge, nextCharge);
+        foldSteps.push(`${prevCharge===1?'+':'-'} ${nextCharge===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
       }
-
-      newsCharge = dominantResolved;
-      if(secondaryCount > 0){
-        newsCharge = combineCharges(dominantResolved, secondaryResolved);
-        foldSteps.push(
-          `COMBINE ${dominantResolved===1?'+':'-'} ${secondaryResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`
-        );
-      }
-
-      chargeFlip = true;
+      chargeFlip = directedCount >= 2;
       clusterResult = {
         dominantSource,
         stackSize: directedCount,
         positiveCount: positives,
         negativeCount: negatives,
-        dominantSign: dominantCharge===1?"+":"-",
-        dominantCount,
-        secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
-        secondaryCount,
-        rule: "dominant sign first; 1 stays same, 2+ flips once; then combine with lower sign",
+        rule: "-/- = +, +/+ = -, -/+ = -",
         foldSteps,
       };
     }
@@ -2327,14 +2175,14 @@ function cleanReplayText(s){
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · DOMINANT-FIRST NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
       baseCharge,
       finalCharge,
       newsFlip: newsFlip ? -1 : 1,
-      negativePressure: negatives,
+      negativePressure: negatives + speeches,
       positivePressure: positives,
       breakingCount: breakingEvents,
       activeCount,
@@ -2348,7 +2196,9 @@ function cleanReplayText(s){
         ? "news active but no directed polarity"
         : sellRestriction
           ? "sell-side restriction held the trade direction"
-          : "dominant high-interest-rate sign was resolved first, then the lower sign was added afterward",
+          : chargeFlip
+            ? "scheduled economic and breaking news used the same stack fold"
+            : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
       equation: equationPlain,
       equationPlain,
     };
@@ -2417,15 +2267,13 @@ function cleanReplayText(s){
     setNewsLoading(true); setNewsError(""); setNewsArticles([]);
 
     const urls=feed.urls||(feed.url?[feed.url]:[]);
-    const rssJobs = urls.map(url=>{
+    if(!urls.length){ setNewsError("Feed unavailable."); setNewsLoading(false); fetchNewsRef.current=false; return; }
+
+    Promise.all(urls.map(url=>{
       let src=feed.label;
       if(/reuters/i.test(url)) src="Reuters Markets";
-      else if(/bloomberg/i.test(url)) src="Bloomberg Markets";
-      else if(/investing\.com/i.test(url)) src="Investing.com";
-      else if(/forexfactory/i.test(url)) src="ForexFactory";
-      else if(/tradingview/i.test(url)) src="TradingView";
-      else if(/cnbc/i.test(url)) src="CNBC";
-      else if(/marketwatch/i.test(url)) src="MarketWatch";
+      if(/bloomberg/i.test(url)) src="Bloomberg Markets";
+      if(/coindesk/i.test(url)) src="CoinDesk";
       return fetchRSS(url).then(items=>items.map(item=>{
         const norm=normalizeItem(item,src,feed.color);
         const cls=classifyEcoArticle(norm.title, norm.desc);
@@ -2433,82 +2281,44 @@ function cleanReplayText(s){
         return {...norm, ...cls, polarity,
           kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"breaking",
           feedType:"news", country:norm.country||inferCountryCode(norm.title+" "+(norm.desc||""))};
-      })).catch(()=>[]);
-    });
-
-    Promise.all([...rssJobs, fetchOptionalApiNews(feed.apiSources||[]).then(items =>
-      items.map(item=>{
-        const cls=classifyEcoArticle(item.title, item.desc);
-        const polarity = cls.bearish ? -1 : cls.bullish ? 1 : 0;
-        return {...item, ...cls, polarity,
-          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(item.title||"")?"speech":"breaking",
-          feedType:"news", country:item.country||inferCountryCode(item.title+" "+(item.desc||""))};
-      })
-    )])
+      }));
+    }))
     .then(groups=>{
-      let arts=groups.flat().filter(a=>a && a.title && a.title.length>4);
+      let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
       arts=dedupeFeedItems(arts);
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
-      setNewsArticles(arts.slice(0,80));
-      const apiEnabled = ["newsapi","alphavantage","benzinga"].filter(k=>ROBUST_NEWS_API_KEYS[k]).length;
-      setNewsError(arts.length ? "" : `No recent articles found. Add optional API keys for more coverage. APIs active: ${apiEnabled}.`);
+      setNewsArticles(arts.slice(0,30));
+      setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
     })
-    .catch(()=>setNewsError("Robust feed unavailable. Check API keys or refresh."))
+    .catch(()=>setNewsError("Feed unavailable. Try another source."))
     .finally(()=>{ setNewsLoading(false); fetchNewsRef.current=false; });
   },[]);
 
   // ── fetchEcoNews — eco classification for FEED tab ───────────────────────────
   const fetchEcoNews = useCallback(()=>{
     ecoLoadedRef.current=true;
-    setEcoLoading(true);
+    setEcoLoading(false);
     setEcoArticles([]);
-    Promise.all([
-      Promise.all(CALENDAR_FEEDS.map(feed => fetchCalendarSource(feed))).then(groups=>groups.flat()),
-      fetchOptionalApiNews(ROBUST_CALENDAR_API_SOURCES).then(items => items.map(item => {
-        const cls = classifyEcoArticle(item.title, item.desc);
-        const stars = cls.stars || calStars(item.title) || 1;
-        return normalizeCalendarItem({...item, stars, bearish: cls.bearish, bullish: cls.bullish}, item.source || "API", item.color || "#69c0ff");
-      }).filter(Boolean))
-    ]).then(groups => {
-      let items = groups.flat().filter(Boolean).filter(item => (item.stars||0) > 0);
-      items = dedupeFeedItems(items);
-      items.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
-      setEcoArticles(items.slice(0,120));
-    }).catch(()=>setEcoArticles([])).finally(()=>setEcoLoading(false));
   },[breakingAnchor]);
 
   // ── fetchCalendar — ForexFactory JSON (primary) + Myfxbook/Reuters/Bloomberg RSS (fallback) ──
   const fetchCalendar = useCallback(()=>{
     calLoadedRef.current=true;
-    setCalLoading(true);
+    setCalLoading(false);
     setCalArticles([]);
-    Promise.all(CALENDAR_FEEDS.map(feed => fetchCalendarSource(feed)))
-      .then(groups => {
-        let items = groups.flat().filter(Boolean);
-        items = dedupeFeedItems(items);
-        items.sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
-        setCalArticles(items.slice(0,200));
-      })
-      .catch(()=>setCalArticles([]))
-      .finally(()=>setCalLoading(false));
   },[]);
 
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
     if(newsView==="feed") {
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
-      if(!ecoLoadedRef.current) fetchEcoNews();
-      if(!calLoadedRef.current) fetchCalendar();
+
     }
+
   },[newsView,newsSrc]);
 
-  // On mount, pre-load all robust news sources
-  useEffect(()=>{
-    fetchNews(newsSrc);
-    fetchEcoNews();
-    fetchCalendar();
-    newsLoadedFor.current=newsSrc;
-  },[]);
+  // On mount, pre-load market-moving news only
+  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
