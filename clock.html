@@ -2090,6 +2090,7 @@ function App() {
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
+
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
@@ -2128,7 +2129,7 @@ function App() {
     let newsCharge = 0;
     let chargeFlip = false;
     let clusterResult = null;
-    let dominantSource = directedCount ? "scheduled + breaking shared stack" : "undirected news";
+    let dominantSource = directedCount ? "dominant interest-rate sign first" : "undirected news";
 
     const combineCharges = (leftCharge, rightCharge)=>{
       if(leftCharge === -1 && rightCharge === -1) return 1;
@@ -2136,25 +2137,54 @@ function App() {
       return -1;
     };
 
+    const resolveGroupedCharge = (signCharge, count)=>{
+      if(count <= 0) return 0;
+      if(count === 1) return signCharge;
+      return -signCharge; // 2 or more flips once and holds there
+    };
+
     if(directedCount === 1){
       newsCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
       dominantSource = replayEventType(directedEvents[0]) || dominantSource;
     } else if(directedCount >= 2){
+      const firstCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
+      const dominantCharge = positives > negatives ? 1 : negatives > positives ? -1 : firstCharge;
+      const secondaryCharge = dominantCharge === 1 ? -1 : 1;
+      const dominantCount = dominantCharge === 1 ? positives : negatives;
+      const secondaryCount = secondaryCharge === 1 ? positives : negatives;
+
+      const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
+      const secondaryResolved = resolveGroupedCharge(secondaryCharge, secondaryCount);
+
       const foldSteps = [];
-      newsCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
-      for(let i=1;i<directedCount;i++){
-        const nextCharge = Number(directedEvents[i].polarity) > 0 ? 1 : -1;
-        const prevCharge = newsCharge;
-        newsCharge = combineCharges(newsCharge, nextCharge);
-        foldSteps.push(`${prevCharge===1?'+':'-'} ${nextCharge===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
+      foldSteps.push(
+        `DOMINANT ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
+      );
+      if(secondaryCount > 0){
+        foldSteps.push(
+          `SECONDARY ${secondaryCharge===1?'+':'-'} x${secondaryCount} -> ${secondaryResolved===1?'+':'-'}`
+        );
       }
-      chargeFlip = directedCount >= 2;
+
+      newsCharge = dominantResolved;
+      if(secondaryCount > 0){
+        newsCharge = combineCharges(dominantResolved, secondaryResolved);
+        foldSteps.push(
+          `COMBINE ${dominantResolved===1?'+':'-'} ${secondaryResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`
+        );
+      }
+
+      chargeFlip = true;
       clusterResult = {
         dominantSource,
         stackSize: directedCount,
         positiveCount: positives,
         negativeCount: negatives,
-        rule: "-/- = +, +/+ = -, -/+ = -",
+        dominantSign: dominantCharge===1?"+":"-",
+        dominantCount,
+        secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
+        secondaryCount,
+        rule: "dominant sign first; 1 stays same, 2+ flips once; then combine with lower sign",
         foldSteps,
       };
     }
@@ -2175,14 +2205,14 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${chargeFlip ? " · STACK FOLD" : ""}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · DOMINANT-FIRST NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
       baseCharge,
       finalCharge,
       newsFlip: newsFlip ? -1 : 1,
-      negativePressure: negatives + speeches,
+      negativePressure: negatives,
       positivePressure: positives,
       breakingCount: breakingEvents,
       activeCount,
@@ -2196,9 +2226,7 @@ function App() {
         ? "news active but no directed polarity"
         : sellRestriction
           ? "sell-side restriction held the trade direction"
-          : chargeFlip
-            ? "scheduled economic and breaking news used the same stack fold"
-            : (newsCharge === slotCharge ? "slot and news same sign - BUY" : "slot and news different sign - SELL"),
+          : "dominant high-interest-rate sign was resolved first, then the lower sign was added afterward",
       equation: equationPlain,
       equationPlain,
     };
