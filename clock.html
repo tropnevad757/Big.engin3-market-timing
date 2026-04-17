@@ -183,14 +183,13 @@ const CATS = [
 ];
 
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
-// SPLIT LIVE-RATE REGIME
-// Version 2 (Shifted 1 hour):
-// 7:30-1:30 (AM + PM) = primary custom map
-// 1:30-7:30 (AM + PM) = flipped custom map
-// Negative side primary map:
+// SINGLE LIVE-RATE REGIME
+// This is the only regime used all day in replay + live logic.
+// Negative side:
 // AOA / EGP / INR / MKD / CLP / SAR / PEN / HKD / MOP / ILS / NOK / MUR / PHP / USD(anchor)
-// Positive side primary map:
+// Positive side:
 // GBP / CNY / KRW / CAD / NZD / SGD / JPY
+// Unlisted currencies keep a neutral/default handling unless added later.
 const REGIME_CURRENCIES = {
   sellReset: {
     // connector: + (aligned)
@@ -1329,9 +1328,9 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
-  const MIRROR_RANGES = [[0, 90], [450, 810], [1170, 1440]];
+  const MIRROR_RANGES = [[0, 1440]];
 
-  const ALIGNED_RANGES = [[90, 450], [810, 1170]];
+  const ALIGNED_RANGES = [];
 
   function getConnectorMode(h24, m) {
     const t = h24 * 60 + m;
@@ -1391,21 +1390,15 @@ function App() {
 
   function computeChargeEngine(h24, m, timeCharge) {
     const mode = getConnectorMode(h24, m);
-    const invertMap = mode === "aligned";
-    const usdRawCharge = invertMap ? -getSingleRegimeCharge("USD", USD_RATE) : getSingleRegimeCharge("USD", USD_RATE);
-
-    const resolveMappedCharge = (sym, rate) => {
-      const raw = getSingleRegimeCharge(sym, rate);
-      return invertMap ? -raw : raw;
-    };
+    const usdRawCharge = getSingleRegimeCharge("USD", USD_RATE);
 
     const positiveGroup = CHARGE_CURRENCIES
-      .filter(c => c.sym !== "USD" && resolveMappedCharge(c.sym, c.rate) > 0)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: resolveMappedCharge(c.sym, c.rate) }));
+      .filter(c => c.sym !== "USD" && getSingleRegimeCharge(c.sym, c.rate) > 0)
+      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: getSingleRegimeCharge(c.sym, c.rate) }));
 
     const negativeGroup = CHARGE_CURRENCIES
-      .filter(c => c.sym !== "USD" && resolveMappedCharge(c.sym, c.rate) < 0)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: resolveMappedCharge(c.sym, c.rate) }));
+      .filter(c => c.sym !== "USD" && getSingleRegimeCharge(c.sym, c.rate) < 0)
+      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: getSingleRegimeCharge(c.sym, c.rate) }));
 
     let higherCombinedCharge = null;
     let flipTriggered = false;
@@ -1473,7 +1466,7 @@ function App() {
       stackSteps: allSteps,
       positiveCount: positiveGroup.length,
       negativeCount: negativeGroup.length,
-      dominantGroupLabel: invertMap ? "shifted split-day flipped custom regime map" : "shifted split-day primary custom regime map",
+      dominantGroupLabel: "single custom regime map",
     };
   }
 
