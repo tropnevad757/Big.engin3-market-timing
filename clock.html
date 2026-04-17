@@ -184,9 +184,9 @@ const CATS = [
 
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // SPLIT LIVE-RATE REGIME
-// Version 1 (Shifted 1 hour):
-// 1:30-7:30 (AM + PM) = primary custom map
-// 7:30-1:30 (AM + PM) = flipped custom map
+// Version 2 (Shifted 1 hour):
+// 7:30-1:30 (AM + PM) = primary custom map
+// 1:30-7:30 (AM + PM) = flipped custom map
 // Negative side primary map:
 // AOA / EGP / INR / MKD / CLP / SAR / PEN / HKD / MOP / ILS / NOK / MUR / PHP / USD(anchor)
 // Positive side primary map:
@@ -1329,9 +1329,9 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
-  const MIRROR_RANGES = [[90, 450], [810, 1170]];
+  const MIRROR_RANGES = [[0, 90], [450, 810], [1170, 1440]];
 
-  const ALIGNED_RANGES = [[0, 90], [450, 810], [1170, 1440]];
+  const ALIGNED_RANGES = [[90, 450], [810, 1170]];
 
   function getConnectorMode(h24, m) {
     const t = h24 * 60 + m;
