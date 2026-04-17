@@ -183,48 +183,1146 @@ const CATS = [
 ];
 
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
-const USD_RATE = 3.75;
-  const CHARGE_CURRENCIES = [
+// BUY CORE REGIME
+// Connector: − = mirror
+// 12:30-1:30 / 4:30-6:30
+// Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
+// SELL RESET REGIME
+// Connector: + = aligned
+// 6:30-7:30 / 10:30-12:30
+const REGIME_CURRENCIES = {
+  sellReset: {
+    // connector: + (aligned)
+    bullUSD: ["AOA","AUD","USD"],
+    bearUSD: ["GBP","JPY"],
+  },
+  buyCore: {
+    // connector: − (mirror)
+    bearUSD: ["AOA","AUD","USD"],
+    bullUSD: ["GBP","JPY"],
+  },
+};
+
+// NEWS REACTION WINDOWS — symmetric (before AND after event)
+// Stars → window in mins, TP targets as % move from entry
+// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
+const NEWS_REACTION = {
+  break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
+  1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
+  2:     { window: 50,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
+  3:     { window: 80,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
+};
+
+// POLARITY SIGN TABLE: Time sign × Value sign = direction
+// +/+ = - (sell)  +/- = + (buy)  -/- = + (buy)  -/+ = - (sell)
+// ══════════════════════════════════════════════════════════════════════════════
+// TWO-MODE POLARITY MATH ENGINE
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// MODE 1 — WINDOW MATH  (window-vs-window or news-vs-news)
+//   pos + pos => neg
+//   neg + neg => pos   ← only this case flips to positive
+//   pos + neg => neg
+//   neg + pos => neg
+//
+// MODE 2 — TIME MATH  (time-slot-vs-news)
+//   same signs  => pos   (like sign multiplication)
+//   diff signs  => neg
+//   positive result in a positive/up window => move UP
+//
+// IMPORTANT: movement direction and slot polarity are stored separately.
+// Do not assume up=positive or down=negative across the whole system.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── WINDOW MATH ───────────────────────────────────────────────────────────────
+// Used for: window-vs-window, news-vs-news calculations
+function resolveWindowMath(a, b) {
+  // Only neg+neg flips to positive — everything else resolves negative
+  if(a === "negative" && b === "negative") return "positive";
+  return "negative";
+}
+
+// ── TIME MATH ─────────────────────────────────────────────────────────────────
+// Used for: time-slot-vs-news, timetable interactions
+function resolveTimeMath(a, b) {
+  // Same signs = positive, opposite signs = negative (sign multiplication)
+  if(a === b) return "positive";
+  return "negative";
+}
+
+// ── POLARITY STATE BUILDER ────────────────────────────────────────────────────
+// Builds the full polarity state for a given slot, separating:
+//   baseDirection  — natural scheduled movement without news
+//   slotPolarity   — polarity label for time-based math
+//   movement       — "up" | "down" (resolved from base)
+//
+// baseDir: "buy" | "sell" (from INTERNAL_STEPS)
+// slotPol: "positive" | "negative" (from ZONE_WINDOWS pol field)
+function buildPolarityState(baseDir, slotPol) {
+  return {
+    baseDirection: baseDir,          // "buy" | "sell" — natural movement, no news
+    slotPolarity:  slotPol,          // "positive" | "negative" — used in time math
+    movement:      baseDir === "buy" ? "up" : "down",  // display direction
+  };
+}
+
+// ── APPLY NEWS TO SLOT ────────────────────────────────────────────────────────
+// Given a polarity state and a news polarity, applies the right math mode
+// and returns the final movement direction
+//
+// newsPolarity: "positive" | "negative" | null
+// calcType: "time"   → TIME MATH  (slot vs news)
+//           "window" → WINDOW MATH (news vs news)
+//           null     → no news, return baseDirection as-is
+function applyNewsToSlot(polarityState, newsPolarity, calcType) {
+  if(!newsPolarity || !calcType) {
+    // No news — natural base direction wins
+    return {
+      finalDirection: polarityState.baseDirection,
+      finalMovement:  polarityState.movement,
+      mathUsed: "none",
+      result: null,
+    };
+  }
+
+  let result;
+  if(calcType === "time") {
+    result = resolveTimeMath(polarityState.slotPolarity, newsPolarity);
+  } else {
+    result = resolveWindowMath(polarityState.slotPolarity, newsPolarity);
+  }
+
+  // Final rule:
+  // same signs = + BUY
+  // opposite signs = - SELL
+  const finalMovement = result === "positive" ? "up" : "down";
+
+  return {
+    finalDirection: result === "positive" ? "buy" : "sell",
+    finalMovement,
+    mathUsed: calcType,
+    result,
+  };
+}
+
+// Legacy sign function kept for backward compat — not used in new logic
+function polaritySign(timeSign, valueSign) {
+  if(timeSign > 0 && valueSign > 0) return -1;
+  if(timeSign > 0 && valueSign < 0) return +1;
+  if(timeSign < 0 && valueSign < 0) return +1;
+  if(timeSign < 0 && valueSign > 0) return -1;
+  return 0;
+}
+
+const CORR_C = { primary:A, confirm:G, inverse:R, safe:"#88aaff", risk:"#aa88ff", other:"#aaa" };
+const CORR_L = { primary:"PRIMARY", confirm:"CONFIRM", inverse:"INVERSE", safe:"SAFE HAVEN", risk:"RISK-ON", other:"OTHER" };
+
+const PLANS = [
+  { id:"free",    name:"FREE",    price:0,   color:"#999",
+    perks:["Zone Clock — FREE, Always Live","Zone labels Z1–Z12","BUY CORE / SELL RESET arcs","ET Reference Clock"],
+    locked:["Sound Alerts","Timezone Selector","All Instruments","VWAP Bands","Bias Checklist","Backtesting"] },
+  { id:"starter", name:"STARTER", price:null,color:"#88aaff",
+    perks:["VWAP Anchor + Accumulation","Recalibration Phase","Sigma Target Levels","Zone Clock Access"],
+    locked:["Action Phases","Regime Engine","Currency Meter","Full Checklist","Backtesting"] },
+  { id:"core",    name:"CORE",    price:29,  color:G,
+    perks:["Expansion + Distribution","Money Rhythm","TRAP → EXECUTE Cadence","Zone Clock — Full Access","All Timezones","Sound Alerts","All Instruments","VWAP Bands"],
+    locked:["Regime Engine","Currency Meter","Full 6-Step Checklist","Backtesting"] },
+  { id:"pro",     name:"PRO",     price:59,  color:A,
+    perks:["Everything in CORE","Recalibration · Continuation","BUY CORE vs SELL RESET Logic","Currency Meter + Polarity","6-Step Entry Checklist","Zone Backtesting"],
+    locked:["Full Execution Ruleset","Win Rate Estimator","Trade Tracker","AeroGrid Tool"] },
+  { id:"elite",   name:"₿",   price:149, color:"#ff9500",
+    perks:["Everything in PRO","Full Execution Ruleset","Stop · Trail · Exit · Sizing","Live Win Rate Estimator","Trade Tracker","AeroGrid Tool (Elite Only)","Priority Support"],
+    locked:[] },
+];
+
+// Win rates from ENGiN3 system historical data (BTC)
+// System peak: 88% when all 6 conditions met (prime window + regime + news + sweep + displacement)
+const BACKTEST = {
+  // AM zones
+  z1_am: {wins:72, avgPts:8.2,  best:"Tue", worst:"Mon", months:[70,74,68,76,70,73,68,76,71,70,74,72], peak:88},
+  z4_am: {wins:76, avgPts:11.4, best:"Wed", worst:"Thu", months:[74,78,74,80,74,77,72,80,75,74,78,76], peak:88},
+  z6_am: {wins:58, avgPts:4.2,  best:"Wed", worst:"Mon", months:[56,60,57,62,56,59,55,62,57,58,60,58], peak:72},
+  z7_am: {wins:88, avgPts:21.0, best:"Tue", worst:"Fri", months:[86,90,87,91,86,89,85,91,87,88,90,88], peak:88},
+  z10_am:{wins:82, avgPts:15.5, best:"Wed", worst:"Fri", months:[80,84,81,85,80,83,79,85,81,82,84,82], peak:88},
+  z12_am:{wins:64, avgPts:6.1,  best:"Thu", worst:"Mon", months:[62,66,63,68,62,65,61,68,63,64,66,64], peak:78},
+  // PM zones
+  z1_pm: {wins:79, avgPts:14.2, best:"Thu", worst:"Mon", months:[77,81,78,82,77,80,77,82,78,79,81,79], peak:88},
+  z4_pm: {wins:68, avgPts:7.1,  best:"Thu", worst:"Mon", months:[65,70,67,72,66,69,65,72,67,68,70,68], peak:88},
+  z6_pm: {wins:54, avgPts:3.8,  best:"Wed", worst:"Fri", months:[52,56,53,58,52,55,51,58,53,54,56,54], peak:68},
+  z7_pm: {wins:62, avgPts:5.8,  best:"Wed", worst:"Mon", months:[60,64,61,65,60,63,59,65,61,62,64,62], peak:80},
+  z10_pm:{wins:65, avgPts:6.4,  best:"Tue", worst:"Fri", months:[62,67,64,68,63,66,62,68,64,65,67,65], peak:80},
+  z12_pm:{wins:57, avgPts:4.0,  best:"Thu", worst:"Mon", months:[55,59,56,61,55,58,54,61,56,57,59,57], peak:70},
+};
+
+// VWAP helpers — anchored from trap times
+function getTrapAnchorStatus(et) {
+  const nowMins = et.h24*60+et.m;
+  return TRAP_TIMES.map(t => {
+    const anchorMins = t.h*60+t.m;
+    const elapsed = ((nowMins - anchorMins) + 1440) % 1440; // mins since anchor
+    const active = elapsed < 260; // SPEC: 4h20m (260 mins) anchor lifetime
+    const next = elapsed >= 1440-30; // within 30 mins of next occurrence
+    const pctThrough = Math.min(100, Math.round((elapsed/180)*100));
+    return { ...t, elapsed, active, next, pctThrough };
+  });
+}
+
+function getDateKeyInTZ(tz){
+  try{
+    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const g=t=>(parts.find(x=>x.type===t)||{value:'00'}).value;
+    return `${g('year')}-${g('month')}-${g('day')}`;
+  }catch(e){
+    const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0');
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
+}
+
+function marketKeyForInstrument(inst){
+  const s=String(inst||'').toUpperCase();
+  if(s==='BTC') return 'btc';
+  if(s==='ES') return 'es';
+  if(s==='NQ') return 'nq';
+  if(s==='GC' || s==='GOLD') return 'gc';
+  if(s==='DXY' || s==='USD') return 'dxy';
+  return null;
+}
+
+function getLiveInstrumentPrice(inst, manualPrice, marketData){
+  const mp = parseFloat(manualPrice);
+  if(mp>0) return mp;
+  const mk = marketKeyForInstrument(inst);
+  const live = mk && marketData && marketData[mk] && Number(marketData[mk].price);
+  return Number.isFinite(live) ? live : 0;
+}
+
+function deriveVwapBands(anchorPrice, elapsed){
+  const p = Number(anchorPrice)||0;
+  const e = Number(elapsed)||0;
+  const bf = 1 + (Math.min(180, Math.max(0,e))/180)*0.6;
+  if(!(p>0)) return {vwap:0, ub2:0, ub3:0, lb2:0, lb3:0, bf};
+  return {
+    vwap:p,
+    ub2:p*(1+0.0016*bf),
+    ub3:p*(1+0.0026*bf),
+    lb2:p*(1-0.0016*bf),
+    lb3:p*(1-0.0026*bf),
+    bf
+  };
+}
+
+function getAnchorSnapshot(trap, anchors, inst){
+  if(!trap || !anchors) return null;
+  const today = getDateKeyInTZ('America/New_York');
+  const prev = getDateKeyInTZ('UTC'); // fallback key only
+  const keys = [`${trap.id}_${today}`, `${trap.id}_${prev}`];
+  for(const k of keys){
+    const snap = anchors[k];
+    if(snap && snap.prices){
+      const v = Number(snap.prices[inst]);
+      if(Number.isFinite(v) && v>0) return { ...snap, anchorPrice:v };
+    }
+  }
+  const any = Object.values(anchors).filter(x=>x && x.id===trap.id).sort((a,b)=>String(b.capturedAt||'').localeCompare(String(a.capturedAt||'')))[0];
+  if(any && any.prices){
+    const v = Number(any.prices[inst]);
+    if(Number.isFinite(v) && v>0) return { ...any, anchorPrice:v };
+  }
+  return null;
+}
+
+function getAutoVwapConfirmation({inst, manualPrice, marketData, trapStatus, anchors, zoneType}){
+  const livePrice = getLiveInstrumentPrice(inst, manualPrice, marketData);
+  if(!(livePrice>0)) return {status:'neutral', title:'VWAP waiting', note:'Needs a live price or manual price input.'};
+  const active = (trapStatus||[]).filter(t=>t.active);
+  if(!active.length) return {status:'neutral', title:'VWAP neutral', note:'No active anchor.'};
+  const enriched = active.map(t=>{
+    const snap = getAnchorSnapshot(t, anchors, inst);
+    if(!snap || !(snap.anchorPrice>0)) return null;
+    const bands = deriveVwapBands(snap.anchorPrice, t.elapsed);
+    return { ...t, anchorPrice:snap.anchorPrice, ...bands };
+  }).filter(Boolean);
+  if(!enriched.length) return {status:'neutral', title:'VWAP neutral', note:'Anchor is active, but no captured anchor price is available yet.'};
+  const closest = enriched.map(t=>{
+    const d = Math.min(Math.abs(livePrice-t.lb2), Math.abs(livePrice-t.lb3), Math.abs(livePrice-t.ub2), Math.abs(livePrice-t.ub3));
+    return {...t, distance:d};
+  }).sort((a,b)=>a.distance-b.distance)[0];
+  if(livePrice <= closest.lb3) return {status:'buy', title:'Lower 3 band hit', note:'Supports BUY confirmation.', anchor:closest.label};
+  if(livePrice <= closest.lb2) return {status:'buy', title:'Lower band area hit', note:'Supports BUY confirmation.', anchor:closest.label};
+  if(livePrice >= closest.ub3) return {status:'sell', title:'Upper 3 band hit', note:'Supports SELL confirmation.', anchor:closest.label};
+  if(livePrice >= closest.ub2) return {status:'sell', title:'Upper band area hit', note:'Supports SELL confirmation.', anchor:closest.label};
+  const base = zoneType==='buy' ? 'Watching lower bands for buy support.' : zoneType==='sell' ? 'Watching upper bands for sell support.' : 'Waiting for band touch.';
+  return {status:'neutral', title:'VWAP neutral', note:base, anchor:closest.label};
+}
+
+// Audio
+function useAudio() {
+  const ctx = useRef(null);
+  const go  = () => { if(!ctx.current) ctx.current=new(window.AudioContext||window.webkitAudioContext)(); return ctx.current; };
+  const tone = (f,d,v=0.18) => { try { const c=go(),o=c.createOscillator(),g=c.createGain(); o.connect(g);g.connect(c.destination); o.frequency.value=f; g.gain.setValueAtTime(v,c.currentTime); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d); o.start(c.currentTime); o.stop(c.currentTime+d); } catch (err) {} };
+  return {
+    buy:  ()=>{tone(440,.07);setTimeout(()=>tone(523,.07),80);setTimeout(()=>tone(659,.07),160);setTimeout(()=>tone(784,.4),240);},
+    sell: ()=>{tone(784,.07);setTimeout(()=>tone(659,.07),80);setTimeout(()=>tone(523,.07),160);setTimeout(()=>tone(440,.4),240);},
+    end:  ()=>{tone(440,.18);setTimeout(()=>tone(330,.32),180);},
+    flip: ()=>{tone(880,.09);setTimeout(()=>tone(440,.28),100);},
+  };
+}
+
+const TZ_LIST = [
+  {label:"New York (ET)",    tz:"America/New_York",    abbr:"ET"},
+  {label:"Chicago (CT)",     tz:"America/Chicago",     abbr:"CT"},
+  {label:"Denver (MT)",      tz:"America/Denver",      abbr:"MT"},
+  {label:"Los Angeles (PT)", tz:"America/Los_Angeles", abbr:"PT"},
+  {label:"Toronto (ET)",     tz:"America/Toronto",     abbr:"ET"},
+  {label:"São Paulo (BRT)",  tz:"America/Sao_Paulo",   abbr:"BRT"},
+  {label:"London (GMT)",     tz:"Europe/London",       abbr:"GMT"},
+  {label:"Amsterdam (CET)",  tz:"Europe/Amsterdam",    abbr:"CET"},
+  {label:"Frankfurt (CET)",  tz:"Europe/Berlin",       abbr:"CET"},
+  {label:"Dubai (GST)",      tz:"Asia/Dubai",          abbr:"GST"},
+  {label:"Mumbai (IST)",     tz:"Asia/Kolkata",        abbr:"IST"},
+  {label:"Singapore (SGT)",  tz:"Asia/Singapore",      abbr:"SGT"},
+  {label:"Hong Kong (HKT)",  tz:"Asia/Hong_Kong",      abbr:"HKT"},
+  {label:"Tokyo (JST)",      tz:"Asia/Tokyo",          abbr:"JST"},
+  {label:"Sydney (AEST)",    tz:"Australia/Sydney",    abbr:"AEST"},
+  {label:"Auckland (NZST)",  tz:"Pacific/Auckland",    abbr:"NZST"},
+];
+
+// ─── CLOCK FACE ───────────────────────────────────────────────────────────────
+function ClockFace({size=272, zones, et, hideTimes=true}) {
+  const cx=size/2, cy=size/2, OR=size*.46, ZR=size*.38, SR=size*.32, TR=size*.41, NR=size*.33;
+  const {h,m,s}=et;
+  const he=polar(cx,cy,size*.22,h*30+m*.5), me=polar(cx,cy,size*.30,m*6+s*.1), se=polar(cx,cy,size*.34,s*6);
+  const live=zones.filter(z=>isInZone(z,h,m));
+  const inSub=live.some(z=>isInSubWindow(z,et));
+  const ring=live.length?(live[0].type==="buy"?G:live[0].type==="sell"?R:D):A;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <defs>
+        <radialGradient id="rbg" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#1c1c38"/><stop offset="100%" stopColor="#040412"/>
+        </radialGradient>
+        <filter id="fg"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="fg2"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="fg3"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <circle cx={cx} cy={cy} r={OR+12} fill="url(#rbg)"/>
+      {/* Pulse ring when in sub-window */}
+      {inSub && <circle cx={cx} cy={cy} r={OR+6} fill="none" stroke={ring} strokeWidth="2" opacity="0.4" filter="url(#fg2)"/>}
+      <circle cx={cx} cy={cy} r={OR} fill="none" stroke={ring} strokeWidth={inSub?3:2} opacity={inSub?0.95:.7} filter="url(#fg)"/>
+      <circle cx={cx} cy={cy} r={OR+4} fill="none" stroke={ring} strokeWidth="1" opacity=".15"/>
+
+      {/* Zone arcs */}
+      {zones.map(z=>{
+        const c=z.type==="buy"?G:z.type==="sell"?R:D, a1=toAngle(z.h1,z.m1), a2=toAngle(z.h2,z.m2);
+        const on=isInZone(z,h,m), sub=on&&isInSubWindow(z,et);
+        return(<g key={z.id}>
+          <path d={arc(cx,cy,ZR,a1,a2)} fill="none" stroke={c} strokeWidth={size*.08} strokeLinecap="butt" opacity={on?(.42+(.18*sub?1:0)):.13}/>
+          <path d={arc(cx,cy,ZR,a1,a2)} fill="none" stroke={c} strokeWidth={on?(sub?4:2.5):1.5} strokeLinecap="round" filter="url(#fg)" opacity={on?1:.45}/>
+          {/* Sub-window inner arc */}
+          {sub && <path d={arc(cx,cy,SR,toAngle(z.subStart.h,z.subStart.m),toAngle(z.subEnd.h%12,z.subEnd.m))} fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" opacity=".55" filter="url(#fg3)"/>}
+          {/* Zone label on arc - only label, not times */}
+          {(()=>{ const mid=((a1+a2)/2+(a1>a2?180:0))%360; const lp=polar(cx,cy,ZR,mid); return <text key={z.id+"l"} x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="central" fill={on?c:"#888"} fontSize={size*.042} fontFamily="'Orbitron',monospace" fontWeight="900">{z.label}</text>; })()}
+        </g>);
+      })}
+
+      {/* Ticks */}
+      {Array.from({length:60}).map((_,i)=>{const big=i%5===0,a=i*6,p1=polar(cx,cy,TR-(big?size*.024:size*.011),a),p2=polar(cx,cy,TR,a);return <line key={i} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={big?"#aaa":"#222"} strokeWidth={big?1.5:.7}/>;  })}
+
+      {/* Numbers */}
+      {[12,1,2,3,4,5,6,7,8,9,10,11].map((n,i)=>{const p=polar(cx,cy,NR,i*30);return <text key={n} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central" fill="#999" fontSize={size*.052} fontFamily="'Orbitron',monospace" fontWeight="700">{n}</text>;})}
+
+      {/* Hands */}
+      <line x1={cx} y1={cy} x2={he.x} y2={he.y} stroke="#fff" strokeWidth={size*.022} strokeLinecap="round" filter="url(#fg)"/>
+      <line x1={cx} y1={cy} x2={me.x} y2={me.y} stroke="#dde4ff" strokeWidth={size*.013} strokeLinecap="round" filter="url(#fg)"/>
+      <line x1={cx} y1={cy} x2={se.x} y2={se.y} stroke="#ff6600" strokeWidth={size*.007} strokeLinecap="round" filter="url(#fg2)"/>
+      <circle cx={cx} cy={cy} r={size*.027} fill="#ff6600" filter="url(#fg2)"/>
+      <circle cx={cx} cy={cy} r={size*.012} fill="#fff"/>
+    </svg>
+  );
+}
+
+// ─── MINI BAR ─────────────────────────────────────────────────────────────────
+function MiniBar({months}) {
+  const MO=["J","F","M","A","M","J","J","A","S","O","N","D"];
+  return <div style={{display:"flex",alignItems:"flex-end",gap:2,height:68}}>
+    {months.map((v,i)=>{const c=v>=75?G:v>=60?A:R; return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+      <div style={{fontSize:13,color:"#aaa"}}>{v}</div>
+      <div style={{width:"100%",height:`${(v/100)*50}px`,background:`${c}cc`,borderRadius:"2px 2px 0 0",boxShadow:`0 0 4px ${c}44`,minHeight:3}}/>
+      <div style={{fontSize:13,color:"#ccc"}}>{MO[i]}</div>
+    </div>;})}
+  </div>;
+}
+
+// ─── VWAP BAND CARD — Band 2 only, clear trade signals ───────────────────────
+function VWAPBandCard({trap, et, price, marketData, inst, anchors}) {
+  const nowMins    = et.h24*60+et.m;
+  const anchorMins = trap.h*60+trap.m;
+  const elapsed    = ((nowMins - anchorMins)+1440)%1440;
+  const active     = elapsed < 180;
+  const pct        = Math.min(100, (elapsed/180)*100);
+  const livePrice  = getLiveInstrumentPrice(inst, price, marketData);
+  const snap       = getAnchorSnapshot(trap, anchors, inst);
+  const anchorBase = Number((snap && snap.anchorPrice) || livePrice || 0);
+  const bands      = deriveVwapBands(anchorBase, elapsed);
+  const ub2        = anchorBase>0 ? bands.ub2.toFixed(2) : "–";
+  const ub3        = anchorBase>0 ? bands.ub3.toFixed(2) : "–";
+  const lb2        = anchorBase>0 ? bands.lb2.toFixed(2) : "–";
+  const lb3        = anchorBase>0 ? bands.lb3.toFixed(2) : "–";
+  const vwapLine   = anchorBase>0 ? bands.vwap.toFixed(2) : "–";
+  const borderCol  = active ? A : "#1e1e2e";
+  const mono       = {fontFamily:"'Share Tech Mono',monospace"};
+
+  return (
+    <div style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${borderCol}`,borderRadius:14,padding:"14px 16px",marginBottom:10}}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div>
+          <div style={{fontSize:13,letterSpacing:2,color:active?A:"#888",fontWeight:700}}>{trap.label} ANCHOR {active?"● ACTIVE":""}</div>
+          <div style={{fontSize:14,color:"#bbb",marginTop:2,...mono}}>
+            {elapsed<60?`${elapsed}m since anchor`:elapsed<180?`${Math.floor(elapsed/60)}h ${elapsed%60}m since`:`${Math.floor(elapsed/60)}h ago`}
+          </div>
+        </div>
+        {active&&<div style={{textAlign:"center"}}>
+          <div style={{fontSize:22,fontWeight:900,color:A,lineHeight:1}}>{Math.round(100-pct)}%</div>
+          <div style={{fontSize:14,color:"#999",letterSpacing:1}}>STRENGTH</div>
+        </div>}
+      </div>
+
+      {/* Visual: 3 rows — UB2 (top), VWAP (mid), LB2 (bottom) */}
+      <div style={{borderRadius:10,overflow:"hidden",marginBottom:12,border:"1px solid rgba(255,255,255,0.07)"}}>
+
+        {/* UPPER BAND 2 — SELL signal */}
+        <div style={{
+          background:`${R}${active?"18":"0a"}`,
+          borderBottom:"1px solid rgba(255,255,255,0.06)",
+          padding:"10px 14px",
+          display:"flex",justifyContent:"space-between",alignItems:"center"
+        }}>
+          <div>
+            <div style={{fontSize:13,letterSpacing:1.5,color:R,fontWeight:700,marginBottom:2}}>UPPER BANDS</div>
+            <div style={{fontSize:13,color:"#888",...mono}}>UB2 {ub2} · UB3 {ub3}</div>
+            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>Upper bands support sell confirmation.</div>
+          </div>
+          <div style={{fontSize:16,fontWeight:900,color:R,...mono,textAlign:"right"}}>
+            {ub2}
+          </div>
+        </div>
+
+        {/* VWAP — midline / signal target */}
+        <div style={{
+          background:`${A}${active?"10":"07"}`,
+          borderBottom:"1px solid rgba(255,255,255,0.06)",
+          padding:"10px 14px",
+          display:"flex",justifyContent:"space-between",alignItems:"center"
+        }}>
+          <div>
+            <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:2}}>VWAP — FAIR VALUE</div>
+            <div style={{fontSize:13,color:"#888",...mono}}>Target when price is at either band</div>
+            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>BiG ENGiN3 Anchor</div>
+          </div>
+          <div style={{fontSize:16,fontWeight:900,color:A,...mono,textAlign:"right"}}>
+            {vwapLine}
+          </div>
+        </div>
+
+        {/* LOWER BAND 2 — BUY signal */}
+        <div style={{
+          background:`${G}${active?"18":"0a"}`,
+          padding:"10px 14px",
+          display:"flex",justifyContent:"space-between",alignItems:"center"
+        }}>
+          <div>
+            <div style={{fontSize:13,letterSpacing:1.5,color:G,fontWeight:700,marginBottom:2}}>LOWER BANDS</div>
+            <div style={{fontSize:13,color:"#888",...mono}}>LB2 {lb2} · LB3 {lb3}</div>
+            <div style={{fontSize:13,color:"#999",...mono,marginTop:2}}>Lower bands support buy confirmation.</div>
+          </div>
+          <div style={{fontSize:16,fontWeight:900,color:G,...mono,textAlign:"right"}}>
+            {lb2}
+          </div>
+        </div>
+      </div>
+
+      {/* Decay bar */}
+      {active&&(
+        <div>
+          <div style={{height:4,background:"rgba(255,255,255,0.05)",borderRadius:2,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${100-pct}%`,background:`${A}88`,borderRadius:2,transition:"width 1s"}}/>
+          </div>
+          <div style={{fontSize:14,color:"#888",...mono,marginTop:4,textAlign:"center",letterSpacing:1}}>
+            ANCHOR STRENGTH
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [tab,       setTab]       = useState("clock");
+  const [plan,      setPlan]      = useState("elite");
+  const [tz,        setTZ]        = useState("America/New_York");
+  const [zones,     setZones]     = useState(BASE_ZONES);
+  const [cats,      setCats]      = useState(CATS);
+  const [soundOn,   setSoundOn]   = useState(true);
+  const [bt,        setBT]        = useState(BACKTEST);
+  const [et,        setET]        = useState(()=>getTZ("America/New_York"));
+  const [loc,       setLoc]       = useState(()=>getTZ("America/New_York"));
+  const [liveIds,   setLiveIds]   = useState([]);
+  const [tzOpen,    setTzOpen]    = useState(false);
+  const [subOpen,   setSubOpen]   = useState(false);
+  const [tellOpen,  setTellOpen]  = useState(null);
+  const [tellNote,  setTellNote]  = useState("");
+  const [sigCat,    setSigCat]    = useState("btc");
+  const [btZone,    setBtZone]    = useState("z1_am");
+  const [btNote,    setBtNote]    = useState("");
+  const [vwapPrice, setVwapPrice] = useState("");
+  const [vwapInst,  setVwapInst]  = useState("ES");
+  const [vwapPeriod,setVwapPeriod]= useState("ALL");
+  // News state — kept at App level so clock ticks don't wipe it
+  const [newsArticles, setNewsArticles] = useState([]);
+  const [newsLoading,  setNewsLoading]  = useState(false);
+  const [newsError,    setNewsError]    = useState("");
+  const [newsSrc,      setNewsSrc]      = useState("combo");
+  const [newsView,     setNewsView]     = useState("feed");
+  const [newsExpanded, setNewsExpanded] = useState(null);
+  // Breaking news anchor — polarity override for high-impact events
+  const [breakingAnchor, setBreakingAnchor] = useState(null); // {title, polarity, expiresAt, stars}
+  // Sweep confirmed — manual tap when liquidity sweep seen at VWAP anchor
+  const [sweepSeen, setSweepSeen] = useState(null); // {at: timestamp, dir: "buy"|"sell", expiresAt}
+  const [vwapTrap, setVwapTrap] = useState({ band:"", reaction:false, failure:false, displacement:false, firstTouch3:false, tradeCounts:{} });
+  // Live calendar state
+  const [calArticles,  setCalArticles]  = useState([]);
+  const [calLoading,   setCalLoading]   = useState(false);
+  const [calDay,       setCalDay]       = useState("today"); // "yesterday" | "today" | "tomorrow"
+  const [ecoArticles,  setEcoArticles]  = useState([]);
+  const [ecoLoading,   setEcoLoading]   = useState(false);
+  const [ecoStarFilter,setEcoStarFilter]= useState(0); // 0=all, 1/2/3=min stars
+  // ── Live market data for real-time correlation engine ────────────────────────
+  const [marketData,   setMarketData]   = useState(null);
+  const safeLocalGet = (k,d=null)=>{ try{ return localStorage.getItem(k) ?? d; }catch(_){ return d; } };
+  const [replayEvents, setReplayEvents] = useState(()=>safeJsonParse(safeLocalGet("engin3ReplayEvents", null), []));
+  const [vwapAnchors, setVwapAnchors] = useState(()=>safeJsonParse(safeLocalGet("engin3VwapAnchors", null), {}));
+  // {btc:{price,change24h,high24h,low24h}, dxy:{price,change}, es:{price,change}, nq:{price,change}}
+  const marketFetchRef = useRef(false);
+  const prevRef = useRef([]);
+  const {buy:buyAlert, sell:sellAlert, end:zoneEnd, flip:flipAlert} = useAudio();
+  // ── REPLAY STATE — hoisted to App so 1s clock ticks don't wipe results ─────
+  const [rpLoading, setRpLoading] = useState(false);
+  const [rpResults, setRpResults] = useState(null);
+  const [rpError,   setRpError]   = useState("");
+  const [rpPlayIdx, setRpPlayIdx] = useState(0);
+  const [rpPlaying, setRpPlaying] = useState(false);
+  const [rpEnded,   setRpEnded]   = useState(false);
+  const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
+  const [rpTpMode, setRpTpMode] = useState("100"); // "100" = 0.3%, "61.8" = 0.185%
+  const rpNewsFilter = true; // fixed NEWS ONLY replay mode
+  const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
+  const [showNewsDebug, setShowNewsDebug] = useState(false);
+  const rpTimerRef = useRef(null);
+
+  useEffect(()=>{
+    try{ localStorage.setItem("engin3ReplayEvents", JSON.stringify(dedupeFeedItems(replayEvents).slice(0,400))); }catch(e){}
+  },[replayEvents]);
+
+  useEffect(()=>{
+    try{ localStorage.setItem("engin3VwapAnchors", JSON.stringify(vwapAnchors||{})); }catch(e){}
+  },[vwapAnchors]);
+
+  const pushReplayEvent = useCallback((raw, overrides={})=>{
+    const nowIso = new Date().toISOString();
+    const title = (raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
+    const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
+    const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
+    const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
+    const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "manual";
+    const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : nowIso);
+    const event = { title, source, stars, polarity, kind, pub, country: raw?.country || overrides.country || "", note: raw?.desc || raw?.btc || overrides.note || "" };
+    if(!event.title) return;
+    setReplayEvents(prev=> dedupeFeedItems([event, ...prev]).slice(0,400));
+  },[]);
+
+  const clearReplayEvents = useCallback(()=>setReplayEvents([]),[]);
+
+  const can = f => plan==="elite"||( plan==="pro"&&f!=="backtest_full"&&f!=="sub_pocket")||( plan==="free"&&["clock","news"].includes(f));
+  const gate = (f,cb) => { if(can(f))cb(); else setSubOpen(true); };
+
+  // Track previous polarity window to detect flips
+  const prevPolarityRef = useRef(null);
+  const prevWindowRef   = useRef(null);
+
+  const VWAP_EXECUTE_POINTS = [90,120,270,300,450,480,630,660,810,840,990,1020,1170,1200,1350,1380];
+  const VWAP_EXECUTION_WINDOWS = [
+    { key:"am_0130_0430", from:90,  to:270,  label:"1:30–4:30 AM", overnight:true },
+    { key:"am_0730_1030", from:450, to:630,  label:"7:30–10:30 AM", overnight:false },
+    { key:"pm_0130_0430", from:810, to:990,  label:"1:30–4:30 PM", overnight:false },
+    { key:"pm_0730_1030", from:1170,to:1350, label:"7:30–10:30 PM", overnight:false },
+  ];
+  function getVwapExecutionWindow(h24,m){
+    const mins=h24*60+m;
+    return VWAP_EXECUTION_WINDOWS.find(w=>mins>=w.from&&mins<w.to)||null;
+  }
+  function isVwapExecutePoint(h24,m){ return VWAP_EXECUTE_POINTS.includes(h24*60+m); }
+  function getTradeCountForWindow(state, win){
+    if(!win) return 0;
+    return Number((state?.tradeCounts||{})[win.key]||0);
+  }
+
+  // Zone transition anchor map — fires auto anchor at each zone open
+  // All polarity flip points — fires auto-anchor at each transition
+  // VWAP anchors (★★★) + key session flips (★★) + minor flips (★)
+  const TRANSITION_ANCHORS = [
+    // Exact label cadence requested — repeats AM + PM
+    { mins:  30, label:"RECAL",   polarity:+1, stars:2 },
+    { mins:  60, label:"LIQUID",  polarity:-1, stars:1 },
+    { mins:  90, label:"TRAP",    polarity:-1, stars:3 },
+    { mins: 120, label:"EXECUTE", polarity:+1, stars:3 },
+    { mins: 240, label:"LIQUID",  polarity:+1, stars:1 },
+    { mins: 270, label:"TRAP",    polarity:+1, stars:3 },
+    { mins: 300, label:"EXECUTE", polarity:-1, stars:3 },
+    { mins: 420, label:"LIQUID",  polarity:-1, stars:1 },
+    { mins: 450, label:"TRAP",    polarity:-1, stars:3 },
+    { mins: 480, label:"EXECUTE", polarity:+1, stars:3 },
+    { mins: 600, label:"LIQUID",  polarity:+1, stars:1 },
+    { mins: 630, label:"TRAP",    polarity:+1, stars:3 },
+    { mins: 660, label:"EXECUTE", polarity:-1, stars:3 },
+    { mins: 750, label:"RECAL",   polarity:+1, stars:2 },
+    { mins: 780, label:"LIQUID",  polarity:-1, stars:1 },
+    { mins: 810, label:"TRAP",    polarity:-1, stars:3 },
+    { mins: 840, label:"EXECUTE", polarity:+1, stars:3 },
+    { mins: 960, label:"LIQUID",  polarity:+1, stars:1 },
+    { mins: 990, label:"TRAP",    polarity:+1, stars:3 },
+    { mins:1020, label:"EXECUTE", polarity:-1, stars:3 },
+    { mins:1140, label:"LIQUID",  polarity:-1, stars:1 },
+    { mins:1170, label:"TRAP",    polarity:-1, stars:3 },
+    { mins:1200, label:"EXECUTE", polarity:+1, stars:3 },
+    { mins:1320, label:"LIQUID",  polarity:+1, stars:1 },
+    { mins:1350, label:"TRAP",    polarity:+1, stars:3 },
+    { mins:1380, label:"EXECUTE", polarity:-1, stars:3 },
+  ];
+
+  useEffect(()=>{
+    const t=setInterval(()=>{
+      const e=getTZ("America/New_York"),l=getTZ(tz);
+      setET(e); setLoc(l);
+      const now=zones.filter(z=>isInZone(z,e.h,e.m)).map(z=>z.id);
+      if(soundOn&&can("sound")){
+        now.filter(id=>!prevRef.current.includes(id)).forEach(id=>{ const z=zones.find(z=>z.id===id); z&&z.type==="buy"?buyAlert():sellAlert(); });
+        if(prevRef.current.some(id=>!now.includes(id))&&!now.length) zoneEnd();
+      }
+      prevRef.current=now; setLiveIds(now);
+
+      // ── Auto-anchor on polarity flip at zone transition moments ──────────────
+      // Fires once per transition window (within 60s of the transition minute)
+      const nowMins = e.h24*60+e.m;
+      const transition = TRANSITION_ANCHORS.find(tr => {
+        const diff = ((nowMins - tr.mins) + 1440) % 1440;
+        return diff < 1; // fires in the first minute of each transition
+      });
+      if(transition && prevWindowRef.current !== transition.mins) {
+        prevWindowRef.current = transition.mins;
+        // Only auto-set if no manual anchor is active (don't override user's anchor)
+        setBreakingAnchor(prev => {
+          if(prev && !prev.auto) return prev; // preserve manual anchors
+          return {
+            title: transition.label,
+            polarity: transition.polarity,
+            expiresAt: Date.now() + 20*60*1000, // 20 min window
+            stars: transition.stars,
+            auto: true,
+          };
+        });
+        if(soundOn&&can("sound")) flipAlert();
+      }
+
+      // Reset window tracker when we're past the 1-min fire window
+      const inAnyTransition = TRANSITION_ANCHORS.some(tr => ((nowMins-tr.mins+1440)%1440) < 1);
+      if(!inAnyTransition) prevWindowRef.current = null;
+
+      // Expire breaking anchor
+      setBreakingAnchor(prev => prev && Date.now() > prev.expiresAt ? null : prev);
+      // Expire sweep confirmation (lasts 20 minutes)
+      setSweepSeen(prev => prev && Date.now() > prev.expiresAt ? null : prev);
+    },1000);
+    return()=>clearInterval(t);
+  },[zones,soundOn,plan,tz]);
+
+  const selTZ    = TZ_LIST.find(t=>t.tz===tz)||TZ_LIST[0];
+  const liveZ    = zones.filter(z=>liveIds.includes(z.id));
+
+  // ── Real-time market data fetch (BTC via CoinGecko + DXY/ES/NQ via Yahoo) ──
+  const fetchMarketData = useCallback(async ()=>{
+    if(marketFetchRef.current) return;
+    marketFetchRef.current = true;
+    try {
+      // BTC: CoinGecko free API — CORS-friendly, no key needed
+      const cgUrl = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_24hr_high=true&include_24hr_low=true&include_last_updated_at=true";
+      const cgRes = await fetch(cgUrl, {cache:"no-cache"});
+      const cgData = cgRes.ok ? await cgRes.json() : null;
+      const btcRaw = cgData && cgData.bitcoin ? cgData.bitcoin : null;
+
+      // DXY + ES + NQ via Yahoo Finance (corsproxy)
+      async function yahooQuote(sym) {
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=2d`;
+          const proxy = "https://corsproxy.io/?" + encodeURIComponent(url);
+          const r = await fetch(proxy, {cache:"no-cache"});
+          if(!r.ok) return null;
+          const d = await r.json();
+          const q = d?.chart?.result?.[0];
+          if(!q) return null;
+          const closes = q.indicators?.quote?.[0]?.close || [];
+          const prev = closes[closes.length-2];
+          const curr = closes[closes.length-1];
+          if(!prev || !curr) return null;
+          return { price: curr, change: ((curr-prev)/prev)*100 };
+        } catch(e) { return null; }
+      }
+
+      const [dxy, es, nq, gc] = await Promise.all([
+        yahooQuote("DX-Y.NYB"),
+        yahooQuote("ES=F"),
+        yahooQuote("NQ=F"),
+        yahooQuote("GC=F"),
+      ]);
+
+      setMarketData({
+        btc: btcRaw ? {
+          price:    btcRaw.usd,
+          change:   btcRaw.usd_24h_change,
+          high24h:  btcRaw.usd_24h_high,
+          low24h:   btcRaw.usd_24h_low,
+          // ATR proxy: 24h range as % of price
+          atr:      btcRaw.usd_24h_high && btcRaw.usd_24h_low
+                      ? ((btcRaw.usd_24h_high - btcRaw.usd_24h_low) / btcRaw.usd) * 100
+                      : null,
+          updated:  btcRaw.last_updated_at,
+        } : null,
+        dxy, es, nq, gc,
+        fetchedAt: Date.now(),
+      });
+    } catch(e) {
+      // Silently fail — strength meter falls back to base formula
+    } finally {
+      marketFetchRef.current = false;
+    }
+  }, []);
+
+  // Fetch on mount + every 90 seconds
+  useEffect(()=>{
+    fetchMarketData();
+    const t = setInterval(fetchMarketData, 90000);
+    return ()=>clearInterval(t);
+  }, []);
+
+  useEffect(()=>{
+    if(!marketData) return;
+    const etNow = getTZ("America/New_York");
+    const mins = etNow.h24*60 + etNow.m;
+    const trap = TRAP_TIMES.find(t=>t.h*60+t.m===mins);
+    if(!trap) return;
+    const dateKey = getDateKeyInTZ('America/New_York');
+    const k = `${trap.id}_${dateKey}`;
+    setVwapAnchors(prev=>{
+      if(prev && prev[k]) return prev;
+      const next = { ...(prev||{}) };
+      next[k] = {
+        id:trap.id, label:trap.label, h:trap.h, m:trap.m, period:trap.period, dateKey,
+        capturedAt:new Date().toISOString(),
+        prices:{
+          BTC:Number(marketData?.btc?.price||0),
+          ES:Number(marketData?.es?.price||0),
+          NQ:Number(marketData?.nq?.price||0),
+          GC:Number(marketData?.gc?.price||0),
+          DXY:Number(marketData?.dxy?.price||0),
+        }
+      };
+      return next;
+    });
+  }, [marketData, et.h24, et.m]);
+
+  const nextZ    = zones.filter(z=>!liveIds.includes(z.id)).map(z=>({...z,mins:minsUntil(z,et.h,et.m)})).sort((a,b)=>a.mins-b.mins)[0];
+  const allActive= cats.flatMap(c=>c.items.filter(i=>i.active));
+  const bulls    = allActive.filter(i=>i.bias==="bull").length;
+  const bears    = allActive.filter(i=>i.bias==="bear").length;
+  const overall  = bulls>bears?"BULLISH":bears>bulls?"BEARISH":"NEUTRAL";
+  const ovCol    = overall==="BULLISH"?G:overall==="BEARISH"?R:"#888";
+  const inSub    = liveZ.some(z=>isInSubWindow(z,et));
+  const trapStatus = getTrapAnchorStatus(et);
+  const hotTraps   = trapStatus.filter(t=>t.active);
+
+
+
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════════
+  // BiG ENGiN3 POLARITY ENGINE v3 — EARLY SIGNAL FRAMEWORK
+  // Formula: Time Regime × Polarity × Zone Alignment × Market Confirmation
+  //          = Trade Confidence (0–100) + Traffic Light + Setup Type
+  //
+  // TIMING MAP (ET):
+  // 1:30  → SWITCH    Z1 SELL opens. Polarity flips bearish. Stalk shorts.
+  // 4:30  → RESET     Z4 BUY opens. Overnight sell exhausts. Counter reversal.
+  // 6:30  → DANGER    Z6 SELL — 60-min flush only. Transition. High risk.
+  // 7:30  → PRIMARY   Z7 BUY — highest edge. NYSE prep. ICT kill zone.
+  // 10:30 → TRAP/FADE Z10 SELL — AM exhaustion + London close.
+  // 12:30 → REVERSAL  Z12 BUY — post-lunch liquidity grab. Short window.
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  const TODAYday = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
+
+  // ── POLARITY CLOCK — exact regime sequence (ET, repeats AM + PM) ─────────────
+  // Source: BiG ENGiN3 time regime without news disruption
+  // VWAP Anchors: 1:30 · 4:30 · 7:30 · 10:30 (AM + PM)
+  // UP = buy | DOWN = sell
+  const ZONE_WINDOWS = [
+    // ─── AM CYCLE ────────────────────────────────────────────────────────────
+    // 12:30–1:00 AM : DOWN (tail of previous 12:30 cycle)
+    { from:   0, to:  60, pol:+1, tier:1, role:"DOWN", setup:"continuation", label:"OVERNIGHT" },
+    // 1:00–1:30 AM  : UP  (pre-anchor stalk long)
+    { from:  60, to:  90, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 1:30–2:00 AM  : DOWN ★ VWAP ANCHOR — Z1 switch
+    { from:  90, to: 120, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 2:00–3:00 AM  : UP (counter inside Z1)
+    { from: 120, to: 180, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 3:00–4:00 AM  : DOWN (continuation sell)
+    { from: 180, to: 240, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    // 4:00–4:30 AM  : UP (pre-anchor stalk)
+    { from: 240, to: 270, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 4:30–5:00 AM  : DOWN ★ VWAP ANCHOR
+    { from: 270, to: 300, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 5:00–6:00 AM  : UP (Z4 recovery buy)
+    { from: 300, to: 360, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    // 6:00–6:30 AM  : DOWN (pre-Z6 flush)
+    { from: 360, to: 390, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    // 6:30–7:00 AM  : UP (Z6 counter move)
+    { from: 390, to: 420, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 7:00–7:30 AM  : DOWN (final flush before NY open)
+    { from: 420, to: 450, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    // 7:30–8:00 AM  : UP ★ VWAP ANCHOR — Z7 primary
+    { from: 450, to: 480, pol:-1, tier:5, role:"UP",   setup:"primary",      label:"TRAP ↑" },
+    // 8:00–9:00 AM  : DOWN (Z7 pullback — buy the dip)
+    { from: 480, to: 540, pol:+1, tier:3, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    // 9:00–10:00 AM : UP (NYSE open expansion)
+    { from: 540, to: 600, pol:-1, tier:5, role:"UP",   setup:"continuation", label:"SESSION EXPANSION" },
+    // 10:00–10:30 AM: DOWN (AM exhaustion / pre-Z10)
+    { from: 600, to: 630, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    // 10:30–11:00 AM: UP ★ VWAP ANCHOR (initial Z10 spike — sell the rip)
+    { from: 630, to: 660, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"VWAP ANCHOR — FADE" },
+    // 11:00–12:00 AM: DOWN (Z10 sell momentum / London close)
+    { from: 660, to: 720, pol:+1, tier:4, role:"DOWN",  setup:"continuation", label:"SELL MOMENTUM" },
+    // 12:00–12:30 AM: UP (pre-Z12 stalk)
+    { from: 720, to: 750, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 12:30–1:00 PM : DOWN (Z12 opens — liquidity grab)
+    { from: 750, to: 780, pol:+1, tier:3, role:"DOWN",  setup:"switch",       label:"RECAL ↓" },
+
+    // ─── PM CYCLE (exact mirror of AM, +720 mins) ────────────────────────────
+    // 1:00–1:30 PM  : UP
+    { from: 780, to: 810, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 1:30–2:00 PM  : DOWN ★ VWAP ANCHOR
+    { from: 810, to: 840, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 2:00–3:00 PM  : UP
+    { from: 840, to: 900, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 3:00–4:00 PM  : DOWN
+    { from: 900, to: 960, pol:+1, tier:3, role:"DOWN",  setup:"continuation", label:"SELL CONTINUATION" },
+    // 4:00–4:30 PM  : UP
+    { from: 960, to: 990, pol:-1, tier:3, role:"UP",   setup:"stalk",        label:"STALK LONG" },
+    // 4:30–5:00 PM  : DOWN ★ VWAP ANCHOR
+    { from: 990, to:1020, pol:+1, tier:4, role:"DOWN",  setup:"switch",       label:"TRAP ↓" },
+    // 5:00–6:00 PM  : UP
+    { from:1020, to:1080, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"RECOVERY BUY" },
+    // 6:00–6:30 PM  : DOWN
+    { from:1080, to:1110, pol:+1, tier:2, role:"DOWN",  setup:"transition",   label:"FLUSH TRANSITION" },
+    // 6:30–7:00 PM  : UP
+    { from:1110, to:1140, pol:-1, tier:2, role:"UP",   setup:"counter",      label:"COUNTER MOVE" },
+    // 7:00–7:30 PM  : DOWN
+    { from:1140, to:1170, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK BUY DIP" },
+    // 7:30–8:00 PM  : UP ★ VWAP ANCHOR
+    { from:1170, to:1200, pol:-1, tier:4, role:"UP",   setup:"primary",      label:"TRAP ↑" },
+    // 8:00–9:00 PM  : DOWN
+    { from:1200, to:1260, pol:+1, tier:2, role:"DOWN",  setup:"counter",      label:"PULLBACK BUY DIP" },
+    // 9:00–10:00 PM : UP
+    { from:1260, to:1320, pol:-1, tier:3, role:"UP",   setup:"continuation", label:"SESSION CONTINUATION" },
+    // 10:00–10:30 PM: DOWN
+    { from:1320, to:1350, pol:+1, tier:3, role:"DOWN",  setup:"stalk",        label:"STALK SELL" },
+    // 10:30–11:00 PM: UP ★ VWAP ANCHOR
+    { from:1350, to:1380, pol:-1, tier:4, role:"UP",   setup:"fade",         label:"TRAP ↑" },
+    // 11:00–12:00 AM: DOWN
+    { from:1380, to:1440, pol:+1, tier:2, role:"DOWN",  setup:"continuation", label:"OVERNIGHT CONTINUATION" },
+  ];
+
+  // ══════════════════════════════════════════════════════════════════════
+  // TWO-LAYER TIME REGIME (ET)
+  // ══════════════════════════════════════════════════════════════════════
+
+  // LAYER 1 — Major regime
+  // 1:30–7:30 ET = BUY zone (both AM and PM)
+  // 7:30–1:30 ET = SELL zone (both AM and PM)
+  function getMajorRegime(h24, m) {
+    const t = h24*60+m;
+    // 1:30 (90) to 7:30 (450) = BUY
+    // 7:30 (450) to 13:30 (810) = SELL
+    // 13:30 (810) to 19:30 (1170) = BUY  (PM repeat)
+    // 19:30 (1170) to 25:30/90 = SELL (PM repeat)
+    const BUY_RANGES  = [[90,450],[810,1170]];
+    const isBuy = BUY_RANGES.some(([s,e]) => t >= s && t < e);
+    // Also handle overnight: 0–90 = tail of SELL, 1170–1440 = SELL
+    return {
+      direction: isBuy ? "buy" : "sell",
+      label:     isBuy ? "BUY" : "SELL",
+      col:       isBuy ? G : R,
+    };
+  }
+
+  // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
+  // Each entry: [startMins, direction, label]
+  const INTERNAL_STEPS = [
+    // No-news scheduled programming — exact repeating AM + PM
+    [   0,  "buy",  "Up"  ],  // 12:00 AM
+    [  30,  "sell", "Down"],  // 12:30 AM
+    [  60,  "buy",  "Up"  ],  // 1:00 AM
+    [  90,  "sell", "Down"],  // 1:30 AM
+    [ 120,  "buy",  "Up"  ],  // 2:00 AM
+    [ 180,  "sell", "Down"],  // 3:00 AM
+    [ 240,  "buy",  "Up"  ],  // 4:00 AM
+    [ 270,  "sell", "Down"],  // 4:30 AM
+    [ 300,  "buy",  "Up"  ],  // 5:00 AM
+    [ 360,  "sell", "Down"],  // 6:00 AM
+    [ 390,  "buy",  "Up"  ],  // 6:30 AM
+    [ 420,  "sell", "Down"],  // 7:00 AM
+    [ 450,  "buy",  "Up"  ],  // 7:30 AM
+    [ 480,  "sell", "Down"],  // 8:00 AM
+    [ 540,  "buy",  "Up"  ],  // 9:00 AM
+    [ 600,  "sell", "Down"],  // 10:00 AM
+    [ 630,  "buy",  "Up"  ],  // 10:30 AM
+    [ 660,  "sell", "Down"],  // 11:00 AM
+    [ 720,  "buy",  "Up"  ],  // 12:00 PM
+    [ 750,  "sell", "Down"],  // 12:30 PM
+    [ 780,  "buy",  "Up"  ],  // 1:00 PM
+    [ 810,  "sell", "Down"],  // 1:30 PM
+    [ 840,  "buy",  "Up"  ],  // 2:00 PM
+    [ 900,  "sell", "Down"],  // 3:00 PM
+    [ 960,  "buy",  "Up"  ],  // 4:00 PM
+    [ 990,  "sell", "Down"],  // 4:30 PM
+    [1020,  "buy",  "Up"  ],  // 5:00 PM
+    [1080,  "sell", "Down"],  // 6:00 PM
+    [1110,  "buy",  "Up"  ],  // 6:30 PM
+    [1140,  "sell", "Down"],  // 7:00 PM
+    [1170,  "buy",  "Up"  ],  // 7:30 PM
+    [1200,  "sell", "Down"],  // 8:00 PM
+    [1260,  "buy",  "Up"  ],  // 9:00 PM
+    [1320,  "sell", "Down"],  // 10:00 PM
+    [1350,  "buy",  "Up"  ],  // 10:30 PM
+    [1380,  "sell", "Down"],  // 11:00 PM
+    [1440,  "buy",  "Up"  ],  // sentinel
+  ];
+
+  const NEWS_SLOT_STEPS = [
+    // News-time polarity — CANONICAL SPEC (both doc 1 & doc 2 agree)
+    // 12:00=+ 12:30=+ 1:00=- 1:30=- 2:00=+ 3:00=- 4:00=+ 4:30=+
+    // 5:00=- 6:00=+ 6:30=+ 7:00=- 7:30=- 8:00=+ 9:00=- 10:00=+ 10:30=+ 11:00=-
+    [    0,  "positive", "+" ], // 12:00 AM
+    [   30,  "positive", "+" ], // 12:30 AM
+    [   60,  "negative", "-" ], // 1:00 AM
+    [   90,  "negative", "-" ], // 1:30 AM
+    [  120,  "positive", "+" ], // 2:00 AM
+    [  180,  "negative", "-" ], // 3:00 AM
+    [  240,  "positive", "+" ], // 4:00 AM
+    [  270,  "positive", "+" ], // 4:30 AM
+    [  300,  "negative", "-" ], // 5:00 AM
+    [  360,  "positive", "+" ], // 6:00 AM
+    [  390,  "positive", "+" ], // 6:30 AM
+    [  420,  "negative", "-" ], // 7:00 AM
+    [  450,  "negative", "-" ], // 7:30 AM
+    [  480,  "positive", "+" ], // 8:00 AM
+    [  540,  "negative", "-" ], // 9:00 AM
+    [  600,  "positive", "+" ], // 10:00 AM
+    [  630,  "positive", "+" ], // 10:30 AM
+    [  660,  "negative", "-" ], // 11:00 AM
+    [  720,  "positive", "+" ], // 12:00 PM
+    [  750,  "positive", "+" ], // 12:30 PM
+    [  780,  "negative", "-" ], // 1:00 PM
+    [  810,  "negative", "-" ], // 1:30 PM
+    [  840,  "positive", "+" ], // 2:00 PM
+    [  900,  "negative", "-" ], // 3:00 PM
+    [  960,  "positive", "+" ], // 4:00 PM
+    [  990,  "positive", "+" ], // 4:30 PM
+    [ 1020,  "negative", "-" ], // 5:00 PM
+    [ 1080,  "positive", "+" ], // 6:00 PM
+    [ 1110,  "positive", "+" ], // 6:30 PM
+    [ 1140,  "negative", "-" ], // 7:00 PM
+    [ 1170,  "negative", "-" ], // 7:30 PM
+    [ 1200,  "positive", "+" ], // 8:00 PM
+    [ 1260,  "negative", "-" ], // 9:00 PM
+    [ 1320,  "positive", "+" ], // 10:00 PM
+    [ 1350,  "positive", "+" ], // 10:30 PM
+    [ 1380,  "negative", "-" ], // 11:00 PM
+    [ 1440,  "positive", "+" ], // sentinel
+  ]
+
+  function getInternalStep(h24, m) {
+    const t = h24*60+m;
+    let current = INTERNAL_STEPS[0];
+    for(let i=0; i<INTERNAL_STEPS.length-1; i++) {
+      if(t >= INTERNAL_STEPS[i][0] && t < INTERNAL_STEPS[i+1][0]) {
+        current = INTERNAL_STEPS[i];
+        const next = INTERNAL_STEPS[i+1];
+        const minsLeft = INTERNAL_STEPS[i+1][0] - t;
+        return {
+          direction: current[1],
+          label:     current[2],
+          col:       current[1]==="buy" ? G : R,
+          minsLeft,
+          nextLabel: next[2],
+          nextDir:   next[1],
+          nextCol:   next[1]==="buy" ? G : R,
+        };
+      }
+    }
+    return { direction:"buy", label:"Up", col:G, minsLeft:0, nextLabel:"Down", nextDir:"sell", nextCol:R };
+  }
+
+  function getNewsSlotPolarity(h24, m) {
+    const t = h24*60 + m;
+    let current = NEWS_SLOT_STEPS[0];
+    for(let i=0; i<NEWS_SLOT_STEPS.length-1; i++) {
+      if(t >= NEWS_SLOT_STEPS[i][0] && t < NEWS_SLOT_STEPS[i+1][0]) {
+        current = NEWS_SLOT_STEPS[i];
+        return {
+          polarity: current[1],
+          sign: current[2],
+          minsLeft: NEWS_SLOT_STEPS[i+1][0] - t,
+        };
+      }
+    }
+    return { polarity:"positive", sign:"+", minsLeft:0 };
+  }
+
+  const REPLAY_SLOT_LABELS = new Map([
+    [30, "RECAL"], [60, "LIQUID"], [90, "TRAP"], [120, "EXECUTE"],
+    [180, "STEP"], [240, "LIQUID"], [270, "TRAP"], [300, "EXECUTE"],
+    [360, "STEP"], [420, "LIQUID"], [450, "TRAP"], [480, "EXECUTE"],
+    [540, "STEP"], [600, "LIQUID"], [630, "TRAP"], [660, "EXECUTE"],
+    [720, "STEP"], [750, "RECAL"], [780, "LIQUID"], [810, "TRAP"], [840, "EXECUTE"],
+    [900, "STEP"], [960, "LIQUID"], [990, "TRAP"], [1020, "EXECUTE"],
+    [1080, "STEP"], [1140, "LIQUID"], [1170, "TRAP"], [1200, "EXECUTE"],
+    [1260, "STEP"], [1320, "LIQUID"], [1350, "TRAP"], [1380, "EXECUTE"], [0, "STEP"]
+  ]);
+  function getReplaySlotLabel(h24, m){
+    return REPLAY_SLOT_LABELS.get(h24*60 + m) || (m===30 ? "STEP" : "SCHEDULE");
+  }
+
+  function getMajorRegimeChange(h24, m) {
+    const t = h24*60+m;
+    // Next change points: 90(1:30), 450(7:30), 810(1:30pm), 1170(7:30pm)
+    const CHANGES = [90,450,810,1170];
+    const next = CHANGES.find(c => c > t) || (CHANGES[0]+1440);
+    return next - t;
+  }
+
+  // End of two-layer regime functions
+
+  // ══════════════════════════════════════════════════════════════════════
+  // CONNECTOR + CHARGE ENGINE — exact no-duplicate version
+  // ══════════════════════════════════════════════════════════════════════
+  let USD_RATE = 3.75;
+  let CHARGE_CURRENCIES = [
     { sym:"USD", rate:3.75 },
     { sym:"AOA", rate:3.75 },
     { sym:"AUD", rate:4.10 },
+    { sym:"NOK", rate:4.00 },
     { sym:"GBP", rate:3.75 },
-    { sym:"JPY", rate:0.75 },
     { sym:"EUR", rate:2.15 },
-    { sym:"CNY", rate:3.00 },
     { sym:"CAD", rate:2.25 },
     { sym:"NZD", rate:2.25 },
-    { sym:"SGD", rate:3.00 },
-    { sym:"KRW", rate:2.75 },
-    { sym:"CHF", rate:0.00 },
     { sym:"SEK", rate:2.25 },
-    { sym:"NOK", rate:4.00 },
+    { sym:"CHF", rate:0.00 },
+    { sym:"JPY", rate:0.75 },
     { sym:"BRL", rate:14.75 },
     { sym:"TRY", rate:40.00 },
-    { sym:"MXN", rate:9.00 },
-    { sym:"ISK", rate:8.50 },
-    { sym:"ZAR", rate:7.50 },
-    { sym:"HUF", rate:6.50 },
-    { sym:"RON", rate:6.50 },
-    { sym:"IDR", rate:5.75 },
-    { sym:"PLN", rate:5.75 },
-    { sym:"CZK", rate:3.50 },
-    { sym:"MYR", rate:3.00 },
-    { sym:"DKK", rate:2.35 },
-    { sym:"TWD", rate:2.00 },
-    { sym:"THB", rate:2.00 },
+    { sym:"MXN", rate:9.00  },
+    { sym:"ISK", rate:8.50  },
+    { sym:"ZAR", rate:7.50  },
+    { sym:"HUF", rate:6.50  },
+    { sym:"RON", rate:6.50  },
+    { sym:"INR", rate:6.25  },
+    { sym:"IDR", rate:5.75  },
+    { sym:"PLN", rate:5.75  },
+    { sym:"PHP", rate:5.50  },
+    { sym:"ILS", rate:4.50  },
+    { sym:"CZK", rate:3.50  },
+    { sym:"MYR", rate:3.00  },
+    { sym:"SGD", rate:3.00  },
+    { sym:"CNY", rate:3.00  },
+    { sym:"KRW", rate:2.75  },
+    { sym:"DKK", rate:2.35  },
+    { sym:"TWD", rate:2.00  },
+    { sym:"THB", rate:2.00  },
   ];
+  const LIVE_RATE_REFRESH_MS = 5 * 60 * 1000;
+  const LIVE_RATE_SOURCES = [
+    (typeof window !== "undefined" && window.LIVE_RATES_URL) ? window.LIVE_RATES_URL : null,
+    "./live-rates.json",
+    "/live-rates.json",
+  ].filter(Boolean);
 
-// BUY CORE REGIME
-// Connector: − = mirror
-// BUY CORE REGIME
-// 12:30 through 1:30
-// 4:30 through 6:30
-// 7:30 through 10:30
-// AOA− / AUD− / USD−(anchor) / GBP+ / JPY+
-const MIRROR_RANGES = [
-    [30, 90], [270, 390], [450, 630],
-    [750, 810], [990, 1110], [1170, 1350],
+  function normalizeLiveRatePayload(payload) {
+    if (!payload) return null;
+    if (Array.isArray(payload)) {
+      const items = payload
+        .map(x => ({ sym: String(x.sym || x.code || x.currency || "").toUpperCase(), rate: Number(x.rate ?? x.value ?? x.percent) }))
+        .filter(x => x.sym && Number.isFinite(x.rate));
+      return items.length ? items : null;
+    }
+    if (payload.rates && typeof payload.rates === "object") {
+      const items = Object.entries(payload.rates)
+        .map(([sym, rate]) => ({ sym: String(sym).toUpperCase(), rate: Number(rate) }))
+        .filter(x => x.sym && Number.isFinite(x.rate));
+      return items.length ? items : null;
+    }
+    const keys = Object.keys(payload);
+    if (keys.length) {
+      const items = keys
+        .map(sym => ({ sym: String(sym).toUpperCase(), rate: Number(payload[sym]) }))
+        .filter(x => x.sym && Number.isFinite(x.rate));
+      return items.length ? items : null;
+    }
+    return null;
+  }
+
+  async function loadLiveRates() {
+    for (const src of LIVE_RATE_SOURCES) {
+      try {
+        const res = await fetch(src, { cache: "no-cache" });
+        if (!res.ok) continue;
+        const payload = await res.json();
+        const incoming = normalizeLiveRatePayload(payload);
+        if (!incoming) continue;
+        const merged = new Map(CHARGE_CURRENCIES.map(c => [c.sym, { ...c }]));
+        incoming.forEach(item => merged.set(item.sym, { sym: item.sym, rate: item.rate }));
+        CHARGE_CURRENCIES = Array.from(merged.values());
+        const usd = CHARGE_CURRENCIES.find(c => c.sym === "USD");
+        if (usd && Number.isFinite(usd.rate)) USD_RATE = usd.rate;
+        if (typeof window !== "undefined") {
+          window.__LIVE_RATES__ = CHARGE_CURRENCIES;
+          window.dispatchEvent(new Event("live-rates-updated"));
+        }
+        console.log("[rates] live rates loaded from", src, CHARGE_CURRENCIES);
+        return true;
+      } catch (err) {
+        console.warn("[rates] live rate source failed", src, err);
+      }
+    }
+    return false;
+  }
+
+  loadLiveRates();
+  setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
+
+  const MIRROR_RANGES = [
+    [30, 90], [270, 390],
+    [750, 810], [990, 1110],
   ];
 
   const ALIGNED_RANGES = [
@@ -254,22 +1352,6 @@ const MIRROR_RANGES = [
     if (connectorMode === "mirror") return aboveUSD ? -1 : 1;
     return aboveUSD ? 1 : -1;
   }
-  const EXPLICIT_REGIME_SIGNS = {
-    AOA: -1,
-    AUD: -1,
-    USD: -1,
-    GBP: 1,
-    JPY: 1,
-  };
-
-  function assignMappedCharge(sym, currencyRate, connectorMode) {
-    const explicit = EXPLICIT_REGIME_SIGNS[sym];
-    if (typeof explicit === "number") {
-      return connectorMode === "mirror" ? explicit : -explicit;
-    }
-    return assignRawCharge(currencyRate, connectorMode);
-  }
-
 
   function computeChargeEngine(h24, m, timeCharge) {
     const mode = getConnectorMode(h24, m);
@@ -277,11 +1359,11 @@ const MIRROR_RANGES = [
 
     const higherGroup = CHARGE_CURRENCIES
       .filter(c => c.sym !== "USD" && c.rate > USD_RATE)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: (typeof assignMappedCharge === "function" ? assignMappedCharge(c.sym, c.rate, mode) : assignRawCharge(c.rate, mode)) }));
+      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: assignRawCharge(c.rate, mode) }));
 
     const lowerGroup = CHARGE_CURRENCIES
       .filter(c => c.sym !== "USD" && c.rate <= USD_RATE)
-      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: (typeof assignMappedCharge === "function" ? assignMappedCharge(c.sym, c.rate, mode) : assignRawCharge(c.rate, mode)) }));
+      .map(c => ({ sym: c.sym, rate: c.rate, rawCharge: assignRawCharge(c.rate, mode) }));
 
     let higherCombinedCharge = null;
     let flipTriggered = false;
