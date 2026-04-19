@@ -2264,10 +2264,50 @@ function App() {
 
   function getSixHourFallback_430_1030_standard(h24, m){
     const t = h24*60 + m;
-    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
-    return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
+    const steps = [
+      [0,   "buy",  "+", "12:00 BUY"],
+      [30,  "sell", "-", "12:30 SELL"],
+      [60,  "buy",  "+", "1:00 BUY"],
+      [90,  "sell", "-", "1:30 SELL"],
+      [120, "buy",  "+", "2:00 BUY"],
+      [180, "sell", "-", "3:00 SELL"],
+      [240, "buy",  "+", "4:00 BUY"],
+      [270, "sell", "-", "4:30 SELL"],
+      [300, "buy",  "+", "5:00 BUY"],
+      [360, "sell", "-", "6:00 SELL"],
+      [390, "buy",  "+", "6:30 BUY"],
+      [420, "sell", "-", "7:00 SELL"],
+      [450, "buy",  "+", "7:30 BUY"],
+      [480, "sell", "-", "8:00 SELL"],
+      [540, "buy",  "+", "9:00 BUY"],
+      [600, "sell", "-", "10:00 SELL"],
+      [630, "buy",  "+", "10:30 BUY"],
+      [660, "sell", "-", "11:00 SELL"],
+      [720, "buy",  "+", "12:00 BUY"],
+      [750, "sell", "-", "12:30 SELL"],
+      [780, "buy",  "+", "1:00 BUY"],
+      [810, "sell", "-", "1:30 SELL"],
+      [840, "buy",  "+", "2:00 BUY"],
+      [900, "sell", "-", "3:00 SELL"],
+      [960, "buy",  "+", "4:00 BUY"],
+      [990, "sell", "-", "4:30 SELL"],
+      [1020,"buy",  "+", "5:00 BUY"],
+      [1080,"sell", "-", "6:00 SELL"],
+      [1110,"buy",  "+", "6:30 BUY"],
+      [1140,"sell", "-", "7:00 SELL"],
+      [1170,"buy",  "+", "7:30 BUY"],
+      [1200,"sell", "-", "8:00 SELL"],
+      [1260,"buy",  "+", "9:00 BUY"],
+      [1320,"sell", "-", "10:00 SELL"],
+      [1350,"buy",  "+", "10:30 BUY"],
+      [1380,"sell", "-", "11:00 SELL"],
+      [1440,"buy",  "+", "12:00 BUY"]
+    ];
+    let current = steps[0];
+    for(let i=0;i<steps.length-1;i++){
+      if(t >= steps[i][0] && t < steps[i+1][0]) { current = steps[i]; break; }
+    }
+    return { direction: current[1], polarity: current[1] === "buy" ? "positive" : "negative", sign: current[2], window: current[3] };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
