@@ -1744,6 +1744,7 @@ function App() {
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
   const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || []);
   const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
+  const weightedDirectedLiveCount = directedLiveEvents.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
   const polarityDirection = livePolarityApplied.finalDirection;
   // ── LIVE NEWS DEBUG — same fields as replay, single source of truth ─────────
   // liveNewsDebug mirrors the replay debug shape so both paths are comparable.
@@ -1758,10 +1759,10 @@ function App() {
       pub: ev.pub||"",
       country: ev.country||""
     })),
-    directedCount: directedLiveEvents.length,
-    activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
+    directedCount: weightedDirectedLiveCount,
+    activeSigns: directedLiveEvents.flatMap(ev=>Array(replayEventType(ev)==="speech" ? 2 : 1).fill(Number(ev.polarity)>0?"+":"-")),
     // STACKING STATE
-    stackingActive: directedLiveEvents.length >= 2,
+    stackingActive: weightedDirectedLiveCount >= 2,
     stackRule: livePolarityApplied.clusterResult?.rule || "-/- = +, +/+ = -, -/+ = -",
     posCount: directedLiveEvents.filter(ev=>Number(ev.polarity)>0).length,
     negCount: directedLiveEvents.filter(ev=>Number(ev.polarity)<0).length,
@@ -2107,14 +2108,21 @@ function App() {
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const allActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const activeCount = allActive.length;
+    const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
+    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
     const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)));
-    const directedCount = directedEvents.length;
-    const chargedEvents = directedEvents.map(ev=>({ ...ev, effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0) })).filter(ev=>ev.effectiveCharge!==0);
-    const negatives = chargedEvents.filter(ev=>ev.effectiveCharge < 0).length;
-    const positives = chargedEvents.filter(ev=>ev.effectiveCharge > 0).length;
+    const directedCount = directedEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+    const chargedEvents = directedEvents
+      .map(ev=>({
+        ...ev,
+        effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0),
+        eventWeight: weightOf(ev)
+      }))
+      .filter(ev=>ev.effectiveCharge!==0);
+    const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
+    const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
-    const speeches = allActive.filter(ev=>replayEventType(ev)==="speech").length;
+    const speeches = allActive.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 0), 0);
 
     if(!activeCount){
       const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
@@ -2153,7 +2161,7 @@ function App() {
     const resolveGroupedCharge = (signCharge, count)=>{
       if(count <= 0) return 0;
       if(count === 1) return signCharge;
-      return -signCharge; // 2 or more flips once and holds there
+      return -signCharge; // 2 or more same-sign events flip once and hold there
     };
 
     if(chargedEvents.length === 1){
@@ -2166,8 +2174,8 @@ function App() {
       const dominantCode = ranked[0].country || "USD";
       const dominantRate = Number(ranked[0].rateValue ?? USD_RATE);
       const secondaryCharge = ranked.length > 1 ? ranked[1].effectiveCharge : 0;
-      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).length;
-      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).length;
+      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
 
       const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
       const secondaryResolved = secondaryCharge===0 ? 0 : resolveGroupedCharge(secondaryCharge, secondaryCount);
@@ -2200,7 +2208,7 @@ function App() {
         dominantCount,
         secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
         secondaryCount,
-        rule: "USD anchor + rate-dominant charge first; 2 or more simultaneous active news events flip once; combine rule -/- = +, +/+ = -, -/+ = -",
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
         foldSteps,
       };
     }
@@ -2242,7 +2250,7 @@ function App() {
         ? "news active but no directed polarity"
         : sellRestriction
           ? "sell-side restriction held the trade direction"
-          : "dominant high-interest-rate sign was resolved first, then the lower sign was added afterward",
+          : "dominant high-interest-rate sign was resolved first, speeches counted as 2+ events, then opposite signs resolved negative",
       equation: equationPlain,
       equationPlain,
     };
@@ -3070,9 +3078,10 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: no-news → use INTERNAL_STEPS step-direction schedule
+  // RULE: no-news → use replay fallback schedule
   //       news active → use even/odd hour polarity schedule
-  //       news decision: same sign → BUY, different sign → SELL
+  //       speeches count as 2+ events
+  //       same sign with weighted 2+ flips once, opposite signs resolve negative
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
