@@ -207,10 +207,10 @@ const REGIME_CURRENCIES = {
 // Stars → window in mins, TP targets as % move from entry
 // Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
 const NEWS_REACTION = {
-  break: { window: 20,  fibs: [61.8, 78.6],          tps: [0,0,0],                label:"NEWS BREAK" },
-  1:     { window: 20,  fibs: [100, 127],             tps: [0.3, 0, 0],            label:"★" },
-  2:     { window: 50,  fibs: [161, 200],             tps: [0.3, 0.6, 0],          label:"★★" },
-  3:     { window: 80,  fibs: [261, 300],             tps: [0.3, 0.6, 0.9],        label:"★★★" },
+  break: { window: 20, fibs: [38.2], tps: [0.1146], label:"BREAKING NEWS" },
+  1:     { window: 20, fibs: [61.8], tps: [0.185],  label:"★" },
+  2:     { window: 50, fibs: [61.8], tps: [0.185],  label:"★★" },
+  3:     { window: 80, fibs: [61.8], tps: [0.185],  label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -1201,16 +1201,16 @@ function App() {
 
   const REPLAY_SLOT_LABELS = new Map([
     [30, "RECAL"], [60, "LIQUID"], [90, "TRAP"], [120, "EXECUTE"],
-    [180, "STEP"], [240, "LIQUID"], [270, "TRAP"], [300, "EXECUTE"],
-    [360, "STEP"], [420, "LIQUID"], [450, "TRAP"], [480, "EXECUTE"],
-    [540, "STEP"], [600, "LIQUID"], [630, "TRAP"], [660, "EXECUTE"],
-    [720, "STEP"], [750, "RECAL"], [780, "LIQUID"], [810, "TRAP"], [840, "EXECUTE"],
-    [900, "STEP"], [960, "LIQUID"], [990, "TRAP"], [1020, "EXECUTE"],
-    [1080, "STEP"], [1140, "LIQUID"], [1170, "TRAP"], [1200, "EXECUTE"],
-    [1260, "STEP"], [1320, "LIQUID"], [1350, "TRAP"], [1380, "EXECUTE"], [0, "STEP"]
+    [240, "LIQUID"], [270, "TRAP"], [300, "EXECUTE"],
+    [420, "LIQUID"], [450, "TRAP"], [480, "EXECUTE"],
+    [600, "LIQUID"], [630, "TRAP"], [660, "EXECUTE"],
+    [750, "RECAL"], [780, "LIQUID"], [810, "TRAP"], [840, "EXECUTE"],
+    [960, "LIQUID"], [990, "TRAP"], [1020, "EXECUTE"],
+    [1140, "LIQUID"], [1170, "TRAP"], [1200, "EXECUTE"],
+    [1320, "LIQUID"], [1350, "TRAP"], [1380, "EXECUTE"]
   ]);
   function getReplaySlotLabel(h24, m){
-    return REPLAY_SLOT_LABELS.get(h24*60 + m) || (m===30 ? "STEP" : "SCHEDULE");
+    return REPLAY_SLOT_LABELS.get(h24*60 + m) || "SCHEDULE";
   }
 
   function getMajorRegimeChange(h24, m) {
@@ -1321,13 +1321,22 @@ function App() {
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
   const MIRROR_RANGES = [
-    [30, 90], [270, 390],
-    [750, 810], [990, 1110],
+    [30, 90],    // 12:30 AM – 1:30 AM
+    [270, 390],  // 4:30 AM – 6:30 AM
+    [450, 630],  // 7:30 AM – 10:30 AM
+    [750, 810],  // 12:30 PM – 1:30 PM
+    [990, 1110], // 4:30 PM – 6:30 PM
+    [1170, 1350] // 7:30 PM – 10:30 PM
   ];
 
   const ALIGNED_RANGES = [
-    [0, 30], [90, 270], [390, 750],
-    [810, 990], [1110, 1440],
+    [0, 30],      // 12:00 AM – 12:30 AM
+    [90, 270],    // 1:30 AM – 4:30 AM
+    [390, 450],   // 6:30 AM – 7:30 AM
+    [630, 750],   // 10:30 AM – 12:30 PM
+    [810, 990],   // 1:30 PM – 4:30 PM
+    [1110, 1170], // 6:30 PM – 7:30 PM
+    [1350, 1440]  // 10:30 PM – 12:00 AM
   ];
 
   function getConnectorMode(h24, m) {
@@ -1735,6 +1744,7 @@ function App() {
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
   const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || []);
   const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
+  const weightedDirectedLiveCount = directedLiveEvents.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
   const polarityDirection = livePolarityApplied.finalDirection;
   // ── LIVE NEWS DEBUG — same fields as replay, single source of truth ─────────
   // liveNewsDebug mirrors the replay debug shape so both paths are comparable.
@@ -1749,10 +1759,10 @@ function App() {
       pub: ev.pub||"",
       country: ev.country||""
     })),
-    directedCount: directedLiveEvents.length,
-    activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
+    directedCount: weightedDirectedLiveCount,
+    activeSigns: directedLiveEvents.flatMap(ev=>Array(replayEventType(ev)==="speech" ? 2 : 1).fill(Number(ev.polarity)>0?"+":"-")),
     // STACKING STATE
-    stackingActive: directedLiveEvents.length >= 2,
+    stackingActive: weightedDirectedLiveCount >= 2,
     stackRule: livePolarityApplied.clusterResult?.rule || "-/- = +, +/+ = -, -/+ = -",
     posCount: directedLiveEvents.filter(ev=>Number(ev.polarity)>0).length,
     negCount: directedLiveEvents.filter(ev=>Number(ev.polarity)<0).length,
@@ -2041,14 +2051,16 @@ function App() {
     return {pre:80, post:80};
   }
 
+  function calendarAdvanceMinutes(item){
+    const stars = Math.max(1, Math.min(3, Number(item?.stars || 1)));
+    return stars===3 ? 90 : stars===2 ? 60 : 30;
+  }
 
   function isCalendarEventVisible(item, nowMs = Date.now()){
     const t = Date.parse(item?.pub || ((item?.date && item?.time) ? `${item.date}T${String(item.time).replace(/\s/g,"")}` : "") || 0);
     if(!t || Number.isNaN(t)) return false;
-    const stars = Math.max(1, Math.min(3, Number(item?.stars || 1)));
-    const pre = stars===3 ? 90 : stars===2 ? 60 : 30;
-    const post = 0;
-    return nowMs >= (t - pre*60000) && nowMs <= (t + post*60000);
+    const pre = calendarAdvanceMinutes(item);
+    return nowMs >= (t - pre*60000) && nowMs <= t;
   }
 
   function buildUnifiedNewsEvents(nowMs = Date.now()){
@@ -2057,12 +2069,13 @@ function App() {
       if(!title) return null;
       const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
       const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
+      const rateValue = Number(raw?.rateValue ?? overrides.rateValue ?? getRateForSymbol(raw?.country || raw?.currency || overrides.country || ""));
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
       const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note };
+      return { title, source, stars, polarity, kind, pub, country, note, rateValue };
     };
 
     const scheduled = [
@@ -2095,13 +2108,21 @@ function App() {
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const allActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const activeCount = allActive.length;
-    const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0);
-    const directedCount = directedEvents.length;
-    const negatives = directedEvents.filter(ev=>Number(ev?.polarity) < 0).length;
-    const positives = directedEvents.filter(ev=>Number(ev?.polarity) > 0).length;
+    const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
+    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
+    const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)));
+    const directedCount = directedEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+    const chargedEvents = directedEvents
+      .map(ev=>({
+        ...ev,
+        effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0),
+        eventWeight: weightOf(ev)
+      }))
+      .filter(ev=>ev.effectiveCharge!==0);
+    const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
+    const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
-    const speeches = allActive.filter(ev=>replayEventType(ev)==="speech").length;
+    const speeches = allActive.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 0), 0);
 
     if(!activeCount){
       const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
@@ -2140,25 +2161,28 @@ function App() {
     const resolveGroupedCharge = (signCharge, count)=>{
       if(count <= 0) return 0;
       if(count === 1) return signCharge;
-      return -signCharge; // 2 or more flips once and holds there
+      return -signCharge; // 2 or more same-sign events flip once and hold there
     };
 
-    if(directedCount === 1){
-      newsCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
-      dominantSource = replayEventType(directedEvents[0]) || dominantSource;
-    } else if(directedCount >= 2){
-      const firstCharge = Number(directedEvents[0].polarity) > 0 ? 1 : -1;
-      const dominantCharge = positives > negatives ? 1 : negatives > positives ? -1 : firstCharge;
-      const secondaryCharge = dominantCharge === 1 ? -1 : 1;
-      const dominantCount = dominantCharge === 1 ? positives : negatives;
-      const secondaryCount = secondaryCharge === 1 ? positives : negatives;
+    if(chargedEvents.length === 1){
+      newsCharge = chargedEvents[0].effectiveCharge;
+      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} vs USD`;
+    } else if(chargedEvents.length >= 2){
+      const ranked = [...chargedEvents].sort((a,b)=>Math.abs((Number(b.rateValue)||USD_RATE)-USD_RATE)-Math.abs((Number(a.rateValue)||USD_RATE)-USD_RATE));
+      const firstCharge = ranked[0].effectiveCharge;
+      const dominantCharge = ranked[0].effectiveCharge;
+      const dominantCode = ranked[0].country || "USD";
+      const dominantRate = Number(ranked[0].rateValue ?? USD_RATE);
+      const secondaryCharge = ranked.length > 1 ? ranked[1].effectiveCharge : 0;
+      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
 
       const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
-      const secondaryResolved = resolveGroupedCharge(secondaryCharge, secondaryCount);
+      const secondaryResolved = secondaryCharge===0 ? 0 : resolveGroupedCharge(secondaryCharge, secondaryCount);
 
       const foldSteps = [];
       foldSteps.push(
-        `DOMINANT ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
+        `DOMINANT ${dominantCode} ${dominantRate.toFixed(2)} vs USD ${USD_RATE.toFixed(2)} => ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
       );
       if(secondaryCount > 0){
         foldSteps.push(
@@ -2176,15 +2200,15 @@ function App() {
 
       chargeFlip = true;
       clusterResult = {
-        dominantSource,
-        stackSize: directedCount,
+        dominantSource: `${dominantCode} rate-dominant`,
+        stackSize: chargedEvents.length,
         positiveCount: positives,
         negativeCount: negatives,
         dominantSign: dominantCharge===1?"+":"-",
         dominantCount,
         secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
         secondaryCount,
-        rule: "dominant sign first; 1 stays same, 2+ flips once; then combine with lower sign",
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
         foldSteps,
       };
     }
@@ -2205,7 +2229,7 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · DOMINANT-FIRST NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · USD-ANCHOR NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2226,7 +2250,7 @@ function App() {
         ? "news active but no directed polarity"
         : sellRestriction
           ? "sell-side restriction held the trade direction"
-          : "dominant high-interest-rate sign was resolved first, then the lower sign was added afterward",
+          : "dominant high-interest-rate sign was resolved first, speeches counted as 2+ events, then opposite signs resolved negative",
       equation: equationPlain,
       equationPlain,
     };
@@ -2240,13 +2264,68 @@ function App() {
 
   function getSixHourFallback_430_1030_standard(h24, m){
     const t = h24*60 + m;
-    const inSellWindow = (t >= 270 && t < 630) || (t >= 990 && t < 1350); // 4:30-10:30 AM/PM
-    return inSellWindow
-      ? { direction:"sell", polarity:"negative", sign:"-", window:"4:30-10:30 SELL" }
-      : { direction:"buy", polarity:"positive", sign:"+", window:"10:30-4:30 BUY" };
+    const steps = [
+      [0,   "buy",  "+", "12:00 BUY"],
+      [30,  "sell", "-", "12:30 SELL"],
+      [60,  "buy",  "+", "1:00 BUY"],
+      [90,  "sell", "-", "1:30 SELL"],
+      [120, "buy",  "+", "2:00 BUY"],
+      [180, "sell", "-", "3:00 SELL"],
+      [240, "buy",  "+", "4:00 BUY"],
+      [270, "sell", "-", "4:30 SELL"],
+      [300, "buy",  "+", "5:00 BUY"],
+      [360, "sell", "-", "6:00 SELL"],
+      [390, "buy",  "+", "6:30 BUY"],
+      [420, "sell", "-", "7:00 SELL"],
+      [450, "buy",  "+", "7:30 BUY"],
+      [480, "sell", "-", "8:00 SELL"],
+      [540, "buy",  "+", "9:00 BUY"],
+      [600, "sell", "-", "10:00 SELL"],
+      [630, "buy",  "+", "10:30 BUY"],
+      [660, "sell", "-", "11:00 SELL"],
+      [720, "buy",  "+", "12:00 BUY"],
+      [750, "sell", "-", "12:30 SELL"],
+      [780, "buy",  "+", "1:00 BUY"],
+      [810, "sell", "-", "1:30 SELL"],
+      [840, "buy",  "+", "2:00 BUY"],
+      [900, "sell", "-", "3:00 SELL"],
+      [960, "buy",  "+", "4:00 BUY"],
+      [990, "sell", "-", "4:30 SELL"],
+      [1020,"buy",  "+", "5:00 BUY"],
+      [1080,"sell", "-", "6:00 SELL"],
+      [1110,"buy",  "+", "6:30 BUY"],
+      [1140,"sell", "-", "7:00 SELL"],
+      [1170,"buy",  "+", "7:30 BUY"],
+      [1200,"sell", "-", "8:00 SELL"],
+      [1260,"buy",  "+", "9:00 BUY"],
+      [1320,"sell", "-", "10:00 SELL"],
+      [1350,"buy",  "+", "10:30 BUY"],
+      [1380,"sell", "-", "11:00 SELL"],
+      [1440,"buy",  "+", "12:00 BUY"]
+    ];
+    let current = steps[0];
+    for(let i=0;i<steps.length-1;i++){
+      if(t >= steps[i][0] && t < steps[i+1][0]) { current = steps[i]; break; }
+    }
+    return { direction: current[1], polarity: current[1] === "buy" ? "positive" : "negative", sign: current[2], window: current[3] };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
+  }
+
+
+  function getRateForSymbol(sym){
+    const code = String(sym||"").toUpperCase().slice(0,3);
+    const hit = CHARGE_CURRENCIES.find(c=>c.sym===code);
+    return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
+  }
+
+  function getEventChargeFromRates(ev){
+    const code = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
+    const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
+    if(!Number.isFinite(rate)) return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : 0;
+    const base = rate > USD_RATE ? 1 : -1;
+    return rate <= USD_RATE ? -base : base;
   }
 
   function inferCountryCode(rawText="", fallback="") {
@@ -2325,28 +2404,88 @@ function App() {
   // ── fetchEcoNews — eco classification for FEED tab ───────────────────────────
   const fetchEcoNews = useCallback(()=>{
     ecoLoadedRef.current=true;
-    setEcoLoading(false);
-    setEcoArticles([]);
-  },[breakingAnchor]);
+    setEcoLoading(true);
+    Promise.all(CALENDAR_FEEDS.filter(f=>f.type==="rss").map(feed=>
+      fetchRSS(feed.url).then(items=>items.map(item=>{
+        const norm = normalizeItem(item, feed.label, feed.color);
+        const cls = classifyEcoArticle(norm.title, norm.desc);
+        const stars = Math.max(1, cls.stars || calStars(norm.title) || 1);
+        return {
+          ...norm,
+          ...cls,
+          stars,
+          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
+          feedType:"calendar",
+          polarity: cls.bearish ? -1 : cls.bullish ? 1 : 0,
+          rateValue: getRateForSymbol(norm.country || inferCountryCode(`${norm.title} ${norm.desc}`)),
+        };
+      })).catch(()=>[])
+    ))
+    .then(groups=>{
+      const arts = dedupeFeedItems(groups.flat()).sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+      setEcoArticles(arts.slice(0,60));
+    })
+    .finally(()=>setEcoLoading(false));
+  },[]);
 
   // ── fetchCalendar — ForexFactory JSON (primary) + Myfxbook/Reuters/Bloomberg RSS (fallback) ──
   const fetchCalendar = useCallback(()=>{
     calLoadedRef.current=true;
-    setCalLoading(false);
+    setCalLoading(true);
     setCalArticles([]);
+
+    const ffFeed = CALENDAR_FEEDS.find(f=>f.type==="ff_json");
+    const ffPromise = ffFeed ? fetch(ffFeed.url,{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()).then(rows=>{
+      return (Array.isArray(rows)?rows:[]).map(row=>{
+        const title = String(row.title || row.event || row.name || "").trim();
+        if(!title) return null;
+        const currency = String(row.country || row.currency || row.ccy || inferCountryCode(title) || "").toUpperCase().slice(0,3);
+        const impactRaw = String(row.impact || row.impact_title || row.impactTitle || row.impactName || row.level || "").toLowerCase();
+        let stars = Number(row.stars || row.impactNum || row.impact_num || 0);
+        if(!stars) stars = /high|holiday|red/.test(impactRaw) ? 3 : /medium|med|orange|yellow/.test(impactRaw) ? 2 : 1;
+        stars = Math.max(1, Math.min(3, stars));
+        const date = String(row.date || row.day || "").trim();
+        const time = String(row.time || row.datetime || row.event_time || "").trim();
+        const pub = (date && time) ? `${date}T${time.replace(/\s/g,"")}` : String(row.pub || row.timestamp || "");
+        return {
+          title,
+          desc: String(row.actual || row.forecast || row.previous || "").trim(),
+          source: ffFeed.label,
+          color: ffFeed.color,
+          country: currency,
+          currency,
+          stars,
+          pub,
+          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(title)?"speech":"event",
+          feedType:"calendar",
+          polarity: 0,
+          rateValue: getRateForSymbol(currency),
+        };
+      }).filter(Boolean);
+    }).catch(()=>[]) : Promise.resolve([]);
+
+    Promise.all([ffPromise])
+      .then(([ffEvents])=>{
+        const visible = dedupeFeedItems(ffEvents).sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+        setCalArticles(visible.slice(0,120));
+      })
+      .finally(()=>setCalLoading(false));
   },[]);
 
   // ── Auto-load feeds on tab switch ────────────────────────────────────────────
   useEffect(()=>{
     if(newsView==="feed") {
       if(newsLoadedFor.current!==newsSrc){ newsLoadedFor.current=newsSrc; fetchNews(newsSrc); }
-
+      if(!calLoadedRef.current) fetchCalendar();
+      if(!ecoLoadedRef.current) fetchEcoNews();
     }
+    if(newsView==="calendar" && !calLoadedRef.current) fetchCalendar();
+    if(newsView==="news" && !ecoLoadedRef.current) fetchEcoNews();
 
   },[newsView,newsSrc]);
 
   // On mount, pre-load market-moving news only
-  useEffect(()=>{ fetchNews(newsSrc); newsLoadedFor.current=newsSrc; },[]);
+  useEffect(()=>{ fetchNews(newsSrc); fetchCalendar(); fetchEcoNews(); newsLoadedFor.current=newsSrc; },[]);
 
 
   const card = (ex={}) => ({background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"14px 16px",marginBottom:10,...ex});
@@ -2843,7 +2982,7 @@ function App() {
     return { h24, m:minute, dayStr:`${bag.weekday} ${bag.month} ${bag.day}`, timeStr:`${bag.hour}:${bag.minute} ${dp}` };
   }
 
-  async function rpFetchCandles(daysBack=7){
+  async function rpFetchCandles(daysBack=2){
     // 30m candles — covers all trap(:30) and execute(:00) times
     const cacheKey="engin3Replay30m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
@@ -2979,9 +3118,10 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: no-news → use INTERNAL_STEPS step-direction schedule
+  // RULE: no-news → use replay fallback schedule
   //       news active → use even/odd hour polarity schedule
-  //       news decision: same sign → BUY, different sign → SELL
+  //       speeches count as 2+ events
+  //       same sign with weighted 2+ flips once, opposite signs resolve negative
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
@@ -2991,8 +3131,8 @@ function App() {
       return {
         signal: null,
         chargeFlip: false,
-        mode: "breaking-only",
-        regime: "BREAKING_ONLY",
+        mode: "news-mixed",
+        regime: "NEWS_MIXED",
         flip: false,
         reason: applied.reason,
         dominantSource: applied.dominantSource,
@@ -3020,8 +3160,8 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: "breaking-only",
-      regime: "BREAKING_ONLY",
+      mode: "news-mixed",
+      regime: "NEWS_MIXED",
       flip: false,
       reason: applied.reason,
       dominantSource: applied.dominantSource,
@@ -3204,26 +3344,38 @@ function App() {
         return null;
       }
 
+      const replaySlotLabelFor = (events)=>{
+        const list = Array.isArray(events) ? events : [];
+        const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
+        const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
+        const hasCal    = list.some(ev=>replayEventType(ev)==="event");
+        const weightedCount = list.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
+        if(hasSpeech) return weightedCount >= 2 ? "SPEECH 2+" : "SPEECH";
+        if((hasBreak && hasCal) || list.length > 1) return "MIXED";
+        if(hasCal) return "CAL";
+        if(hasBreak) return "BREAK";
+        return "NEWS";
+      };
+
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
       const sessions = [];
       for(const c of candles){
         const et = rpGetETParts(c.ts);
         if(!isReplaySlot(et.h24, et.m)) continue;
 
-        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents).filter(ev=>replayEventType(ev)==="breaking");
+        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
         const isExec = false;
-        const slotLabel = "BREAK";
+        const slotLabel = replaySlotLabelFor(activeEvents);
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
         const nextC = getNextCandle(c.ts);
         const score = rpScore2(replay.signal, c, nextC, sigWindow);
 
-        // Breaking-news-only mode: only keep candles with active directed breaking-news.
         if(!hasNews || !replay.signal) continue;
 
-        const quality = "BREAKING";
+        const quality = slotLabel === "BREAK" ? "BREAKING" : slotLabel === "CAL" ? "CALENDAR" : slotLabel;
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
@@ -3332,7 +3484,7 @@ function App() {
 
     return(
       <div style={{padding:14}}>
-        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
+        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
           Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
         </div>
@@ -3481,7 +3633,7 @@ function App() {
                 {/* All 4 quality tiers — clean-hour scoring */}
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY NEWS SETUP</div>
                 {[
-                  {l:"MARKET + CALENDAR + BREAKING ONLY", key:"breakingOnly", c:G, note:"Directed breaking-news windows only"},
+                  {l:"MARKET + CALENDAR + BREAKING", key:"breakingOnly", c:G, note:"Calendar, speeches, and breaking windows together"},
                                   ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -3588,7 +3740,7 @@ function App() {
                     <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
                     {current.activeEvents.slice(0,4).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
-                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
+                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
                     ))}
                   </div>
@@ -3616,7 +3768,7 @@ function App() {
               </div>
             )}
 
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 7 DAYS BREAKING LOG</div>
+            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 2 DAYS RECENT NEWS LOG</div>
             {(results.newsSessions||[]).slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
               const hitCol = s.score?.correct ? G : R;
@@ -3639,7 +3791,7 @@ function App() {
         {!results&&!loading&&(
           <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
             Log news and calendar items in the polarity tab, then run replay.<br/>
-            Replay uses the new logic only and scores the last 7 days of BTC signals.
+            Replay uses the merged dominant-interest + callback logic and scores the last 2 days of BTC signals.
           </div>
         )}
       </div>
@@ -3976,7 +4128,7 @@ const BacktestTab = ()=>{
               <div style={{fontSize:10,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginLeft:4}}>
                 {calArticles.length>0&&`${calArticles.length} events (90d)`}
               </div>
-              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; fetchNews("combo"); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
+              <button onClick={()=>{ newsLoadedFor.current=""; calLoadedRef.current=false; ecoLoadedRef.current=false; fetchNews("combo"); fetchCalendar(); fetchEcoNews(); }} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:8,fontSize:14,background:"rgba(255,255,255,0.05)",border:"1px solid #222",color:"#888",cursor:"pointer"}}>↻ REFRESH</button>
             </div>
 
             {(newsLoading||calLoading)&&(
@@ -3992,14 +4144,14 @@ const BacktestTab = ()=>{
             {(()=>{
               // Show ALL calendar events (no pre-filter) so PAST bucket is populated.
               // The classify() function below handles live/upcoming/past sorting.
-              const calendarTimeline = ([])
+              const calendarTimeline = (calArticles||[])
                 .map(item=>({
                   ...item,
                   kind:"event",
                   isUnified:true,
                   pub: item.pub || ((item.date&&item.time)? `${item.date}T${String(item.time).replace(/\s/g,"")}` : ""),
                   country: item.country || inferCountryCode(item.currency||item.title||"", item.currency||""),
-                  feedType:"news"
+                  feedType:"calendar"
                 }))
                 .filter(item=>{
                   // Only filter out items with no parseable date
@@ -4037,7 +4189,7 @@ const BacktestTab = ()=>{
                 source:item.source||"Manual Replay",
                 color:item.kind==="breaking"?"#ff6b35":"#00aaff"
               }));
-              const allMerged = dedupeFeedItems([...breakingTimeline,...manualTimeline]);
+              const allMerged = dedupeFeedItems([...calendarTimeline, ...breakingTimeline, ...manualTimeline]);
               const liveBucket     = allMerged.filter(i=>classify(i)==="live").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const upcomingBucket = allMerged.filter(i=>classify(i)==="upcoming").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const pastBucket     = allMerged.filter(i=>classify(i)==="past").sort((a,b)=>Date.parse(b.pub)-Date.parse(a.pub));
@@ -4075,7 +4227,7 @@ const BacktestTab = ()=>{
                       <div style={{paddingLeft:12}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                           <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 MARKET"}</span>
+                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 CALENDAR":"⚡ BREAKING"}</span>
                             <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
                             {!!item.country&&<span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
                             {item.feedType==="calendar"&&<span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1,Math.min(3,Number(item.stars||1))))}</span>}
@@ -4085,8 +4237,8 @@ const BacktestTab = ()=>{
                         <div style={{fontSize:13,fontWeight:700,color:isLive?G:isUp?"#ffe":"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
                         {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
                         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                          {item.feedType==="calendar"&&<span style={{fontSize:12,color:isLive?G+"cc":isUp?A+"cc":"#556",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {Number(item.stars||1)===3?90:Number(item.stars||1)===2?60:30}m EARLY · WIN ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · {Number(item.stars||1)===3?"TP3 0.9%":Number(item.stars||1)===2?"TP2 0.6%":"TP1 0.3%"}</span>}
-                          {item.feedType!=="calendar"&&<span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>MARKET BURST 0–20m · 61.8–78.6 fib</span>}
+                          {item.feedType==="calendar"&&<span style={{fontSize:12,color:isLive?G+"cc":isUp?A+"cc":"#556",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {calendarAdvanceMinutes(item)}m EARLY · SYMMETRIC ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TARGET {item.feedType==="calendar"?"61.8 · 0.185%":"38.2 · 0.1146%"}</span>}
+                          {item.feedType!=="calendar"&&<span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>MARKET BURST 0–20m · 38.2 · 0.1146%</span>}
                         </div>
                       </div>
                     </div>
@@ -4167,14 +4319,14 @@ const BacktestTab = ()=>{
         )}
 
         {/* ── ECONOMIC EVENTS ── */}
-        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Calendar removed in this version. This build uses Google-searched market-moving news, Bloomberg Markets, Reuters Markets, and breaking news only.</div>)}
+        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Economic calendar view is active in this build. Calendar events show 30m early for 1★, 60m early for 2★, and 90m early for 3★, then stay alive for their symmetric reaction window.</div>)}
 
 
         {/* ── SOURCES ── */}
         {newsView==="links"&&(
           <>
             <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
-              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Google-searched market-moving news with Bloomberg Markets, Reuters Markets, and breaking news in one on-page timeline. No economic calendar in this version.</div>
+              <div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8}}>Feed combines Reuters Markets, Bloomberg Markets, Myfxbook, TradingEconomics, and live calendar events in one on-page timeline.</div>
             </div>
             {LINKS.map((lnk,i)=>(
               <div key={i} onClick={()=>window.open(lnk.url,"_blank","noopener,noreferrer")}
