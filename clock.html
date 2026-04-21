@@ -1763,7 +1763,7 @@ function App() {
     activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
     // STACKING STATE
     stackingActive: weightedDirectedLiveCount >= 2,
-    stackRule: livePolarityApplied.clusterResult?.rule || "speech/conference = 2+ events; other news = 1; +/+ = -, -/- = +, +/- = -",
+    stackRule: livePolarityApplied.clusterResult?.rule || "all news = 1 event; +/+ = -, -/- = +, +/- = -",
     posCount: directedLiveEvents.filter(ev=>Number(ev.polarity)>0).length,
     negCount: directedLiveEvents.filter(ev=>Number(ev.polarity)<0).length,
     // RESOLVED SIGNS
@@ -2111,7 +2111,7 @@ function App() {
 
     const weightOf = (ev)=>{
       const type = replayEventType(ev);
-      if(type === "speech") return 2;
+      if(type === "speech") return 1;
       return 1;
     };
 
@@ -2205,7 +2205,7 @@ function App() {
         dominantCount: 1,
         secondarySign: directedCount>1 ? (weightedEvents[1].effectiveCharge===1?"+":"-") : "0",
         secondaryCount: directedCount>1 ? 1 : 0,
-        rule: "speech/conference = 2+ events; other news = 1; combine all news together with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
+        rule: "all news = 1 event; combine all news together with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
         foldSteps,
       };
     }
@@ -2239,7 +2239,7 @@ function App() {
       sellRestriction: false,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : "all active news was combined using the shared sign map, with speeches/conferences counting double before the final sign was matched against the hour sign",
+        : "all active news was combined using the shared sign map, with every news item counting once before the final sign was matched against the hour sign",
       equation: equationPlain,
       equationPlain,
     };
