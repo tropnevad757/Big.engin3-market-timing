@@ -2982,7 +2982,7 @@ function App() {
     return { h24, m:minute, dayStr:`${bag.weekday} ${bag.month} ${bag.day}`, timeStr:`${bag.hour}:${bag.minute} ${dp}` };
   }
 
-  async function rpFetchCandles(daysBack=7){
+  async function rpFetchCandles(daysBack=2){
     // 30m candles — covers all trap(:30) and execute(:00) times
     const cacheKey="engin3Replay30m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
@@ -3131,8 +3131,8 @@ function App() {
       return {
         signal: null,
         chargeFlip: false,
-        mode: "breaking-only",
-        regime: "BREAKING_ONLY",
+        mode: "news-mixed",
+        regime: "NEWS_MIXED",
         flip: false,
         reason: applied.reason,
         dominantSource: applied.dominantSource,
@@ -3160,8 +3160,8 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: "breaking-only",
-      regime: "BREAKING_ONLY",
+      mode: "news-mixed",
+      regime: "NEWS_MIXED",
       flip: false,
       reason: applied.reason,
       dominantSource: applied.dominantSource,
@@ -3344,26 +3344,38 @@ function App() {
         return null;
       }
 
+      const replaySlotLabelFor = (events)=>{
+        const list = Array.isArray(events) ? events : [];
+        const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
+        const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
+        const hasCal    = list.some(ev=>replayEventType(ev)==="event");
+        const weightedCount = list.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
+        if(hasSpeech) return weightedCount >= 2 ? "SPEECH 2+" : "SPEECH";
+        if((hasBreak && hasCal) || list.length > 1) return "MIXED";
+        if(hasCal) return "CAL";
+        if(hasBreak) return "BREAK";
+        return "NEWS";
+      };
+
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
       const sessions = [];
       for(const c of candles){
         const et = rpGetETParts(c.ts);
         if(!isReplaySlot(et.h24, et.m)) continue;
 
-        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents).filter(ev=>replayEventType(ev)==="breaking");
+        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
         const isExec = false;
-        const slotLabel = "BREAK";
+        const slotLabel = replaySlotLabelFor(activeEvents);
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
         const nextC = getNextCandle(c.ts);
         const score = rpScore2(replay.signal, c, nextC, sigWindow);
 
-        // Breaking-news-only mode: only keep candles with active directed breaking-news.
         if(!hasNews || !replay.signal) continue;
 
-        const quality = "BREAKING";
+        const quality = slotLabel === "BREAK" ? "BREAKING" : slotLabel === "CAL" ? "CALENDAR" : slotLabel;
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
@@ -3472,7 +3484,7 @@ function App() {
 
     return(
       <div style={{padding:14}}>
-        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
+        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
           Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
         </div>
@@ -3621,7 +3633,7 @@ function App() {
                 {/* All 4 quality tiers — clean-hour scoring */}
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY NEWS SETUP</div>
                 {[
-                  {l:"MARKET + CALENDAR + BREAKING ONLY", key:"breakingOnly", c:G, note:"Directed breaking-news windows only"},
+                  {l:"MARKET + CALENDAR + BREAKING", key:"breakingOnly", c:G, note:"Calendar, speeches, and breaking windows together"},
                                   ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -3728,7 +3740,7 @@ function App() {
                     <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
                     {current.activeEvents.slice(0,4).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
-                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
+                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
                     ))}
                   </div>
@@ -3756,7 +3768,7 @@ function App() {
               </div>
             )}
 
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 7 DAYS BREAKING LOG</div>
+            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 2 DAYS RECENT NEWS LOG</div>
             {(results.newsSessions||[]).slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
               const hitCol = s.score?.correct ? G : R;
@@ -3779,7 +3791,7 @@ function App() {
         {!results&&!loading&&(
           <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
             Log news and calendar items in the polarity tab, then run replay.<br/>
-            Replay uses the new logic only and scores the last 7 days of BTC signals.
+            Replay uses the merged dominant-interest + callback logic and scores the last 2 days of BTC signals.
           </div>
         )}
       </div>
@@ -4215,7 +4227,7 @@ const BacktestTab = ()=>{
                       <div style={{paddingLeft:12}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                           <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 MARKET"}</span>
+                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 CALENDAR":"⚡ BREAKING"}</span>
                             <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
                             {!!item.country&&<span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
                             {item.feedType==="calendar"&&<span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1,Math.min(3,Number(item.stars||1))))}</span>}
