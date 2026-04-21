@@ -293,8 +293,8 @@ function applyNewsToSlot(polarityState, newsPolarity, calcType) {
   }
 
   // Final rule:
-  // positive result = BUY
-  // negative result = SELL
+  // same signs = + BUY
+  // opposite signs = - SELL
   const finalMovement = result === "positive" ? "up" : "down";
 
   return {
@@ -2208,7 +2208,7 @@ function App() {
         dominantCount,
         secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
         secondaryCount,
-        rule: "USD anchor + rate-dominant charge first; speeches / conferences / multi-topic events count as 2+ events; WINDOW MATH +/+ = -, -/- = +, +/- = -; TIME MATH same signs = +, different signs = -",
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
         foldSteps,
       };
     }
@@ -3119,11 +3119,9 @@ function App() {
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
   // RULE: no-news → use replay fallback schedule
-  //       news active → combine/stack news first with WINDOW MATH:
-  //         +/+ => -   -/- => +   +/- => -
-  //       then combine final news sign against slot sign with TIME MATH:
-  //         same signs => +   different signs => -
-  //       speeches / conferences / multi-topic events count as 2+ events
+  //       news active → use even/odd hour polarity schedule
+  //       speeches count as 2+ events
+  //       same sign with weighted 2+ flips once, opposite signs resolve negative
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
@@ -3278,11 +3276,11 @@ function App() {
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && t >= replayWindowStart;
+        return t && t >= replayWindowStart && replayEventType(ev)==="breaking";
       });
-      // ── UNIFIED NEWS REPLAY ─────────────────────────────────────────────────────────
-      // Breaking news, speeches, conferences, and calendar events all replay together.
-      // Any candle with active directed news qualifies for replay.
+      // ── MARKET-MOVING-NEWS-ONLY REPLAY ─────────────────────────────────────────────
+      // No schedule slots, no execute/trap framework. Any candle with active
+      // directed breaking-news qualifies for replay.
       function isReplaySlot(h24, m){ return true; }
       function isExecHour(h24, m){  return false; }
 
@@ -3488,13 +3486,13 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now runs in UNIFIED NEWS mode. It trades active directed breaking, speech, conference, and calendar-news windows together, 24/7.
+          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div style={{borderRadius:12,border:"1px solid rgba(240,160,48,0.25)",background:"rgba(240,160,48,0.06)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>LOGGED EVENTS</div>
-            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.filter(ev=>["breaking","calendar","speech","mixed"].includes(replayEventType(ev))).length}</div>
+            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.filter(ev=>replayEventType(ev)==="breaking").length}</div>
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
