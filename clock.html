@@ -1744,7 +1744,7 @@ function App() {
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
   const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || []);
   const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
-  const weightedDirectedLiveCount = directedLiveEvents.length;
+  const weightedDirectedLiveCount = directedLiveEvents.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
   const polarityDirection = livePolarityApplied.finalDirection;
   // ── LIVE NEWS DEBUG — same fields as replay, single source of truth ─────────
   // liveNewsDebug mirrors the replay debug shape so both paths are comparable.
@@ -1760,17 +1760,17 @@ function App() {
       country: ev.country||""
     })),
     directedCount: weightedDirectedLiveCount,
-    activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
+    activeSigns: directedLiveEvents.flatMap(ev=>Array(replayEventType(ev)==="speech" ? 2 : 1).fill(Number(ev.polarity)>0?"+":"-")),
     // STACKING STATE
     stackingActive: weightedDirectedLiveCount >= 2,
-    stackRule: livePolarityApplied.clusterResult?.rule || "all news = 1 event; +/+ = -, -/- = +, +/- = -",
+    stackRule: livePolarityApplied.clusterResult?.rule || "-/- = +, +/+ = -, -/+ = -",
     posCount: directedLiveEvents.filter(ev=>Number(ev.polarity)>0).length,
     negCount: directedLiveEvents.filter(ev=>Number(ev.polarity)<0).length,
     // RESOLVED SIGNS
     finalResolvedSign: livePolarityApplied.newsSign || "0",
     finalSlotSign: livePolarityApplied.slotSign || (liveSlotPolarity === "positive" ? "+" : "-"),
     flippedByStacking: !!livePolarityApplied.chargeFlip,
-    dominantSource: livePolarityApplied.dominantSource || "combined news map",
+    dominantSource: livePolarityApplied.dominantSource || "breaking only",
     reason: livePolarityApplied.reason || "",
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
@@ -2108,49 +2108,21 @@ function App() {
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const allActive = Array.isArray(activeEvents) ? activeEvents : [];
-
-    const weightOf = (ev)=>{
-      const type = replayEventType(ev);
-      if(type === "speech") return 1;
-      return 1;
-    };
-
-    const chargeOf = (ev)=>{
-      const fromRates = getEventChargeFromRates(ev);
-      if(fromRates === 1 || fromRates === -1) return fromRates;
-      const pol = Number(ev?.polarity || 0);
-      if(pol > 0) return 1;
-      if(pol < 0) return -1;
-      return 0;
-    };
-
-    const combineCharges = (leftCharge, rightCharge)=>{
-      if(leftCharge === -1 && rightCharge === -1) return 1;
-      if(leftCharge === 1 && rightCharge === 1) return -1;
-      return -1;
-    };
-
-    const weightedEvents = [];
-    for(const ev of allActive){
-      const charge = chargeOf(ev);
-      const weight = Math.max(1, Number(weightOf(ev)) || 1);
-      if(charge === 0) continue;
-      for(let i = 0; i < weight; i++){
-        weightedEvents.push({
-          ...ev,
-          effectiveCharge: charge,
-          eventWeight: weight,
-          replayWeight: weight,
-          replayType: replayEventType(ev)
-        });
-      }
-    }
-
-    const activeCount = allActive.reduce((n, ev)=>n + Math.max(1, Number(weightOf(ev)) || 1), 0);
-    const directedCount = weightedEvents.length;
-    const negatives = weightedEvents.filter(ev=>ev.effectiveCharge < 0).length;
-    const positives = weightedEvents.filter(ev=>ev.effectiveCharge > 0).length;
-    const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").reduce((n, ev)=>n + weightOf(ev), 0);
+    const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
+    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
+    const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)));
+    const directedCount = directedEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+    const chargedEvents = directedEvents
+      .map(ev=>({
+        ...ev,
+        effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0),
+        eventWeight: weightOf(ev)
+      }))
+      .filter(ev=>ev.effectiveCharge!==0);
+    const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
+    const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
+    const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
+    const speeches = allActive.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 0), 0);
 
     if(!activeCount){
       const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
@@ -2178,41 +2150,78 @@ function App() {
     let newsCharge = 0;
     let chargeFlip = false;
     let clusterResult = null;
-    let dominantSource = "combined news map";
+    let dominantSource = directedCount ? "dominant interest-rate sign first" : "undirected news";
 
-    if(directedCount === 1){
-      newsCharge = weightedEvents[0].effectiveCharge;
-      dominantSource = `${weightedEvents[0].replayType || 'news'} ×1`;
-    } else if(directedCount >= 2){
-      let running = weightedEvents[0].effectiveCharge;
-      const foldSteps = [
-        `START ${running===1?'+':'-'}`
-      ];
-      for(let i = 1; i < weightedEvents.length; i++){
-        const nextCharge = weightedEvents[i].effectiveCharge;
-        const prev = running;
-        running = combineCharges(running, nextCharge);
-        foldSteps.push(`${prev===1?'+':'-'} ${nextCharge===1?'+':'-'} -> ${running===1?'+':'-'}`);
+    const combineCharges = (leftCharge, rightCharge)=>{
+      if(leftCharge === -1 && rightCharge === -1) return 1;
+      if(leftCharge === 1 && rightCharge === 1) return -1;
+      return -1;
+    };
+
+    const resolveGroupedCharge = (signCharge, count)=>{
+      if(count <= 0) return 0;
+      if(count === 1) return signCharge;
+      return -signCharge; // 2 or more same-sign events flip once and hold there
+    };
+
+    if(chargedEvents.length === 1){
+      newsCharge = chargedEvents[0].effectiveCharge;
+      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} vs USD`;
+    } else if(chargedEvents.length >= 2){
+      const ranked = [...chargedEvents].sort((a,b)=>Math.abs((Number(b.rateValue)||USD_RATE)-USD_RATE)-Math.abs((Number(a.rateValue)||USD_RATE)-USD_RATE));
+      const firstCharge = ranked[0].effectiveCharge;
+      const dominantCharge = ranked[0].effectiveCharge;
+      const dominantCode = ranked[0].country || "USD";
+      const dominantRate = Number(ranked[0].rateValue ?? USD_RATE);
+      const secondaryCharge = ranked.length > 1 ? ranked[1].effectiveCharge : 0;
+      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+
+      const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
+      const secondaryResolved = secondaryCharge===0 ? 0 : resolveGroupedCharge(secondaryCharge, secondaryCount);
+
+      const foldSteps = [];
+      foldSteps.push(
+        `DOMINANT ${dominantCode} ${dominantRate.toFixed(2)} vs USD ${USD_RATE.toFixed(2)} => ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
+      );
+      if(secondaryCount > 0){
+        foldSteps.push(
+          `SECONDARY ${secondaryCharge===1?'+':'-'} x${secondaryCount} -> ${secondaryResolved===1?'+':'-'}`
+        );
       }
-      newsCharge = running;
+
+      newsCharge = dominantResolved;
+      if(secondaryCount > 0){
+        newsCharge = combineCharges(dominantResolved, secondaryResolved);
+        foldSteps.push(
+          `COMBINE ${dominantResolved===1?'+':'-'} ${secondaryResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`
+        );
+      }
+
       chargeFlip = true;
       clusterResult = {
-        dominantSource: "combined news map",
-        stackSize: directedCount,
+        dominantSource: `${dominantCode} rate-dominant`,
+        stackSize: chargedEvents.length,
         positiveCount: positives,
         negativeCount: negatives,
-        dominantSign: weightedEvents[0].effectiveCharge===1?"+":"-",
-        dominantCount: 1,
-        secondarySign: directedCount>1 ? (weightedEvents[1].effectiveCharge===1?"+":"-") : "0",
-        secondaryCount: directedCount>1 ? 1 : 0,
-        rule: "all news = 1 event; combine all news together with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
+        dominantSign: dominantCharge===1?"+":"-",
+        dominantCount,
+        secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
+        secondaryCount,
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
         foldSteps,
       };
     }
 
-    const finalDirection = newsCharge === 0
+    let finalDirection = newsCharge === 0
       ? baseDirection
       : (newsCharge === slotCharge ? "buy" : "sell");
+
+    let sellRestriction = false;
+    if(baseDirection === "sell" && newsCharge === -1){
+      finalDirection = "sell";
+      sellRestriction = true;
+    }
 
     const finalCharge = finalDirection === "buy" ? 1 : -1;
     const newsFlip = finalDirection !== baseDirection;
@@ -2220,7 +2229,7 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · COMBINED NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · USD-ANCHOR NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2236,14 +2245,17 @@ function App() {
       dominantSource,
       newsSign,
       slotSign,
-      sellRestriction: false,
+      sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : "all active news was combined using the shared sign map, with every news item counting once before the final sign was matched against the hour sign",
+        : sellRestriction
+          ? "sell-side restriction held the trade direction"
+          : "dominant high-interest-rate sign was resolved first, speeches counted as 2+ events, then opposite signs resolved negative",
       equation: equationPlain,
       equationPlain,
     };
   }
+
 
 
   function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents){
@@ -2970,7 +2982,7 @@ function App() {
     return { h24, m:minute, dayStr:`${bag.weekday} ${bag.month} ${bag.day}`, timeStr:`${bag.hour}:${bag.minute} ${dp}` };
   }
 
-  async function rpFetchCandles(daysBack=2){
+  async function rpFetchCandles(daysBack=7){
     // 30m candles — covers all trap(:30) and execute(:00) times
     const cacheKey="engin3Replay30m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
@@ -3108,8 +3120,8 @@ function App() {
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
   // RULE: no-news → use replay fallback schedule
   //       news active → use even/odd hour polarity schedule
-  //       every news item counts as 1 event
-  //       same sign with 2+ events flips once, opposite signs resolve negative
+  //       speeches count as 2+ events
+  //       same sign with weighted 2+ flips once, opposite signs resolve negative
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
@@ -3119,8 +3131,8 @@ function App() {
       return {
         signal: null,
         chargeFlip: false,
-        mode: "news-mixed",
-        regime: "NEWS_MIXED",
+        mode: "breaking-only",
+        regime: "BREAKING_ONLY",
         flip: false,
         reason: applied.reason,
         dominantSource: applied.dominantSource,
@@ -3148,8 +3160,8 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: "news-mixed",
-      regime: "NEWS_MIXED",
+      mode: "breaking-only",
+      regime: "BREAKING_ONLY",
       flip: false,
       reason: applied.reason,
       dominantSource: applied.dominantSource,
@@ -3264,11 +3276,11 @@ function App() {
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && t >= replayWindowStart && ["breaking","speech","event"].includes(replayEventType(ev));
+        return t && t >= replayWindowStart && replayEventType(ev)==="breaking";
       });
-      // ── UNIFIED NEWS + CALENDAR REPLAY ─────────────────────────────────────────────
+      // ── MARKET-MOVING-NEWS-ONLY REPLAY ─────────────────────────────────────────────
       // No schedule slots, no execute/trap framework. Any candle with active
-      // directed breaking, speech, conference, and calendar windows qualify for replay.
+      // directed breaking-news qualifies for replay.
       function isReplaySlot(h24, m){ return true; }
       function isExecHour(h24, m){  return false; }
 
@@ -3332,38 +3344,26 @@ function App() {
         return null;
       }
 
-      const replaySlotLabelFor = (events)=>{
-        const list = Array.isArray(events) ? events : [];
-        const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
-        const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
-        const hasCal    = list.some(ev=>replayEventType(ev)==="event");
-        const weightedCount = list.length;
-        if(hasSpeech) return weightedCount >= 2 ? "SPEECH STACK" : "SPEECH";
-        if((hasBreak && hasCal) || list.length > 1) return "MIXED";
-        if(hasCal) return "CAL";
-        if(hasBreak) return "BREAK";
-        return "NEWS";
-      };
-
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
       const sessions = [];
       for(const c of candles){
         const et = rpGetETParts(c.ts);
         if(!isReplaySlot(et.h24, et.m)) continue;
 
-        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
+        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents).filter(ev=>replayEventType(ev)==="breaking");
         const hasNews = activeEvents.length > 0;
         const isExec = false;
-        const slotLabel = replaySlotLabelFor(activeEvents);
+        const slotLabel = "BREAK";
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
         const nextC = getNextCandle(c.ts);
         const score = rpScore2(replay.signal, c, nextC, sigWindow);
 
+        // Breaking-news-only mode: only keep candles with active directed breaking-news.
         if(!hasNews || !replay.signal) continue;
 
-        const quality = slotLabel === "BREAK" ? "BREAKING" : slotLabel === "CAL" ? "CALENDAR" : slotLabel;
+        const quality = "BREAKING";
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
@@ -3434,9 +3434,6 @@ function App() {
         : weekRegime==="RALLY"||weekRegime==="UPTREND" ? G : A;
 
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
-      const latestReplayIdx = Math.max(0, newsSessions.length - 1);
-      setRpPlayIdx(latestReplayIdx);
-      setRpEnded(newsSessions.length > 0);
       setRpResults({
         newsSessions, wins, losses, total, wr,
         wins185, wins300, wins600, wins900, wins1200,
@@ -3475,9 +3472,9 @@ function App() {
 
     return(
       <div style={{padding:14}}>
-        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
+        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 7 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now runs in UNIFIED-NEWS mode. It trades active directed breaking-news, speech, conference, and calendar windows together, 24/7.
+          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3550,7 +3547,7 @@ function App() {
             {/* PRIMARY SIGNAL HEADLINE — EXECUTE+NEWS win rate */}
             {results.breakdown?.breakingOnly&&(
               <div style={{borderRadius:12,border:`1px solid ${G}44`,background:`${G}0d`,padding:"12px 14px",marginBottom:8}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>PRIMARY SETUP — UNIFIED NEWS + CALENDAR</div>
+                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>PRIMARY SETUP — BREAKING NEWS ONLY</div>
                 <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:6}}>
                   <div style={{fontSize:36,fontWeight:900,color:results.breakdown.breakingOnly.wr>=50?G:results.breakdown.breakingOnly.wr>=40?A:R,...mono,lineHeight:1}}>
                     {results.breakdown.breakingOnly.wr}%
@@ -3624,7 +3621,7 @@ function App() {
                 {/* All 4 quality tiers — clean-hour scoring */}
                 <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY NEWS SETUP</div>
                 {[
-                  {l:"MARKET + CALENDAR + BREAKING", key:"breakingOnly", c:G, note:"Calendar, speeches, conferences, and breaking windows together"},
+                  {l:"MARKET + CALENDAR + BREAKING ONLY", key:"breakingOnly", c:G, note:"Directed breaking-news windows only"},
                                   ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
@@ -3731,7 +3728,7 @@ function App() {
                     <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
                     {current.activeEvents.slice(0,4).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
-                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
+                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
                     ))}
                   </div>
@@ -3759,7 +3756,7 @@ function App() {
               </div>
             )}
 
-            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 2 DAYS RECENT NEWS LOG</div>
+            <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 7 DAYS BREAKING LOG</div>
             {(results.newsSessions||[]).slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
               const hitCol = s.score?.correct ? G : R;
@@ -3782,7 +3779,7 @@ function App() {
         {!results&&!loading&&(
           <div style={{textAlign:"center",padding:"32px 20px",color:"#444",...mono,lineHeight:1.8}}>
             Log news and calendar items in the polarity tab, then run replay.<br/>
-            Replay uses the merged dominant-interest + callback logic and scores the last 2 days of BTC signals.
+            Replay uses the new logic only and scores the last 7 days of BTC signals.
           </div>
         )}
       </div>
@@ -4218,7 +4215,7 @@ const BacktestTab = ()=>{
                       <div style={{paddingLeft:12}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5,gap:8,flexWrap:"wrap"}}>
                           <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 CALENDAR":"⚡ BREAKING"}</span>
+                            <span style={{fontSize:13,color:isLive?G:isUp?A:(item.color||"#888"),fontWeight:700,letterSpacing:1}}>{item.feedType==="calendar"?"📅 EVENT":"📰 MARKET"}</span>
                             <span style={{fontSize:13,color:"#aaa",fontWeight:700,letterSpacing:1}}>{item.source}</span>
                             {!!item.country&&<span style={{fontSize:12,color:"#111",background:"rgba(240,160,48,0.25)",border:`1px solid rgba(240,160,48,0.35)`,padding:"1px 6px",borderRadius:8,fontWeight:700}}>{item.country}</span>}
                             {item.feedType==="calendar"&&<span style={{fontSize:12,color:"#f0a030",fontWeight:700}}>{"★".repeat(Math.max(1,Math.min(3,Number(item.stars||1))))}</span>}
