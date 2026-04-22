@@ -1637,10 +1637,11 @@ function App() {
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
     }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
 
-    const activeEvent = allEvents[0] || null;
-    const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
-    const negativeDirectional = allEvents.some(ev=>Number(ev.polarity) === -1);
-    const positiveDirectional = allEvents.some(ev=>Number(ev.polarity) === 1);
+    const isolatedEvents = isolateEconomicWindowEvents(allEvents);
+    const activeEvent = isolatedEvents[0] || null;
+    const suppressPts = Math.max(-30, Math.min(15, isolatedEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
+    const negativeDirectional = isolatedEvents.some(ev=>Number(ev.polarity) === -1);
+    const positiveDirectional = isolatedEvents.some(ev=>Number(ev.polarity) === 1);
     const conflict = negativeDirectional && positiveDirectional ? true : (activeEvent && Number(activeEvent.polarity||0)!==0 ? Number(activeEvent.polarity)!==slotCharge : false);
 
     let tpLevels = null;
@@ -1655,10 +1656,10 @@ function App() {
     }
 
     return {
-      active: allEvents.length > 0,
+      active: isolatedEvents.length > 0,
       suppressPts,
       activeEvent,
-      nearEvents: allEvents,
+      nearEvents: isolatedEvents,
       tpLevels,
       conflict,
       level: activeEvent?.isBreaking ? "break" : activeEvent?.stars===3 ? "high" : activeEvent?.stars===2 ? "med" : activeEvent ? "low" : "none",
@@ -1763,7 +1764,7 @@ function App() {
     activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
     // STACKING STATE
     stackingActive: weightedDirectedLiveCount >= 2,
-    stackRule: livePolarityApplied.clusterResult?.rule || "speech/conference = 2+ events; other news = 1; +/+ = -, -/- = +, +/- = -",
+    stackRule: livePolarityApplied.clusterResult?.rule || "all news = 1 event; +/+ = -, -/- = +, +/- = -",
     posCount: directedLiveEvents.filter(ev=>Number(ev.polarity)>0).length,
     negCount: directedLiveEvents.filter(ev=>Number(ev.polarity)<0).length,
     // RESOLVED SIGNS
@@ -2036,9 +2037,15 @@ function App() {
   }
 
   function replayEventType(ev){
-    if(ev && ev.kind === "event") return "scheduled";
+    if(ev && ev.kind === "event") return "event";
     if(ev && ev.kind === "speech") return "speech";
     return "breaking";
+  }
+
+  function isolateEconomicWindowEvents(events){
+    const list = Array.isArray(events) ? events : [];
+    const hasEconomic = list.some(ev=>replayEventType(ev)==="event");
+    return hasEconomic ? list.filter(ev=>replayEventType(ev)==="event") : list; // economic windows isolate calendar/economic events only; multiple economic events still stack normally
   }
 
   function eventWindowMinutes(ev){
@@ -2111,7 +2118,7 @@ function App() {
 
     const weightOf = (ev)=>{
       const type = replayEventType(ev);
-      if(type === "speech") return 2;
+      if(type === "speech") return 1;
       return 1;
     };
 
@@ -2178,7 +2185,7 @@ function App() {
     let newsCharge = 0;
     let chargeFlip = false;
     let clusterResult = null;
-    let dominantSource = "combined news map";
+    let dominantSource = allActive.every(ev=>replayEventType(ev)==="event") ? "economic-only event map" : "combined news map";
 
     if(directedCount === 1){
       newsCharge = weightedEvents[0].effectiveCharge;
@@ -2197,7 +2204,7 @@ function App() {
       newsCharge = running;
       chargeFlip = true;
       clusterResult = {
-        dominantSource: "combined news map",
+        dominantSource: allActive.every(ev=>replayEventType(ev)==="event") ? "economic-only event map" : "combined news map",
         stackSize: directedCount,
         positiveCount: positives,
         negativeCount: negatives,
@@ -2205,7 +2212,7 @@ function App() {
         dominantCount: 1,
         secondarySign: directedCount>1 ? (weightedEvents[1].effectiveCharge===1?"+":"-") : "0",
         secondaryCount: directedCount>1 ? 1 : 0,
-        rule: "speech/conference = 2+ events; other news = 1; combine all news together with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
+        rule: "all news = 1 event; economic events still stack too; when an economic event window is active, breaking news is ignored; combine active signs with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
         foldSteps,
       };
     }
@@ -2239,7 +2246,7 @@ function App() {
       sellRestriction: false,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : "all active news was combined using the shared sign map, with speeches/conferences counting double before the final sign was matched against the hour sign",
+        : "all active news was combined using the shared sign map, with every news item counting once before the final sign was matched against the hour sign; economic events still stack, and during an economic window breaking news is ignored",
       equation: equationPlain,
       equationPlain,
     };
@@ -3239,7 +3246,7 @@ function App() {
 
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
-    return pool.filter(ev=>{
+    const active = pool.filter(ev=>{
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
@@ -3251,6 +3258,7 @@ function App() {
       const freshPol = cls.bearish ? -1 : cls.bullish ? 1 : 0;
       return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
     });
+    return isolateEconomicWindowEvents(active);
   }
 
   async function runReplay(){
@@ -3477,7 +3485,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now runs in UNIFIED-NEWS mode. It trades active directed breaking-news, speech, conference, and calendar windows together, 24/7.
+          Replay now runs in UNIFIED-NEWS mode. Economic calendar windows are isolated from breaking news, so when an economic event is active only the economic event time is traded.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
