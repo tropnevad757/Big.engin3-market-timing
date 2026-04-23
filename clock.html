@@ -1614,7 +1614,7 @@ function App() {
     const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    const rawEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
+    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
       const t = Date.parse(ev.pub||0);
       if(!t || Number.isNaN(t)) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
@@ -1637,7 +1637,6 @@ function App() {
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
     }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
 
-    const allEvents = isolateEconomicWindowEvents(rawEvents);
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
     const negativeDirectional = allEvents.some(ev=>Number(ev.polarity) === -1);
@@ -1771,6 +1770,7 @@ function App() {
     finalResolvedSign: livePolarityApplied.newsSign || "0",
     finalSlotSign: livePolarityApplied.slotSign || (liveSlotPolarity === "positive" ? "+" : "-"),
     flippedByStacking: !!livePolarityApplied.chargeFlip,
+    dominantSource: livePolarityApplied.dominantSource || "combined news map",
     reason: livePolarityApplied.reason || "",
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
@@ -2036,15 +2036,9 @@ function App() {
   }
 
   function replayEventType(ev){
-    if(ev && ev.kind === "event") return "event";
+    if(ev && ev.kind === "event") return "scheduled";
     if(ev && ev.kind === "speech") return "speech";
     return "breaking";
-  }
-
-  function isolateEconomicWindowEvents(events){
-    const list = Array.isArray(events) ? events : [];
-    const hasEconomic = list.some(ev=>replayEventType(ev)==="event");
-    return hasEconomic ? list.filter(ev=>replayEventType(ev)==="event") : list;
   }
 
   function eventWindowMinutes(ev){
@@ -2159,7 +2153,7 @@ function App() {
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").reduce((n, ev)=>n + weightOf(ev), 0);
 
     if(!activeCount){
-      const equationPlain = `STEP ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO DIRECTED NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection,
         baseCharge,
@@ -2171,10 +2165,11 @@ function App() {
         activeCount: 0,
         chargeFlip: false,
         clusterResult: null,
+        dominantSource: "step schedule",
         newsSign: "0",
         slotSign: slotCharge===1?"+":"-",
         sellRestriction: false,
-        reason: "no directed news - step fallback direction held",
+        reason: "no news - step direction schedule held",
         equation: equationPlain,
         equationPlain,
       };
@@ -2183,8 +2178,11 @@ function App() {
     let newsCharge = 0;
     let chargeFlip = false;
     let clusterResult = null;
+    let dominantSource = "combined news map";
+
     if(directedCount === 1){
       newsCharge = weightedEvents[0].effectiveCharge;
+      dominantSource = `${weightedEvents[0].replayType || 'news'} ×1`;
     } else if(directedCount >= 2){
       let running = weightedEvents[0].effectiveCharge;
       const foldSteps = [
@@ -2199,10 +2197,15 @@ function App() {
       newsCharge = running;
       chargeFlip = true;
       clusterResult = {
+        dominantSource: "combined news map",
         stackSize: directedCount,
         positiveCount: positives,
         negativeCount: negatives,
-        rule: "speech/conference = 2+ events; other news = 1; economic/calendar keeps its own window when active; combine active signs with +/+ = -, -/- = +, +/- = -; final sign then goes against the odd/even hour sign",
+        dominantSign: weightedEvents[0].effectiveCharge===1?"+":"-",
+        dominantCount: 1,
+        secondarySign: directedCount>1 ? (weightedEvents[1].effectiveCharge===1?"+":"-") : "0",
+        secondaryCount: directedCount>1 ? 1 : 0,
+        rule: "speech/conference = 2+ events; other news = 1; combine all news together with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
         foldSteps,
       };
     }
@@ -2216,8 +2219,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `STEP ${baseDirection.toUpperCase()} · SLOT ${slotSign} · COMBINED NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}`;
+      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · COMBINED NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2230,12 +2233,13 @@ function App() {
       activeCount,
       chargeFlip,
       clusterResult,
+      dominantSource,
       newsSign,
       slotSign,
       sellRestriction: false,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : "all active news was combined using the shared sign map, with speeches/conferences counting double and economic/calendar isolated when active before the final sign was matched against the odd/even hour sign",
+        : "all active news was combined using the shared sign map, with speeches/conferences counting double before the final sign was matched against the hour sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -3103,15 +3107,14 @@ function App() {
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
   // RULE: no-news → use replay fallback schedule
-  //       news active → use odd/even hour polarity schedule
-  //       speech/conference = 2 events; other news = 1
-  //       economic/calendar isolates when active
+  //       news active → use even/odd hour polarity schedule
+  //       every news item counts as 1 event
   //       same sign with 2+ events flips once, opposite signs resolve negative
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
     const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
-    const equationPlain = applied.equationPlain||"";
+    const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -3120,6 +3123,7 @@ function App() {
         regime: "NEWS_MIXED",
         flip: false,
         reason: applied.reason,
+        dominantSource: applied.dominantSource,
         clusterResult: applied.clusterResult,
         sellRestriction: false,
         activeEvents,
@@ -3148,6 +3152,7 @@ function App() {
       regime: "NEWS_MIXED",
       flip: false,
       reason: applied.reason,
+      dominantSource: applied.dominantSource,
       clusterResult: applied.clusterResult,
       sellRestriction: applied.sellRestriction,
       activeEvents,
@@ -3234,7 +3239,7 @@ function App() {
 
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
-    const active = pool.filter(ev=>{
+    return pool.filter(ev=>{
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
@@ -3246,7 +3251,6 @@ function App() {
       const freshPol = cls.bearish ? -1 : cls.bullish ? 1 : 0;
       return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
     });
-    return isolateEconomicWindowEvents(active);
   }
 
   async function runReplay(){
@@ -3718,7 +3722,7 @@ function App() {
                 </div>
                 <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:2}}>{current.equationPlain}</div>
                 <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>
-                  {current.clusterResult?.stackSize?`Stack ${current.clusterResult.stackSize} · `:""}Reason: {current.reason}
+                  Dominant: {current.dominantSource||"breaking only"}{current.clusterResult?.stackSize?` · Stack ${current.clusterResult.stackSize}`:""} · Reason: {current.reason}
                 </div>
 
                 {/* Active news events driving the signal */}
@@ -3735,7 +3739,7 @@ function App() {
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    dominantSource: current.dominantSource||'breaking only',                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
