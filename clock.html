@@ -1614,7 +1614,7 @@ function App() {
     const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
+    const rawEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
       const t = Date.parse(ev.pub||0);
       if(!t || Number.isNaN(t)) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
@@ -1637,6 +1637,7 @@ function App() {
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
     }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
 
+    const allEvents = isolateEconomicWindowEvents(rawEvents);
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
     const negativeDirectional = allEvents.some(ev=>Number(ev.polarity) === -1);
@@ -2036,9 +2037,15 @@ function App() {
   }
 
   function replayEventType(ev){
-    if(ev && ev.kind === "event") return "scheduled";
+    if(ev && ev.kind === "event") return "event";
     if(ev && ev.kind === "speech") return "speech";
     return "breaking";
+  }
+
+  function isolateEconomicWindowEvents(events){
+    const list = Array.isArray(events) ? events : [];
+    const hasEconomic = list.some(ev=>replayEventType(ev)==="event");
+    return hasEconomic ? list.filter(ev=>replayEventType(ev)==="event") : list;
   }
 
   function eventWindowMinutes(ev){
@@ -2205,7 +2212,7 @@ function App() {
         dominantCount: 1,
         secondarySign: directedCount>1 ? (weightedEvents[1].effectiveCharge===1?"+":"-") : "0",
         secondaryCount: directedCount>1 ? 1 : 0,
-        rule: "speech/conference = 2+ events; other news = 1; combine all news together with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
+        rule: "speech/conference = 2+ events; other news = 1; economic/calendar keeps its own window when active; combine active signs with +/+ = -, -/- = +, +/- = -; final sign then goes against the odd/even hour sign",
         foldSteps,
       };
     }
@@ -2239,7 +2246,7 @@ function App() {
       sellRestriction: false,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : "all active news was combined using the shared sign map, with speeches/conferences counting double before the final sign was matched against the hour sign",
+        : "all active news was combined using the shared sign map, with speeches/conferences counting double and economic/calendar isolated when active before the final sign was matched against the odd/even hour sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -2251,51 +2258,17 @@ function App() {
   }
 
   function getSixHourFallback_430_1030_standard(h24, m){
-    const t = h24*60 + m;
-    const steps = [
-      [0,   "buy",  "+", "12:00 BUY"],
-      [30,  "sell", "-", "12:30 SELL"],
-      [60,  "buy",  "+", "1:00 BUY"],
-      [90,  "sell", "-", "1:30 SELL"],
-      [120, "buy",  "+", "2:00 BUY"],
-      [180, "sell", "-", "3:00 SELL"],
-      [240, "buy",  "+", "4:00 BUY"],
-      [270, "sell", "-", "4:30 SELL"],
-      [300, "buy",  "+", "5:00 BUY"],
-      [360, "sell", "-", "6:00 SELL"],
-      [390, "buy",  "+", "6:30 BUY"],
-      [420, "sell", "-", "7:00 SELL"],
-      [450, "buy",  "+", "7:30 BUY"],
-      [480, "sell", "-", "8:00 SELL"],
-      [540, "buy",  "+", "9:00 BUY"],
-      [600, "sell", "-", "10:00 SELL"],
-      [630, "buy",  "+", "10:30 BUY"],
-      [660, "sell", "-", "11:00 SELL"],
-      [720, "buy",  "+", "12:00 BUY"],
-      [750, "sell", "-", "12:30 SELL"],
-      [780, "buy",  "+", "1:00 BUY"],
-      [810, "sell", "-", "1:30 SELL"],
-      [840, "buy",  "+", "2:00 BUY"],
-      [900, "sell", "-", "3:00 SELL"],
-      [960, "buy",  "+", "4:00 BUY"],
-      [990, "sell", "-", "4:30 SELL"],
-      [1020,"buy",  "+", "5:00 BUY"],
-      [1080,"sell", "-", "6:00 SELL"],
-      [1110,"buy",  "+", "6:30 BUY"],
-      [1140,"sell", "-", "7:00 SELL"],
-      [1170,"buy",  "+", "7:30 BUY"],
-      [1200,"sell", "-", "8:00 SELL"],
-      [1260,"buy",  "+", "9:00 BUY"],
-      [1320,"sell", "-", "10:00 SELL"],
-      [1350,"buy",  "+", "10:30 BUY"],
-      [1380,"sell", "-", "11:00 SELL"],
-      [1440,"buy",  "+", "12:00 BUY"]
-    ];
-    let current = steps[0];
-    for(let i=0;i<steps.length-1;i++){
-      if(t >= steps[i][0] && t < steps[i+1][0]) { current = steps[i]; break; }
-    }
-    return { direction: current[1], polarity: current[1] === "buy" ? "positive" : "negative", sign: current[2], window: current[3] };
+    const isEvenHour = (Number(h24) % 2) === 0;
+    const direction = isEvenHour ? "buy" : "sell";
+    const sign = isEvenHour ? "+" : "-";
+    const labelHour = ((h24 % 12) || 12);
+    const suffix = h24 < 12 ? "AM" : "PM";
+    return {
+      direction,
+      polarity: isEvenHour ? "positive" : "negative",
+      sign,
+      window: `${labelHour}:00 ${suffix} ${direction.toUpperCase()} (HOUR ${sign})`
+    };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
@@ -3107,8 +3080,9 @@ function App() {
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
   // RULE: no-news → use replay fallback schedule
-  //       news active → use even/odd hour polarity schedule
-  //       every news item counts as 1 event
+  //       news active → use odd/even hour polarity schedule
+  //       speech/conference = 2 events; other news = 1
+  //       economic/calendar isolates when active
   //       same sign with 2+ events flips once, opposite signs resolve negative
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
@@ -3239,7 +3213,7 @@ function App() {
 
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
-    return pool.filter(ev=>{
+    const active = pool.filter(ev=>{
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
@@ -3251,6 +3225,7 @@ function App() {
       const freshPol = cls.bearish ? -1 : cls.bullish ? 1 : 0;
       return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
     });
+    return isolateEconomicWindowEvents(active);
   }
 
   async function runReplay(){
