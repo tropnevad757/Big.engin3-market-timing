@@ -2236,10 +2236,32 @@ function App() {
     }
 
     if(waitFilter && chargedEvents.length === 1){
-      newsCharge = -1;
-      dominantSource = "";
-      chargeFlip = false;
-      clusterResult = null;
+      const slotSign = slotCharge === 1 ? "+" : "-";
+      const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+      const finalDirection = baseDirection;
+      const finalCharge = finalDirection === "buy" ? 1 : -1;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · VOLATILE SINGLE NEWS ${newsSign} · STEP FALLBACK · FINAL ${finalDirection.toUpperCase()}`;
+      return {
+        finalDirection,
+        baseCharge,
+        finalCharge,
+        newsFlip: finalDirection !== baseDirection ? -1 : 1,
+        negativePressure: negatives,
+        positivePressure: positives,
+        breakingCount: breakingEvents,
+        activeCount,
+        chargeFlip: false,
+        clusterResult: null,
+        dominantSource: "",
+        newsSign,
+        slotSign,
+        sellRestriction: false,
+        waitFilter: false,
+        newsType: "volatile-single-step-fallback",
+        reason: "single volatile news event - tested as STEP fallback instead of immediate news-vs-hour entry",
+        equation: equationPlain,
+        equationPlain,
+      };
     }
 
     let finalDirection = newsCharge === 0
