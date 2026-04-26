@@ -1775,7 +1775,7 @@ function App() {
     waitFilter: !!livePolarityApplied.waitFilter,
     newsType: livePolarityApplied.newsType || "normal",
     equation: livePolarityApplied.equationPlain || "",
-    finalDirection: livePolarityApplied.finalDirection,
+    finalDirection: livePolarityApplied.waitFilter ? "WAIT" : livePolarityApplied.finalDirection,
     // SELF-CHECK: live and replay use the same function (resolveStackedNewsSign)
     engineUsed: "computeReplayPolarity (shared live+replay)"
   };
@@ -1787,7 +1787,8 @@ function App() {
       passes: (()=>{
         const ch = marketData?.dxy?.change;
         if(ch==null) return null;
-        const dir = polarityDirection; // "buy" | "sell"
+        const dir = polarityDirection; // "buy" | "sell" | null
+        if(!dir) return null;
         if(dir==="buy")  return ch<-0.10?true:ch>+0.10?false:null;
         if(dir==="sell") return ch>+0.10?true:ch<-0.10?false:null;
         return null;
@@ -1848,6 +1849,9 @@ function App() {
   // Filters: DXY · NEWS · DAY
   // ═══════════════════════════════════════════════════════════════════════════
   const finalSignal = (()=>{
+    if(livePolarityApplied.waitFilter || !livePolarityApplied.finalDirection){
+      return { label:"WAIT", col:A };
+    }
     const dir = livePolarityApplied.finalDirection === "buy" ? "buy" : "sell";
     return dir === "buy"
       ? { label:"BUY",  col:G }
@@ -2053,11 +2057,22 @@ function App() {
 
   function shouldWaitWeakVolatileNews(activeEvents){
     const list = Array.isArray(activeEvents) ? activeEvents : [];
-    if(list.length !== 1) return false;
+    const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
+    const weightedCount = list.reduce((n, ev)=>n + weightOf(ev), 0);
+    if(weightedCount !== 1) return false;
     const ev = list[0];
-    if(replayEventType(ev) === "speech") return false; // speeches still count as 2+ behavior
-    if(Number(ev?.polarity) === 0 && !Number.isFinite(Number(ev?.rateValue))) return false;
-    return isVolatileHeadline(ev);
+    if(!ev || replayEventType(ev) === "speech") return false; // speeches still count as 2+ behavior
+
+    // Only filter usable directed news. If news is undirected, normal STEP fallback stays untouched.
+    const hasDirectedCharge = Number(ev?.polarity) !== 0 || Number.isFinite(Number(ev?.rateValue));
+    if(!hasDirectedCharge) return false;
+
+    // This is the hard loss-filter: a single breaking/volatile market headline is not allowed
+    // to fire an immediate BUY/SELL. Stacked events still trade normally and can flip through
+    // the existing map. Calendar/economic events still trade normally unless their headline is
+    // explicitly volatility-style.
+    const type = replayEventType(ev);
+    return type === "breaking" || isVolatileHeadline(ev);
   }
 
   function eventWindowMinutes(ev){
