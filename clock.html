@@ -2150,7 +2150,7 @@ function App() {
     let newsCharge = 0;
     let chargeFlip = false;
     let clusterResult = null;
-    let dominantSource = directedCount ? "dominant interest-rate sign first" : "undirected news";
+    let dominantSource = directedCount ? "news sign first" : "undirected news";
 
     const combineCharges = (leftCharge, rightCharge)=>{
       if(leftCharge === -1 && rightCharge === -1) return 1;
@@ -2229,7 +2229,7 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · USD-ANCHOR NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2250,7 +2250,7 @@ function App() {
         ? "news active but no directed polarity"
         : sellRestriction
           ? "sell-side restriction held the trade direction"
-          : "dominant high-interest-rate sign was resolved first, speeches counted as 2+ events, then opposite signs resolved negative",
+          : "news sign was resolved, speeches counted as 2+ events, then final news sign was compared against the hour sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -3125,7 +3125,12 @@ function App() {
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
-    const applied = resolveStackedNewsSign(fallback.direction, fallback.polarity, activeEvents);
+    // When news is active, combine the final news sign against the hour sign:
+    // even hour = positive (+), odd hour = negative (-).
+    // Step direction remains the no-news fallback only.
+    const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
+    const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
+    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
       return {
@@ -3135,7 +3140,6 @@ function App() {
         regime: "NEWS_MIXED",
         flip: false,
         reason: applied.reason,
-        dominantSource: applied.dominantSource,
         clusterResult: applied.clusterResult,
         sellRestriction: false,
         activeEvents,
@@ -3146,8 +3150,8 @@ function App() {
         baseCharge: fallback.direction === "buy" ? 1 : -1,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: fallback.polarity,
-        slotSign: fallback.sign,
+        slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
+        slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
         newsSign: applied.newsSign,
         equation: equationPlain,
         equationPlain,
@@ -3164,7 +3168,6 @@ function App() {
       regime: "NEWS_MIXED",
       flip: false,
       reason: applied.reason,
-      dominantSource: applied.dominantSource,
       clusterResult: applied.clusterResult,
       sellRestriction: applied.sellRestriction,
       activeEvents,
@@ -3175,8 +3178,8 @@ function App() {
       baseCharge: fallback.direction === "buy" ? 1 : -1,
       finalCharge: applied.finalCharge,
       newsFlip: applied.newsFlip,
-      slotPolarity: fallback.polarity,
-      slotSign: fallback.sign,
+      slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
+      slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
       newsSign: applied.newsSign,
       equation: equationPlain,
       equationPlain,
@@ -3186,33 +3189,21 @@ function App() {
     };
   }
 
-  // ── WIN/LOSS SCORING — spec section 13 ───────────────────────────────────────
-  // BUY win = price reaches 0.3% above open within the window
-  // SELL win = price reaches 0.3% below open within the window
-  // Star rating determines window size — NOT target size
-  // Breaking news → 61.8 fib → 0.185% (shorter burst target)
-  // 1-star 20m window → 0.3%
-  // 2-star 50m window → 0.3%
-  // 3-star 80m window → 0.3%
-  // No news → hold to next step change → 0.3%
+  // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
+  // Exit target starts at 0.03%; TP ladder tracks all eight requested levels.
   function getSignalWindow(activeEvents){
-    // CANONICAL SPEC (both doc 1 & doc 2):
-    // Breaking: 0–20m burst → 38.2 fib (0.1146%)
-    // ⭐ ±20m   ⭐⭐ ±50m   ⭐⭐⭐ ±80m   → all 61.8 fib (0.185%)
-    // Risk: exit at 0.185%, show hit counts for 0.3%/0.6%/0.9%/1.2%
-    const TP_BREAK_VAL = 0.001146;
-    const TP_STAR_VAL  = 0.00185;
+    const TP_EXIT_VAL = 0.0003; // 0.03%
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:30, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"step exit" };
+      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      return { type:"break", stars:0, windowMins:20, tp:TP_BREAK_VAL, tpLabel:"38.2 fib", tpPct:"0.1146%", exitRule:"0-20m burst" };
+      return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"0-20m burst" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"±80m symmetric window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"±50m symmetric window" };
-    return             { type:"star", stars:1, windowMins:20, tp:TP_STAR_VAL, tpLabel:"61.8 fib", tpPct:"0.185%", exitRule:"±20m symmetric window" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±80m symmetric window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±50m symmetric window" };
+    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±20m symmetric window" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
@@ -3295,14 +3286,17 @@ function App() {
         return candleByTs[sortedTs[idx+1]]||null;
       }
 
-      // ── SCORER — CANONICAL SPEC: Break=0.1146%(38.2), Stars=0.185%(61.8) ─────
-      // Multi-level tracking: 0.185%, 0.3%, 0.6%, 0.9%, 1.2% (risk rule display)
-      const TP_BREAK = 0.001146; // 38.2 fib — breaking news exit
-      const TP_185   = 0.00185;  // 61.8 fib — all star exits
-      const TP_300   = 0.003;    // 0.3% extension level
-      const TP_600   = 0.006;    // 0.6% extension level
-      const TP_900   = 0.009;    // 0.9% extension level
-      const TP_1200  = 0.012;    // 1.2% extension level (.12%)
+      // ── SCORER — updated replay extension ladder ─────────────────────────────
+      const RP_TP_LEVELS = [
+        { key:"003",  label:"0.03%", value:0.0003 },
+        { key:"006",  label:"0.06%", value:0.0006 },
+        { key:"009",  label:"0.09%", value:0.0009 },
+        { key:"012",  label:"0.12%", value:0.0012 },
+        { key:"030",  label:"0.3%",  value:0.003  },
+        { key:"060",  label:"0.6%",  value:0.006  },
+        { key:"090",  label:"0.9%",  value:0.009  },
+        { key:"120",  label:"1.2%",  value:0.012  },
+      ];
 
       function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
@@ -3313,14 +3307,9 @@ function App() {
         if(signal==="BUY"){
           const hit = high >= c1.open*(1+exitTP);
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          // Show counts for how many times each extension was hit (risk rule display)
-          const hit185  = high >= c1.open*(1+TP_185);
-          const hit300  = high >= c1.open*(1+TP_300);
-          const hit600  = high >= c1.open*(1+TP_600);
-          const hit900  = high >= c1.open*(1+TP_900);
-          const hit1200 = high >= c1.open*(1+TP_1200);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
           return {
-            correct: hit, tp1Hit: hit, hit185, hit300, hit600, hit900, hit1200,
+            correct: hit, tp1Hit: hit, ...hits,
             label: hit ? "HIT "+tpLabel : "MISS",
             detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
@@ -3329,13 +3318,9 @@ function App() {
         if(signal==="SELL"){
           const hit = low <= c1.open*(1-exitTP);
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hit185  = low <= c1.open*(1-TP_185);
-          const hit300  = low <= c1.open*(1-TP_300);
-          const hit600  = low <= c1.open*(1-TP_600);
-          const hit900  = low <= c1.open*(1-TP_900);
-          const hit1200 = low <= c1.open*(1-TP_1200);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
           return {
-            correct: hit, tp1Hit: hit, hit185, hit300, hit600, hit900, hit1200,
+            correct: hit, tp1Hit: hit, ...hits,
             label: hit ? "HIT "+tpLabel : "MISS",
             detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
@@ -3395,20 +3380,16 @@ function App() {
       const total  = wins+losses;
       const wr     = total>0 ? Math.round((wins/total)*100) : 0;
 
-      // Multi-level TP hit tracking per spec
-      const wins185  = scoredRows.filter(s=>s.score?.hit185===true).length;
-      const wins300  = scoredRows.filter(s=>s.score?.hit300===true).length;
-      const wins600  = scoredRows.filter(s=>s.score?.hit600===true).length;
-      const wins900  = scoredRows.filter(s=>s.score?.hit900===true).length;
-      const wins1200 = scoredRows.filter(s=>s.score?.hit1200===true).length;
-      const wr185  = total>0 ? Math.round((wins185/total)*100)  : 0;
-      const wr300  = total>0 ? Math.round((wins300/total)*100)  : 0;
-      const wr600  = total>0 ? Math.round((wins600/total)*100)  : 0;
-      const wr900  = total>0 ? Math.round((wins900/total)*100)  : 0;
-      const wr1200 = total>0 ? Math.round((wins1200/total)*100) : 0;
+      // Multi-level TP hit tracking per updated eight-level ladder
+      const tpStats = Object.fromEntries(RP_TP_LEVELS.map(l=>{
+        const wins = scoredRows.filter(s=>s.score?.["hit"+l.key]===true).length;
+        return [l.key, { wins, wr: total>0 ? Math.round((wins/total)*100) : 0, label:l.label }];
+      }));
+      const wr003 = tpStats["003"].wr, wr006 = tpStats["006"].wr, wr009 = tpStats["009"].wr, wr012 = tpStats["012"].wr;
+      const wr030 = tpStats["030"].wr, wr060 = tpStats["060"].wr, wr090 = tpStats["090"].wr, wr120 = tpStats["120"].wr;
       // Legacy aliases for any remaining display code
-      const wins618 = wins185; const wins100 = wins300;
-      const wr618 = wr185; const wr100 = wr300;
+      const wins618 = tpStats["003"].wins; const wins100 = tpStats["030"].wins;
+      const wr618 = wr003; const wr100 = wr030;
 
       // 4-way breakdown
       const wr4 = (label)=>{
@@ -3448,8 +3429,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         newsSessions, wins, losses, total, wr,
-        wins185, wins300, wins600, wins900, wins1200,
-        wr185, wr300, wr600, wr900, wr1200,
+        tpStats, wr003, wr006, wr009, wr012, wr030, wr060, wr090, wr120,
         wr618, wr100, newsFilter: rpNewsFilter,
         eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
@@ -3516,7 +3496,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.185% (61.8 fib) · BREAK: 0.1146% (38.2)</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -3567,18 +3547,21 @@ function App() {
                   <div style={{fontSize:13,color:"#666",...mono}}>{results.breakdown.breakingOnly.n} setups</div>
                   
                 </div>
-                {/* 5-level TP hit ladder per spec */}
+                {/* 8-level TP hit ladder per spec */}
                 <div style={{marginBottom:6}}>
-                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — EXIT AT .185% (count how many reached each extension)</div>
-                  <div style={{display:"flex",gap:5}}>
+                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — EXITS / EXTENSIONS</div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {[
-                      {label:"EXIT",pct:"0.185%",wr:results.wr185,primary:true},
-                      {label:".3%",  pct:"0.3%",  wr:results.wr300},
-                      {label:".6%",  pct:"0.6%",  wr:results.wr600},
-                      {label:".9%",  pct:"0.9%",  wr:results.wr900},
-                      {label:".12%", pct:"1.2%",  wr:results.wr1200},
+                      {label:"EXT 1", pct:"0.03%", wr:results.wr003, primary:true},
+                      {label:"EXT 2", pct:"0.06%", wr:results.wr006},
+                      {label:"EXT 3", pct:"0.09%", wr:results.wr009},
+                      {label:"EXT 4", pct:"0.12%", wr:results.wr012},
+                      {label:"EXT 5", pct:"0.3%",  wr:results.wr030},
+                      {label:"EXT 6", pct:"0.6%",  wr:results.wr060},
+                      {label:"EXT 7", pct:"0.9%",  wr:results.wr090},
+                      {label:"EXT 8", pct:"1.2%",  wr:results.wr120},
                     ].map(({label,pct,wr,primary})=>(
-                      <div key={label} style={{flex:1,borderRadius:8,
+                      <div key={label} style={{flex:"1 1 72px",minWidth:68,borderRadius:8,
                         background:primary?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.03)",
                         border:`1px solid ${primary?"rgba(0,255,136,0.3)":"rgba(255,255,255,0.07)"}`,
                         padding:"5px 4px",textAlign:"center"}}>
@@ -3731,7 +3714,7 @@ function App() {
                 </div>
                 <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:2}}>{current.equationPlain}</div>
                 <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>
-                  Dominant: {current.dominantSource||"breaking only"}{current.clusterResult?.stackSize?` · Stack ${current.clusterResult.stackSize}`:""} · Reason: {current.reason}
+                  {current.clusterResult?.stackSize?`Stack ${current.clusterResult.stackSize} · `:""}Reason: {current.reason}
                 </div>
 
                 {/* Active news events driving the signal */}
@@ -3748,7 +3731,7 @@ function App() {
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    dominantSource: current.dominantSource||'breaking only',                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
