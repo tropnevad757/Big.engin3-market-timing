@@ -1757,13 +1757,14 @@ function App() {
       qualifiesForStack: Number(ev.polarity)!==0,
       windowMinutes: eventWindowMinutes(ev),
       pub: ev.pub||"",
+      source: ev.source||"",
       country: ev.country||""
     })),
     directedCount: weightedDirectedLiveCount,
     activeSigns: directedLiveEvents.map(ev=>Number(ev.polarity)>0?"+":"-"),
     // STACKING STATE
     stackingActive: weightedDirectedLiveCount >= 2,
-    stackRule: livePolarityApplied.clusterResult?.rule || "speech/conference = 2+ events; other news = 1; +/+ = -, -/- = +, +/- = -",
+    stackRule: livePolarityApplied.clusterResult?.rule || "speech/conference = 2+ events; other news = 1; distinct Reuters/Bloomberg items count separately; +/+ = -, -/- = +, +/- = -",
     posCount: directedLiveEvents.filter(ev=>Number(ev.polarity)>0).length,
     negCount: directedLiveEvents.filter(ev=>Number(ev.polarity)<0).length,
     // RESOLVED SIGNS
@@ -2010,7 +2011,7 @@ function App() {
       .toLowerCase()
       .replace(/<[^>]+>/g," ")
       .replace(/&[^;]+;/g," ")
-      .replace(/(reuters|bloomberg|markets|google news|myfxbook|trading economics|forex factory)/g," ")
+      
       .replace(/[^a-z0-9]+/g," ")
       .replace(/\s+/g," ")
       .trim();
@@ -2205,7 +2206,7 @@ function App() {
         dominantCount: 1,
         secondarySign: directedCount>1 ? (weightedEvents[1].effectiveCharge===1?"+":"-") : "0",
         secondaryCount: directedCount>1 ? 1 : 0,
-        rule: "speech/conference = 2+ events; other news = 1; combine all news together with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
+        rule: "speech/conference = 2+ events; other news = 1; distinct Reuters/Bloomberg items are counted separately; combine news in order with +/+ = -, -/- = +, +/- = -; final sign then goes against the hour sign",
         foldSteps,
       };
     }
@@ -2239,7 +2240,7 @@ function App() {
       sellRestriction: false,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : "all active news was combined using the shared sign map, with speeches/conferences counting double before the final sign was matched against the hour sign",
+        : "all active news was combined in sequence using the shared sign map, with speeches/conferences counting double and distinct Reuters/Bloomberg items counted separately before the final sign was matched against the hour sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -3775,7 +3776,7 @@ function App() {
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', source:ev.source||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || 'distinct Reuters/Bloomberg items count separately; -/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
