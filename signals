@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>CRYPTONIC 88X Auto Bitcoin Signals</title>
+<meta name="theme-color" content="#06071a"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at top,#17183b 0,#06071a 45%,#03030b 100%);color:#f7f4ff;font-family:Arial,Helvetica,sans-serif}
+.wrap{max-width:1180px;margin:auto;padding:16px}
+.hero,.card{border:1px solid rgba(240,160,48,.28);background:rgba(8,9,30,.86);border-radius:22px;padding:16px;margin-bottom:14px;box-shadow:0 16px 40px rgba(0,0,0,.24)}
+.hero{background:linear-gradient(135deg,rgba(240,160,48,.13),rgba(28,28,90,.35))}
+h1{font-size:25px;margin-bottom:8px} h2{font-size:13px;color:#f0a030;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+p,.small{font-size:12px;color:#b9b7d9;line-height:1.45}
+.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:14px} @media(max-width:900px){.grid{grid-template-columns:1fr}}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px} @media(max-width:700px){.grid3{grid-template-columns:1fr}}
+.stat{border:1px solid rgba(255,255,255,.09);border-radius:17px;padding:12px;background:rgba(255,255,255,.04)}
+.stat b{display:block;font-size:22px;color:white;margin-top:3px}
+.badge{display:inline-block;border:1px solid rgba(240,160,48,.35);background:rgba(240,160,48,.08);color:#ffd28a;border-radius:999px;padding:7px 10px;font-size:12px;margin:6px 7px 0 0}
+button,input,select{width:100%;border:1px solid rgba(255,255,255,.13);background:#08091e;color:#fff;border-radius:14px;padding:12px;font-size:14px}
+button{cursor:pointer;background:linear-gradient(135deg,#f0a030,#b86e13);color:#08091e;font-weight:800;letter-spacing:.04em;border-color:rgba(240,160,48,.5)}
+button.secondary{background:#111236;color:#fff;border-color:rgba(255,255,255,.14)}
+label{display:block;font-size:11px;color:#aaa8c8;text-transform:uppercase;letter-spacing:.08em;margin:10px 0 6px}
+.signal{border-radius:24px;padding:18px;margin-top:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+.signal.buy{border-color:rgba(42,255,159,.5);box-shadow:0 0 30px rgba(42,255,159,.08)} .signal.sell{border-color:rgba(255,78,120,.5);box-shadow:0 0 30px rgba(255,78,120,.08)} .signal.skip{border-color:rgba(255,210,80,.4)}
+.side{font-size:42px;font-weight:900;letter-spacing:.03em} .buy .side{color:#2aff9f} .sell .side{color:#ff4e78} .skip .side{color:#ffd250}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px} @media(max-width:700px){.kv{grid-template-columns:1fr 1fr}}
+.kv div{background:rgba(255,255,255,.045);border-radius:14px;padding:10px;font-size:11px;color:#b9b7d9} .kv b{display:block;color:white;font-size:14px;margin-top:3px}
+.item{border-left:3px solid #f0a030;padding:10px 12px;margin:8px 0;background:rgba(255,255,255,.04);border-radius:12px;font-size:12px;color:#dddaf7}
+.item.buy{border-left-color:#2aff9f} .item.sell{border-left-color:#ff4e78} .item.skip{border-left-color:#ffd250}
+a{color:#ffd28a;text-decoration:none}
+.warn{font-size:11px;color:#8f8dac;margin-top:10px}
+.locked{filter:blur(3px);pointer-events:none;user-select:none;opacity:.55}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>₿ CRYPTONIC 88X Auto Bitcoin Signals</h1>
+    <p>Auto Bitcoin signal app using the same news source structure: Google News RSS for Bloomberg/Reuters/market-moving headlines plus ForexFactory calendar JSON. It watches fresh headlines, classifies bias, applies the time/news polarity math, and throws BUY / SELL / SKIP.</p>
+    <span class="badge">Engine: 88X CORE</span>
+    <span class="badge">Auto refresh: 60 sec</span>
+    <span class="badge">Fresh news window: 45 min</span>
+    <span class="badge">Strict mode: OFF</span>
+  </section>
+
+  <div class="grid">
+    <main>
+      <section class="card">
+        <h2>Live Signal</h2>
+        <div class="grid3">
+          <div class="stat"><span class="small">BTC</span><b id="btcPrice">Loading</b></div>
+          <div class="stat"><span class="small">Hour / Step</span><b id="hourBias">--</b></div>
+          <div class="stat"><span class="small">News State</span><b id="newsState">Scanning</b></div>
+        </div>
+
+        <div id="signalBox" class="signal skip">
+          <div class="side">WAIT</div>
+          <p class="small">Waiting for fresh directional catalyst.</p>
+          <div class="kv">
+            <div>Confidence<b>0%</b></div><div>Target 1<b>N/A</b></div><div>Target 2<b>N/A</b></div><div>Source<b>Auto</b></div>
+          </div>
+        </div>
+
+        <div class="grid3" style="margin-top:12px">
+          <button onclick="scanNow()">SCAN NOW</button>
+          <button class="secondary" onclick="copyAlert()">COPY ALERT</button>
+          <button class="secondary" onclick="toggleSound()">SOUND: <span id="soundState">ON</span></button>
+        </div>
+        <p class="warn">Signals are alerts only, not financial advice. Browser CORS/proxy availability can affect live RSS loading.</p>
+      </section>
+
+      <section class="card">
+        <h2>Signal Log</h2>
+        <div id="signalLog"></div>
+      </section>
+    </main>
+
+    <aside>
+      <section class="card">
+        <h2>Elite Gate</h2>
+        <label>Access key</label>
+        <input id="key" placeholder="Demo key: ELITE"/>
+        <button onclick="unlock()">Unlock</button>
+        <p class="warn">Replace this demo gate with Stripe/Auth when you deploy.</p>
+      </section>
+
+      <section class="card" id="eliteBox">
+        <h2>News Feed</h2>
+        <div id="feed"></div>
+      </section>
+
+      <section class="card">
+        <h2>Upcoming Calendar</h2>
+        <div id="calendar"></div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+const ENGINE = "88X CORE";
+const STRICT = false;
+const DEFAULT_CONF = 88;
+const NEWS_FEEDS = ["https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en", "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en", "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar+-forexfactory+-myfxbook&hl=en-US&gl=US&ceid=US:en", "https://news.google.com/rss/search?q=when:30d+(Reuters+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22PMI%22)&hl=en-US&gl=US&ceid=US:en", "https://news.google.com/rss/search?q=when:30d+(Bloomberg+%22economic%22+OR+%22NFP%22+OR+%22CPI%22+OR+%22FOMC%22+OR+%22GDP%22+OR+%22rates%22)&hl=en-US&gl=US&ceid=US:en"];
+const CALENDAR_JSON = "https://nfs.faireconomy.media/ff_calendar_thisweek.json?version=1";
+const FRESH_MINUTES = 45;
+let latestAlert = "";
+let soundOn = true;
+let lastSignalKey = "";
+
+function stamp(d=new Date()){ return d.toLocaleString([], {hour12:true}); }
+function lower(s){ return String(s||"").toLowerCase(); }
+
+function oddEvenBias(){
+  const h = new Date().getHours();
+  return h % 2 === 1 ? "buy" : "sell"; // user's observed pattern: odd up / even down
+}
+function hourPolarity(){
+  return oddEvenBias() === "buy" ? "positive" : "negative";
+}
+function resolveWindowMath(a,b){ if(a==="negative" && b==="negative") return "positive"; return "negative"; }
+function resolveTimeMath(a,b){ return a===b ? "positive" : "negative"; }
+function applyNewsToSlot(slotPolarity, newsPolarity, calcType){
+  if(!newsPolarity || !calcType) return {side:oddEvenBias(), math:"none", result:null};
+  const result = calcType==="time" ? resolveTimeMath(slotPolarity, newsPolarity) : resolveWindowMath(slotPolarity, newsPolarity);
+  return {side: result==="positive" ? "buy" : "sell", math:calcType, result};
+}
+
+const bullish = [
+  "beat","beats","better than expected","cooler inflation","lower inflation","rate cut","cuts rates","dovish","pause","stimulus","bailout","recovery","rebound","rally","surge","jumps","etf inflow","inflows","approval","deal reached","ceasefire","risk appetite","soft landing","bitcoin rises","bitcoin gains"
+];
+const bearish = [
+  "miss","misses","worse than expected","hotter inflation","rate hike","hawkish","recession","contraction","downgrade","default","selloff","sell-off","plunge","plunges","tumble","tumbles","slides","slumps","falls sharply","rout","panic","collapse","crash","tariff","tariffs","trade war","sanctions","war","attack","liquidation","outflows","etf outflow","bitcoin falls","bitcoin drops"
+];
+const highImpact = ["fomc","fed","powell","cpi","pce","nfp","payrolls","gdp","pmi","rate decision","inflation","treasury yields","bitcoin","crypto","etf","tariff","sanctions","war"];
+
+function classify(text){
+  const t = lower(text);
+  let bull = bullish.filter(w=>t.includes(w)).length;
+  let bear = bearish.filter(w=>t.includes(w)).length;
+  let impact = highImpact.filter(w=>t.includes(w)).length;
+  if(bull>bear) return {polarity:"positive", bias:"buy", score:bull-bear+impact, label:"Positive"};
+  if(bear>bull) return {polarity:"negative", bias:"sell", score:bear-bull+impact, label:"Negative"};
+  if(impact>0) return {polarity:"mixed", bias:"mixed", score:impact, label:"Mixed"};
+  return {polarity:null, bias:"neutral", score:0, label:"Neutral"};
+}
+
+async function fetchText(url){
+  const rss2json = "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(url);
+  try {
+    const r = await fetch(rss2json, {cache:"no-store"});
+    const j = await r.json();
+    if(j.items) return j.items.map(x=>({title:x.title, link:x.link, pub:x.pubDate, source:"rss2json"}));
+  } catch(e) {}
+  try {
+    const proxy = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+    const r = await fetch(proxy, {cache:"no-store"});
+    const xml = await r.text();
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
+    return [...doc.querySelectorAll("item")].map(it=>({
+      title: it.querySelector("title")?.textContent || "",
+      link: it.querySelector("link")?.textContent || "",
+      pub: it.querySelector("pubDate")?.textContent || "",
+      source:"allorigins"
+    }));
+  } catch(e) {}
+  return [];
+}
+
+async function loadNews(){
+  const groups = await Promise.all(NEWS_FEEDS.map(fetchText));
+  const seen = new Set();
+  const items = groups.flat().filter(x=>x.title).map(x=>({...x, time: new Date(x.pub).getTime() || Date.now()}))
+    .filter(x=>{ const k=x.title.slice(0,80); if(seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a,b)=>b.time-a.time).slice(0,40);
+  return items.map(x=>({...x, ...classify(x.title)}));
+}
+
+async function loadCalendar(){
+  try {
+    const r = await fetch(CALENDAR_JSON, {cache:"no-store"});
+    const j = await r.json();
+    const arr = Array.isArray(j) ? j : [];
+    return arr.slice(0,50).map(e=>({
+      title: `${e.country||""} ${e.title||e.event||""} ${e.impact||""}`,
+      time: new Date(e.date || e.datetime || e.timestamp || Date.now()).getTime(),
+      link: "",
+      source:"ForexFactory",
+      ...classify(`${e.title||e.event||""} ${e.impact||""}`)
+    }));
+  } catch(e) { return []; }
+}
+
+async function loadBTC(){
+  try {
+    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", {cache:"no-store"});
+    const j = await r.json();
+    document.getElementById("btcPrice").textContent = "$" + Number(j.price).toLocaleString(undefined, {maximumFractionDigits:2});
+  } catch(e) {
+    document.getElementById("btcPrice").textContent = "Manual";
+  }
+}
+
+function computeSignal(events){
+  const now = Date.now();
+  const fresh = events.filter(e=>e.time && (now-e.time) <= FRESH_MINUTES*60000);
+  const directed = fresh.filter(e=>e.polarity==="positive" || e.polarity==="negative");
+  const mixed = fresh.filter(e=>e.polarity==="mixed");
+  const hb = oddEvenBias();
+  const hp = hourPolarity();
+  document.getElementById("hourBias").textContent = hb.toUpperCase();
+
+  if(!fresh.length) return {side:"SKIP", cls:"skip", conf:0, reason:"No fresh catalyst", target1:"N/A", target2:"N/A", event:null};
+  if(!directed.length && mixed.length) {
+    if(STRICT) return {side:"SKIP", cls:"skip", conf:0, reason:"Fresh news is mixed/no directional bias", target1:"N/A", target2:"N/A", event:mixed[0]};
+    return {side:hb.toUpperCase(), cls:hb, conf:72, reason:"Mixed news: fallback to hour/step bias", target1: hb==="buy"?"+0.03%":"-0.03%", target2: hb==="buy"?"+0.06%":"-0.06%", event:mixed[0]};
+  }
+  if(!directed.length) return {side:"SKIP", cls:"skip", conf:0, reason:"No directional bias", target1:"N/A", target2:"N/A", event:fresh[0]};
+
+  directed.sort((a,b)=>b.score-a.score || b.time-a.time);
+  const ev = directed[0];
+  const applied = applyNewsToSlot(hp, ev.polarity, "time");
+  const side = applied.side;
+  const newsSide = ev.bias;
+
+  if(STRICT && side !== newsSide) {
+    return {side:"SKIP", cls:"skip", conf:0, reason:"100 STEP skipped news/hour conflict", target1:"N/A", target2:"N/A", event:ev};
+  }
+  const conf = Math.min(99, Math.max(68, DEFAULT_CONF + Math.min(8, ev.score) - (side!==newsSide ? 12 : 0)));
+  return {
+    side:side.toUpperCase(), cls:side, conf,
+    reason:`${ev.label} catalyst · time math ${applied.result} · ${side!==newsSide?"conflict discount":"aligned"}`,
+    target1: side==="buy"?"+0.03%":"-0.03%",
+    target2: side==="buy"?"+0.06%":"-0.06%",
+    event:ev
+  };
+}
+
+function renderSignal(sig){
+  const box = document.getElementById("signalBox");
+  box.className = "signal " + sig.cls;
+  const title = sig.event?.title || "No active event";
+  const src = sig.event?.source || "Auto";
+  document.getElementById("newsState").textContent = sig.side === "SKIP" ? "WAIT" : sig.side;
+  box.innerHTML = `<div class="side">${sig.side}</div>
+    <p class="small">${sig.reason}</p>
+    <p style="margin-top:8px">${title}</p>
+    <div class="kv"><div>Confidence<b>${sig.conf}%</b></div><div>Target 1<b>${sig.target1}</b></div><div>Target 2<b>${sig.target2}</b></div><div>Source<b>${src}</b></div></div>`;
+  latestAlert = `BTC ${sig.side} | ${sig.conf}% | ${sig.reason} | TP1 ${sig.target1} | TP2 ${sig.target2} | ${title} | Engine ${ENGINE}`;
+
+  const key = sig.side + "|" + title + "|" + sig.reason;
+  if(key !== lastSignalKey){
+    lastSignalKey = key;
+    addLog(sig);
+    if(sig.side !== "SKIP") notify(sig);
+  }
+}
+
+function addLog(sig){
+  const log = document.getElementById("signalLog");
+  const title = sig.event?.title || "";
+  const div = document.createElement("div");
+  div.className = "item " + sig.cls;
+  div.innerHTML = `<b>${stamp()} — ${sig.side}</b><br>${title}<br><span class="small">${sig.reason} · Confidence ${sig.conf}%</span>`;
+  log.prepend(div);
+}
+
+function renderFeed(items){
+  const feed = document.getElementById("feed");
+  feed.innerHTML = items.slice(0,10).map(x=>`<div class="item ${x.bias==='buy'?'buy':x.bias==='sell'?'sell':'skip'}"><b>${x.label}</b> · <span class="small">${new Date(x.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span><br><a href="${x.link}" target="_blank">${x.title}</a></div>`).join("");
+}
+function renderCalendar(items){
+  const cal = document.getElementById("calendar");
+  const upcoming = items.filter(x=>x.time>Date.now()-3600000).sort((a,b)=>a.time-b.time).slice(0,8);
+  cal.innerHTML = upcoming.map(x=>`<div class="item"><b>${new Date(x.time).toLocaleString([],{hour12:true})}</b><br>${x.title}</div>`).join("") || "<p class='small'>Calendar unavailable or no events loaded.</p>";
+}
+
+async function scanNow(){
+  await loadBTC();
+  const [news, cal] = await Promise.all([loadNews(), loadCalendar()]);
+  const all = [...news, ...cal];
+  renderFeed(news);
+  renderCalendar(cal);
+  renderSignal(computeSignal(all));
+}
+
+function notify(sig){
+  if(soundOn) {
+    try {
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = sig.cls==="buy" ? 880 : 440; gain.gain.value = .05;
+      osc.start(); setTimeout(()=>{osc.stop();ctx.close()}, 180);
+    } catch(e) {}
+  }
+  if("Notification" in window && Notification.permission === "granted") {
+    new Notification("BTC " + sig.side + " SIGNAL", {body: latestAlert});
+  } else if("Notification" in window && Notification.permission !== "denied") {
+    Notification.requestPermission();
+  }
+}
+function copyAlert(){ navigator.clipboard?.writeText(latestAlert || "No signal yet"); }
+function toggleSound(){ soundOn=!soundOn; document.getElementById("soundState").textContent=soundOn?"ON":"OFF"; }
+function unlock(){
+  if(document.getElementById("key").value.trim().toUpperCase()==="ELITE") document.getElementById("eliteBox").classList.remove("locked");
+  else alert("Invalid key");
+}
+document.getElementById("eliteBox").classList.add("locked");
+scanNow();
+setInterval(scanNow, 60000);
+</script>
+</body>
+</html>
