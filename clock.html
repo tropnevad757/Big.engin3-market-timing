@@ -2238,12 +2238,14 @@ function App() {
     if(waitFilter && chargedEvents.length === 1){
       const slotSign = slotCharge === 1 ? "+" : "-";
       const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
-      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · WAIT FILTER · FINAL WAIT`;
+      const finalDirection = baseDirection;
+      const finalCharge = finalDirection === "buy" ? 1 : -1;
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · VOLATILE SINGLE NEWS ${newsSign} · STEP FALLBACK · FINAL ${finalDirection.toUpperCase()}`;
       return {
-        finalDirection: null,
+        finalDirection,
         baseCharge,
-        finalCharge: 0,
-        newsFlip: 0,
+        finalCharge,
+        newsFlip: finalDirection !== baseDirection ? -1 : 1,
         negativePressure: negatives,
         positivePressure: positives,
         breakingCount: breakingEvents,
@@ -2254,9 +2256,9 @@ function App() {
         newsSign,
         slotSign,
         sellRestriction: false,
-        waitFilter: true,
-        newsType: "volatile-single",
-        reason: "single volatile news event - wait/skip immediate entry",
+        waitFilter: false,
+        newsType: "volatile-single-step-fallback",
+        reason: "single volatile news event - tested as STEP fallback instead of immediate news-vs-hour entry",
         equation: equationPlain,
         equationPlain,
       };
