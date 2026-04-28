@@ -2109,14 +2109,25 @@ function App() {
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const allActive = Array.isArray(activeEvents) ? activeEvents : [];
     const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
-    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
+    const countryMultiplicity = (ev)=>{
+      // Multi-country / multi-market weighting test:
+      // if a breaking headline refers to a country's whole market/stocks/shares,
+      // treat that country signal as 2 events so it can flip through news-vs-news math.
+      const txt = `${ev?.title||""} ${ev?.note||""} ${ev?.source||""}`.toLowerCase();
+      const code = String(ev?.country || ev?.currency || inferCountryCode(txt) || "").toUpperCase().slice(0,3);
+      const multiMarketWords = /(stocks|shares|equities|market|markets|index|indices|asx|banks|miners|companies|dividend|dividends)/i;
+      if(code && multiMarketWords.test(txt)) return 2;
+      return 1;
+    };
+    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev) * countryMultiplicity(ev), 0);
     const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)));
     const directedCount = directedEvents.reduce((n, ev)=>n + weightOf(ev), 0);
     const chargedEvents = directedEvents
       .map(ev=>({
         ...ev,
         effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0),
-        eventWeight: weightOf(ev)
+        eventWeight: weightOf(ev) * countryMultiplicity(ev),
+        countryMultiplicity: countryMultiplicity(ev)
       }))
       .filter(ev=>ev.effectiveCharge!==0);
     const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
@@ -2208,7 +2219,7 @@ function App() {
         dominantCount,
         secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
         secondaryCount,
-        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; multi-market/country headlines count as 2; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
         foldSteps,
       };
     }
