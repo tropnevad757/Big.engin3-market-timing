@@ -1772,8 +1772,6 @@ function App() {
     flippedByStacking: !!livePolarityApplied.chargeFlip,
     dominantSource: livePolarityApplied.dominantSource || "breaking only",
     reason: livePolarityApplied.reason || "",
-    waitFilter: !!livePolarityApplied.waitFilter,
-    newsType: livePolarityApplied.newsType || "normal",
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
     // SELF-CHECK: live and replay use the same function (resolveStackedNewsSign)
@@ -2043,23 +2041,6 @@ function App() {
     return "breaking";
   }
 
-  // ── LOSS FILTER: weak single-event volatile breaking news ──────────────────
-  // Keeps all core signs/stacking/fallback math untouched.
-  // Only blocks immediate entries when there is one unstacked volatile headline.
-  function isVolatileHeadline(ev){
-    const text = `${ev?.title||""} ${ev?.desc||""} ${ev?.summary||""}`.toLowerCase();
-    return /\b(war|wars|scramble|scrambles|volatile|volatility|uncertain|uncertainty|mixed|whipsaw|choppy|risk[-\s]?off|risk[-\s]?on|safe[-\s]?haven|yields?|gold|oil|geopolitical|tensions?|conflict|conflicts?|crisis|shock|panic|selloff|rout|surge|slump|jumps?|drops?|spikes?)\b/i.test(text);
-  }
-
-  function shouldWaitWeakVolatileNews(activeEvents){
-    const list = Array.isArray(activeEvents) ? activeEvents : [];
-    if(list.length !== 1) return false;
-    const ev = list[0];
-    if(replayEventType(ev) === "speech") return false; // speeches still count as 2+ behavior
-    if(Number(ev?.polarity) === 0 && !Number.isFinite(Number(ev?.rateValue))) return false;
-    return isVolatileHeadline(ev);
-  }
-
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
@@ -2142,7 +2123,6 @@ function App() {
     const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
     const speeches = allActive.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 0), 0);
-    const waitFilter = shouldWaitWeakVolatileNews(allActive);
 
     if(!activeCount){
       const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
@@ -2161,8 +2141,6 @@ function App() {
         newsSign: "0",
         slotSign: slotCharge===1?"+":"-",
         sellRestriction: false,
-        waitFilter: false,
-        newsType: "none",
         reason: "no news - step direction schedule held",
         equation: equationPlain,
         equationPlain,
@@ -2235,52 +2213,21 @@ function App() {
       };
     }
 
-    if(waitFilter && chargedEvents.length === 1){
-      const slotSign = slotCharge === 1 ? "+" : "-";
-      const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
-      const finalDirection = baseDirection;
-      const finalCharge = finalDirection === "buy" ? 1 : -1;
-      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · VOLATILE SINGLE NEWS ${newsSign} · STEP FALLBACK · FINAL ${finalDirection.toUpperCase()}`;
-      return {
-        finalDirection,
-        baseCharge,
-        finalCharge,
-        newsFlip: finalDirection !== baseDirection ? -1 : 1,
-        negativePressure: negatives,
-        positivePressure: positives,
-        breakingCount: breakingEvents,
-        activeCount,
-        chargeFlip: false,
-        clusterResult: null,
-        dominantSource: "",
-        newsSign,
-        slotSign,
-        sellRestriction: false,
-        waitFilter: false,
-        newsType: "volatile-single-step-fallback",
-        reason: "single volatile news event - tested as STEP fallback instead of immediate news-vs-hour entry",
-        equation: equationPlain,
-        equationPlain,
-      };
-    }
-
+    // FINAL DIRECTION LAYER
+    // Fallback/step direction is ONLY used when there is no active news.
+    // If news is active, do not let baseDirection override the resolved news-vs-hour sign.
     let finalDirection = newsCharge === 0
-      ? baseDirection
+      ? null
       : (newsCharge === slotCharge ? "buy" : "sell");
 
-    let sellRestriction = false;
-    if(baseDirection === "sell" && newsCharge === -1){
-      finalDirection = "sell";
-      sellRestriction = true;
-    }
-
-    const finalCharge = finalDirection === "buy" ? 1 : -1;
-    const newsFlip = finalDirection !== baseDirection;
+    const sellRestriction = false;
+    const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
+    const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · NEWS-vs-HOUR ONLY · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2297,13 +2244,9 @@ function App() {
       newsSign,
       slotSign,
       sellRestriction,
-      waitFilter: false,
-      newsType: waitFilter ? "volatile-single" : "normal",
       reason: newsCharge === 0
-        ? "news active but no directed polarity"
-        : sellRestriction
-          ? "sell-side restriction held the trade direction"
-          : "news sign was resolved, speeches counted as 2+ events, then final news sign was compared against the hour sign",
+        ? "news active but no directed polarity - no step fallback override"
+        : "news sign was resolved, then compared against the hour sign only; fallback applies only when no news exists",
       equation: equationPlain,
       equationPlain,
     };
@@ -3195,8 +3138,6 @@ function App() {
         reason: applied.reason,
         clusterResult: applied.clusterResult,
         sellRestriction: false,
-        waitFilter: !!applied.waitFilter,
-        newsType: applied.newsType || "normal",
         activeEvents,
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
@@ -3225,8 +3166,6 @@ function App() {
       reason: applied.reason,
       clusterResult: applied.clusterResult,
       sellRestriction: applied.sellRestriction,
-      waitFilter: !!applied.waitFilter,
-      newsType: applied.newsType || "normal",
       activeEvents,
       activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
@@ -3788,7 +3727,7 @@ function App() {
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    waitFilter: !!current.waitFilter,                    newsType: current.newsType||'normal',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
