@@ -2104,115 +2104,25 @@ function App() {
   }
 
 
-  
-  // ── REGIME CONNECTOR PATCH — Buy Core / Sell Reset fallback signs ───────────
-  function getReplayRegimeConnector(h24, m){
-    const t = h24*60 + m;
-    const inRange = (x,s,e)=> s<=e ? (x>=s && x<e) : (x>=s || x<e);
-    const buyCore = [
-      [30,90],    // 12:30-1:30
-      [270,390],  // 4:30-6:30
-      [450,630],  // 7:30-10:30
-      [750,810],  // 12:30-1:30 PM
-      [990,1110], // 4:30-6:30 PM
-      [1170,1350] // 7:30-10:30 PM
-    ];
-    const sellReset = [
-      [390,450],  // 6:30-7:30
-      [630,750],  // 10:30-12:30
-      [90,270],   // 1:30-4:30
-      [1110,1170],// 6:30-7:30 PM
-      [1350,30],  // 10:30-12:30 overnight
-      [810,990]   // 1:30-4:30 PM
-    ];
-    if(buyCore.some(([s,e])=>inRange(t,s,e))){
-      return { regime:"BUY_CORE", connector:"-", polarity:"negative", fallbackDirection:"buy", label:"BUY CORE · mirror · USD-" };
-    }
-    if(sellReset.some(([s,e])=>inRange(t,s,e))){
-      return { regime:"SELL_RESET", connector:"+", polarity:"positive", fallbackDirection:"sell", label:"SELL RESET · aligned · USD+" };
-    }
-    return { regime:"STEP", connector:"step", polarity:null, fallbackDirection:null, label:"STEP" };
-  }
-
-  function getReplayCountryCodes(ev){
-    const raw = `${ev?.country||""} ${ev?.currency||""} ${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`.toUpperCase();
-    const found = [];
-    const add = c => { if(c && !found.includes(c)) found.push(c); };
-    const checks = [
-      [/(^|\W)(USD|US|UNITED STATES|AMERICA|FED|FOMC|NFP|CPI|PPI|JOLTS|TREASURY)(\W|$)/g,"USD"],
-      [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/g,"EUR"],
-      [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/g,"GBP"],
-      [/(^|\W)(JPY|JAPAN|BOJ|YEN)(\W|$)/g,"JPY"],
-      [/(^|\W)(AUD|AUSTRALIA|RBA)(\W|$)/g,"AUD"],
-      [/(^|\W)(CAD|CANADA|BOC)(\W|$)/g,"CAD"],
-      [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/g,"CHF"],
-      [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/g,"NZD"],
-      [/(^|\W)(CNY|CNH|CHINA|PBOC|YUAN)(\W|$)/g,"CNY"],
-      [/(^|\W)(NOK|NORWAY|NORGES)(\W|$)/g,"NOK"],
-      [/(^|\W)(SEK|SWEDEN|RIKSBANK)(\W|$)/g,"SEK"],
-      [/(^|\W)(BRL|BRAZIL)(\W|$)/g,"BRL"],
-      [/(^|\W)(TRY|TURKEY|TURKISH)(\W|$)/g,"TRY"],
-      [/(^|\W)(MXN|MEXICO)(\W|$)/g,"MXN"],
-      [/(^|\W)(ZAR|SOUTH AFRICA)(\W|$)/g,"ZAR"],
-      [/(^|\W)(INR|INDIA)(\W|$)/g,"INR"]
-    ];
-    checks.forEach(([rx,code])=>{ if(rx.test(raw)) add(code); });
-    return found;
-  }
-
-  function getEventChargeFromRatesByRegime(ev, slotCharge){
-    const code = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
-    const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
-    if(Number.isFinite(rate)){
-      const highOrAnchor = rate >= USD_RATE;
-      // Buy Core mirror: USD/high-rate side is negative. Sell Reset aligned: USD/high-rate side is positive.
-      if(slotCharge === -1) return highOrAnchor ? -1 : 1;
-      return highOrAnchor ? 1 : -1;
-    }
-    return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : 0;
-  }
-
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const allActive = Array.isArray(activeEvents) ? activeEvents : [];
     const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
     const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
-
-    // MULTI-COUNTRY BREAKING NEWS PATCH
-    // If one breaking headline mentions 2+ countries/currencies, each country is treated
-    // like its own event and goes through the same stack/flip math.
-    const chargedEvents = [];
-    for(const ev of allActive){
-      const codes = getReplayCountryCodes(ev);
-      const usableCodes = codes.length ? codes : [String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3)].filter(Boolean);
-      if(usableCodes.length){
-        usableCodes.forEach(code=>{
-          const charge = getEventChargeFromRatesByRegime({...ev, country:code}, slotCharge);
-          if(charge){
-            chargedEvents.push({
-              ...ev,
-              country: code,
-              effectiveCharge: charge,
-              eventWeight: weightOf(ev),
-              multiCountrySource: usableCodes.length > 1
-            });
-          }
-        });
-      } else if(Number(ev?.polarity)!==0){
-        chargedEvents.push({
-          ...ev,
-          effectiveCharge: Number(ev.polarity)>0 ? 1 : -1,
-          eventWeight: weightOf(ev),
-          multiCountrySource: false
-        });
-      }
-    }
-
+    const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)));
+    const directedCount = directedEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+    const chargedEvents = directedEvents
+      .map(ev=>({
+        ...ev,
+        effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0),
+        eventWeight: weightOf(ev)
+      }))
+      .filter(ev=>ev.effectiveCharge!==0);
     const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
     const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
-    const multiCountry = chargedEvents.some(ev=>ev.multiCountrySource) || chargedEvents.length > allActive.length;
+    const speeches = allActive.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 0), 0);
 
     if(!activeCount){
       const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
@@ -2237,6 +2147,11 @@ function App() {
       };
     }
 
+    let newsCharge = 0;
+    let chargeFlip = false;
+    let clusterResult = null;
+    let dominantSource = directedCount ? "news sign first" : "undirected news";
+
     const combineCharges = (leftCharge, rightCharge)=>{
       if(leftCharge === -1 && rightCharge === -1) return 1;
       if(leftCharge === 1 && rightCharge === 1) return -1;
@@ -2246,56 +2161,66 @@ function App() {
     const resolveGroupedCharge = (signCharge, count)=>{
       if(count <= 0) return 0;
       if(count === 1) return signCharge;
-      return -signCharge; // 2+ same-sign countries/events flip once
+      return -signCharge; // 2 or more same-sign events flip once and hold there
     };
-
-    let newsCharge = 0;
-    let chargeFlip = false;
-    let clusterResult = null;
-    let dominantSource = chargedEvents.length ? "regime country math" : "undirected news";
 
     if(chargedEvents.length === 1){
       newsCharge = chargedEvents[0].effectiveCharge;
-      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} regime charge`;
+      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} vs USD`;
     } else if(chargedEvents.length >= 2){
-      const posResolved = resolveGroupedCharge(1, positives);
-      const negResolved = resolveGroupedCharge(-1, negatives);
-      const foldSteps = [];
-      if(positives > 0) foldSteps.push(`POSITIVE GROUP + x${positives} -> ${posResolved===1?'+':'-'}`);
-      if(negatives > 0) foldSteps.push(`NEGATIVE GROUP - x${negatives} -> ${negResolved===1?'+':'-'}`);
+      const ranked = [...chargedEvents].sort((a,b)=>Math.abs((Number(b.rateValue)||USD_RATE)-USD_RATE)-Math.abs((Number(a.rateValue)||USD_RATE)-USD_RATE));
+      const firstCharge = ranked[0].effectiveCharge;
+      const dominantCharge = ranked[0].effectiveCharge;
+      const dominantCode = ranked[0].country || "USD";
+      const dominantRate = Number(ranked[0].rateValue ?? USD_RATE);
+      const secondaryCharge = ranked.length > 1 ? ranked[1].effectiveCharge : 0;
+      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
 
-      if(positives > 0 && negatives > 0){
-        newsCharge = combineCharges(posResolved, negResolved);
-        foldSteps.push(`COMBINE ${posResolved===1?'+':'-'} ${negResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
-      } else {
-        newsCharge = positives > 0 ? posResolved : negResolved;
+      const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
+      const secondaryResolved = secondaryCharge===0 ? 0 : resolveGroupedCharge(secondaryCharge, secondaryCount);
+
+      const foldSteps = [];
+      foldSteps.push(
+        `DOMINANT ${dominantCode} ${dominantRate.toFixed(2)} vs USD ${USD_RATE.toFixed(2)} => ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
+      );
+      if(secondaryCount > 0){
+        foldSteps.push(
+          `SECONDARY ${secondaryCharge===1?'+':'-'} x${secondaryCount} -> ${secondaryResolved===1?'+':'-'}`
+        );
+      }
+
+      newsCharge = dominantResolved;
+      if(secondaryCount > 0){
+        newsCharge = combineCharges(dominantResolved, secondaryResolved);
+        foldSteps.push(
+          `COMBINE ${dominantResolved===1?'+':'-'} ${secondaryResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`
+        );
       }
 
       chargeFlip = true;
       clusterResult = {
-        dominantSource: multiCountry ? "multi-country breaking/news math" : "stacked news math",
+        dominantSource: `${dominantCode} rate-dominant`,
         stackSize: chargedEvents.length,
         positiveCount: positives,
         negativeCount: negatives,
-        dominantSign: positives>=negatives ? "+" : "-",
-        dominantCount: Math.max(positives, negatives),
-        secondarySign: positives&&negatives ? (positives>=negatives ? "-" : "+") : "0",
-        secondaryCount: positives&&negatives ? Math.min(positives, negatives) : 0,
-        rule: "Regime connector applies first; Buy Core mirror makes USD/high-rate countries negative, Sell Reset aligned makes USD/high-rate countries positive; 2+ same-sign countries/events flip once; opposite signs resolve negative; -/- = +, +/+ = -, +/- = -.",
+        dominantSign: dominantCharge===1?"+":"-",
+        dominantCount,
+        secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
+        secondaryCount,
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
         foldSteps,
       };
     }
 
-    let finalDirection;
-    if(newsCharge === 0){
-      finalDirection = baseDirection;
-    } else if(multiCountry || chargedEvents.length >= 2){
-      // For multi-country or stacked breaking news, the resolved news stack result is the direction.
-      // This preserves your 4:30 example: two high-rate negatives in Buy Core flip to positive => BUY.
-      finalDirection = newsCharge === 1 ? "buy" : "sell";
-    } else {
-      // Single-country news still compares against the active regime/slot sign.
-      finalDirection = newsCharge === slotCharge ? "buy" : "sell";
+    let finalDirection = newsCharge === 0
+      ? baseDirection
+      : (newsCharge === slotCharge ? "buy" : "sell");
+
+    let sellRestriction = false;
+    if(baseDirection === "sell" && newsCharge === -1){
+      finalDirection = "sell";
+      sellRestriction = true;
     }
 
     const finalCharge = finalDirection === "buy" ? 1 : -1;
@@ -2303,8 +2228,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `BASE ${baseDirection.toUpperCase()} · REGIME ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `${multiCountry ? "MULTI-COUNTRY" : "NEWS"} · BASE ${baseDirection.toUpperCase()} · REGIME ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}`;
+      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
+      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
 
     return {
       finalDirection,
@@ -2320,16 +2245,12 @@ function App() {
       dominantSource,
       newsSign,
       slotSign,
-      sellRestriction: false,
-      waitFilter: false,
-      newsType: multiCountry ? "multi-country-regime-math" : "normal",
+      sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed polarity"
-        : multiCountry
-          ? "breaking/news headline mentioned multiple countries, so each country was charged by regime connector and stacked before direction"
-          : chargedEvents.length >= 2
-            ? "stacked news signs were resolved by regime connector math before direction"
-            : "single news sign was compared against the active regime connector sign",
+        : sellRestriction
+          ? "sell-side restriction held the trade direction"
+          : "news sign was resolved, speeches counted as 2+ events, then final news sign was compared against the hour sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -3204,14 +3125,12 @@ function App() {
   //       (Buy=up=even=+  /  Sell=down=odd=-)
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
-    // Regime-country patch:
-    // When news is active, use the active Buy Core / Sell Reset connector sign instead of raw odd/even hour sign.
-    // Buy Core = mirror = negative connector / USD- ; Sell Reset = aligned = positive connector / USD+.
+    // When news is active, combine the final news sign against the hour sign:
+    // even hour = positive (+), odd hour = negative (-).
+    // Step direction remains the no-news fallback only.
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
-    const regimeConnector = getReplayRegimeConnector(h24, m);
-    const activeSlotPolarity = hasActiveNews ? (regimeConnector.polarity || fallback.polarity) : fallback.polarity;
-    const activeBaseDirection = hasActiveNews ? (regimeConnector.fallbackDirection || fallback.direction) : fallback.direction;
-    const applied = resolveStackedNewsSign(activeBaseDirection, activeSlotPolarity, activeEvents);
+    const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
+    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
       return {
@@ -3227,17 +3146,17 @@ function App() {
         activeCount: applied.activeCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
-        baseDirection: activeBaseDirection,
-        baseCharge: activeBaseDirection === "buy" ? 1 : -1,
+        baseDirection: fallback.direction,
+        baseCharge: fallback.direction === "buy" ? 1 : -1,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: activeSlotPolarity,
-        slotSign: applied.slotSign || (activeSlotPolarity === "positive" ? "+" : "-"),
+        slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
+        slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
         newsSign: applied.newsSign,
         equation: equationPlain,
         equationPlain,
         newsCount: (activeEvents||[]).length,
-        fallbackWindow: hasActiveNews ? regimeConnector.label : fallback.window,
+        fallbackWindow: fallback.window,
         tp1: 0.003, tp2: 0.006, tp3: 0.009,
       };
     }
@@ -3255,17 +3174,17 @@ function App() {
       activeCount: applied.activeCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
-      baseDirection: activeBaseDirection,
-      baseCharge: activeBaseDirection === "buy" ? 1 : -1,
+      baseDirection: fallback.direction,
+      baseCharge: fallback.direction === "buy" ? 1 : -1,
       finalCharge: applied.finalCharge,
       newsFlip: applied.newsFlip,
-      slotPolarity: activeSlotPolarity,
-      slotSign: applied.slotSign || (activeSlotPolarity === "positive" ? "+" : "-"),
+      slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
+      slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
       newsSign: applied.newsSign,
       equation: equationPlain,
       equationPlain,
       newsCount: (activeEvents||[]).length,
-      fallbackWindow: hasActiveNews ? regimeConnector.label : fallback.window,
+      fallbackWindow: fallback.window,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
   }
