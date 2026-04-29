@@ -2213,23 +2213,24 @@ function App() {
       };
     }
 
+    // FINAL DIRECTION LAYER
+    // Fallback/step direction is ONLY used when there is no active news.
+    // If news is active, use the STEP SIGN as the comparison sign.
+    // This prevents the odd/even hour SLOT sign from forcing bad sells like:
+    // STEP BUY + NEWS + + SLOT - => should still resolve BUY.
+    const stepSign = baseCharge === 1 ? "+" : "-";
     let finalDirection = newsCharge === 0
-      ? baseDirection
-      : (newsCharge === slotCharge ? "buy" : "sell");
+      ? null
+      : (newsCharge === baseCharge ? "buy" : "sell");
 
-    let sellRestriction = false;
-    if(baseDirection === "sell" && newsCharge === -1){
-      finalDirection = "sell";
-      sellRestriction = true;
-    }
-
-    const finalCharge = finalDirection === "buy" ? 1 : -1;
-    const newsFlip = finalDirection !== baseDirection;
+    const sellRestriction = false;
+    const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
+    const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NO DIRECTED NEWS · FINAL ${finalDirection.toUpperCase()}`
-      : `BASE ${baseDirection.toUpperCase()} · SLOT ${slotSign} · NEWS ${newsSign} · FINAL ${finalDirection.toUpperCase()}${sellRestriction ? " · SELL RULE HOLD" : ""}`;
+      ? `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ${newsSign} · NEWS-vs-STEP ONLY · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2245,12 +2246,11 @@ function App() {
       dominantSource,
       newsSign,
       slotSign,
+      stepSign,
       sellRestriction,
       reason: newsCharge === 0
-        ? "news active but no directed polarity"
-        : sellRestriction
-          ? "sell-side restriction held the trade direction"
-          : "news sign was resolved, speeches counted as 2+ events, then final news sign was compared against the hour sign",
+        ? "news active but no directed polarity - no step fallback override"
+        : "news sign was resolved, then compared against the STEP sign only; SLOT is shown for reference but does not override active news",
       equation: equationPlain,
       equationPlain,
     };
