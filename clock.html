@@ -1742,8 +1742,10 @@ function App() {
     ? ((et.h24 % 2 === 0) ? "positive" : "negative")
     : (_stepDir === "buy" ? "positive" : "negative");
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
-  const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || [], et.h24, et.m);
-  const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
+  const liveAnchorSign = connectorMode === "aligned" ? 1 : -1;
+  const liveActiveNewsWithAnchor = (newsReaction.nearEvents || []).map(ev=>({...ev, _usdSign: liveAnchorSign, country: ev.country || inferCountryCode(String(ev.title||"") + " " + String(ev.note||"") + " " + String(ev.desc||""))}));
+  const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, liveActiveNewsWithAnchor);
+  const directedLiveEvents = liveActiveNewsWithAnchor.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)) || ev.country);
   const weightedDirectedLiveCount = directedLiveEvents.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
   const polarityDirection = livePolarityApplied.finalDirection;
   // ── LIVE NEWS DEBUG — same fields as replay, single source of truth ─────────
@@ -2104,80 +2106,162 @@ function App() {
   }
 
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=null){
-    // CLEAN ENGINE — NO MIXING
-    // No news = step fallback. News active = step fallback locked out.
-    // Country/rate signs are resolved by connector regime, then news is combined, then compared to hour sign.
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const allActive = Array.isArray(activeEvents) ? activeEvents : [];
     const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
     const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
-    const slotSign = slotCharge === 1 ? "+" : "-";
-    const stepSign = baseCharge === 1 ? "+" : "-";
+    const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)));
+    const directedCount = directedEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+    const chargedEvents = directedEvents
+      .map(ev=>({
+        ...ev,
+        effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0),
+        eventWeight: weightOf(ev)
+      }))
+      .filter(ev=>ev.effectiveCharge!==0);
+    const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
+    const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
+    const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
+    const speeches = allActive.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 0), 0);
 
     if(!activeCount){
-      const equationPlain = `NO NEWS · STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · FINAL ${baseDirection.toUpperCase()}`;
-      return { finalDirection: baseDirection, baseCharge, finalCharge: baseCharge, newsFlip: 1, negativePressure: 0, positivePressure: 0, breakingCount: 0, activeCount: 0, chargeFlip: false, clusterResult: null, dominantSource: "step fallback only", newsSign: "0", slotSign, stepSign, sellRestriction: false, reason: "no active news - step fallback direction used", equation: equationPlain, equationPlain };
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      return {
+        finalDirection: baseDirection,
+        baseCharge,
+        finalCharge: baseCharge,
+        newsFlip: 1,
+        negativePressure: 0,
+        positivePressure: 0,
+        breakingCount: 0,
+        activeCount: 0,
+        chargeFlip: false,
+        clusterResult: null,
+        dominantSource: "step schedule",
+        newsSign: "0",
+        slotSign: slotCharge===1?"+":"-",
+        sellRestriction: false,
+        reason: "no news - step direction schedule held",
+        equation: equationPlain,
+        equationPlain,
+      };
     }
 
-    const connectorMode = (Number.isFinite(Number(h24)) && Number.isFinite(Number(m))) ? getConnectorMode(Number(h24), Number(m)) : "mirror";
+    let newsCharge = 0;
+    let chargeFlip = false;
+    let clusterResult = null;
+    let dominantSource = directedCount ? "news sign first" : "undirected news";
 
-    const chargeFromCountryRate = (ev)=>{
-      const code = String(ev?.country || ev?.currency || inferCountryCode(`${ev?.title||""} ${ev?.note||""}`) || "USD").toUpperCase().slice(0,3);
-      const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
-      let charge;
-      if(Number.isFinite(rate)){
-        charge = assignRawCharge(rate, connectorMode);
-      }else{
-        charge = Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : 0;
-      }
-      return {code, rate, charge};
-    };
-
-    const chargedEvents = allActive.flatMap(ev=>{
-      const info = chargeFromCountryRate(ev);
-      if(!info.charge) return [];
-      const w = weightOf(ev);
-      return Array.from({length:w}, (_,i)=>({ ...ev, effectiveCharge: info.charge, country: info.code || ev.country || "USD", rateValue: Number.isFinite(info.rate) ? info.rate : ev.rateValue, eventWeight: 1, weightSlot: i+1, originalWeight: w }));
-    }).sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
-
-    const positives = chargedEvents.filter(ev=>ev.effectiveCharge > 0).length;
-    const negatives = chargedEvents.filter(ev=>ev.effectiveCharge < 0).length;
-    const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
-
-    if(!chargedEvents.length){
-      const equationPlain = `NEWS ACTIVE · NO DIRECTED COUNTRY/RATE SIGN · STEP LOCKED OUT · FINAL WAIT`;
-      return { finalDirection: null, baseCharge, finalCharge: 0, newsFlip: 0, negativePressure: 0, positivePressure: 0, breakingCount: breakingEvents, activeCount, chargeFlip: false, clusterResult: null, dominantSource: "undirected news", newsSign: "0", slotSign, stepSign, sellRestriction: false, reason: "news active but no directed sign - step fallback locked out", equation: equationPlain, equationPlain };
-    }
-
-    const combineNewsCharges = (a,b)=>{
-      if(a === -1 && b === -1) return 1;
-      if(a === 1 && b === 1) return -1;
+    const combineCharges = (leftCharge, rightCharge)=>{
+      if(leftCharge === -1 && rightCharge === -1) return 1;
+      if(leftCharge === 1 && rightCharge === 1) return -1;
       return -1;
     };
 
-    let newsCharge = chargedEvents[0].effectiveCharge;
-    const foldSteps = [`START ${chargedEvents[0].country||"USD"} ${newsCharge===1?'+':'-'}${Number.isFinite(Number(chargedEvents[0].rateValue)) ? ` rate ${Number(chargedEvents[0].rateValue).toFixed(2)}` : ''}`];
-    for(let i=1;i<chargedEvents.length;i++){
-      const before = newsCharge;
-      const next = chargedEvents[i].effectiveCharge;
-      newsCharge = combineNewsCharges(newsCharge, next);
-      foldSteps.push(`COMBINE ${before===1?'+':'-'} ${next===1?'+':'-'} (${chargedEvents[i].country||'USD'}) -> ${newsCharge===1?'+':'-'}`);
+    const resolveGroupedCharge = (signCharge, count)=>{
+      if(count <= 0) return 0;
+      if(count === 1) return signCharge;
+      return -signCharge; // 2 or more same-sign events flip once and hold there
+    };
+
+    if(chargedEvents.length === 1){
+      newsCharge = chargedEvents[0].effectiveCharge;
+      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} vs USD`;
+    } else if(chargedEvents.length >= 2){
+      const ranked = [...chargedEvents].sort((a,b)=>Math.abs((Number(b.rateValue)||USD_RATE)-USD_RATE)-Math.abs((Number(a.rateValue)||USD_RATE)-USD_RATE));
+      const firstCharge = ranked[0].effectiveCharge;
+      const dominantCharge = ranked[0].effectiveCharge;
+      const dominantCode = ranked[0].country || "USD";
+      const dominantRate = Number(ranked[0].rateValue ?? USD_RATE);
+      const secondaryCharge = ranked.length > 1 ? ranked[1].effectiveCharge : 0;
+      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+
+      const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
+      const secondaryResolved = secondaryCharge===0 ? 0 : resolveGroupedCharge(secondaryCharge, secondaryCount);
+
+      const foldSteps = [];
+      foldSteps.push(
+        `DOMINANT ${dominantCode} ${dominantRate.toFixed(2)} vs USD ${USD_RATE.toFixed(2)} => ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
+      );
+      if(secondaryCount > 0){
+        foldSteps.push(
+          `SECONDARY ${secondaryCharge===1?'+':'-'} x${secondaryCount} -> ${secondaryResolved===1?'+':'-'}`
+        );
+      }
+
+      newsCharge = dominantResolved;
+      if(secondaryCount > 0){
+        newsCharge = combineCharges(dominantResolved, secondaryResolved);
+        foldSteps.push(
+          `COMBINE ${dominantResolved===1?'+':'-'} ${secondaryResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`
+        );
+      }
+
+      chargeFlip = true;
+      clusterResult = {
+        dominantSource: `${dominantCode} rate-dominant`,
+        stackSize: chargedEvents.length,
+        positiveCount: positives,
+        negativeCount: negatives,
+        dominantSign: dominantCharge===1?"+":"-",
+        dominantCount,
+        secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
+        secondaryCount,
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
+        foldSteps,
+      };
     }
 
-    const newsSign = newsCharge === 1 ? "+" : "-";
-    const finalDirection = newsCharge === slotCharge ? "buy" : "sell";
-    const finalCharge = finalDirection === "buy" ? 1 : -1;
-    const newsFlip = finalDirection !== baseDirection;
-    const chargeFlip = chargedEvents.length >= 2;
-    const equationPlain = `NEWS ACTIVE · REGIME ${connectorMode.toUpperCase()} · NEWS ${newsSign} · HOUR ${slotSign} · ${newsSign===slotSign?'SAME':'DIFFERENT'} SIGN · FINAL ${finalDirection.toUpperCase()}`;
+    // FINAL DIRECTION LAYER
+    // Fallback/step direction is ONLY used when there is no active news.
+    // If news is active, use the HOUR SIGN as the comparison sign.
+    // This prevents the odd/even hour SLOT sign from forcing bad sells like:
+    // STEP BUY + NEWS + + SLOT - => should still resolve BUY.
+    const stepSign = baseCharge === 1 ? "+" : "-";
+    let finalDirection = newsCharge === 0
+      ? null
+      : (newsCharge === slotCharge ? "buy" : "sell");
 
-    return { finalDirection, baseCharge, finalCharge, newsFlip: newsFlip ? -1 : 1, negativePressure: negatives, positivePressure: positives, breakingCount: breakingEvents, activeCount, chargeFlip, clusterResult: { dominantSource: "clean sequential news engine", stackSize: chargedEvents.length, positiveCount: positives, negativeCount: negatives, dominantSign: newsSign, dominantCount: chargedEvents.length, secondarySign: "0", secondaryCount: 0, rule: "country interest-rate sign by Buy Core/Sell Reset connector; sequential news math: -/-=+, +/+=-, mixed=-; final news vs hour: same=BUY, different=SELL", foldSteps }, dominantSource: "clean news engine", newsSign, slotSign, stepSign, sellRestriction: false, reason: "news active - step fallback locked out; country/rate signs combined first, then resolved news sign compared to odd/even hour sign", equation: equationPlain, equationPlain };
+    const sellRestriction = false;
+    const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
+    const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
+    const slotSign = slotCharge === 1 ? "+" : "-";
+    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const equationPlain = newsCharge === 0
+      ? `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ${newsSign} · NEWS-vs-HOUR ONLY · FINAL ${finalDirection.toUpperCase()}`;
+
+    return {
+      finalDirection,
+      baseCharge,
+      finalCharge,
+      newsFlip: newsFlip ? -1 : 1,
+      negativePressure: negatives,
+      positivePressure: positives,
+      breakingCount: breakingEvents,
+      activeCount,
+      chargeFlip,
+      clusterResult,
+      dominantSource,
+      newsSign,
+      slotSign,
+      stepSign,
+      sellRestriction,
+      reason: newsCharge === 0
+        ? "news active but no directed polarity - no step fallback override"
+        : "news sign was resolved, then compared against the HOUR sign only; step fallback is used only when there is no active news",
+      equation: equationPlain,
+      equationPlain,
+    };
   }
 
-  function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents, h24=null, m=null){
-    return computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24, m);
+
+
+  function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents){
+    return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
   }
 
   function getSixHourFallback_430_1030_standard(h24, m){
@@ -2239,18 +2323,20 @@ function App() {
   }
 
   function getEventChargeFromRates(ev){
-    const code = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
+    const rawCode = String(ev?.country || ev?.currency || inferCountryCode(`${ev?.title||""} ${ev?.note||""} ${ev?.desc||""}`) || "USD").toUpperCase().slice(0,3);
+    const code = rawCode || "USD";
+    const usdSign = Number(ev?._usdSign ?? ev?.usdSign ?? ev?.anchorSign ?? 1) >= 0 ? 1 : -1;
     const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
-    if(!Number.isFinite(rate)) return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : 0;
-    const base = rate > USD_RATE ? 1 : -1;
-    return rate <= USD_RATE ? -base : base;
+    if(code === "USD") return usdSign;
+    if(!Number.isFinite(rate)) return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : usdSign;
+    return rate > USD_RATE ? usdSign : -usdSign;
   }
 
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
     if(fallback) return String(fallback).toUpperCase().slice(0,3);
     const checks = [
-      [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
+      [/(^|\W)(USD|US|U\.?S\.?|UNITED STATES|FOMC|FED|FEDERAL RESERVE|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY|YIELD|YIELDS|DOLLAR|RATE|RATES|INFLATION)(\W|$)/, "USD"],
       [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
       [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/, "GBP"],
       [/(^|\W)(JPY|JAPAN|BOJ)(\W|$)/, "JPY"],
@@ -2261,7 +2347,7 @@ function App() {
       [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
     ];
     for (const [rx, code] of checks) if (rx.test(t)) return code;
-    return "";
+    return "USD";
   }
 
   // Normalize any RSS item into a consistent shape
@@ -3047,8 +3133,10 @@ function App() {
     // even hour = positive (+), odd hour = negative (-).
     // Step direction remains the no-news fallback only.
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
+    const replayAnchorSign = getConnectorMode(h24, m) === "aligned" ? 1 : -1;
+    const anchoredActiveEvents = (activeEvents || []).map(ev=>({...ev, _usdSign: replayAnchorSign, country: ev.country || inferCountryCode(String(ev.title||"") + " " + String(ev.note||"") + " " + String(ev.desc||""))}));
     const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
-    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents, h24, m);
+    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, anchoredActiveEvents);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
       return {
