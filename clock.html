@@ -3286,6 +3286,23 @@ function App() {
         return candleByTs[sortedTs[idx+1]]||null;
       }
 
+      // ── STRICT PRICE VALIDATION WINDOW ───────────────────────────────────────
+      // Win-rate must be graded from BTC candles after the signal, not from logic.
+      // A TP touch only counts if the validation-window close also confirms the
+      // signal direction. This prevents wick-only / wrong-way moves from being
+      // counted as fake wins.
+      function getForwardCandles(ts, windowMins){
+        const start = Number(ts);
+        const mins = Math.max(30, Number(windowMins||30));
+        const end = start + mins*60000;
+        const rows = sortedTs
+          .filter(t=>t>=start && t<end)
+          .map(t=>candleByTs[t])
+          .filter(Boolean);
+        if(!rows.length && candleByTs[start]) rows.push(candleByTs[start]);
+        return rows;
+      }
+
       // ── SCORER — updated replay extension ladder ─────────────────────────────
       const RP_TP_LEVELS = [
         { key:"003",  label:"0.03%", value:0.0003 },
@@ -3298,32 +3315,49 @@ function App() {
         { key:"120",  label:"1.2%",  value:0.012  },
       ];
 
-      function rpScore2(signal, c1, c2, sigWindow){
+      function rpScore2(signal, c1, validationCandles, sigWindow){
         if(!c1||!c1.open) return null;
         const {exitRule, type, tp: exitTP, tpLabel, tpPct} = sigWindow;
-        const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
-        const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
+        const rows = Array.isArray(validationCandles) && validationCandles.length ? validationCandles : [c1];
+        const entry = c1.open;
+        const high = Math.max(...rows.map(c=>Number(c.high)||0));
+        const low  = Math.min(...rows.map(c=>Number(c.low)||entry));
+        const last = rows[rows.length-1] || c1;
+        const exitClose = Number(last.close)||entry;
+        const closePct = (((exitClose-entry)/entry)*100);
+        const maxUpPct = (((high/entry)-1)*100);
+        const maxDnPct = (((entry/low)-1)*100);
 
         if(signal==="BUY"){
-          const hit = high >= c1.open*(1+exitTP);
-          const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
+          const touched = high >= entry*(1+exitTP);
+          const closeConfirmed = exitClose > entry;
+          const hit = touched && closeConfirmed;
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, closeConfirmed && high >= entry*(1+l.value)]));
           return {
-            correct: hit, tp1Hit: hit, ...hits,
+            correct: hit, tp1Hit: hit, ...hits, touchedTP1: touched, closeConfirmed,
             label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+            detail: hit
+              ? "+"+tpPct+" hit + BTC closed in BUY direction (close "+(closePct>=0?"+":"")+closePct.toFixed(2)+"%)"
+              : touched
+                ? "TP touched, but BTC closed against BUY (close "+closePct.toFixed(2)+"%) — not counted"
+                : "Max +"+maxUpPct.toFixed(2)+"% — needed +"+tpPct+"; close "+(closePct>=0?"+":"")+closePct.toFixed(2)+"%",
+            windowLabel: exitRule+" · BTC close-confirmed", tp: exitTP, tpPct, tpLabel,
           };
         }
         if(signal==="SELL"){
-          const hit = low <= c1.open*(1-exitTP);
-          const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
+          const touched = low <= entry*(1-exitTP);
+          const closeConfirmed = exitClose < entry;
+          const hit = touched && closeConfirmed;
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, closeConfirmed && low <= entry*(1-l.value)]));
           return {
-            correct: hit, tp1Hit: hit, ...hits,
+            correct: hit, tp1Hit: hit, ...hits, touchedTP1: touched, closeConfirmed,
             label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+            detail: hit
+              ? "-"+tpPct+" hit + BTC closed in SELL direction (close "+closePct.toFixed(2)+"%)"
+              : touched
+                ? "TP touched, but BTC closed against SELL (close +"+closePct.toFixed(2)+"%) — not counted"
+                : "Max -"+maxDnPct.toFixed(2)+"% — needed -"+tpPct+"; close "+(closePct>=0?"+":"")+closePct.toFixed(2)+"%",
+            windowLabel: exitRule+" · BTC close-confirmed", tp: exitTP, tpPct, tpLabel,
           };
         }
         return null;
@@ -3355,8 +3389,8 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const nextC = getNextCandle(c.ts);
-        const score = rpScore2(replay.signal, c, nextC, sigWindow);
+        const validationCandles = getForwardCandles(c.ts, sigWindow.windowMins);
+        const score = rpScore2(replay.signal, c, validationCandles, sigWindow);
 
         if(!hasNews || !replay.signal) continue;
 
