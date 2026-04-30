@@ -2216,11 +2216,9 @@ function App() {
     }
 
     // FINAL DIRECTION LAYER
-    // Fallback/step direction is ONLY used when there is no active news.
-    // If news is active, use the HOUR SIGN as the comparison sign.
-    // This prevents the odd/even hour SLOT sign from forcing bad sells like:
-    // STEP BUY + NEWS + + SLOT - => should still resolve BUY.
-    const stepSign = baseCharge === 1 ? "+" : "-";
+    // Step has NO sign in active-news mode. Step is only a fallback direction
+    // when there is no active news. With news active, compare NEWS SIGN vs HOUR SIGN.
+    const fallbackLabel = baseDirection.toUpperCase();
     let finalDirection = newsCharge === 0
       ? null
       : (newsCharge === slotCharge ? "buy" : "sell");
@@ -2230,9 +2228,10 @@ function App() {
     const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const finalRelation = newsCharge === 0 ? "NO DIRECTED SIGN" : (newsCharge === slotCharge ? "SAME SIGN" : "DIFFERENT SIGN");
     const equationPlain = newsCharge === 0
-      ? `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
-      : `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ${newsSign} · NEWS-vs-HOUR ONLY · FINAL ${finalDirection.toUpperCase()}`;
+      ? `FALLBACK ${fallbackLabel} (NO-NEWS ONLY) · HOUR ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `FALLBACK ${fallbackLabel} (NO-NEWS ONLY) · HOUR ${slotSign} · NEWS ${newsSign} · ${finalRelation} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2248,7 +2247,7 @@ function App() {
       dominantSource,
       newsSign,
       slotSign,
-      stepSign,
+      stepSign: "",
       sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed polarity - no step fallback override"
@@ -2326,9 +2325,14 @@ function App() {
     const rawCode = String(ev?.country || ev?.currency || inferCountryCode(`${ev?.title||""} ${ev?.note||""} ${ev?.desc||""}`) || "USD").toUpperCase().slice(0,3);
     const code = rawCode || "USD";
     const usdSign = Number(ev?._usdSign ?? ev?.usdSign ?? ev?.anchorSign ?? 1) >= 0 ? 1 : -1;
-    const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
-    if(code === "USD") return usdSign;
-    if(!Number.isFinite(rate)) return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : usdSign;
+    // Latest locked rule:
+    // country interest rate > USD rate  => SAME sign as USD anchor
+    // country interest rate <= USD rate => OPPOSITE sign from USD anchor
+    // This includes USD itself, because USD rate equals USD_RATE.
+    const rawRate = ev?.rateValue;
+    const tableRate = getRateForSymbol(code);
+    const rate = Number.isFinite(Number(rawRate)) ? Number(rawRate) : (Number.isFinite(Number(tableRate)) ? Number(tableRate) : null);
+    if(!Number.isFinite(rate)) return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : -usdSign;
     return rate > USD_RATE ? usdSign : -usdSign;
   }
 
@@ -3137,13 +3141,14 @@ function App() {
     const anchoredActiveEvents = (activeEvents || []).map(ev=>({...ev, _usdSign: replayAnchorSign, country: ev.country || inferCountryCode(String(ev.title||"") + " " + String(ev.note||"") + " " + String(ev.desc||""))}));
     const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
     const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, anchoredActiveEvents);
-    const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
+    const regimeLabel = hasActiveNews ? ((activeEvents||[]).length > 1 ? "NEWS_MIXED" : "NEWS_SINGLE") : "STEP_FALLBACK";
+    const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "FALLBACK ");
     if(!applied.finalDirection){
       return {
         signal: null,
         chargeFlip: false,
         mode: "news-mixed",
-        regime: "NEWS_MIXED",
+        regime: regimeLabel,
         flip: false,
         reason: applied.reason,
         clusterResult: applied.clusterResult,
@@ -3171,7 +3176,7 @@ function App() {
       signal,
       chargeFlip: applied.chargeFlip,
       mode: "news-mixed",
-      regime: "NEWS_MIXED",
+      regime: regimeLabel,
       flip: false,
       reason: applied.reason,
       clusterResult: applied.clusterResult,
@@ -3273,7 +3278,9 @@ function App() {
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && t >= replayWindowStart && replayEventType(ev)==="breaking";
+        // Include every logged news type in the active window so multiple
+        // breaking/calendar/market items can combine before final news-vs-hour math.
+        return t && t >= replayWindowStart;
       });
       // ── MARKET-MOVING-NEWS-ONLY REPLAY ─────────────────────────────────────────────
       // No schedule slots, no execute/trap framework. Any candle with active
@@ -3761,7 +3768,7 @@ function App() {
                 {current.activeCount>0 && current.activeEvents?.length>0 ? (
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                     <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
-                    {current.activeEvents.slice(0,4).map((ev,i)=>(
+                    {current.activeEvents.slice(0,8).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
                         {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
