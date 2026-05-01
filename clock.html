@@ -2069,7 +2069,7 @@ function App() {
   //   1★: 20m before/after, 2★: 50m before/after, 3★: 80m before/after.
   // Breaking news uses a 0→20m burst only.
   // Feed visibility is separate from active math (3★ visible 90m early, etc.).
-  const UNKNOWN_NEWS_MODE = "skip"; // study-safe default: no country/rate guessing
+  const UNKNOWN_NEWS_MODE = "usd_anchor"; // USD-anchor fallback version: unknown country uses USD anchor sign
 
   function normalizeEventTimeMs(ev){
     const raw = ev?.pub || ev?.date || ((ev?.d && ev?.t) ? `${ev.d}T${ev.t}:00` : "");
@@ -2086,12 +2086,14 @@ function App() {
     const endMs   = eventMs + Math.max(0, Number(w.post||0))*60000;
     const stars = Math.max(1, Math.min(3, Number(ev?.stars || 1)));
     const title = String(ev?.title || ev?.l || ev?.label || "").trim();
-    const country = inferCountryCode(`${title} ${ev?.desc||ev?.note||""}`, ev?.country || ev?.currency || "");
+    let country = inferCountryCode(`${title} ${ev?.desc||ev?.note||""}`, ev?.country || ev?.currency || "");
+    let unknownCountryFallback = false;
+    if(!country && UNKNOWN_NEWS_MODE === "usd_anchor") { country = "USD"; unknownCountryFallback = true; }
     const rateValue = country ? getRateForSymbol(country) : null;
     return {
       ...ev, title, stars, eventMs, startMs, endMs, activeStart: startMs, activeEnd: endMs,
       windowPre: Math.max(0, Number(w.pre||0)), windowPost: Math.max(0, Number(w.post||0)),
-      timelineType: type, country: country || "", rateValue,
+      timelineType: type, country: country || "", rateValue, unknownCountryFallback,
       timelineLabel: type === "breaking" ? `BREAK ${w.post}m` : `${"★".repeat(stars)} ${w.pre}m/${w.post}m`,
     };
   }
@@ -2132,9 +2134,11 @@ function App() {
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
+      let country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
+      let unknownCountryFallback = false;
+      if(!country && UNKNOWN_NEWS_MODE === "usd_anchor") { country = "USD"; unknownCountryFallback = true; }
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note, rateValue };
+      return { title, source, stars, polarity, kind, pub, country, note, rateValue, unknownCountryFallback };
     };
 
     const scheduled = [
@@ -2205,10 +2209,12 @@ function App() {
     const timelineRows = allActive.map(ev=>{
       const text = `${ev?.title||ev?.l||""} ${ev?.desc||ev?.note||""}`;
       const inferred = inferCountryCode(text, ev?.country || ev?.currency || "");
-      const country = inferred ? String(inferred).toUpperCase().slice(0,3) : "";
+      let country = inferred ? String(inferred).toUpperCase().slice(0,3) : "";
+      let unknownCountryFallback = !!ev?.unknownCountryFallback;
+      if(!country && UNKNOWN_NEWS_MODE === "usd_anchor") { country = "USD"; unknownCountryFallback = true; }
       const rateValue = country ? Number(ev?.rateValue ?? getRateForSymbol(country)) : NaN;
       const effectiveCharge = getEventChargeFromRates({...ev, country, rateValue}, usdAnchorCharge);
-      return {...ev, country, rateValue, effectiveCharge, eventWeight: weightOf(ev)};
+      return {...ev, country, rateValue, effectiveCharge, eventWeight: weightOf(ev), unknownCountryFallback};
     });
 
     const skippedUnknown = timelineRows.filter(ev=>!ev.country || ev.effectiveCharge === 0);
@@ -2229,7 +2235,7 @@ function App() {
         skippedUnknownCount: skippedUnknown.length,
         chargeFlip: false,
         clusterResult: {
-          dominantSource: "unknown-country news skipped",
+          dominantSource: "unknown-country news → USD anchor",
           stackSize: rawActiveCount,
           positiveCount: 0,
           negativeCount: 0,
@@ -2237,10 +2243,10 @@ function App() {
           dominantCount: 0,
           secondarySign: "0",
           secondaryCount: skippedUnknown.length,
-          rule: "unknown country/rate is skipped; no USD guessing",
+          rule: "unknown country/rate uses USD anchor sign",
           foldSteps: skippedUnknown.map(ev=>`SKIP ${String(ev.title||'unknown').slice(0,90)} — country/rate not confirmed`),
         },
-        dominantSource: "unknown-country news skipped",
+        dominantSource: "unknown-country news → USD anchor",
         newsSign: "0",
         slotSign: signTxt(slotCharge),
         sellRestriction: false,
@@ -2266,7 +2272,7 @@ function App() {
       const evSign = ev.effectiveCharge;
       const w = ev.windowPre !== undefined ? `${ev.windowPre}/${ev.windowPost}m` : "window";
       const activeTxt = ev.startMs ? `${fmtETFromMs(ev.startMs)}→${fmtETFromMs(ev.endMs)}` : "active";
-      foldSteps.push(`${idx===0?"START":"ADD"} ${ev.country} ${Number.isFinite(ev.rateValue)?Number(ev.rateValue).toFixed(2):"?"} vs USD ${USD_RATE.toFixed(2)} => ${signTxt(evSign)} · ${w} · ${activeTxt}`);
+      foldSteps.push(`${idx===0?"START":"ADD"} ${ev.country}${ev.unknownCountryFallback?"(USD FALLBACK)":""} ${Number.isFinite(ev.rateValue)?Number(ev.rateValue).toFixed(2):"?"} vs USD ${USD_RATE.toFixed(2)} => ${signTxt(evSign)} · ${w} · ${activeTxt}`);
       if(idx===0) newsCharge = evSign;
       else {
         const before = newsCharge;
@@ -2312,7 +2318,7 @@ function App() {
       newsSign,
       slotSign,
       sellRestriction: false,
-      reason: "news active - timeline stack used; step fallback locked out; unknown country/rate skipped",
+      reason: "news active - timeline stack used; step fallback locked out; unknown country/rate uses USD anchor sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -2390,11 +2396,11 @@ function App() {
   function invertCharge(ch){ return ch === 1 ? -1 : ch === -1 ? 1 : 0; }
 
   function getEventChargeFromRates(ev, usdAnchorCharge = 1){
-    // Country sign rule (no guessing):
+    // Country sign rule (USD fallback version):
     // USD = USD anchor sign.
     // Country rate > USD = same sign as USD anchor.
     // Country rate <= USD = opposite sign from USD anchor.
-    // Unknown country or missing rate = 0 so the event can be skipped/studied.
+    // Unknown country is converted to USD before this function; missing rate still returns 0.
     const rawCode = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
     const code = rawCode || "";
     if(!code) return 0;
@@ -2419,7 +2425,7 @@ function App() {
       [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
     ];
     for (const [rx, code] of checks) if (rx.test(t)) return code;
-    return "USD";
+    return "";
   }
 
   // Normalize any RSS item into a consistent shape
