@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — TIMELINE ENGINE</title>
+<title>THE BiGENGiN3 OF TIME — TIMELINE ENGINE TRUE SKIP</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2069,7 +2069,7 @@ function App() {
   //   1★: 20m before/after, 2★: 50m before/after, 3★: 80m before/after.
   // Breaking news uses a 0→20m burst only.
   // Feed visibility is separate from active math (3★ visible 90m early, etc.).
-  const UNKNOWN_NEWS_MODE = "skip"; // study-safe default: no country/rate guessing
+  const UNKNOWN_NEWS_MODE = "skip"; // TRUE SKIP: unknown country/rate = no trade, no USD guessing
 
   function normalizeEventTimeMs(ev){
     const raw = ev?.pub || ev?.date || ((ev?.d && ev?.t) ? `${ev.d}T${ev.t}:00` : "");
@@ -2404,6 +2404,7 @@ function App() {
     return rate > USD_RATE ? usdAnchorCharge : invertCharge(usdAnchorCharge);
   }
 
+  // Country inference returns empty string when unclear. It never guesses USD here.
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
     if(fallback) return String(fallback).toUpperCase().slice(0,3);
@@ -2417,9 +2418,10 @@ function App() {
       [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/, "CHF"],
       [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/, "NZD"],
       [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
+      [/(^|\W)(SGD|SINGAPORE|MAS)(\W|$)/, "SGD"],
     ];
     for (const [rx, code] of checks) if (rx.test(t)) return code;
-    return "USD";
+    return ""; // IMPORTANT: unknown stays unknown; caller decides skip vs USD-anchor fallback
   }
 
   // Normalize any RSS item into a consistent shape
