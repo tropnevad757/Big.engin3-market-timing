@@ -2168,60 +2168,55 @@ function App() {
       newsCharge = chargedEvents[0].effectiveCharge;
       dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} vs USD`;
     } else if(chargedEvents.length >= 2){
-      const ranked = [...chargedEvents].sort((a,b)=>Math.abs((Number(b.rateValue)||USD_RATE)-USD_RATE)-Math.abs((Number(a.rateValue)||USD_RATE)-USD_RATE));
-      const firstCharge = ranked[0].effectiveCharge;
-      const dominantCharge = ranked[0].effectiveCharge;
-      const dominantCode = ranked[0].country || "USD";
-      const dominantRate = Number(ranked[0].rateValue ?? USD_RATE);
-      const secondaryCharge = ranked.length > 1 ? ranked[1].effectiveCharge : 0;
-      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
-      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
-
-      const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
-      const secondaryResolved = secondaryCharge===0 ? 0 : resolveGroupedCharge(secondaryCharge, secondaryCount);
-
+      // MULTI-NEWS RESOLUTION — group SAME SIGNS first, then combine the resolved groups.
+      // Your rule:
+      //   + x1 => +        - x1 => -
+      //   + x2 or more => -     - x2 or more => +
+      // Then combine the resolved groups with news math:
+      //   + + => -   - - => +   + - / - + => -
+      const positiveCount = positives;
+      const negativeCount = negatives;
+      const positiveResolved = resolveGroupedCharge(1, positiveCount);
+      const negativeResolved = resolveGroupedCharge(-1, negativeCount);
       const foldSteps = [];
-      foldSteps.push(
-        `DOMINANT ${dominantCode} ${dominantRate.toFixed(2)} vs USD ${USD_RATE.toFixed(2)} => ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
-      );
-      if(secondaryCount > 0){
-        foldSteps.push(
-          `SECONDARY ${secondaryCharge===1?'+':'-'} x${secondaryCount} -> ${secondaryResolved===1?'+':'-'}`
-        );
+
+      if(positiveCount > 0){
+        foldSteps.push(`POSITIVE GROUP + x${positiveCount} -> ${positiveResolved===1?'+':'-'}`);
+      }
+      if(negativeCount > 0){
+        foldSteps.push(`NEGATIVE GROUP - x${negativeCount} -> ${negativeResolved===1?'+':'-'}`);
       }
 
-      newsCharge = dominantResolved;
-      if(secondaryCount > 0){
-        newsCharge = combineCharges(dominantResolved, secondaryResolved);
-        foldSteps.push(
-          `COMBINE ${dominantResolved===1?'+':'-'} ${secondaryResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`
-        );
+      if(positiveCount > 0 && negativeCount > 0){
+        newsCharge = combineCharges(positiveResolved, negativeResolved);
+        foldSteps.push(`COMBINE ${positiveResolved===1?'+':'-'} ${negativeResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
+      } else {
+        newsCharge = positiveCount > 0 ? positiveResolved : negativeResolved;
       }
 
       chargeFlip = true;
       clusterResult = {
-        dominantSource: `${dominantCode} rate-dominant`,
+        dominantSource: "grouped same-sign news math",
         stackSize: chargedEvents.length,
-        positiveCount: positives,
-        negativeCount: negatives,
-        dominantSign: dominantCharge===1?"+":"-",
-        dominantCount,
-        secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
-        secondaryCount,
-        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
+        positiveCount,
+        negativeCount,
+        dominantSign: positiveCount >= negativeCount ? "+" : "-",
+        dominantCount: Math.max(positiveCount, negativeCount),
+        secondarySign: positiveCount > 0 && negativeCount > 0 ? (positiveCount >= negativeCount ? "-" : "+") : "0",
+        secondaryCount: positiveCount > 0 && negativeCount > 0 ? Math.min(positiveCount, negativeCount) : 0,
+        rule: "Group same signs first: +x2+ flips to -, -x2+ flips to +; then combine groups: +/+ = -, -/- = +, mixed = -",
         foldSteps,
       };
     }
 
     // FINAL DIRECTION LAYER
     // Fallback/step direction is ONLY used when there is no active news.
-    // If news is active, use the STEP SIGN as the comparison sign.
-    // This prevents the odd/even hour SLOT sign from forcing bad sells like:
-    // STEP BUY + NEWS + + SLOT - => should still resolve BUY.
+    // If news is active, compare the resolved NEWS SIGN against the odd/even HOUR SIGN.
+    // even hour = positive (+), odd hour = negative (-).
     const stepSign = baseCharge === 1 ? "+" : "-";
     let finalDirection = newsCharge === 0
       ? null
-      : (newsCharge === baseCharge ? "buy" : "sell");
+      : (newsCharge === slotCharge ? "buy" : "sell");
 
     const sellRestriction = false;
     const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
@@ -2229,8 +2224,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
-      : `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ${newsSign} · NEWS-vs-STEP ONLY · FINAL ${finalDirection.toUpperCase()}`;
+      ? `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · HOUR ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · HOUR ${slotSign} · NEWS ${newsSign} · NEWS-vs-HOUR ONLY · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2250,7 +2245,7 @@ function App() {
       sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed polarity - no step fallback override"
-        : "news sign was resolved, then compared against the STEP sign only; SLOT is shown for reference but does not override active news",
+        : "news sign was resolved with grouped same-sign math, then compared against the odd/even hour sign; step fallback is used only when there is no active news",
       equation: equationPlain,
       equationPlain,
     };
