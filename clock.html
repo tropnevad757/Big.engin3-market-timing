@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — TIMELINE ENGINE USD ANCHOR FALLBACK</title>
+<title>THE BiGENGiN3 OF TIME — CLEAN TIMELINE V2</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -1742,7 +1742,7 @@ function App() {
     ? ((et.h24 % 2 === 0) ? "positive" : "negative")
     : (_stepDir === "buy" ? "positive" : "negative");
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
-  const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || [], {usdAnchorCharge:getUsdAnchorCharge(et.h24, et.m)});
+  const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || []);
   const directedLiveEvents = (newsReaction.nearEvents || []).filter(ev=>Number(ev?.polarity)!==0);
   const weightedDirectedLiveCount = directedLiveEvents.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
   const polarityDirection = livePolarityApplied.finalDirection;
@@ -2036,7 +2036,7 @@ function App() {
   }
 
   function replayEventType(ev){
-    if(ev && (ev.kind === "event" || ev.kind === "calendar" || ev.kind === "scheduled")) return "scheduled";
+    if(ev && ev.kind === "event") return "scheduled";
     if(ev && ev.kind === "speech") return "speech";
     return "breaking";
   }
@@ -2063,67 +2063,6 @@ function App() {
     return nowMs >= (t - pre*60000) && nowMs <= t;
   }
 
-
-  // ── TIMELINE ENGINE — one source of truth for active news windows ──────────
-  // Scheduled calendar events use symmetric star windows:
-  //   1★: 20m before/after, 2★: 50m before/after, 3★: 80m before/after.
-  // Breaking news uses a 0→20m burst only.
-  // Feed visibility is separate from active math (3★ visible 90m early, etc.).
-  const UNKNOWN_NEWS_MODE = "usd_anchor"; // USD ANCHOR FALLBACK: unknown country uses USD anchor sign explicitly
-
-  function normalizeEventTimeMs(ev){
-    const raw = ev?.pub || ev?.date || ((ev?.d && ev?.t) ? `${ev.d}T${ev.t}:00` : "");
-    const t = Date.parse(raw || 0);
-    return (t && !Number.isNaN(t)) ? t : 0;
-  }
-
-  function makeTimelineEvent(ev){
-    const eventMs = normalizeEventTimeMs(ev);
-    if(!eventMs) return null;
-    const w = eventWindowMinutes(ev);
-    const type = replayEventType(ev);
-    const startMs = eventMs - Math.max(0, Number(w.pre||0))*60000;
-    const endMs   = eventMs + Math.max(0, Number(w.post||0))*60000;
-    const stars = Math.max(1, Math.min(3, Number(ev?.stars || 1)));
-    const title = String(ev?.title || ev?.l || ev?.label || "").trim();
-    let country = inferCountryCode(`${title} ${ev?.desc||ev?.note||""}`, ev?.country || ev?.currency || "");
-    let unknownCountryFallback = false;
-    if(!country && UNKNOWN_NEWS_MODE === "usd_anchor") { country = "USD"; unknownCountryFallback = true; }
-    const rateValue = country ? getRateForSymbol(country) : null;
-    return {
-      ...ev, title, stars, eventMs, startMs, endMs, activeStart: startMs, activeEnd: endMs,
-      windowPre: Math.max(0, Number(w.pre||0)), windowPost: Math.max(0, Number(w.post||0)),
-      timelineType: type, country: country || "", rateValue, unknownCountryFallback,
-      timelineLabel: type === "breaking" ? `BREAK ${w.post}m` : `${"★".repeat(stars)} ${w.pre}m/${w.post}m`,
-    };
-  }
-
-  function buildNewsTimeline(eventsPool){
-    const seen = new Set();
-    return (eventsPool || [])
-      .map(makeTimelineEvent)
-      .filter(Boolean)
-      .filter(ev=>{
-        const bucket = Math.floor(ev.eventMs/60000);
-        const key = [bucket, String(ev.title||"").toLowerCase().replace(/\s+/g," ").slice(0,90), ev.country||"", ev.timelineType||""].join("|");
-        if(seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a,b)=>a.startMs-b.startMs || a.eventMs-b.eventMs);
-  }
-
-  function activeTimelineEventsAt(tsMs, timeline){
-    return (timeline || []).filter(ev => tsMs >= ev.startMs && tsMs <= ev.endMs)
-      .sort((a,b)=>a.startMs-b.startMs || a.eventMs-b.eventMs);
-  }
-
-  function fmtETFromMs(ms){
-    try{
-      return new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(ms));
-    }catch(e){ return new Date(ms).toISOString(); }
-  }
-
   function buildUnifiedNewsEvents(nowMs = Date.now()){
     const toEvent = (raw, overrides={})=>{
       const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
@@ -2134,11 +2073,9 @@ function App() {
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      let country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
-      let unknownCountryFallback = false;
-      if(!country && UNKNOWN_NEWS_MODE === "usd_anchor") { country = "USD"; unknownCountryFallback = true; }
+      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note, rateValue, unknownCountryFallback };
+      return { title, source, stars, polarity, kind, pub, country, note, rateValue };
     };
 
     const scheduled = [
@@ -2167,38 +2104,53 @@ function App() {
   }
 
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, opts={}){
-    const slotCharge = slotPolarity === "positive" ? 1 : -1; // NEWS ONLY: even hour +, odd hour -
+  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents){
+    const baseCharge = baseDirection === "buy" ? 1 : -1;
+    const slotCharge = slotPolarity === "positive" ? 1 : -1;
     const allActive = Array.isArray(activeEvents) ? activeEvents : [];
     const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
-    const rawActiveCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
-    const usdAnchorCharge = Number(opts.usdAnchorCharge || 1) === -1 ? -1 : 1;
-    const signTxt = ch => ch === 1 ? "+" : ch === -1 ? "-" : "0";
+    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
+    const directedEvents = allActive.filter(ev=>Number(ev?.polarity)!==0 || Number.isFinite(Number(ev?.rateValue)));
+    const directedCount = directedEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+    const chargedEvents = directedEvents
+      .map(ev=>({
+        ...ev,
+        effectiveCharge: getEventChargeFromRates(ev) || (Number(ev?.polarity)>0?1:Number(ev?.polarity)<0?-1:0),
+        eventWeight: weightOf(ev)
+      }))
+      .filter(ev=>ev.effectiveCharge!==0);
+    const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
+    const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
+    const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
+    const speeches = allActive.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 0), 0);
 
-    if(!rawActiveCount){
-      const equationPlain = `NO NEWS · STEP FALLBACK ${baseDirection.toUpperCase()}`;
+    if(!activeCount){
+      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
       return {
         finalDirection: baseDirection,
-        baseCharge: baseDirection === "buy" ? 1 : -1,
-        finalCharge: baseDirection === "buy" ? 1 : -1,
+        baseCharge,
+        finalCharge: baseCharge,
         newsFlip: 1,
         negativePressure: 0,
         positivePressure: 0,
         breakingCount: 0,
         activeCount: 0,
-        rawActiveCount: 0,
-        skippedUnknownCount: 0,
         chargeFlip: false,
         clusterResult: null,
-        dominantSource: "step fallback only",
+        dominantSource: "step schedule",
         newsSign: "0",
-        slotSign: "0",
+        slotSign: slotCharge===1?"+":"-",
         sellRestriction: false,
-        reason: "no active news - step fallback direction used",
+        reason: "no news - step direction schedule held",
         equation: equationPlain,
         equationPlain,
       };
     }
+
+    let newsCharge = 0;
+    let chargeFlip = false;
+    let clusterResult = null;
+    let dominantSource = directedCount ? "news sign first" : "undirected news";
 
     const combineCharges = (leftCharge, rightCharge)=>{
       if(leftCharge === -1 && rightCharge === -1) return 1;
@@ -2206,127 +2158,108 @@ function App() {
       return -1;
     };
 
-    const timelineRows = allActive.map(ev=>{
-      const text = `${ev?.title||ev?.l||""} ${ev?.desc||ev?.note||""}`;
-      const inferred = inferCountryCode(text, ev?.country || ev?.currency || "");
-      let country = inferred ? String(inferred).toUpperCase().slice(0,3) : "";
-      let unknownCountryFallback = !!ev?.unknownCountryFallback;
-      if(!country && UNKNOWN_NEWS_MODE === "usd_anchor") { country = "USD"; unknownCountryFallback = true; }
-      const rateValue = country ? Number(ev?.rateValue ?? getRateForSymbol(country)) : NaN;
-      const effectiveCharge = getEventChargeFromRates({...ev, country, rateValue}, usdAnchorCharge);
-      return {...ev, country, rateValue, effectiveCharge, eventWeight: weightOf(ev), unknownCountryFallback};
-    });
+    const resolveGroupedCharge = (signCharge, count)=>{
+      if(count <= 0) return 0;
+      if(count === 1) return signCharge;
+      return -signCharge; // 2 or more same-sign events flip once and hold there
+    };
 
-    const skippedUnknown = timelineRows.filter(ev=>!ev.country || ev.effectiveCharge === 0);
-    const chargedEvents = timelineRows.filter(ev=>ev.country && ev.effectiveCharge !== 0);
-    const activeCount = chargedEvents.reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+    if(chargedEvents.length === 1){
+      newsCharge = chargedEvents[0].effectiveCharge;
+      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} vs USD`;
+    } else if(chargedEvents.length >= 2){
+      const ranked = [...chargedEvents].sort((a,b)=>Math.abs((Number(b.rateValue)||USD_RATE)-USD_RATE)-Math.abs((Number(a.rateValue)||USD_RATE)-USD_RATE));
+      const firstCharge = ranked[0].effectiveCharge;
+      const dominantCharge = ranked[0].effectiveCharge;
+      const dominantCode = ranked[0].country || "USD";
+      const dominantRate = Number(ranked[0].rateValue ?? USD_RATE);
+      const secondaryCharge = ranked.length > 1 ? ranked[1].effectiveCharge : 0;
+      const dominantCount = chargedEvents.filter(ev=>ev.effectiveCharge===dominantCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
+      const secondaryCount = chargedEvents.filter(ev=>ev.effectiveCharge===secondaryCharge).reduce((n, ev)=>n + (ev.eventWeight||1), 0);
 
-    if(!activeCount){
-      return {
-        finalDirection: null,
-        baseCharge: 0,
-        finalCharge: 0,
-        newsFlip: 0,
-        negativePressure: 0,
-        positivePressure: 0,
-        breakingCount: allActive.filter(ev=>replayEventType(ev)==="breaking").length,
-        activeCount: 0,
-        rawActiveCount,
-        skippedUnknownCount: skippedUnknown.length,
-        chargeFlip: false,
-        clusterResult: {
-          dominantSource: "unknown-country news → USD anchor",
-          stackSize: rawActiveCount,
-          positiveCount: 0,
-          negativeCount: 0,
-          dominantSign: "0",
-          dominantCount: 0,
-          secondarySign: "0",
-          secondaryCount: skippedUnknown.length,
-          rule: "unknown country/rate uses USD anchor sign",
-          foldSteps: skippedUnknown.map(ev=>`SKIP ${String(ev.title||'unknown').slice(0,90)} — country/rate not confirmed`),
-        },
-        dominantSource: "unknown-country news → USD anchor",
-        newsSign: "0",
-        slotSign: signTxt(slotCharge),
-        sellRestriction: false,
-        reason: "active news exists, but all active events were skipped because country/rate was unknown",
-        equation: "NEWS ACTIVE · UNKNOWN SKIPPED · NO TRADE",
-        equationPlain: "NEWS ACTIVE · UNKNOWN SKIPPED · NO TRADE",
+      const dominantResolved = resolveGroupedCharge(dominantCharge, dominantCount);
+      const secondaryResolved = secondaryCharge===0 ? 0 : resolveGroupedCharge(secondaryCharge, secondaryCount);
+
+      const foldSteps = [];
+      foldSteps.push(
+        `DOMINANT ${dominantCode} ${dominantRate.toFixed(2)} vs USD ${USD_RATE.toFixed(2)} => ${dominantCharge===1?'+':'-'} x${dominantCount} -> ${dominantResolved===1?'+':'-'}`
+      );
+      if(secondaryCount > 0){
+        foldSteps.push(
+          `SECONDARY ${secondaryCharge===1?'+':'-'} x${secondaryCount} -> ${secondaryResolved===1?'+':'-'}`
+        );
+      }
+
+      newsCharge = dominantResolved;
+      if(secondaryCount > 0){
+        newsCharge = combineCharges(dominantResolved, secondaryResolved);
+        foldSteps.push(
+          `COMBINE ${dominantResolved===1?'+':'-'} ${secondaryResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`
+        );
+      }
+
+      chargeFlip = true;
+      clusterResult = {
+        dominantSource: `${dominantCode} rate-dominant`,
+        stackSize: chargedEvents.length,
+        positiveCount: positives,
+        negativeCount: negatives,
+        dominantSign: dominantCharge===1?"+":"-",
+        dominantCount,
+        secondarySign: secondaryCount>0 ? (secondaryCharge===1?"+":"-") : "0",
+        secondaryCount,
+        rule: "USD anchor + rate-dominant charge first; speeches count as 2+ events; any weighted 2+ same-sign events flip once; opposite signs resolve negative; combine rule -/- = +, +/+ = -, -/+ = -",
+        foldSteps,
       };
     }
 
-    const positives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge > 0 ? ev.eventWeight : 0), 0);
-    const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
-    const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
+    // FINAL DIRECTION LAYER
+    // Fallback/step direction is ONLY used when there is no active news.
+    // If news is active, use the STEP SIGN as the comparison sign.
+    // This prevents the odd/even hour SLOT sign from forcing bad sells like:
+    // STEP BUY + NEWS + + SLOT - => should still resolve BUY.
+    const stepSign = baseCharge === 1 ? "+" : "-";
+    let finalDirection = newsCharge === 0
+      ? null
+      : (newsCharge === baseCharge ? "buy" : "sell");
 
-    let newsCharge = null;
-    const expanded = [];
-    chargedEvents
-      .sort((a,b)=>(a.startMs||Date.parse(a.pub||0)||0)-(b.startMs||Date.parse(b.pub||0)||0) || (a.eventMs||0)-(b.eventMs||0))
-      .forEach(ev=>{ for(let i=0;i<Math.max(1, ev.eventWeight||1); i++) expanded.push(ev); });
-
-    const foldSteps = [];
-    skippedUnknown.forEach(ev=>foldSteps.push(`SKIP ${String(ev.title||'unknown').slice(0,90)} — country/rate not confirmed`));
-    expanded.forEach((ev, idx)=>{
-      const evSign = ev.effectiveCharge;
-      const w = ev.windowPre !== undefined ? `${ev.windowPre}/${ev.windowPost}m` : "window";
-      const activeTxt = ev.startMs ? `${fmtETFromMs(ev.startMs)}→${fmtETFromMs(ev.endMs)}` : "active";
-      foldSteps.push(`${idx===0?"START":"ADD"} ${ev.country}${ev.unknownCountryFallback?"(USD FALLBACK)":""} ${Number.isFinite(ev.rateValue)?Number(ev.rateValue).toFixed(2):"?"} vs USD ${USD_RATE.toFixed(2)} => ${signTxt(evSign)} · ${w} · ${activeTxt}`);
-      if(idx===0) newsCharge = evSign;
-      else {
-        const before = newsCharge;
-        newsCharge = combineCharges(newsCharge, evSign);
-        foldSteps.push(`COMBINE ${signTxt(before)} ${signTxt(evSign)} -> ${signTxt(newsCharge)}`);
-      }
-    });
-
-    const finalDirection = newsCharge === slotCharge ? "buy" : "sell";
-    const finalCharge = finalDirection === "buy" ? 1 : -1;
-    const newsSign = signTxt(newsCharge);
-    const slotSign = signTxt(slotCharge);
-    const modeLabel = activeCount > 1 ? "NEWS_MIXED" : "NEWS_SINGLE";
-    const equationPlain = `TIMELINE STACK · ${modeLabel} · RAW ${rawActiveCount} · USED ${activeCount} · SKIPPED ${skippedUnknown.length} · NEWS ${newsSign} · HOUR ${slotSign} · ${newsCharge===slotCharge?"SAME SIGN":"DIFFERENT SIGN"} · FINAL ${finalDirection.toUpperCase()}`;
+    const sellRestriction = false;
+    const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
+    const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
+    const slotSign = slotCharge === 1 ? "+" : "-";
+    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const equationPlain = newsCharge === 0
+      ? `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · SLOT ${slotSign} · NEWS ${newsSign} · NEWS-vs-STEP ONLY · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
-      baseCharge: 0,
+      baseCharge,
       finalCharge,
-      newsFlip: 0,
+      newsFlip: newsFlip ? -1 : 1,
       negativePressure: negatives,
       positivePressure: positives,
       breakingCount: breakingEvents,
       activeCount,
-      rawActiveCount,
-      skippedUnknownCount: skippedUnknown.length,
-      chargeFlip: activeCount > 1,
-      clusterResult: {
-        dominantSource: "timeline stack engine",
-        stackSize: activeCount,
-        rawStackSize: rawActiveCount,
-        skippedUnknownCount: skippedUnknown.length,
-        positiveCount: positives,
-        negativeCount: negatives,
-        dominantSign: newsSign,
-        dominantCount: activeCount,
-        secondarySign: "0",
-        secondaryCount: skippedUnknown.length,
-        rule: "active timeline: breaking 0→20m; 1★ ±20m; 2★ ±50m; 3★ ±80m; news-only math -/-=+, +/+=-, mixed=-; then news sign vs odd/even hour; same=BUY, different=SELL",
-        foldSteps,
-      },
-      dominantSource: `timeline stack · ${chargedEvents.length} event(s)`,
+      chargeFlip,
+      clusterResult,
+      dominantSource,
       newsSign,
       slotSign,
-      sellRestriction: false,
-      reason: "news active - timeline stack used; step fallback locked out; unknown country/rate uses USD anchor sign",
+      stepSign,
+      sellRestriction,
+      reason: newsCharge === 0
+        ? "news active but no directed polarity - no step fallback override"
+        : "news sign was resolved, then compared against the STEP sign only; SLOT is shown for reference but does not override active news",
       equation: equationPlain,
       equationPlain,
     };
   }
 
 
-  function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents, opts={}){
-    return computeReplayPolarity(baseDirection, slotPolarity, activeEvents, opts);
+
+  function resolveStackedNewsSign(baseDirection, slotPolarity, activeEvents){
+    return computeReplayPolarity(baseDirection, slotPolarity, activeEvents);
   }
 
   function getSixHourFallback_430_1030_standard(h24, m){
@@ -2387,44 +2320,34 @@ function App() {
     return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
   }
 
-  function getUsdAnchorCharge(h24, m){
-    // USD anchor sign comes from connector regime:
-    // Buy Core / Mirror = -, Sell Reset / Aligned = +
-    return getConnectorMode(h24, m) === "aligned" ? 1 : -1;
-  }
-
-  function invertCharge(ch){ return ch === 1 ? -1 : ch === -1 ? 1 : 0; }
-
-  function getEventChargeFromRates(ev, usdAnchorCharge = 1){
-    // Country sign rule (USD fallback version):
-    // USD = USD anchor sign.
-    // Country rate > USD = same sign as USD anchor.
-    // Country rate <= USD = opposite sign from USD anchor.
-    // Unknown country is converted to USD before this function; missing rate still returns 0.
-    const rawCode = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
-    const code = rawCode || "";
-    if(!code) return 0;
-    if(code === "USD") return usdAnchorCharge;
+  function getEventChargeFromRates(ev){
+    const code = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
     const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
-    if(!Number.isFinite(rate)) return 0;
-    return rate > USD_RATE ? usdAnchorCharge : invertCharge(usdAnchorCharge);
+    if(!Number.isFinite(rate)) return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : 0;
+    const base = rate > USD_RATE ? 1 : -1;
+    return rate <= USD_RATE ? -base : base;
   }
 
-  // Country inference returns empty string when unclear. It never guesses USD here.
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
     if(fallback) return String(fallback).toUpperCase().slice(0,3);
     const checks = [
-      [/(^|\W)(USD|US|U\.?S\.?|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY|YIELD|YIELDS|BOND|BONDS|DOLLAR|INFLATION|RATES?)(\W|$)/, "USD"],
+      [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
       [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
       [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/, "GBP"],
-      [/(^|\W)(JPY|JAPAN|BOJ)(\W|$)/, "JPY"],
-      [/(^|\W)(AUD|AUSTRALIA|RBA)(\W|$)/, "AUD"],
+      [/(^|\W)(JPY|JAPAN|BOJ|TOKYO|YEN)(\W|$)/, "JPY"],
+      [/(^|\W)(AUD|AUSTRALIA|RBA|ASX)(\W|$)/, "AUD"],
       [/(^|\W)(CAD|CANADA|BOC)(\W|$)/, "CAD"],
       [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/, "CHF"],
       [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/, "NZD"],
-      [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
       [/(^|\W)(SGD|SINGAPORE|MAS)(\W|$)/, "SGD"],
+      [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
+      [/(^|\W)(KRW|KOREA|SOUTH KOREA|BOK)(\W|$)/, "KRW"],
+      [/(^|\W)(TWD|TAIWAN)(\W|$)/, "TWD"],
+      [/(^|\W)(HKD|HONG KONG|HKMA)(\W|$)/, "HKD"],
+      [/(^|\W)(MYR|MALAYSIA)(\W|$)/, "MYR"],
+      [/(^|\W)(THB|THAILAND)(\W|$)/, "THB"],
+      [/(^|\W)(INR|INDIA|RBI)(\W|$)/, "INR"],
     ];
     for (const [rx, code] of checks) if (rx.test(t)) return code;
     return "";
@@ -3214,14 +3137,14 @@ function App() {
     // Step direction remains the no-news fallback only.
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
     const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
-    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents, {usdAnchorCharge:getUsdAnchorCharge(h24, m)});
-    const equationPlain = (applied.equationPlain||"");
+    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents);
+    const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     if(!applied.finalDirection){
       return {
         signal: null,
         chargeFlip: false,
-        mode: hasActiveNews ? (applied.activeCount>1 ? "news-mixed" : "news-single") : "fallback",
-        regime: hasActiveNews ? (applied.activeCount>1 ? "NEWS_MIXED" : "NEWS_SINGLE") : "NO_NEWS_FALLBACK",
+        mode: "news-mixed",
+        regime: "NEWS_MIXED",
         flip: false,
         reason: applied.reason,
         clusterResult: applied.clusterResult,
@@ -3248,8 +3171,8 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: hasActiveNews ? (applied.activeCount>1 ? "news-mixed" : "news-single") : "fallback",
-      regime: hasActiveNews ? (applied.activeCount>1 ? "NEWS_MIXED" : "NEWS_SINGLE") : "NO_NEWS_FALLBACK",
+      mode: "news-mixed",
+      regime: "NEWS_MIXED",
       flip: false,
       reason: applied.reason,
       clusterResult: applied.clusterResult,
@@ -3325,13 +3248,15 @@ function App() {
   }
 
   function rpActiveEventsFor(tsMs, eventsPool){
-    // Timeline engine: build event windows first, then collect ALL overlaps at tsMs.
     const pool = eventsPool || loggedLastWeek;
-    const timeline = Array.isArray(pool) && pool.__timelineBuilt ? pool : buildNewsTimeline(pool);
-    return activeTimelineEventsAt(tsMs, timeline).map(ev=>{
-      // Re-classify polarity on-the-fly using current keyword list, but only after timeline says active.
+    return pool.filter(ev=>{
+      const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
+      const w=eventWindowMinutes(ev);
+      return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
+    }).map(ev=>{
+      // Re-classify polarity on-the-fly using current keyword list
       if(Number(ev.polarity)!==0) return ev;
-      const text = (ev.title||ev.l||"")+" "+(ev.desc||ev.note||"");
+      const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
       const cls = classifyEcoArticle(text, "");
       const freshPol = cls.bearish ? -1 : cls.bullish ? 1 : 0;
       return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
@@ -3345,17 +3270,20 @@ function App() {
       try{ localStorage.removeItem("engin3Replay30m_d"+rpDaysBack); }catch(e){}
       const candles = await rpFetchCandles(rpDaysBack);
 
-      // Filter news events to the same window as the candles
+      // CLEAN TIMELINE V2: keep the original engine behavior, but feed it ALL
+      // relevant market-moving events instead of breaking-only news. Calendar events
+      // are kept if their symmetric window can overlap the replay candle range.
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
+      const replayWindowEnd = Date.now() + 90*60000;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
         const t = Date.parse(ev.pub||0);
-        return t && t >= replayWindowStart;
+        if(!t || Number.isNaN(t)) return false;
+        const w = eventWindowMinutes(ev);
+        return (t + w.post*60000) >= replayWindowStart && (t - w.pre*60000) <= replayWindowEnd;
       });
-      const replayTimeline = buildNewsTimeline(replayNewsEvents);
-      replayTimeline.__timelineBuilt = true;
       // ── MARKET-MOVING-NEWS-ONLY REPLAY ─────────────────────────────────────────────
       // No schedule slots, no execute/trap framework. Any candle with active
-      // directed breaking-news qualifies for replay.
+      // economic/calendar/breaking news qualifies for replay.
       function isReplaySlot(h24, m){ return true; }
       function isExecHour(h24, m){  return false; }
 
@@ -3388,32 +3316,25 @@ function App() {
         const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
         const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
 
-        const close = c2 ? c2.close : c1.close;
         if(signal==="BUY"){
-          const touched = high >= c1.open*(1+exitTP);
-          const closedWith = close > c1.open;
-          const hit = touched && closedWith;
+          const hit = high >= c1.open*(1+exitTP);
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const closeMove = (((close/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && closedWith]));
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
           return {
             correct: hit, tp1Hit: hit, ...hits,
             label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "+"+tpPct+" hit + BTC closed in BUY direction (close +"+closeMove+"%)" : touched ? "TP touched, but BTC closed against BUY (close "+closeMove+"%) — not counted" : "Max +"+maxMove+"% — needed +"+tpPct,
+            detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
         if(signal==="SELL"){
-          const touched = low <= c1.open*(1-exitTP);
-          const closedWith = close < c1.open;
-          const hit = touched && closedWith;
+          const hit = low <= c1.open*(1-exitTP);
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const closeMove = (((close/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && closedWith]));
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
           return {
             correct: hit, tp1Hit: hit, ...hits,
             label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "-"+tpPct+" hit + BTC closed in SELL direction (close "+closeMove+"%)" : touched ? "TP touched, but BTC closed against SELL (close +"+closeMove+"%) — not counted" : "Max -"+maxDrop+"% — needed -"+tpPct,
+            detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
@@ -3424,7 +3345,7 @@ function App() {
         const list = Array.isArray(events) ? events : [];
         const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
         const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
-        const hasCal    = list.some(ev=>replayEventType(ev)==="scheduled");
+        const hasCal    = list.some(ev=>replayEventType(ev)==="event");
         const weightedCount = list.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
         if(hasSpeech) return weightedCount >= 2 ? "SPEECH 2+" : "SPEECH";
         if((hasBreak && hasCal) || list.length > 1) return "MIXED";
@@ -3439,7 +3360,7 @@ function App() {
         const et = rpGetETParts(c.ts);
         if(!isReplaySlot(et.h24, et.m)) continue;
 
-        const activeEvents = rpActiveEventsFor(c.ts, replayTimeline);
+        const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
         const isExec = false;
         const slotLabel = replaySlotLabelFor(activeEvents);
@@ -3522,7 +3443,7 @@ function App() {
         newsSessions, wins, losses, total, wr,
         tpStats, wr003, wr006, wr009, wr012, wr030, wr060, wr090, wr120,
         wr618, wr100, newsFilter: rpNewsFilter,
-        eventsUsed: replayNewsEvents.length, timelineEvents: replayTimeline.length,
+        eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
         weekPct, weekRegime, weekRegimeCol,
         weekRange: firstC&&lastC ? {
@@ -3822,7 +3743,7 @@ function App() {
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||'', activeStart: ev.startMs ? fmtETFromMs(ev.startMs) : '', activeEnd: ev.endMs ? fmtETFromMs(ev.endMs) : '', timelineLabel: ev.timelineLabel||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
