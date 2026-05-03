@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — CLEAN TIMELINE V2</title>
+<title>THE BiGENGiN3 OF TIME — DEDUP + USD ANCHOR CLEAN V3</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2010,7 +2010,7 @@ function App() {
       .toLowerCase()
       .replace(/<[^>]+>/g," ")
       .replace(/&[^;]+;/g," ")
-      .replace(/(reuters|bloomberg|markets|google news|myfxbook|trading economics|forex factory)/g," ")
+      .replace(/\b(reuters|bloomberg|markets|google news|myfxbook|trading economics|forex factory)\b/g," ")
       .replace(/[^a-z0-9]+/g," ")
       .replace(/\s+/g," ")
       .trim();
@@ -2028,7 +2028,8 @@ function App() {
         d.setMinutes(0,0,0);
         return d.toISOString();
       })();
-      const key = [title.slice(0,110), source.slice(0,30), item.country||"", item.kind||"news", hourBucket].join("|");
+      // Feed-level dedupe should not depend on source/kind; the same story from two feeds is still one event.
+      const key = [title.slice(0,140), hourBucket].join("|");
       if(!title || seen.has(key)) return false;
       seen.set(key,true);
       return true;
@@ -2111,15 +2112,22 @@ function App() {
     // De-dupe first so the same headline does not count twice in the stack.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
     const normalizeNewsKey = (ev)=>{
-      const title = String(ev?.title || ev?.l || ev?.label || "")
+      // ACTIVE-STACK DEDUPE — headline only, aggressively normalized.
+      // Same story can arrive twice with slightly different source/kind/punctuation.
+      // It must count ONCE, otherwise one report can falsely become mixed news.
+      const raw = String(ev?.title || ev?.l || ev?.label || "");
+      const title = raw
         .toLowerCase()
-        .replace(/[“”"'’]/g, "")
+        .replace(/[“”"'’`]/g, "")
+        .replace(/&[a-z]+;/gi, " ")
+        .replace(/\b(reuters|bloomberg|cnbc|wsj|ft|marketwatch|myfxbook|trading economics|ap|yahoo finance|google news)\b/g, " ")
+        .replace(/\s+[-|:]\s*(reuters|bloomberg|cnbc|wsj|ft|marketwatch|myfxbook|trading economics|ap|yahoo finance|google news).*$/i, "")
+        .replace(/\b(for buy|for sell|buy signal|sell signal)\b/g, " ")
+        .replace(/[^a-z0-9 %.$]/g, " ")
         .replace(/\s+/g, " ")
-        .replace(/[^a-z0-9 %.$:-]/g, "")
-        .trim()
-        .slice(0,120);
-      // Keep the key mostly headline-based on purpose: same headline in same active stack = one event.
-      return `${replayEventType(ev)||"news"}|${title}`;
+        .trim();
+      // Use the first meaningful words so duplicated RSS truncations still match.
+      return title.split(" ").filter(Boolean).slice(0,14).join(" ");
     };
     const seenNews = new Set();
     const duplicateEvents = [];
@@ -2134,8 +2142,13 @@ function App() {
     const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
     const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
 
+    // Clean display stack also uses the de-duped active list.
+    const visibleActiveEvents = allActive;
+
     // USD / high-interest-rate anchor sign for unknown-country news.
-    // Buy Core / Mirror = - ; Sell Reset / Aligned = +.
+    // IMPORTANT: this is NOT step fallback.
+    // Unknown active news receives the USD/high-rate anchor sign first:
+    // Mirror = - ; Aligned = +. Step direction is used only when there is no active news.
     let usdAnchorCharge = 1;
     if(Number.isFinite(Number(h24))){
       try{ usdAnchorCharge = getConnectorMode(Number(h24), Number(m)||0) === "aligned" ? 1 : -1; }
@@ -2160,10 +2173,8 @@ function App() {
         return { charge: rate > USD_RATE ? usdAnchorCharge : -usdAnchorCharge, country: inferred, unknownCountryFallback:false, rateValue: rate };
       }
 
-      // Known country but missing rate: use explicit event polarity if it exists; otherwise default to USD/high-rate anchor.
-      const pol = Number(ev?.polarity || 0);
-      if(pol > 0) return { charge: 1, country: inferred, unknownCountryFallback:false, rateValue: null };
-      if(pol < 0) return { charge: -1, country: inferred, unknownCountryFallback:false, rateValue: null };
+      // Known country but missing rate: do not let article wording override the rate-anchor model.
+      // Use USD/high-rate anchor until an actual rate is known.
       return { charge: usdAnchorCharge, country: inferred || "USD", unknownCountryFallback:true, rateValue: null };
     };
 
@@ -2279,7 +2290,7 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Duplicates count once. Unknown country uses USD/high-rate anchor sign. Group same signs: +x2+ flips to -, -x2+ flips to +; then combine groups; then compare news sign vs odd/even hour.",
+      rule: "Clean news stack: duplicates removed; unknown country uses USD/high-rate anchor sign.",
       foldSteps,
     };
 
@@ -2308,7 +2319,7 @@ function App() {
       negativePressure: negatives,
       positivePressure: positives,
       breakingCount: breakingEvents,
-      activeCount: chargedEvents.reduce((n, ev)=>n + ev.eventWeight, 0),
+      activeCount: chargedEvents.length,
       rawActiveCount: rawActive.length,
       duplicateCount,
       activeEvents: chargedEvents,
@@ -2320,8 +2331,8 @@ function App() {
       stepSign,
       sellRestriction,
       reason: newsCharge === 0
-        ? "news active but no directed polarity - no step fallback override"
-        : "news sign was resolved after duplicate removal; unknown-country news uses USD/high-rate anchor sign; then news was compared against odd/even hour sign; step fallback is used only when there is no active news",
+        ? "news active"
+        : "news active",
       equation: equationPlain,
       equationPlain,
     };
@@ -3210,12 +3221,15 @@ function App() {
     const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
     const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
+    const resolvedNewsCount = Number(applied.activeCount ?? (activeEvents||[]).length || 0);
+    const resolvedRegime = !hasActiveNews ? "STEP_FALLBACK" : (resolvedNewsCount > 1 ? "NEWS_MIXED" : "NEWS_SINGLE");
+    const resolvedMode = !hasActiveNews ? "step" : (resolvedNewsCount > 1 ? "news-mixed" : "news-single");
     if(!applied.finalDirection){
       return {
         signal: null,
         chargeFlip: false,
-        mode: "news-mixed",
-        regime: "NEWS_MIXED",
+        mode: resolvedMode,
+        regime: resolvedRegime,
         flip: false,
         reason: applied.reason,
         clusterResult: applied.clusterResult,
@@ -3233,7 +3247,7 @@ function App() {
         newsSign: applied.newsSign,
         equation: equationPlain,
         equationPlain,
-        newsCount: applied.activeCount ?? (activeEvents||[]).length,
+        newsCount: resolvedNewsCount,
         fallbackWindow: fallback.window,
         tp1: 0.003, tp2: 0.006, tp3: 0.009,
       };
@@ -3242,8 +3256,8 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: "news-mixed",
-      regime: "NEWS_MIXED",
+      mode: resolvedMode,
+      regime: resolvedRegime,
       flip: false,
       reason: applied.reason,
       clusterResult: applied.clusterResult,
@@ -3261,7 +3275,7 @@ function App() {
       newsSign: applied.newsSign,
       equation: equationPlain,
       equationPlain,
-      newsCount: applied.activeCount ?? (activeEvents||[]).length,
+      newsCount: resolvedNewsCount,
       fallbackWindow: fallback.window,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
@@ -3791,20 +3805,16 @@ function App() {
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
                 </div>
 
-                {/* Signal math */}
-                <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:4}}>
-                  Regime: {current.regime} · News: {current.newsSign||"0"} · Final: {current.signal}{current.chargeFlip?" · STACK FOLD":""}
-                </div>
-                <div style={{fontSize:12,color:A,fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:2}}>{current.equationPlain}</div>
-                <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,marginBottom:6}}>
-                  {current.clusterResult?.stackSize?`Stack ${current.clusterResult.stackSize} · `:""}Reason: {current.reason}
+                {/* Clean signal summary — no math explanation on win/miss card */}
+                <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
+                  Regime: {current.regime} · News: {current.newsSign||"0"} · Final: {current.signal}
                 </div>
 
                 {/* Active news events driving the signal */}
                 {current.activeCount>0 && current.activeEvents?.length>0 ? (
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
-                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
-                    {current.activeEvents.slice(0,4).map((ev,i)=>(
+                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.newsCount||current.activeCount})</div>
+                    {Array.from(new Map((current.activeEvents||[]).map(ev=>[String(ev.title||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().split(" ").slice(0,14).join(" "),ev])).values()).slice(0,4).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
                         {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
