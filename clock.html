@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — DEDUP + USD ANCHOR CLEAN V3</title>
+<title>THE BiGENGiN3 OF TIME — DEDUP + SINGLE FALLBACK CLEAN V4</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2016,22 +2016,49 @@ function App() {
       .trim();
   }
 
+  function canonicalNewsText(s){
+    return String(s||"")
+      .toLowerCase()
+      .replace(/<[^>]+>/g," ")
+      .replace(/&[^;]+;/g," ")
+      .replace(/[“”"'’]/g,"")
+      .replace(/(breaking|update|live|exclusive|alert|analysis|report|reports|reported|says|said)/g," ")
+      .replace(/(reuters|bloomberg|cnbc|wsj|ft|marketwatch|myfxbook|trading economics|forex factory|google news|markets)/g," ")
+      .replace(/(usd|eur|gbp|jpy|aud|cad|nzd|chf|cny|sgd)/g," ")
+      .replace(/[^a-z0-9%.$]+/g," ")
+      .replace(/\s+/g," ")
+      .trim();
+  }
+
+  function newsTokenSet(s){
+    return new Set(canonicalNewsText(s).split(/\s+/).filter(w=>w && w.length>2));
+  }
+
+  function newsTextSimilar(a,b){
+    const A = newsTokenSet(a), B = newsTokenSet(b);
+    if(!A.size || !B.size) return false;
+    let inter=0;
+    A.forEach(x=>{ if(B.has(x)) inter++; });
+    const small = Math.min(A.size, B.size);
+    const big = Math.max(A.size, B.size);
+    return (inter / small >= 0.86) || (inter >= 8 && inter / big >= 0.72);
+  }
+
   function dedupeFeedItems(items){
-    const seen=new Map();
+    const kept=[];
     return (items||[]).filter(Boolean).filter(item=>{
-      const title = cleanReplayText(item.title||"");
-      const source = cleanReplayText(item.source||item.feedLabel||"");
-      const hourBucket = (()=>{
-        const t = Date.parse(item.pub||item.date||0);
-        if(!t || Number.isNaN(t)) return "na";
-        const d = new Date(t);
-        d.setMinutes(0,0,0);
-        return d.toISOString();
-      })();
-      // Feed-level dedupe should not depend on source/kind; the same story from two feeds is still one event.
-      const key = [title.slice(0,140), hourBucket].join("|");
-      if(!title || seen.has(key)) return false;
-      seen.set(key,true);
+      const title = canonicalNewsText(item.title||item.l||item.label||"");
+      if(!title) return false;
+      const t = Date.parse(item.pub||item.date||0);
+      const bucket = (!t || Number.isNaN(t)) ? "na" : Math.floor(t/(15*60000));
+      const dup = kept.some(prev=>{
+        const pt = Date.parse(prev.pub||prev.date||0);
+        const pb = (!pt || Number.isNaN(pt)) ? "na" : Math.floor(pt/(15*60000));
+        return Math.abs((Number(bucket)||0)-(Number(pb)||0)) <= 4 && newsTextSimilar(title, prev.__canonTitle||prev.title||"");
+      });
+      if(dup) return false;
+      item.__canonTitle = title;
+      kept.push(item);
       return true;
     });
   }
@@ -2111,39 +2138,24 @@ function App() {
 
     // De-dupe first so the same headline does not count twice in the stack.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const normalizeNewsKey = (ev)=>{
-      // ACTIVE-STACK DEDUPE — headline only, aggressively normalized.
-      // Same story can arrive twice with slightly different source/kind/punctuation.
-      // It must count ONCE, otherwise one report can falsely become mixed news.
-      const raw = String(ev?.title || ev?.l || ev?.label || "");
-      const title = raw
-        .toLowerCase()
-        .replace(/[“”"'’`]/g, "")
-        .replace(/&[a-z]+;/gi, " ")
-        .replace(/\b(reuters|bloomberg|cnbc|wsj|ft|marketwatch|myfxbook|trading economics|ap|yahoo finance|google news)\b/g, " ")
-        .replace(/\s+[-|:]\s*(reuters|bloomberg|cnbc|wsj|ft|marketwatch|myfxbook|trading economics|ap|yahoo finance|google news).*$/i, "")
-        .replace(/\b(for buy|for sell|buy signal|sell signal)\b/g, " ")
-        .replace(/[^a-z0-9 %.$]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      // Use the first meaningful words so duplicated RSS truncations still match.
-      return title.split(" ").filter(Boolean).slice(0,14).join(" ");
-    };
-    const seenNews = new Set();
+    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || "").slice(0,160);
     const duplicateEvents = [];
     const allActive = [];
     rawActive.forEach(ev=>{
       const key = normalizeNewsKey(ev);
-      if(key && seenNews.has(key)) duplicateEvents.push(ev);
-      else { seenNews.add(key); allActive.push(ev); }
+      const t = Date.parse(ev?.pub||ev?.date||0);
+      const isDup = key && allActive.some(prev=>{
+        const pt = Date.parse(prev?.pub||prev?.date||0);
+        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 90*60000;
+        return closeTime && newsTextSimilar(key, normalizeNewsKey(prev));
+      });
+      if(isDup) duplicateEvents.push(ev);
+      else allActive.push(ev);
     });
 
     const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
     const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
     const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
-
-    // Clean display stack also uses the de-duped active list.
-    const visibleActiveEvents = allActive;
 
     // USD / high-interest-rate anchor sign for unknown-country news.
     // IMPORTANT: this is NOT step fallback.
@@ -2197,12 +2209,14 @@ function App() {
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
 
     if(!activeCount){
-      const equationPlain = `BASE ${baseDirection.toUpperCase()} · SLOT ${slotCharge===1?'+':'-'} · NO NEWS · FINAL ${baseDirection.toUpperCase()}`;
+      const anchorDirection = usdAnchorCharge === slotCharge ? "buy" : "sell";
+      const anchorFinalCharge = anchorDirection === "buy" ? 1 : -1;
+      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · HOUR ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
       return {
-        finalDirection: baseDirection,
+        finalDirection: anchorDirection,
         baseCharge,
-        finalCharge: baseCharge,
-        newsFlip: 1,
+        finalCharge: anchorFinalCharge,
+        newsFlip: anchorDirection === baseDirection ? 1 : -1,
         negativePressure: 0,
         positivePressure: 0,
         breakingCount: 0,
@@ -2212,12 +2226,12 @@ function App() {
         activeEvents: [],
         chargeFlip: false,
         clusterResult: null,
-        dominantSource: "step schedule",
-        newsSign: "0",
+        dominantSource: "USD/high-rate anchor",
+        newsSign: usdAnchorCharge===1?"+":"-",
         slotSign: slotCharge===1?"+":"-",
-        stepSign: baseCharge===1?"+":"-",
+        stepSign: usdAnchorCharge===1?"+":"-",
         sellRestriction: false,
-        reason: "no news - step direction schedule held",
+        reason: "USD/high-rate anchor fallback",
         equation: equationPlain,
         equationPlain,
       };
@@ -2290,7 +2304,7 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Clean news stack: duplicates removed; unknown country uses USD/high-rate anchor sign.",
+      rule: "Unique news only. Unknown country acts as USD/high-rate anchor and is included in the same news math.",
       foldSteps,
     };
 
@@ -2308,8 +2322,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · HOUR ${slotSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
-      : `STEP ${baseDirection.toUpperCase()} · STEP SIGN ${stepSign} · HOUR ${slotSign} · NEWS ${newsSign} · NEWS-vs-HOUR ONLY · FINAL ${finalDirection.toUpperCase()}`;
+      ? `NEWS ACTIVE · NO DIRECTED SIGN · FINAL WAIT`
+      : `NEWS ${newsSign} · HOUR ${slotSign} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2319,7 +2333,7 @@ function App() {
       negativePressure: negatives,
       positivePressure: positives,
       breakingCount: breakingEvents,
-      activeCount: chargedEvents.length,
+      activeCount: chargedEvents.reduce((n, ev)=>n + ev.eventWeight, 0),
       rawActiveCount: rawActive.length,
       duplicateCount,
       activeEvents: chargedEvents,
@@ -2331,8 +2345,8 @@ function App() {
       stepSign,
       sellRestriction,
       reason: newsCharge === 0
-        ? "news active"
-        : "news active",
+        ? "news active but no directed sign"
+        : "unique active news resolved; unknown country uses USD/high-rate anchor",
       equation: equationPlain,
       equationPlain,
     };
@@ -3207,29 +3221,26 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: no-news → use replay fallback schedule
-  //       news active → use even/odd hour polarity schedule
-  //       speeches count as 2+ events
-  //       same sign with weighted 2+ flips once, opposite signs resolve negative
-  //       (Buy=up=even=+  /  Sell=down=odd=-)
+  // RULE: active news → resolve news sign, with unknown country treated as USD/high-rate anchor.
+  //       no active news → use the same USD/high-rate anchor fallback.
+  //       duplicate headlines count once.
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
-    // When news is active, combine the final news sign against the hour sign:
+    // Active news and no-news fallback both use the USD/high-rate anchor framework.
     // even hour = positive (+), odd hour = negative (-).
-    // Step direction remains the no-news fallback only.
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
     const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
     const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
-    const resolvedNewsCount = Number(applied.activeCount ?? (activeEvents||[]).length || 0);
-    const resolvedRegime = !hasActiveNews ? "STEP_FALLBACK" : (resolvedNewsCount > 1 ? "NEWS_MIXED" : "NEWS_SINGLE");
-    const resolvedMode = !hasActiveNews ? "step" : (resolvedNewsCount > 1 ? "news-mixed" : "news-single");
+    const usedCount = Number(applied.activeCount ?? (activeEvents||[]).length) || 0;
+    const regimeLabel = hasActiveNews ? (usedCount > 1 ? "NEWS_MIXED" : "NEWS_SINGLE") : "ANCHOR_FALLBACK";
+    const modeLabel = hasActiveNews ? (usedCount > 1 ? "news-mixed" : "news-single") : "anchor-fallback";
     if(!applied.finalDirection){
       return {
         signal: null,
         chargeFlip: false,
-        mode: resolvedMode,
-        regime: resolvedRegime,
+        mode: modeLabel,
+        regime: regimeLabel,
         flip: false,
         reason: applied.reason,
         clusterResult: applied.clusterResult,
@@ -3247,7 +3258,7 @@ function App() {
         newsSign: applied.newsSign,
         equation: equationPlain,
         equationPlain,
-        newsCount: resolvedNewsCount,
+        newsCount: applied.activeCount ?? (activeEvents||[]).length,
         fallbackWindow: fallback.window,
         tp1: 0.003, tp2: 0.006, tp3: 0.009,
       };
@@ -3256,8 +3267,8 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: resolvedMode,
-      regime: resolvedRegime,
+      mode: modeLabel,
+      regime: regimeLabel,
       flip: false,
       reason: applied.reason,
       clusterResult: applied.clusterResult,
@@ -3275,7 +3286,7 @@ function App() {
       newsSign: applied.newsSign,
       equation: equationPlain,
       equationPlain,
-      newsCount: resolvedNewsCount,
+      newsCount: applied.activeCount ?? (activeEvents||[]).length,
       fallbackWindow: fallback.window,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
@@ -3800,12 +3811,12 @@ function App() {
                   EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGET: {current.sigWindow?.tpLabel} {current.sigWindow?.tpPct}
                 </div>
 
-                {/* WIN/LOSS with full reason */}
+                {/* WIN/LOSS */}
                 <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
                 </div>
 
-                {/* Clean signal summary — no math explanation on win/miss card */}
+                {/* Clean signal summary */}
                 <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
                   Regime: {current.regime} · News: {current.newsSign||"0"} · Final: {current.signal}
                 </div>
@@ -3813,8 +3824,8 @@ function App() {
                 {/* Active news events driving the signal */}
                 {current.activeCount>0 && current.activeEvents?.length>0 ? (
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
-                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.newsCount||current.activeCount})</div>
-                    {Array.from(new Map((current.activeEvents||[]).map(ev=>[String(ev.title||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().split(" ").slice(0,14).join(" "),ev])).values()).slice(0,4).map((ev,i)=>(
+                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
+                    {current.activeEvents.slice(0,4).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
                         {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
