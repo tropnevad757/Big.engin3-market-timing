@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — SINGLE ANCHOR NEWS CLEAN V5</title>
+<title>THE BiGENGiN3 OF TIME — SAFE ENGINE V6</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -1749,8 +1749,8 @@ function App() {
   // ── LIVE NEWS DEBUG — same fields as replay, single source of truth ─────────
   // liveNewsDebug mirrors the replay debug shape so both paths are comparable.
   const liveNewsDebug = {
-    activeCount: Number(livePolarityApplied.uniqueActiveCount ?? (livePolarityApplied.activeEvents||[]).length) || 0,
-    activeEvents: (livePolarityApplied.activeEvents||newsReaction.nearEvents||[]).map(ev=>({
+    activeCount: (newsReaction.nearEvents||[]).length,
+    activeEvents: (newsReaction.nearEvents||[]).map(ev=>({
       title: ev.title||"",
       type: replayEventType(ev),
       sign: Number(ev.polarity)>0?"+":Number(ev.polarity)<0?"-":"0",
@@ -1770,7 +1770,7 @@ function App() {
     finalResolvedSign: livePolarityApplied.newsSign || "0",
     finalSlotSign: livePolarityApplied.slotSign || (liveSlotPolarity === "positive" ? "+" : "-"),
     flippedByStacking: !!livePolarityApplied.chargeFlip,
-    dominantSource: livePolarityApplied.dominantSource || "news",
+    dominantSource: livePolarityApplied.dominantSource || "breaking only",
     reason: livePolarityApplied.reason || "",
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
@@ -1877,40 +1877,41 @@ function App() {
   // Reuters: google news search locked to reuters.com domain
   // Bloomberg: google news search locked to bloomberg.com domain
   const NEWS_FEEDS = [
-    { id:"combo", label:"ALL REPORTS", color:"#ffb347",
+    { id:"combo", label:"MARKET + CALENDAR + BREAKING", color:"#ffb347",
       urls:[
-        // Google News searches: Reuters Markets, Bloomberg Markets, Myfxbook calendar, plus broad market-moving reports
-        "https://news.google.com/rss/search?q=when:7d+(site:reuters.com/markets+OR+site:reuters.com/world+OR+site:reuters.com/business)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+CPI+OR+NFP+OR+tariffs+OR+oil+OR+gold+OR+yields)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+(site:bloomberg.com/markets+OR+site:bloomberg.com/news)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+CPI+OR+NFP+OR+tariffs+OR+oil+OR+gold+OR+yields)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:14d+(site:myfxbook.com+OR+%22Myfxbook%22)+(%22economic+calendar%22+OR+NFP+OR+CPI+OR+FOMC+OR+GDP+OR+PMI+OR+rate+decision)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+%22breaking+markets%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(site:bloomberg.com/markets+OR+site:bloomberg.com/news)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+Treasury+yields)&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(site:reuters.com/markets+OR+site:reuters.com/business)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+Treasury+yields)&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(%22Myfxbook%22+%22economic+calendar%22+OR+site:myfxbook.com+%22economic+calendar%22+OR+%22forex+economic+calendar%22+%22Myfxbook%22)&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar+-forexfactory+-myfxbook&hl=en-US&gl=US&ceid=US:en",
+      ]
+    },
+    { id:"markets", label:"Bloomberg Markets", color:"#f0a030",
+      urls:[
+        "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(site:bloomberg.com/markets+OR+site:bloomberg.com/news)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+Treasury+yields)&hl=en-US&gl=US&ceid=US:en",
       ]
     },
     { id:"reuters", label:"Reuters Markets", color:"#ff6b35",
       urls:[
-        "https://news.google.com/rss/search?q=when:7d+(site:reuters.com/markets+OR+site:reuters.com/world+OR+site:reuters.com/business)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+CPI+OR+NFP+OR+tariffs+OR+oil+OR+gold+OR+yields)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+(Reuters+markets+OR+Reuters+stocks+OR+Reuters+Fed+OR+Reuters+inflation+OR+Reuters+crypto+OR+Reuters+Bitcoin)&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(site:reuters.com/markets+OR+site:reuters.com/business)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+Treasury+yields)&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"bloomberg", label:"Bloomberg Markets", color:"#f0a030",
+    { id:"myfxbook_search", label:"Myfxbook Search", color:"#00aaff",
       urls:[
-        "https://news.google.com/rss/search?q=when:7d+(site:bloomberg.com/markets+OR+site:bloomberg.com/news)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+CPI+OR+NFP+OR+tariffs+OR+oil+OR+gold+OR+yields)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+(Bloomberg+Markets+OR+Bloomberg+stocks+OR+Bloomberg+Fed+OR+Bloomberg+inflation+OR+Bloomberg+crypto+OR+Bloomberg+Bitcoin)&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:14d+(%22Myfxbook%22+%22economic+calendar%22+OR+site:myfxbook.com+%22economic+calendar%22+OR+%22forex+economic+calendar%22+%22Myfxbook%22)&hl=en-US&gl=US&ceid=US:en",
       ]
     },
-    { id:"myfxbook", label:"Myfxbook Calendar", color:"#00aaff",
+    { id:"breaking", label:"Breaking + Markets", color:"#ff6b35",
       urls:[
-        "https://www.myfxbook.com/rss/forex-economic-calendar-events",
-        "https://news.google.com/rss/search?q=when:14d+(site:myfxbook.com+OR+%22Myfxbook%22)+(%22economic+calendar%22+OR+NFP+OR+CPI+OR+FOMC+OR+GDP+OR+PMI+OR+rate+decision)&hl=en-US&gl=US&ceid=US:en",
-      ]
-    },
-    { id:"breaking", label:"Breaking Markets", color:"#ff6b35",
-      urls:[
-        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+%22breaking+markets%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)&hl=en-US&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=when:7d+(site:reuters.com/markets+OR+site:bloomberg.com/markets)+(%22breaking%22+OR+%22markets%22+OR+%22Fed%22+OR+%22Bitcoin%22)&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+(%22market+moving%22+OR+stocks+OR+equities+OR+bitcoin+OR+crypto+OR+oil+OR+gold+OR+treasury+yields+OR+bond+yields+OR+fed+OR+tariffs+OR+sanctions+OR+trade+war+OR+earnings+OR+guidance+OR+selloff+OR+rally)+-calendar+-forexfactory+-myfxbook&hl=en-US&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=when:7d+allinurl:reuters.com+markets&hl=en-US&gl=US&ceid=US:en",
       ]
     },
   ];
+
     // ── CALENDAR FEEDS ─────────────────────────────────────────────────────────────
   // ForexFactory JSON is the most reliable free cross-origin economic calendar
   // same underlying data Myfxbook and TradingEconomics aggregate
@@ -2171,8 +2172,10 @@ function App() {
     const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
     const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
 
-    // USD / high-interest-rate anchor sign.
-    // Active news uses the event country sign. Unknown-country news and no-news mode both use this same anchor.
+    // USD / high-interest-rate anchor sign for unknown-country news.
+    // IMPORTANT: this is NOT step fallback.
+    // Unknown active news receives the USD/high-rate anchor sign first:
+    // Mirror = - ; Aligned = +. Step direction is used only when there is no active news.
     let usdAnchorCharge = 1;
     if(Number.isFinite(Number(h24))){
       try{ usdAnchorCharge = getConnectorMode(Number(h24), Number(m)||0) === "aligned" ? 1 : -1; }
@@ -2186,7 +2189,7 @@ function App() {
       const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
       const inferred = String(ev?.country || ev?.currency || inferCountryCode(rawText) || "").toUpperCase().slice(0,3);
 
-      // Unknown country: use USD/high-rate anchor sign.
+      // Unknown country: do NOT step-fallback. Use USD/high-rate anchor sign first.
       if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, rateValue: USD_RATE };
 
       if(inferred === "USD") return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, rateValue: USD_RATE };
@@ -2233,7 +2236,6 @@ function App() {
         positivePressure: 0,
         breakingCount: 0,
         activeCount: 0,
-        uniqueActiveCount: 0,
         rawActiveCount: rawActive.length,
         duplicateCount,
         activeEvents: [],
@@ -2244,7 +2246,7 @@ function App() {
         slotSign: slotCharge===1?"+":"-",
         stepSign: usdAnchorCharge===1?"+":"-",
         sellRestriction: false,
-        reason: "USD/high-rate anchor",
+        reason: "USD/high-rate anchor fallback",
         equation: equationPlain,
         equationPlain,
       };
@@ -2322,7 +2324,8 @@ function App() {
     };
 
     // FINAL DIRECTION LAYER
-    // Active news uses the resolved news country sign; no-news uses the same USD/high-rate anchor.
+    // Fallback/step direction is ONLY used when there is no active news.
+    // If news is active, compare the resolved NEWS SIGN against the odd/even HOUR SIGN.
     const stepSign = baseCharge === 1 ? "+" : "-";
     let finalDirection = newsCharge === 0
       ? null
@@ -2346,7 +2349,6 @@ function App() {
       positivePressure: positives,
       breakingCount: breakingEvents,
       activeCount: chargedEvents.reduce((n, ev)=>n + ev.eventWeight, 0),
-      uniqueActiveCount: chargedEvents.length,
       rawActiveCount: rawActive.length,
       duplicateCount,
       activeEvents: chargedEvents,
@@ -2496,7 +2498,6 @@ function App() {
       let src=feed.label;
       if(/reuters/i.test(url)) src="Reuters Markets";
       if(/bloomberg/i.test(url)) src="Bloomberg Markets";
-      if(/myfxbook/i.test(url)) src="Myfxbook Calendar";
       if(/coindesk/i.test(url)) src="CoinDesk";
       return fetchRSS(url).then(items=>items.map(item=>{
         const norm=normalizeItem(item,src,feed.color);
@@ -3234,6 +3235,19 @@ function App() {
     throw new Error("BTC replay data unavailable");
   }
 
+  function uniqueReplayEventCount(events){
+    const list = Array.isArray(events) ? events : [];
+    const keys = new Set();
+    list.forEach(ev=>{
+      const titleKey = canonicalNewsText(ev?.title || ev?.name || ev?.headline || "");
+      const countryKey = String(ev?.country || ev?.currency || "USD").toUpperCase().slice(0,3);
+      const typeKey = replayEventType(ev) || "news";
+      const pubKey = String(ev?.pub || ev?.time || ev?.ts || "").slice(0,16);
+      keys.add([typeKey,countryKey,titleKey || pubKey || String(keys.size)].join("|"));
+    });
+    return keys.size;
+  }
+
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
   // RULE: active news → resolve news sign, with unknown country treated as USD/high-rate anchor.
   //       no active news → use the same USD/high-rate anchor fallback.
@@ -3246,9 +3260,11 @@ function App() {
     const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
     const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
-    const uniqueCount = Number(applied.uniqueActiveCount ?? ((applied.activeEvents||activeEvents||[]).length)) || 0;
-    const regimeLabel = hasActiveNews ? (uniqueCount > 1 ? "MIXED_NEWS" : "NEWS_SINGLE") : "USD_ANCHOR";
-    const modeLabel = hasActiveNews ? (uniqueCount > 1 ? "mixed-news" : "news-single") : "usd-anchor";
+    // Count unique events for labels only. Do not use weighted counts to decide NEWS_SINGLE vs MIXED_NEWS.
+    const uniqueCount = uniqueReplayEventCount(applied.activeEvents || activeEvents);
+    const usedCount = hasActiveNews ? uniqueCount : 0;
+    const regimeLabel = hasActiveNews ? (usedCount > 1 ? "MIXED_NEWS" : "NEWS_SINGLE") : "ANCHOR_FALLBACK";
+    const modeLabel = hasActiveNews ? (usedCount > 1 ? "mixed-news" : "news-single") : "anchor-fallback";
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -3260,8 +3276,8 @@ function App() {
         clusterResult: applied.clusterResult,
         sellRestriction: false,
         activeEvents: applied.activeEvents || activeEvents,
-        activeCount: uniqueCount,
-        uniqueActiveCount: uniqueCount,
+        activeCount: applied.activeCount,
+        uniqueNewsCount: usedCount,
         negativePressure: applied.negativePressure,
         positivePressure: applied.positivePressure,
         baseDirection: fallback.direction,
@@ -3273,7 +3289,7 @@ function App() {
         newsSign: applied.newsSign,
         equation: equationPlain,
         equationPlain,
-        newsCount: applied.activeCount ?? (activeEvents||[]).length,
+        newsCount: usedCount,
         fallbackWindow: fallback.window,
         tp1: 0.003, tp2: 0.006, tp3: 0.009,
       };
@@ -3289,8 +3305,8 @@ function App() {
       clusterResult: applied.clusterResult,
       sellRestriction: applied.sellRestriction,
       activeEvents: applied.activeEvents || activeEvents,
-      activeCount: uniqueCount,
-      uniqueActiveCount: uniqueCount,
+      activeCount: applied.activeCount,
+      uniqueNewsCount: usedCount,
       negativePressure: applied.negativePressure,
       positivePressure: applied.positivePressure,
       baseDirection: fallback.direction,
@@ -3302,7 +3318,7 @@ function App() {
       newsSign: applied.newsSign,
       equation: equationPlain,
       equationPlain,
-      newsCount: applied.activeCount ?? (activeEvents||[]).length,
+      newsCount: usedCount,
       fallbackWindow: fallback.window,
       tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
@@ -3458,12 +3474,12 @@ function App() {
         const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
         const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
         const hasCal    = list.some(ev=>replayEventType(ev)==="event");
-        const weightedCount = list.reduce((n, ev)=>n + (replayEventType(ev)==="speech" ? 2 : 1), 0);
-        if(hasSpeech) return weightedCount >= 2 ? "SPEECH 2+" : "SPEECH";
-        if((hasBreak && hasCal) || list.length > 1) return "MIXED";
-        if(hasCal) return "CAL";
-        if(hasBreak) return "BREAK";
-        return "NEWS";
+        const uniqueCount = uniqueReplayEventCount(list);
+        if(hasSpeech) return uniqueCount >= 2 ? "MIXED_NEWS" : "NEWS_SINGLE";
+        if((hasBreak && hasCal) || uniqueCount > 1) return "MIXED_NEWS";
+        if(hasCal) return "NEWS_SINGLE";
+        if(hasBreak) return "NEWS_SINGLE";
+        return "NEWS_SINGLE";
       };
 
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
@@ -3832,15 +3848,15 @@ function App() {
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
                 </div>
 
-                {/* Clean signal summary — no math explanation in win/miss card */}
+                {/* Clean signal summary */}
                 <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
-                  Mode: {current.regime} · Signal: {current.signal}
+                  Regime: {current.regime} · Final: {current.signal}
                 </div>
 
                 {/* Active news events driving the signal */}
                 {current.activeCount>0 && current.activeEvents?.length>0 ? (
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
-                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.activeCount})</div>
+                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.uniqueNewsCount||current.activeEvents?.length||0})</div>
                     {current.activeEvents.slice(0,4).map((ev,i)=>(
                       <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
                         {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
@@ -3851,7 +3867,7 @@ function App() {
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    equation: current.equationPlain||'',                    reason: current.reason||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
