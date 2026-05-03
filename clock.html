@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — CLEAN TIMELINE V2</title>
+<title>THE BiGENGiN3 OF TIME — FIXED GROUPED NEWS MATH</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2164,16 +2164,19 @@ function App() {
       return -signCharge; // 2 or more same-sign events flip once and hold there
     };
 
-    if(chargedEvents.length === 1){
-      newsCharge = chargedEvents[0].effectiveCharge;
-      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"} vs USD`;
-    } else if(chargedEvents.length >= 2){
-      // MULTI-NEWS RESOLUTION — group SAME SIGNS first, then combine the resolved groups.
-      // Your rule:
+    const chargedWeight = positives + negatives;
+
+    if(chargedWeight === 1){
+      newsCharge = chargedEvents[0]?.effectiveCharge || 0;
+      dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0]?.country||"USD"} vs USD`;
+    } else if(chargedWeight >= 2){
+      // MULTI-NEWS RESOLUTION — use the WEIGHTED sign count.
+      // This is the rule you described:
       //   + x1 => +        - x1 => -
       //   + x2 or more => -     - x2 or more => +
       // Then combine the resolved groups with news math:
       //   + + => -   - - => +   + - / - + => -
+      // Final direction is NOT step fallback; it is resolved NEWS SIGN vs odd/even HOUR SIGN.
       const positiveCount = positives;
       const negativeCount = negatives;
       const positiveResolved = resolveGroupedCharge(1, positiveCount);
@@ -2196,15 +2199,16 @@ function App() {
 
       chargeFlip = true;
       clusterResult = {
-        dominantSource: "grouped same-sign news math",
-        stackSize: chargedEvents.length,
+        dominantSource: "weighted grouped same-sign news math",
+        stackSize: chargedWeight,
+        rawEventCount: chargedEvents.length,
         positiveCount,
         negativeCount,
         dominantSign: positiveCount >= negativeCount ? "+" : "-",
         dominantCount: Math.max(positiveCount, negativeCount),
         secondarySign: positiveCount > 0 && negativeCount > 0 ? (positiveCount >= negativeCount ? "-" : "+") : "0",
         secondaryCount: positiveCount > 0 && negativeCount > 0 ? Math.min(positiveCount, negativeCount) : 0,
-        rule: "Group same signs first: +x2+ flips to -, -x2+ flips to +; then combine groups: +/+ = -, -/- = +, mixed = -",
+        rule: "Weighted mixed news: +x2+ flips to -, -x2+ flips to +; mixed resolved signs combine with +/+ = -, -/- = +, +/- = -",
         foldSteps,
       };
     }
@@ -3138,8 +3142,8 @@ function App() {
       return {
         signal: null,
         chargeFlip: false,
-        mode: "news-mixed",
-        regime: "NEWS_MIXED",
+        mode: hasActiveNews ? (applied.activeCount > 1 ? "news-mixed" : "news-single") : "fallback",
+        regime: hasActiveNews ? (applied.activeCount > 1 ? "NEWS_MIXED" : "NEWS_SINGLE") : "NO_NEWS_FALLBACK",
         flip: false,
         reason: applied.reason,
         clusterResult: applied.clusterResult,
@@ -3166,8 +3170,8 @@ function App() {
     return {
       signal,
       chargeFlip: applied.chargeFlip,
-      mode: "news-mixed",
-      regime: "NEWS_MIXED",
+      mode: hasActiveNews ? (applied.activeCount > 1 ? "news-mixed" : "news-single") : "fallback",
+      regime: hasActiveNews ? (applied.activeCount > 1 ? "NEWS_MIXED" : "NEWS_SINGLE") : "NO_NEWS_FALLBACK",
       flip: false,
       reason: applied.reason,
       clusterResult: applied.clusterResult,
