@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — SAFE ENGINE V6</title>
+<title>THE BiGENGiN3 OF TIME — REGIME TEST V7</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -185,11 +185,11 @@ const CATS = [
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // BUY CORE REGIME
 // Connector: − = mirror
-// 12:30-1:30 / 4:30-6:30
+// 12:30-1:30 / 3:30-4:30 / 6:30-7:30 / 9:30-10:30
 // Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
 // SELL RESET REGIME
 // Connector: + = aligned
-// 6:30-7:30 / 10:30-12:30
+// 1:30-3:30 / 4:30-6:30 / 7:30-9:30 / 10:30-12:30
 const REGIME_CURRENCIES = {
   sellReset: {
     // connector: + (aligned)
@@ -1320,22 +1320,31 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
+  // NEW REGIME TEST V7
+  // BUY CORE REGIME  — Connector: − = mirror, USD− anchor
+  //   12:30–1:30 / 3:30–4:30 / 6:30–7:30 / 9:30–10:30 (AM + PM)
+  // SELL RESET REGIME — Connector: + = aligned, USD+ anchor
+  //   1:30–3:30 / 4:30–6:30 / 7:30–9:30 / 10:30–12:30 (AM + PM)
   const MIRROR_RANGES = [
-    [30, 90],    // 12:30 AM – 1:30 AM
-    [270, 390],  // 4:30 AM – 6:30 AM
-    [450, 630],  // 7:30 AM – 10:30 AM
-    [750, 810],  // 12:30 PM – 1:30 PM
-    [990, 1110], // 4:30 PM – 6:30 PM
-    [1170, 1350] // 7:30 PM – 10:30 PM
+    [30, 90],     // 12:30 AM – 1:30 AM
+    [210, 270],   // 3:30 AM – 4:30 AM
+    [390, 450],   // 6:30 AM – 7:30 AM
+    [570, 630],   // 9:30 AM – 10:30 AM
+    [750, 810],   // 12:30 PM – 1:30 PM
+    [930, 990],   // 3:30 PM – 4:30 PM
+    [1110, 1170], // 6:30 PM – 7:30 PM
+    [1290, 1350]  // 9:30 PM – 10:30 PM
   ];
 
   const ALIGNED_RANGES = [
-    [0, 30],      // 12:00 AM – 12:30 AM
-    [90, 270],    // 1:30 AM – 4:30 AM
-    [390, 450],   // 6:30 AM – 7:30 AM
+    [0, 30],      // 12:00 AM – 12:30 AM (continuation of 10:30 PM – 12:30 AM reset)
+    [90, 210],    // 1:30 AM – 3:30 AM
+    [270, 390],   // 4:30 AM – 6:30 AM
+    [450, 570],   // 7:30 AM – 9:30 AM
     [630, 750],   // 10:30 AM – 12:30 PM
-    [810, 990],   // 1:30 PM – 4:30 PM
-    [1110, 1170], // 6:30 PM – 7:30 PM
+    [810, 930],   // 1:30 PM – 3:30 PM
+    [990, 1110],  // 4:30 PM – 6:30 PM
+    [1170, 1290], // 7:30 PM – 9:30 PM
     [1350, 1440]  // 10:30 PM – 12:00 AM
   ];
 
@@ -2375,50 +2384,39 @@ function App() {
 
   function getSixHourFallback_430_1030_standard(h24, m){
     const t = h24*60 + m;
-    const steps = [
-      [0,   "buy",  "+", "12:00 BUY"],
-      [30,  "sell", "-", "12:30 SELL"],
-      [60,  "buy",  "+", "1:00 BUY"],
-      [90,  "sell", "-", "1:30 SELL"],
-      [120, "buy",  "+", "2:00 BUY"],
-      [180, "sell", "-", "3:00 SELL"],
-      [240, "buy",  "+", "4:00 BUY"],
-      [270, "sell", "-", "4:30 SELL"],
-      [300, "buy",  "+", "5:00 BUY"],
-      [360, "sell", "-", "6:00 SELL"],
-      [390, "buy",  "+", "6:30 BUY"],
-      [420, "sell", "-", "7:00 SELL"],
-      [450, "buy",  "+", "7:30 BUY"],
-      [480, "sell", "-", "8:00 SELL"],
-      [540, "buy",  "+", "9:00 BUY"],
-      [600, "sell", "-", "10:00 SELL"],
-      [630, "buy",  "+", "10:30 BUY"],
-      [660, "sell", "-", "11:00 SELL"],
-      [720, "buy",  "+", "12:00 BUY"],
-      [750, "sell", "-", "12:30 SELL"],
-      [780, "buy",  "+", "1:00 BUY"],
-      [810, "sell", "-", "1:30 SELL"],
-      [840, "buy",  "+", "2:00 BUY"],
-      [900, "sell", "-", "3:00 SELL"],
-      [960, "buy",  "+", "4:00 BUY"],
-      [990, "sell", "-", "4:30 SELL"],
-      [1020,"buy",  "+", "5:00 BUY"],
-      [1080,"sell", "-", "6:00 SELL"],
-      [1110,"buy",  "+", "6:30 BUY"],
-      [1140,"sell", "-", "7:00 SELL"],
-      [1170,"buy",  "+", "7:30 BUY"],
-      [1200,"sell", "-", "8:00 SELL"],
-      [1260,"buy",  "+", "9:00 BUY"],
-      [1320,"sell", "-", "10:00 SELL"],
-      [1350,"buy",  "+", "10:30 BUY"],
-      [1380,"sell", "-", "11:00 SELL"],
-      [1440,"buy",  "+", "12:00 BUY"]
-    ];
-    let current = steps[0];
-    for(let i=0;i<steps.length-1;i++){
-      if(t >= steps[i][0] && t < steps[i+1][0]) { current = steps[i]; break; }
+    const fmt = (mins)=>{
+      let h = Math.floor((mins % 1440) / 60);
+      const mm = String(mins % 60).padStart(2,"0");
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12; if(h === 0) h = 12;
+      return `${h}:${mm} ${ampm}`;
+    };
+    const inRange = (range)=> t >= range[0] && t < range[1];
+    const mirrorRange = MIRROR_RANGES.find(inRange);
+    const alignedRange = ALIGNED_RANGES.find(inRange);
+
+    if(mirrorRange){
+      // BUY CORE: USD− mirror anchor. Keep slot polarity negative so USD− resolves BUY in replay.
+      return {
+        direction: "buy",
+        polarity: "negative",
+        sign: "-",
+        connector: "mirror",
+        regime: "BUY_CORE",
+        window: `BUY CORE · USD− · ${fmt(mirrorRange[0])}-${fmt(mirrorRange[1])}`
+      };
     }
-    return { direction: current[1], polarity: current[1] === "buy" ? "positive" : "negative", sign: current[2], window: current[3] };
+
+    const r = alignedRange || [0,30];
+    // SELL RESET: USD+ aligned anchor. Keep slot polarity negative so USD+ resolves SELL in replay.
+    return {
+      direction: "sell",
+      polarity: "negative",
+      sign: "-",
+      connector: "aligned",
+      regime: "SELL_RESET",
+      window: `SELL RESET · USD+ · ${fmt(r[0])}-${fmt(r[1])}`
+    };
   }
   function safeJsonParse(v, fallback){
     try{ const parsed = JSON.parse(v); return parsed ?? fallback; }catch{ return fallback; }
