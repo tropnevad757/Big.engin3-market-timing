@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — REGIME TEST V7</title>
+<title>THE BiGENGiN3 OF TIME — REGIME TEST V7 OVERLAP PATCH</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -203,14 +203,16 @@ const REGIME_CURRENCIES = {
   },
 };
 
-// NEWS REACTION WINDOWS — symmetric (before AND after event)
-// Stars → window in mins, TP targets as % move from entry
-// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
+// NEWS REACTION WINDOWS — V7 BEST BASE + OVERLAP PATCH
+// Rule: every active event keeps a 20-minute post-release duration.
+// Calendar events may reach BEFORE release by impact; breaking news starts at publication.
+// Mixed news is not a separate engine: any events overlapping the current minute are
+// collected first, then the same stacking math is applied once before hour-sign compare.
 const NEWS_REACTION = {
-  break: { window: 20, fibs: [38.2], tps: [0.1146], label:"BREAKING NEWS" },
-  1:     { window: 20, fibs: [61.8], tps: [0.185],  label:"★" },
-  2:     { window: 50, fibs: [61.8], tps: [0.185],  label:"★★" },
-  3:     { window: 80, fibs: [61.8], tps: [0.185],  label:"★★★" },
+  break: { pre: 0,  post: 20, window: 20, fibs: [38.2], tps: [0.1146], label:"BREAKING NEWS" },
+  1:     { pre: 20, post: 20, window: 20, fibs: [61.8], tps: [0.185],  label:"★" },
+  2:     { pre: 50, post: 20, window: 50, fibs: [61.8], tps: [0.185],  label:"★★" },
+  3:     { pre: 90, post: 20, window: 90, fibs: [61.8], tps: [0.185],  label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -1631,11 +1633,9 @@ function App() {
       const isBreaking = replayEventType(ev) === "breaking";
       const isSpeech = replayEventType(ev) === "speech";
       const isAfter = minsUntil < 0;
-      const active = isBreaking || isSpeech
-        ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
-        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
+      const active = minsUntil <= win.pre && minsUntil >= -win.post;
       if(!active) return null;
-      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
+      const windowSize = minsUntil >= 0 ? Math.max(1, win.pre) : Math.max(1, win.post);
       const absMins = Math.abs(minsUntil);
       const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
       const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
@@ -2097,10 +2097,10 @@ function App() {
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
     if(type === "breaking") return {pre:0, post:20};
-    if(type === "speech") return {pre:0, post:45};
+    if(type === "speech") return {pre:0, post:20};
     if(stars === 1) return {pre:20, post:20};
-    if(stars === 2) return {pre:50, post:50};
-    return {pre:80, post:80};
+    if(stars === 2) return {pre:50, post:20};
+    return {pre:90, post:20};
   }
 
   function calendarAdvanceMinutes(item){
@@ -2125,8 +2125,8 @@ function App() {
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
+      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${note} ${raw?.source||""} ${raw?.feedLabel||""} ${raw?.cat||""}`) || "";
       return { title, source, stars, polarity, kind, pub, country, note, rateValue };
     };
 
@@ -2440,23 +2440,45 @@ function App() {
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
     if(fallback) return String(fallback).toUpperCase().slice(0,3);
+
+    // MARKET / COUNTRY ALIAS ENGINE
+    // Purpose: when a headline does not say a clean currency code, infer the region
+    // from central banks, stock indices, exchanges, country names, bond-market terms,
+    // and common news shorthand. This keeps ASX/Australia, DAX/Germany, Nikkei/Japan,
+    // FTSE/UK, etc. from falling into the unknown-country bucket.
     const checks = [
-      [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
-      [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
-      [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/, "GBP"],
-      [/(^|\W)(JPY|JAPAN|BOJ|TOKYO|YEN)(\W|$)/, "JPY"],
-      [/(^|\W)(AUD|AUSTRALIA|RBA|ASX)(\W|$)/, "AUD"],
-      [/(^|\W)(CAD|CANADA|BOC)(\W|$)/, "CAD"],
-      [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/, "CHF"],
-      [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/, "NZD"],
-      [/(^|\W)(SGD|SINGAPORE|MAS)(\W|$)/, "SGD"],
-      [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
-      [/(^|\W)(KRW|KOREA|SOUTH KOREA|BOK)(\W|$)/, "KRW"],
-      [/(^|\W)(TWD|TAIWAN)(\W|$)/, "TWD"],
-      [/(^|\W)(HKD|HONG KONG|HKMA)(\W|$)/, "HKD"],
-      [/(^|\W)(MYR|MALAYSIA)(\W|$)/, "MYR"],
-      [/(^|\W)(THB|THAILAND)(\W|$)/, "THB"],
-      [/(^|\W)(INR|INDIA|RBI)(\W|$)/, "INR"],
+      [/(^|\W)(USD|US|U\.S\.?|USA|UNITED STATES|AMERICA|WASHINGTON|WALL STREET|NASDAQ|NYSE|S&P\s?500|SPX|DOW|DJIA|RUSSELL|VIX|FED|FEDERAL RESERVE|FOMC|POWELL|NFP|NONFARM|PAYROLLS?|CPI|PPI|PCE|JOLTS|ISM|PMI|TREASUR(?:Y|IES)|T\-?BILL|T\-?NOTE|10Y|2Y)(\W|$)/, "USD"],
+      [/(^|\W)(EUR|EURO|EUROZONE|EU|EUROPEAN UNION|ECB|LAGARDE|EUREX|STOXX|EURO STOXX|DAX|GERMANY|BUND|FRANCE|CAC|ITALY|FTSE MIB|SPAIN|IBEX)(\W|$)/, "EUR"],
+      [/(^|\W)(GBP|UK|U\.K\.?|BRITAIN|BRITISH|UNITED KINGDOM|ENGLAND|LONDON|BOE|BANK OF ENGLAND|BAILEY|FTSE|GILT|GILTS)(\W|$)/, "GBP"],
+      [/(^|\W)(JPY|JAPAN|JAPANESE|TOKYO|YEN|BOJ|BANK OF JAPAN|UEDA|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/, "JPY"],
+      [/(^|\W)(AUD|AUSTRALIA|AUSTRALIAN|RBA|RESERVE BANK OF AUSTRALIA|SYDNEY|ASX|AUSSIE)(\W|$)/, "AUD"],
+      [/(^|\W)(CAD|CANADA|CANADIAN|BOC|BANK OF CANADA|TORONTO|TSX|LOONIE)(\W|$)/, "CAD"],
+      [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB|ZURICH|SMI|FRANC)(\W|$)/, "CHF"],
+      [/(^|\W)(NZD|NEW ZEALAND|RBNZ|WELLINGTON|NZX|KIWI)(\W|$)/, "NZD"],
+      [/(^|\W)(CNY|CNH|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|HONG KONG|PBOC|YUAN|RENMINBI|CSI\s?300|HSI|HANG SENG)(\W|$)/, "CNY"],
+      [/(^|\W)(HKD|HKMA|HONG KONG|HANG SENG|HSI)(\W|$)/, "HKD"],
+      [/(^|\W)(SGD|SINGAPORE|MAS|STRAITS TIMES|STI)(\W|$)/, "SGD"],
+      [/(^|\W)(KRW|KOREA|SOUTH KOREA|SEOUL|BOK|KOSPI|KOSDAQ|WON)(\W|$)/, "KRW"],
+      [/(^|\W)(TWD|TAIWAN|TAIPEI|CBC|TAIEX)(\W|$)/, "TWD"],
+      [/(^|\W)(INR|INDIA|INDIAN|RBI|MUMBAI|SENSEX|NIFTY|RUPEE)(\W|$)/, "INR"],
+      [/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|BANCO CENTRAL DO BRASIL|BOVESPA|IBOVESPA|REAL)(\W|$)/, "BRL"],
+      [/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BOLSA|PESO)(\W|$)/, "MXN"],
+      [/(^|\W)(ZAR|SOUTH AFRICA|SARB|JSE|RAND)(\W|$)/, "ZAR"],
+      [/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA ISTANBUL|LIRA)(\W|$)/, "TRY"],
+      [/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|OMX STOCKHOLM|STOCKHOLM)(\W|$)/, "SEK"],
+      [/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES BANK|OSLO BORS|OSLO BØRS)(\W|$)/, "NOK"],
+      [/(^|\W)(DKK|DENMARK|DANISH|DANMARKS NATIONALBANK|OMX COPENHAGEN)(\W|$)/, "DKK"],
+      [/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|ZLOTY)(\W|$)/, "PLN"],
+      [/(^|\W)(CZK|CZECH|CZECHIA|CNB|PRAGUE|KORUNA)(\W|$)/, "CZK"],
+      [/(^|\W)(HUF|HUNGARY|HUNGARIAN|MNB|BUDAPEST|FORINT)(\W|$)/, "HUF"],
+      [/(^|\W)(RON|ROMANIA|ROMANIAN|BNR|BUCHAREST|LEU)(\W|$)/, "RON"],
+      [/(^|\W)(ILS|ISRAEL|ISRAELI|BOI|TEL AVIV|SHEKEL)(\W|$)/, "ILS"],
+      [/(^|\W)(MYR|MALAYSIA|MALAYSIAN|BNM|BURSA MALAYSIA|RINGGIT)(\W|$)/, "MYR"],
+      [/(^|\W)(THB|THAILAND|THAI|BOT|SET INDEX|BAHT)(\W|$)/, "THB"],
+      [/(^|\W)(PHP|PHILIPPINES|PHILIPPINE|BSP|PSEI|PESO)(\W|$)/, "PHP"],
+      [/(^|\W)(IDR|INDONESIA|INDONESIAN|BANK INDONESIA|IDX|RUPIAH)(\W|$)/, "IDR"],
+      [/(^|\W)(ISK|ICELAND|ICELANDIC|SEDLABANKI|REYKJAVIK|KRONA)(\W|$)/, "ISK"],
+      [/(^|\W)(AOA|ANGOLA|ANGOLAN|BNA|KWANZA)(\W|$)/, "AOA"],
     ];
     for (const [rx, code] of checks) if (rx.test(t)) return code;
     return "";
@@ -3334,9 +3356,9 @@ function App() {
       return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"0-20m burst" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±80m symmetric window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±50m symmetric window" };
-    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±20m symmetric window" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"90m pre-window + 20m event duration" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"50m pre-window + 20m event duration" };
+    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"20m pre-window + 20m event duration" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
