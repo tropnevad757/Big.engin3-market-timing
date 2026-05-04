@@ -30,6 +30,7 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>THE BiGENGiN3 OF TIME</p>
 </div>
 <div id="root"></div>
+<!-- V12 CLEAN ODD/EVEN BRAIN ENGINE: active news compares final news sign against odd/even hour; no-news fallback unchanged. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
@@ -1784,7 +1785,7 @@ function App() {
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
     // SELF-CHECK: live and replay use the same function (resolveStackedNewsSign)
-    engineUsed: "computeReplayPolarity (shared live+replay)"
+    engineUsed: "V12 clean odd/even brain engine (shared live+replay)"
   };
 
   const appChecks = [
@@ -2194,19 +2195,18 @@ function App() {
     function inferBrainCountry(rawText="", fallback=""){
       const t = String(rawText||"").toUpperCase();
       const fbRaw = String(fallback||"").toUpperCase().trim();
-      const fb = fbRaw.slice(0,3);
+      const fb3 = fbRaw.slice(0,3);
+      const known = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR"]);
 
-      // V12: headline/ticker clues outrank dirty feed country tags.
-      // Example: LALT.V should resolve CAD even if the scraper tagged it as generic/unknown/USD.
+      // Clean headline classification first so dirty ticker/source tags do not win.
+      if(/\bLALT\.V\b|\bTSX\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
       if(/\bASX\b|AUSTRALIA|AUSSIE|\bAUD\b/.test(t)) return "AUD";
-      if(/\bTSX\b|\bLALT\.V\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
-      if(/\bASIA\b|EM ASIA|ASIAN/.test(t)) return "ASI"; // regional Asia: keep headline sign, do not force JPY rate inversion
+      if(/\bASIA\b|EM ASIA|ASIAN|EMERGING MARKETS?/.test(t)) return "ASI";
+      if(/\bUSD\b|DOLLAR|TREASURY|YIELDS?|FED\b|POWELL|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
 
-      // USD / high-rate anchor terms
-      if(/\bUSD\b|DOLLAR|TREASURY|FED\b|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
+      // Trust fallback only when it is a clean currency code. Bad tags like LALT.V/PNGAF.PK fall through.
+      if(known.has(fb3)) return fb3;
 
-      // Use feed country only after stronger headline clues.
-      if(fb && !/[.?]/.test(fbRaw)) return fb;
       try{ return inferCountryCode(rawText) || "USD"; }catch(_){ return "USD"; }
     }
 
@@ -3300,19 +3300,17 @@ function App() {
     return keys.size;
   }
 
-  // ── REPLAY SIGNAL — V12 CLEAN BRAIN ENGINE ───────────────────────────────────
-  // RULE: active news → resolve the NEWS SIGN first, then compare it to odd/even hour.
+  // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
+  // RULE: active news → resolve final news sign, then compare NEWS SIGN to odd/even HOUR SIGN.
   //       even hour = +, odd hour = -. Same signs = BUY, different signs = SELL.
-  //       unknown country → USD/high-rate anchor before stacking.
-  //       plural/multiple/speech-style events can count as 2 and flip once.
-  //       no active news → use the original USD/STEP/regime fallback.
+  //       unknown country → USD/high-rate anchor.
+  //       no active news → use existing USD/STEP/regime fallback.
   //       duplicate headlines count once.
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
-    const hourPolarity = (Number(h24) % 2 === 0) ? "positive" : "negative";
-    const appliedPolarity = hasActiveNews ? hourPolarity : fallback.polarity;
-    const applied = resolveStackedNewsSign(fallback.direction, appliedPolarity, activeEvents, h24, m);
+    const regimePolarity = fallback.polarity;
+    const applied = resolveStackedNewsSign(fallback.direction, regimePolarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     // Count unique events for labels only. Do not use weighted counts to decide NEWS_SINGLE vs MIXED_NEWS.
     const uniqueCount = uniqueReplayEventCount(applied.activeEvents || activeEvents);
