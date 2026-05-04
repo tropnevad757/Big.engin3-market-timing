@@ -2159,10 +2159,11 @@ function App() {
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
+    const hourCharge = Number.isFinite(Number(h24)) && (Number(h24) % 2 === 0) ? 1 : -1;
 
     // De-dupe first so the same headline does not count twice in the stack.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || "").slice(0,160);
+    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || ev?.headline || "").slice(0,160);
     const duplicateEvents = [];
     const allActive = [];
     rawActive.forEach(ev=>{
@@ -2177,41 +2178,86 @@ function App() {
       else allActive.push(ev);
     });
 
-    const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
-    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
-    const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
-
-    // USD / high-interest-rate anchor sign for unknown-country news.
-    // IMPORTANT: this is NOT step fallback.
-    // Unknown active news receives the USD/high-rate anchor sign first:
-    // Mirror = - ; Aligned = +. Step direction is used only when there is no active news.
+    // USD / high-interest-rate anchor sign for unknown-country fallback.
+    // Unknown/no-news still uses the active regime anchor. Active directed news uses
+    // Derrick's brain logic: resolve the news sign first, then compare it to odd/even hour sign.
     let usdAnchorCharge = 1;
     if(Number.isFinite(Number(h24))){
       try{ usdAnchorCharge = getConnectorMode(Number(h24), Number(m)||0) === "aligned" ? 1 : -1; }
       catch(_){ usdAnchorCharge = slotCharge; }
     } else {
-      // If a caller does not pass time, fall back to the current slot sign so unknown news still has a sign.
       usdAnchorCharge = slotCharge;
     }
 
+    const textOf = (ev)=>String(`${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||""} ${ev?.note||""} ${ev?.country||""} ${ev?.currency||""}`).trim();
+
+    function inferBrainCountry(rawText="", fallback=""){
+      const fb = String(fallback||"").toUpperCase().slice(0,3);
+      if(fb) return fb;
+      const t = String(rawText||"").toUpperCase();
+
+      // Tickers / regions Derrick flagged
+      if(/\bASX\b|AUSTRALIA|AUSSIE|\bAUD\b/.test(t)) return "AUD";
+      if(/\bTSX\b|\bLALT\.V\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
+      if(/\bASIA\b|EM ASIA|ASIAN/.test(t)) return "ASI"; // regional Asia: keep headline sign, do not force JPY rate inversion
+
+      // USD / high-rate anchor terms
+      if(/\bUSD\b|DOLLAR|TREASURY|FED\b|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
+
+      try{ return inferCountryCode(rawText) || "USD"; }catch(_){ return "USD"; }
+    }
+
+    function inferHeadlineCharge(ev, country){
+      const t = textOf(ev).toUpperCase();
+      const rawPol = Number(ev?.polarity);
+      if(Number.isFinite(rawPol) && rawPol !== 0) return rawPol > 0 ? 1 : -1;
+
+      // Specific interpretations from Derrick's miss review
+      if(/OIL PRICE SURGE/.test(t)) return 1;
+      if(/YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?/.test(t)) return 1;
+      if(/FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS/.test(t)) return 1;
+      if(/PREDICTION MARKETS.*GOVERNMENT.*TEST|GOVERNMENT TO THE TEST/.test(t)) return -1;
+      if(/DOLLAR WEAKNESS|DOLLAR WEAK|WEAKNESS/.test(t)) return -1;
+      if(/STOCKS FALL|FALL IN ASIA|SELL[- ]?OFF|THREATENS.*SELLOFF|WARNS|WARNING|DEEPEN SELLOFF/.test(t)) return -1;
+
+      // Country-only default: a detected news item starts positive, then the interest-rate override below can invert it.
+      return 1;
+    }
+
+    function isPluralBrainEvent(ev){
+      const t = textOf(ev).toUpperCase();
+      // Count only Derrick-style plural/multiple ideas as two charges.
+      // Avoid treating every generic "stocks" headline as plural; ASX/dividend/markets are intentional.
+      return /\b(MULTIPLE|SEVERAL|MANY|TWO OR MORE)\b/.test(t)
+        || /\bPREDICTION MARKETS\b/.test(t)
+        || /\bASX\b/.test(t)
+        || /\bDIVIDEND STOCKS\b/.test(t)
+        || replayEventType(ev)==="speech";
+    }
+
+    const weightOf = (ev)=>isPluralBrainEvent(ev) ? 2 : 1;
+    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
+    const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+
     const getNewsEventCharge = (ev)=>{
-      const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
-      const inferred = String(ev?.country || ev?.currency || inferCountryCode(rawText) || "").toUpperCase().slice(0,3);
-
-      // Unknown country: do NOT step-fallback. Use USD/high-rate anchor sign first.
-      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, rateValue: USD_RATE };
-
-      if(inferred === "USD") return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, rateValue: USD_RATE };
+      const rawText = textOf(ev);
+      const inferred = inferBrainCountry(rawText, ev?.country || ev?.currency || "");
+      let charge = inferHeadlineCharge(ev, inferred);
 
       const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
-      if(Number.isFinite(rate)){
-        // Higher than USD = same as USD anchor. Equal/lower than USD = opposite of USD anchor.
-        return { charge: rate > USD_RATE ? usdAnchorCharge : -usdAnchorCharge, country: inferred, unknownCountryFallback:false, rateValue: rate };
-      }
+      const hasConcreteRate = Number.isFinite(rate) && inferred !== "USD" && inferred !== "ASI";
 
-      // Known country but missing rate: do not let article wording override the rate-anchor model.
-      // Use USD/high-rate anchor until an actual rate is known.
-      return { charge: usdAnchorCharge, country: inferred || "USD", unknownCountryFallback:true, rateValue: null };
+      // Dynamic sign override:
+      // If symbol value is <= USD anchor, invert that symbol's sign.
+      // USD and broad regional Asia are not inverted here.
+      if(hasConcreteRate && rate <= USD_RATE) charge = -charge;
+
+      return {
+        charge,
+        country: inferred || "USD",
+        unknownCountryFallback: !inferred || inferred==="USD",
+        rateValue: Number.isFinite(rate) ? rate : (inferred==="USD" ? USD_RATE : null)
+      };
     };
 
     const chargedEvents = allActive
@@ -2233,9 +2279,10 @@ function App() {
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
 
     if(!activeCount){
+      // No active news: use the USD/STEP/regime anchor fallback exactly like V7.
       const anchorDirection = usdAnchorCharge === slotCharge ? "buy" : "sell";
       const anchorFinalCharge = anchorDirection === "buy" ? 1 : -1;
-      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · HOUR ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
+      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · STEP ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
       return {
         finalDirection: anchorDirection,
         baseCharge,
@@ -2250,9 +2297,10 @@ function App() {
         activeEvents: [],
         chargeFlip: false,
         clusterResult: null,
-        dominantSource: "USD/high-rate anchor",
+        dominantSource: "USD/high-rate anchor fallback",
         newsSign: usdAnchorCharge===1?"+":"-",
         slotSign: slotCharge===1?"+":"-",
+        hourSign: hourCharge===1?"+":"-",
         stepSign: usdAnchorCharge===1?"+":"-",
         sellRestriction: false,
         reason: "USD/high-rate anchor fallback",
@@ -2282,13 +2330,13 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}`);
+      foldSteps.push(`${ev.eventWeight>1?"MULTI ":""}${ev.unknownCountryFallback?"USD/HIGH ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'} x${ev.eventWeight}`);
     });
 
-    if(chargedEvents.length === 1){
+    if(chargedEvents.length === 1 && chargedEvents[0].eventWeight === 1){
       newsCharge = chargedEvents[0].effectiveCharge;
       dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"}${chargedEvents[0].unknownCountryFallback?" anchor fallback":""}`;
-    } else if(chargedEvents.length >= 2){
+    } else if(chargedEvents.length >= 1){
       // MULTI-NEWS RESOLUTION — group SAME SIGNS first, then combine the resolved groups.
       // + x1 => +        - x1 => -
       // + x2 or more => -     - x2 or more => +
@@ -2313,13 +2361,13 @@ function App() {
         newsCharge = positiveCount > 0 ? positiveResolved : negativeResolved;
       }
 
-      chargeFlip = true;
+      chargeFlip = activeCount >= 2;
       dominantSource = "grouped same-sign news math";
     }
 
     clusterResult = {
       dominantSource,
-      stackSize: chargedEvents.length,
+      stackSize: activeCount,
       rawStackSize: rawActive.length,
       duplicateCount,
       positiveCount: positives,
@@ -2328,28 +2376,28 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Unique news only. Unknown country acts as USD/high-rate anchor and is included in the same news math.",
+      rule: "Brain logic: unique news only; plural/multiple headlines can count as 2; dynamic rate override applies before stacking; active news compares to odd/even hour.",
       foldSteps,
     };
 
-    // FINAL DIRECTION LAYER
-    // V10 CLEAN RULE:
-    // Format direction, step direction, fallback direction, and USD anchor direction are treated as ONE.
-    // If news is active, compare the resolved NEWS SIGN against the current USD/STEP/REGIME SIGN.
-    // This removes the old separate odd/even hour comparison without changing the V7 stacking engine.
-    const stepSign = baseCharge === 1 ? "+" : "-";
+    // FINAL DIRECTION LAYER — DERRICK BRAIN LOGIC
+    // Active news: compare resolved NEWS SIGN to ODD/EVEN HOUR SIGN.
+    // Even hour = +. Odd hour = -.
+    // Same signs = BUY. Different signs = SELL.
+    const hourSign = hourCharge === 1 ? "+" : "-";
     let finalDirection = newsCharge === 0
       ? null
-      : (newsCharge === baseCharge ? "buy" : "sell");
+      : (newsCharge === hourCharge ? "buy" : "sell");
 
     const sellRestriction = false;
     const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
     const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
     const slotSign = slotCharge === 1 ? "+" : "-";
+    const stepSign = baseCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `USD/STEP ${stepSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
-      : `NEWS ${newsSign} · USD/STEP ${stepSign} · FINAL ${finalDirection.toUpperCase()}`;
+      ? `HOUR ${hourSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `NEWS ${newsSign} · HOUR ${hourSign} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2368,11 +2416,12 @@ function App() {
       dominantSource,
       newsSign,
       slotSign,
+      hourSign,
       stepSign,
       sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed sign"
-        : "unique active news resolved; unknown country uses USD/high-rate anchor",
+        : "brain logic: resolved news sign compared to odd/even hour sign",
       equation: equationPlain,
       equationPlain,
     };
