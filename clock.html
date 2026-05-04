@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V12 CLEAN ODD/EVEN BRAIN ENGINE</title>
+<title>THE BiGENGiN3 OF TIME — V12.1 REGIME ANCHOR FIX</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -30,7 +30,7 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>THE BiGENGiN3 OF TIME</p>
 </div>
 <div id="root"></div>
-<!-- V12 CLEAN ODD/EVEN BRAIN ENGINE: active news compares final news sign against odd/even hour; no-news fallback unchanged. -->
+<!-- V12.1 FIX: active USD/high-rate-anchor news applies current regime anchor sign before odd/even comparison; no-news fallback unchanged. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
@@ -2215,7 +2215,9 @@ function App() {
       const rawPol = Number(ev?.polarity);
       if(Number.isFinite(rawPol) && rawPol !== 0) return rawPol > 0 ? 1 : -1;
 
-      // Specific interpretations from Derrick's miss review
+      // Specific interpretations from Derrick's miss review.
+      // IMPORTANT: USD/high-rate-anchor headlines are normalized later to the current USD regime sign
+      // before the odd/even comparison. These clues are still used for non-USD / non-anchor events.
       if(/OIL PRICE SURGE/.test(t)) return 1;
       if(/YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?/.test(t)) return 1;
       if(/FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS/.test(t)) return 1;
@@ -2248,18 +2250,30 @@ function App() {
       let charge = inferHeadlineCharge(ev, inferred);
 
       const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
+      const isUsdAnchor = !inferred || inferred === "USD";
       const hasConcreteRate = Number.isFinite(rate) && inferred !== "USD" && inferred !== "ASI";
+      let anchorApplied = false;
+
+      // FIX: active USD / unknown high-rate-anchor news must inherit the CURRENT regime anchor sign
+      // before comparing against odd/even hour.
+      // Example: 12:30–1:30 BUY CORE = USD−, so USD news becomes negative;
+      // odd hour (-) vs negative news (-) resolves BUY.
+      if(isUsdAnchor){
+        charge = usdAnchorCharge;
+        anchorApplied = true;
+      }
 
       // Dynamic sign override:
       // If symbol value is <= USD anchor, invert that symbol's sign.
-      // USD and broad regional Asia are not inverted here.
-      if(hasConcreteRate && rate <= USD_RATE) charge = -charge;
+      // USD/high-rate anchor already uses the regime sign above; broad regional Asia is not inverted here.
+      if(!anchorApplied && hasConcreteRate && rate <= USD_RATE) charge = -charge;
 
       return {
         charge,
         country: inferred || "USD",
-        unknownCountryFallback: !inferred || inferred==="USD",
-        rateValue: Number.isFinite(rate) ? rate : (inferred==="USD" ? USD_RATE : null)
+        unknownCountryFallback: !!isUsdAnchor,
+        anchorApplied,
+        rateValue: Number.isFinite(rate) ? rate : (isUsdAnchor ? USD_RATE : null)
       };
     };
 
@@ -2272,6 +2286,7 @@ function App() {
           effectiveCharge: resolved.charge,
           eventWeight: weightOf(ev),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
+          anchorApplied: !!resolved.anchorApplied,
           rateValue: resolved.rateValue,
         };
       })
@@ -2333,7 +2348,7 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.eventWeight>1?"MULTI ":""}${ev.unknownCountryFallback?"USD/HIGH ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'} x${ev.eventWeight}`);
+      foldSteps.push(`${ev.eventWeight>1?"MULTI ":""}${ev.anchorApplied?"REGIME USD/HIGH ANCHOR":(ev.unknownCountryFallback?"USD/HIGH ANCHOR":"EVENT")} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'} x${ev.eventWeight}`);
     });
 
     if(chargedEvents.length === 1 && chargedEvents[0].eventWeight === 1){
@@ -2379,7 +2394,7 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Brain logic: unique news only; plural/multiple headlines can count as 2; dynamic rate override applies before stacking; active news compares to odd/even hour.",
+      rule: "Brain logic: USD/high-rate-anchor active news first inherits the current regime sign, then unique news stacking compares to odd/even hour.",
       foldSteps,
     };
 
