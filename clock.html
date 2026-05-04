@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — REGIME TEST V7</title>
+<title>THE BiGENGiN3 OF TIME — V7 LOCKED USD STEP COMPARE V10</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2333,12 +2333,14 @@ function App() {
     };
 
     // FINAL DIRECTION LAYER
-    // Fallback/step direction is ONLY used when there is no active news.
-    // If news is active, compare the resolved NEWS SIGN against the odd/even HOUR SIGN.
+    // V10 CLEAN RULE:
+    // Format direction, step direction, fallback direction, and USD anchor direction are treated as ONE.
+    // If news is active, compare the resolved NEWS SIGN against the current USD/STEP/REGIME SIGN.
+    // This removes the old separate odd/even hour comparison without changing the V7 stacking engine.
     const stepSign = baseCharge === 1 ? "+" : "-";
     let finalDirection = newsCharge === 0
       ? null
-      : (newsCharge === slotCharge ? "buy" : "sell");
+      : (newsCharge === baseCharge ? "buy" : "sell");
 
     const sellRestriction = false;
     const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
@@ -2346,8 +2348,8 @@ function App() {
     const slotSign = slotCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `NEWS ACTIVE · NO DIRECTED SIGN · FINAL WAIT`
-      : `NEWS ${newsSign} · HOUR ${slotSign} · FINAL ${finalDirection.toUpperCase()}`;
+      ? `USD/STEP ${stepSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `NEWS ${newsSign} · USD/STEP ${stepSign} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -3247,22 +3249,21 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: active news → resolve news sign, with unknown country treated as USD/high-rate anchor.
-  //       no active news → use the same USD/high-rate anchor fallback.
+  // RULE: active news → resolve news sign, then compare it to the same USD/STEP/REGIME anchor.
+  //       unknown country → USD/high-rate anchor for the active regime.
+  //       no active news → use that same USD/STEP/REGIME anchor.
   //       duplicate headlines count once.
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
-    // Active news and no-news fallback both use the USD/high-rate anchor framework.
-    // even hour = positive (+), odd hour = negative (-).
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
-    const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
-    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents, h24, m);
+    const regimePolarity = fallback.polarity;
+    const applied = resolveStackedNewsSign(fallback.direction, regimePolarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     // Count unique events for labels only. Do not use weighted counts to decide NEWS_SINGLE vs MIXED_NEWS.
     const uniqueCount = uniqueReplayEventCount(applied.activeEvents || activeEvents);
     const usedCount = hasActiveNews ? uniqueCount : 0;
-    const regimeLabel = hasActiveNews ? (usedCount > 1 ? "MIXED_NEWS" : "NEWS_SINGLE") : "ANCHOR_FALLBACK";
-    const modeLabel = hasActiveNews ? (usedCount > 1 ? "mixed-news" : "news-single") : "anchor-fallback";
+    const regimeLabel = hasActiveNews ? (usedCount > 1 ? "MIXED_NEWS" : "NEWS_SINGLE") : "USD_STEP_ANCHOR";
+    const modeLabel = hasActiveNews ? (usedCount > 1 ? "mixed-news" : "news-single") : "usd-step-anchor";
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -3282,8 +3283,8 @@ function App() {
         baseCharge: fallback.direction === "buy" ? 1 : -1,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
-        slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
+        slotPolarity: regimePolarity,
+        slotSign: applied.slotSign || fallback.sign,
         newsSign: applied.newsSign,
         equation: equationPlain,
         equationPlain,
@@ -3311,8 +3312,8 @@ function App() {
       baseCharge: fallback.direction === "buy" ? 1 : -1,
       finalCharge: applied.finalCharge,
       newsFlip: applied.newsFlip,
-      slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
-      slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
+      slotPolarity: regimePolarity,
+      slotSign: applied.slotSign || fallback.sign,
       newsSign: applied.newsSign,
       equation: equationPlain,
       equationPlain,
