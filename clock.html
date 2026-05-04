@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 LOCKED 4:30–10:30 REGIME V9</title>
+<title>THE BiGENGiN3 OF TIME — REGIME TEST V7</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -185,11 +185,11 @@ const CATS = [
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // BUY CORE REGIME
 // Connector: − = mirror
-// 4:30-10:30 (AM + PM)
+// 12:30-1:30 / 3:30-4:30 / 6:30-7:30 / 9:30-10:30
 // Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
 // SELL RESET REGIME
 // Connector: + = aligned
-// 10:30-4:30 (AM + PM / overnight)
+// 1:30-3:30 / 4:30-6:30 / 7:30-9:30 / 10:30-12:30
 const REGIME_CURRENCIES = {
   sellReset: {
     // connector: + (aligned)
@@ -1320,29 +1320,39 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
-  // V9 — LOCKED V7 BASE WITH 4:30–10:30 REGIME TEST
+  // NEW REGIME TEST V7
   // BUY CORE REGIME  — Connector: − = mirror, USD− anchor
-  //   4:30–10:30 (AM + PM)
+  //   12:30–1:30 / 3:30–4:30 / 6:30–7:30 / 9:30–10:30 (AM + PM)
   // SELL RESET REGIME — Connector: + = aligned, USD+ anchor
-  //   10:30–4:30 (AM + PM / overnight)
-  //
-  // IMPORTANT: This only swaps the time-regime window.
-  // News stacking, replay engine, entries, exits, TP ladder, and V7 behavior stay locked.
+  //   1:30–3:30 / 4:30–6:30 / 7:30–9:30 / 10:30–12:30 (AM + PM)
   const MIRROR_RANGES = [
-    [270, 630],    // 4:30 AM – 10:30 AM
-    [990, 1350]    // 4:30 PM – 10:30 PM
+    [30, 90],     // 12:30 AM – 1:30 AM
+    [210, 270],   // 3:30 AM – 4:30 AM
+    [390, 450],   // 6:30 AM – 7:30 AM
+    [570, 630],   // 9:30 AM – 10:30 AM
+    [750, 810],   // 12:30 PM – 1:30 PM
+    [930, 990],   // 3:30 PM – 4:30 PM
+    [1110, 1170], // 6:30 PM – 7:30 PM
+    [1290, 1350]  // 9:30 PM – 10:30 PM
   ];
 
   const ALIGNED_RANGES = [
-    [0, 270],      // 12:00 AM – 4:30 AM (overnight reset)
-    [630, 990],    // 10:30 AM – 4:30 PM
-    [1350, 1440]   // 10:30 PM – 12:00 AM (overnight reset)
+    [0, 30],      // 12:00 AM – 12:30 AM (continuation of 10:30 PM – 12:30 AM reset)
+    [90, 210],    // 1:30 AM – 3:30 AM
+    [270, 390],   // 4:30 AM – 6:30 AM
+    [450, 570],   // 7:30 AM – 9:30 AM
+    [630, 750],   // 10:30 AM – 12:30 PM
+    [810, 930],   // 1:30 PM – 3:30 PM
+    [990, 1110],  // 4:30 PM – 6:30 PM
+    [1170, 1290], // 7:30 PM – 9:30 PM
+    [1350, 1440]  // 10:30 PM – 12:00 AM
   ];
 
   function getConnectorMode(h24, m) {
     const t = h24 * 60 + m;
     if (MIRROR_RANGES.some(([s, e]) => t >= s && t < e)) return "mirror";
-    return "aligned";
+    if (ALIGNED_RANGES.some(([s, e]) => t >= s && t < e)) return "aligned";
+    return "mirror";
   }
 
   function stackCharges(a, b) {
