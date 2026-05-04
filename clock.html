@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 LOCKED USD STEP COMPARE V10</title>
+<title>THE BiGENGiN3 OF TIME — V12 CLEAN ODD/EVEN BRAIN ENGINE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2192,11 +2192,12 @@ function App() {
     const textOf = (ev)=>String(`${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||""} ${ev?.note||""} ${ev?.country||""} ${ev?.currency||""}`).trim();
 
     function inferBrainCountry(rawText="", fallback=""){
-      const fb = String(fallback||"").toUpperCase().slice(0,3);
-      if(fb) return fb;
       const t = String(rawText||"").toUpperCase();
+      const fbRaw = String(fallback||"").toUpperCase().trim();
+      const fb = fbRaw.slice(0,3);
 
-      // Tickers / regions Derrick flagged
+      // V12: headline/ticker clues outrank dirty feed country tags.
+      // Example: LALT.V should resolve CAD even if the scraper tagged it as generic/unknown/USD.
       if(/\bASX\b|AUSTRALIA|AUSSIE|\bAUD\b/.test(t)) return "AUD";
       if(/\bTSX\b|\bLALT\.V\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
       if(/\bASIA\b|EM ASIA|ASIAN/.test(t)) return "ASI"; // regional Asia: keep headline sign, do not force JPY rate inversion
@@ -2204,6 +2205,8 @@ function App() {
       // USD / high-rate anchor terms
       if(/\bUSD\b|DOLLAR|TREASURY|FED\b|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
 
+      // Use feed country only after stronger headline clues.
+      if(fb && !/[.?]/.test(fbRaw)) return fb;
       try{ return inferCountryCode(rawText) || "USD"; }catch(_){ return "USD"; }
     }
 
@@ -3297,16 +3300,19 @@ function App() {
     return keys.size;
   }
 
-  // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: active news → resolve news sign, then compare it to the same USD/STEP/REGIME anchor.
-  //       unknown country → USD/high-rate anchor for the active regime.
-  //       no active news → use that same USD/STEP/REGIME anchor.
+  // ── REPLAY SIGNAL — V12 CLEAN BRAIN ENGINE ───────────────────────────────────
+  // RULE: active news → resolve the NEWS SIGN first, then compare it to odd/even hour.
+  //       even hour = +, odd hour = -. Same signs = BUY, different signs = SELL.
+  //       unknown country → USD/high-rate anchor before stacking.
+  //       plural/multiple/speech-style events can count as 2 and flip once.
+  //       no active news → use the original USD/STEP/regime fallback.
   //       duplicate headlines count once.
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
-    const regimePolarity = fallback.polarity;
-    const applied = resolveStackedNewsSign(fallback.direction, regimePolarity, activeEvents, h24, m);
+    const hourPolarity = (Number(h24) % 2 === 0) ? "positive" : "negative";
+    const appliedPolarity = hasActiveNews ? hourPolarity : fallback.polarity;
+    const applied = resolveStackedNewsSign(fallback.direction, appliedPolarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     // Count unique events for labels only. Do not use weighted counts to decide NEWS_SINGLE vs MIXED_NEWS.
     const uniqueCount = uniqueReplayEventCount(applied.activeEvents || activeEvents);
