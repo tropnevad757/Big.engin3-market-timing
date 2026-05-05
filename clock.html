@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 SCREENSHOT LOGIC FIXES</title>
+<title>THE BiGENGiN3 OF TIME — V7 STOCKS OIL IRAN EUROPE FIX</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2480,15 +2480,10 @@ function App() {
     // - Plural/list headlines without dot tickers can count as stacked multi-events.
     // - Overrides below return the already-resolved charge when the headline is a known pattern.
 
-    // Derrick screenshot fixes — exact news math
-    // Stocks + Oil both positive in same breaking headline => + + flips to NEWS-
+    // Derrick screenshot fixes — exact news math only.
+    // 6:30 example: stocks + oil are both positive; two same-sign positives flip once to NEWS-.
     if(/(^|\W)STOCKS?\s+FALL/i.test(t) && /(^|\W)OIL\s+RISES?/i.test(t)) {
       return { charge:-1, country:"USD", reason:"STOCKS+ + OIL+ => STACKED NEWS-" };
-    }
-
-    // Treasury headline display/sign stability. Keep it as one clean USD/TREASURY headline.
-    if(/(^|\W)TREASURY\s+YIELDS?\s+LITTLE\s+CHANGED/i.test(t)) {
-      return { charge:1, country:"USD", reason:"TREASURY YIELDS LITTLE CHANGED→USD+" };
     }
 
     // Iran bond stress is negative and must not plural-flip because of the word bonds.
@@ -2496,7 +2491,7 @@ function App() {
       return { charge:-1, country:"IRR", reason:"IRAN CORPORATE BONDS→IRR-" };
     }
 
-    // CAC / Europe rising is positive. When mixed with Iran-: + - => NEWS-; odd hour - then BUY.
+    // CAC / Europe rising is positive. Mixed with Iran-: + - => NEWS-, then odd hour - gives BUY.
     if(/(^|\W)(CAC\s*40|EUROPE|EUROPEAN)\b/i.test(t) && /(^|\W)(RISES?|GAINS?|EXTEND\s+GAINS?|HIGHER|RALLY|RALLIES)\b/i.test(t)) {
       return { charge:1, country:"EUR", reason:"EUROPE/CAC RISES→EUR+" };
     }
