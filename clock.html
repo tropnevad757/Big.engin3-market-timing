@@ -2448,8 +2448,30 @@ function App() {
     // Exact replay fixes from Derrick:
     // - USCUF.PK should be treated as USD-positive news, not Pakistan.
     // - LALI.V is Canadian but this headline/setup should enter the stack as negative.
+    // - GLOBAL MARKETS is treated as USD negative. If YEN is also present, add JPY positive
+    //   through the same one-pass stack: USD- + JPY+ => final news negative.
+    // - Wall Street futures/stocks moving higher is USD positive, not connector-dependent.
     // VMS.V remains normal Canadian rate logic (+ in mirror/odd context).
     // PNGAF.PK remains Pakistan/unknown-rate anchor logic (- in mirror/odd context).
+
+    // Global-market macro headline: USD negative plus Yen positive still stacks to negative.
+    if(/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t) && /(^|\W)(YEN|JPY|JAPANESE\s+YEN)(\W|$)/.test(t)) {
+      return { charge:-1, country:"USD", reason:"GLOBAL MARKETS USD- + YEN/JPY+ => NEWS-" };
+    }
+    if(/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t)) {
+      return { charge:-1, country:"USD", reason:"GLOBAL MARKETS→USD- override" };
+    }
+
+    // U.S. market headline: Wall Street moving higher is USD positive.
+    if(/(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP)(\W|$)/.test(t)) {
+      return { charge: 1, country:"USD", reason:"WALL STREET HIGHER→USD+ override" };
+    }
+
+    // Australian market headline: ASX dividend/buy/yield stock idea is AUD positive.
+    if(/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)(DIVIDEND|YIELD|YIELDS|BUY|STOCKS?)(\W|$)/.test(t)) {
+      return { charge: 1, country:"AUD", reason:"ASX DIVIDEND/BUY→AUD+ override" };
+    }
+
     if(/(^|\W)USCUF\.PK(\W|$)/.test(t)) return { charge: 1, country:"USD", reason:"USCUF.PK→USD+ override" };
     if(/(^|\W)LALI\.V(\W|$)/.test(t)) return { charge:-1, country:"CAD", reason:"LALI.V→CAD- override" };
     return null;
