@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — REGIME TEST V7 COUNTRY SIGN FIX</title>
+<title>THE BiGENGiN3 OF TIME — REGIME TEST V7 ROOT COUNTRY FIX</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2463,16 +2463,78 @@ function App() {
     return rate <= USD_RATE ? -base : base;
   }
 
+  function getTickerRootMatches(rawText="") {
+    const t = String(rawText||"").toUpperCase();
+    const out = [];
+    const re = /(^|[^A-Z0-9])([A-Z0-9]{1,12})\.([A-Z]{1,4})(?=\W|$)/g;
+    let m;
+    while((m = re.exec(t))){
+      out.push({ root:m[2], suffix:m[3], full:`${m[2]}.${m[3]}` });
+    }
+    return out;
+  }
+
+  function getPrimaryCountryFromTickerRoot(rawText="") {
+    const matches = getTickerRootMatches(rawText);
+    for(const m of matches){
+      const root = String(m.root||"").toUpperCase();
+      // Derrick rule: the part BEFORE the dot is the primary driver.
+      // Example: USCUF.PK is U.S. news first; .PK is only where it is quoted/listed.
+      if(/^(USD|US|USA)/.test(root) || /US/.test(root)) return "USD";
+      if(/^(CAD|CA|CNDA|CDN)/.test(root)) return "CAD";
+      if(/^(AUD|AU|ASX)/.test(root)) return "AUD";
+      if(/^(GBP|UK|GB)/.test(root)) return "GBP";
+      if(/^(EUR|EU)/.test(root)) return "EUR";
+      if(/^(JPY|JP|JPN)/.test(root)) return "JPY";
+      if(/^(CNY|CN|CHN)/.test(root)) return "CNY";
+      if(/^(HKD|HK)/.test(root)) return "HKD";
+      if(/^(INR|IN|IND)/.test(root)) return "INR";
+      if(/^(PKR|PK|PAK)/.test(root)) return "PKR";
+      if(/^(SGD|SG|SGX)/.test(root)) return "SGD";
+      if(/^(KRW|KR|KOR)/.test(root)) return "KRW";
+      if(/^(TWD|TW|TWN)/.test(root)) return "TWD";
+      if(/^(ZAR|ZA|SAF)/.test(root)) return "ZAR";
+      if(/^(BRL|BR|BRA)/.test(root)) return "BRL";
+      if(/^(MXN|MX|MEX)/.test(root)) return "MXN";
+    }
+    return "";
+  }
+
+  function getCountryFromExchangeSuffix(rawText="") {
+    const matches = getTickerRootMatches(rawText);
+    if(!matches.length) return "";
+    const suffixMap = {
+      // North America / OTC / Yahoo-style suffixes. Used only as fallback.
+      "V":"CAD", "TO":"CAD", "CN":"CAD", "NE":"CAD",
+      "PK":"PKR", "OB":"USD", "OQ":"USD", "N":"USD", "A":"USD",
+      // Major global Yahoo/market suffixes.
+      "AX":"AUD", "AU":"AUD",
+      "L":"GBP", "IL":"GBP",
+      "PA":"EUR", "AS":"EUR", "DE":"EUR", "F":"EUR", "BE":"EUR", "DU":"EUR", "HM":"EUR", "HA":"EUR", "MU":"EUR", "SG":"EUR", "VI":"EUR", "MI":"EUR", "MC":"EUR", "MA":"EUR", "LS":"EUR", "IR":"EUR", "BR":"EUR",
+      "SW":"CHF", "VX":"CHF",
+      "ST":"SEK", "OL":"NOK", "CO":"DKK", "HE":"EUR", "IC":"ISK",
+      "HK":"HKD", "SS":"CNY", "SZ":"CNY", "TW":"TWD", "TWO":"TWD",
+      "T":"JPY", "KS":"KRW", "KQ":"KRW",
+      "SI":"SGD", "KL":"MYR", "BK":"THB", "JK":"IDR", "BO":"INR", "NS":"INR",
+      "SA":"BRL", "MX":"MXN", "BA":"ARS", "JO":"ZAR", "IS":"TRY", "TA":"ILS", "QA":"QAR", "KW":"KWD", "AE":"AED", "SR":"SAR"
+    };
+    for(const m of matches){
+      const hit = suffixMap[String(m.suffix||"").toUpperCase()];
+      if(hit) return hit;
+    }
+    return "";
+  }
+
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
     if(fallback) return String(fallback).toUpperCase().slice(0,3);
 
-    // TICKER SUFFIX OVERRIDES — keep country detection from missing market suffixes.
-    // Examples from replay: VMS.V and LALI.V are Canadian TSX-V style tickers.
-    // PNGAF.PK is Pakistan/PK region unless an exact symbol override says otherwise.
-    if(/(^|\W)[A-Z0-9]{1,8}\.V(\W|$)/.test(t)) return "CAD";
-    if(/(^|\W)[A-Z0-9]{1,8}\.TO(\W|$)/.test(t)) return "CAD";
-    if(/(^|\W)[A-Z0-9]{1,8}\.PK(\W|$)/.test(t)) return "PAK";
+    // ROOT-FIRST ENGINE:
+    // If a ticker looks like ROOT.SUFFIX, the ROOT is the primary country/news driver.
+    // The suffix is an exchange/listing suffix and must NOT create fake mixed news.
+    // USCUF.PK => USD, not USD + PKR. LALI.V/VMS.V only fall back to CAD if root has no country clue.
+    const rootCountry = getPrimaryCountryFromTickerRoot(t);
+    if(rootCountry) return rootCountry;
 
     // MARKET / COUNTRY ALIAS ENGINE
     // Purpose: when a headline does not say a clean currency code, infer the region
@@ -2485,39 +2547,42 @@ function App() {
       [/(^|\W)(GBP|UK|U\.K\.?|BRITAIN|BRITISH|UNITED KINGDOM|ENGLAND|LONDON|BOE|BANK OF ENGLAND|BAILEY|FTSE|GILT|GILTS)(\W|$)/, "GBP"],
       [/(^|\W)(JPY|JAPAN|JAPANESE|TOKYO|YEN|BOJ|BANK OF JAPAN|UEDA|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/, "JPY"],
       [/(^|\W)(AUD|AUSTRALIA|AUSTRALIAN|RBA|RESERVE BANK OF AUSTRALIA|SYDNEY|ASX|AUSSIE)(\W|$)/, "AUD"],
-      [/(^|\W)(CAD|CANADA|CANADIAN|BOC|BANK OF CANADA|TORONTO|TSX|LOONIE)(\W|$)/, "CAD"],
+      [/(^|\W)(CAD|CANADA|CANADIAN|BOC|BANK OF CANADA|TORONTO|TSX|TSXV|TSX\-V|LOONIE)(\W|$)/, "CAD"],
       [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB|ZURICH|SMI|FRANC)(\W|$)/, "CHF"],
       [/(^|\W)(NZD|NEW ZEALAND|RBNZ|WELLINGTON|NZX|KIWI)(\W|$)/, "NZD"],
-      [/(^|\W)(CNY|CNH|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|HONG KONG|PBOC|YUAN|RENMINBI|CSI\s?300|HSI|HANG SENG)(\W|$)/, "CNY"],
+      [/(^|\W)(CNY|CNH|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|YUAN|RENMINBI|CSI\s?300)(\W|$)/, "CNY"],
       [/(^|\W)(HKD|HKMA|HONG KONG|HANG SENG|HSI)(\W|$)/, "HKD"],
-      [/(^|\W)(SGD|SINGAPORE|MAS|STRAITS TIMES|STI)(\W|$)/, "SGD"],
+      [/(^|\W)(SGD|SINGAPORE|MAS|STRAITS TIMES|STI|SGX)(\W|$)/, "SGD"],
       [/(^|\W)(KRW|KOREA|SOUTH KOREA|SEOUL|BOK|KOSPI|KOSDAQ|WON)(\W|$)/, "KRW"],
       [/(^|\W)(TWD|TAIWAN|TAIPEI|CBC|TAIEX)(\W|$)/, "TWD"],
-      [/(^|\W)(INR|INDIA|INDIAN|RBI|MUMBAI|SENSEX|NIFTY|RUPEE)(\W|$)/, "INR"],
-      [/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|BANCO CENTRAL DO BRASIL|BOVESPA|IBOVESPA|REAL)(\W|$)/, "BRL"],
-      [/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BOLSA|PESO)(\W|$)/, "MXN"],
-      [/(^|\W)(ZAR|SOUTH AFRICA|SARB|JSE|RAND)(\W|$)/, "ZAR"],
-      [/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA ISTANBUL|LIRA)(\W|$)/, "TRY"],
-      [/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|OMX STOCKHOLM|STOCKHOLM)(\W|$)/, "SEK"],
-      [/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES BANK|OSLO BORS|OSLO BØRS)(\W|$)/, "NOK"],
-      [/(^|\W)(DKK|DENMARK|DANISH|DANMARKS NATIONALBANK|OMX COPENHAGEN)(\W|$)/, "DKK"],
-      [/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|ZLOTY)(\W|$)/, "PLN"],
-      [/(^|\W)(CZK|CZECH|CZECHIA|CNB|PRAGUE|KORUNA)(\W|$)/, "CZK"],
+      [/(^|\W)(INR|INDIA|INDIAN|RBI|RESERVE BANK OF INDIA|MUMBAI|NIFTY|SENSEX|BSE|NSE)(\W|$)/, "INR"],
+      [/(^|\W)(PKR|PAKISTAN|PAKISTANI|KARACHI|KSE|PSX)(\W|$)/, "PKR"],
+      [/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|B3|IBOVESPA|REAL)(\W|$)/, "BRL"],
+      [/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BMV|PESO)(\W|$)/, "MXN"],
+      [/(^|\W)(ZAR|SOUTH AFRICA|SOUTH AFRICAN|SARB|JOHANNESBURG|JSE|RAND)(\W|$)/, "ZAR"],
+      [/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA ISTANBUL|ISTANBUL|LIRA)(\W|$)/, "TRY"],
+      [/(^|\W)(ILS|ISRAEL|ISRAELI|BOI|TEL AVIV|SHEKEL)(\W|$)/, "ILS"],
+      [/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|STOCKHOLM|OMXS)(\W|$)/, "SEK"],
+      [/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES BANK|OSLO|OSE)(\W|$)/, "NOK"],
+      [/(^|\W)(DKK|DENMARK|DANISH|DANMARKS NATIONALBANK|COPENHAGEN)(\W|$)/, "DKK"],
+      [/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|WIG20|ZLOTY)(\W|$)/, "PLN"],
       [/(^|\W)(HUF|HUNGARY|HUNGARIAN|MNB|BUDAPEST|FORINT)(\W|$)/, "HUF"],
       [/(^|\W)(RON|ROMANIA|ROMANIAN|BNR|BUCHAREST|LEU)(\W|$)/, "RON"],
-      [/(^|\W)(ILS|ISRAEL|ISRAELI|BOI|TEL AVIV|SHEKEL)(\W|$)/, "ILS"],
-      [/(^|\W)(MYR|MALAYSIA|MALAYSIAN|BNM|BURSA MALAYSIA|RINGGIT)(\W|$)/, "MYR"],
-      [/(^|\W)(THB|THAILAND|THAI|BOT|SET INDEX|BAHT)(\W|$)/, "THB"],
-      [/(^|\W)(PHP|PHILIPPINES|PHILIPPINE|BSP|PSEI|PESO)(\W|$)/, "PHP"],
-      [/(^|\W)(IDR|INDONESIA|INDONESIAN|BANK INDONESIA|IDX|RUPIAH)(\W|$)/, "IDR"],
-      [/(^|\W)(ISK|ICELAND|ICELANDIC|SEDLABANKI|REYKJAVIK|KRONA)(\W|$)/, "ISK"],
-      [/(^|\W)(AOA|ANGOLA|ANGOLAN|BNA|KWANZA)(\W|$)/, "AOA"],
+      [/(^|\W)(CZK|CZECH|CZECHIA|CNB|PRAGUE|KORUNA)(\W|$)/, "CZK"],
+      [/(^|\W)(THB|THAILAND|THAI|BOT|BANGKOK|BAHT)(\W|$)/, "THB"],
+      [/(^|\W)(MYR|MALAYSIA|MALAYSIAN|BNM|BURSA MALAYSIA|KUALA LUMPUR|RINGGIT)(\W|$)/, "MYR"],
+      [/(^|\W)(PHP|PHILIPPINES|PHILIPPINE|BSP|PSE|MANILA)(\W|$)/, "PHP"],
+      [/(^|\W)(IDR|INDONESIA|INDONESIAN|BANK INDONESIA|IDX|JAKARTA|RUPIAH)(\W|$)/, "IDR"],
+      [/(^|\W)(AOA|ANGOLA|ANGOLAN|KWANZA)(\W|$)/, "AOA"],
+      [/(^|\W)(ISK|ICELAND|ICELANDIC|REYKJAVIK|KRONA)(\W|$)/, "ISK"]
     ];
-    for (const [rx, code] of checks) if (rx.test(t)) return code;
-    return "";
+    for(const [re, code] of checks){ if(re.test(t)) return code; }
+
+    // Suffix fallback only after root + headline aliases fail.
+    // This identifies the listing venue/country but does not add a second event/sign.
+    return getCountryFromExchangeSuffix(t) || "";
   }
 
-  // Normalize any RSS item into a consistent shape
   function normalizeItem(item, source, color) {
     const title = ((item.title||"")).trim().replace(/\s*[-|]\s*(Reuters|Bloomberg|CNBC|WSJ|FT|Myfxbook|Trading Economics|AP|MarketWatch).*$/i,"").trim();
     const desc = ((item.description||item.content||"")).replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200);
