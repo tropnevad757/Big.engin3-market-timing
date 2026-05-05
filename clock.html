@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 CLEAN ALL FIXES</title>
+<title>THE BiGENGiN3 OF TIME — V7 SCREENSHOT LOGIC FIXES</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2480,6 +2480,27 @@ function App() {
     // - Plural/list headlines without dot tickers can count as stacked multi-events.
     // - Overrides below return the already-resolved charge when the headline is a known pattern.
 
+    // Derrick screenshot fixes — exact news math
+    // Stocks + Oil both positive in same breaking headline => + + flips to NEWS-
+    if(/(^|\W)STOCKS?\s+FALL/i.test(t) && /(^|\W)OIL\s+RISES?/i.test(t)) {
+      return { charge:-1, country:"USD", reason:"STOCKS+ + OIL+ => STACKED NEWS-" };
+    }
+
+    // Treasury headline display/sign stability. Keep it as one clean USD/TREASURY headline.
+    if(/(^|\W)TREASURY\s+YIELDS?\s+LITTLE\s+CHANGED/i.test(t)) {
+      return { charge:1, country:"USD", reason:"TREASURY YIELDS LITTLE CHANGED→USD+" };
+    }
+
+    // Iran bond stress is negative and must not plural-flip because of the word bonds.
+    if(/(^|\W)(CORPORATIONS?|COMPANIES)\s+ARE\s+STILL\s+ISSUING\s+BONDS/i.test(t) && /(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/i.test(t)) {
+      return { charge:-1, country:"IRR", reason:"IRAN CORPORATE BONDS→IRR-" };
+    }
+
+    // CAC / Europe rising is positive. When mixed with Iran-: + - => NEWS-; odd hour - then BUY.
+    if(/(^|\W)(CAC\s*40|EUROPE|EUROPEAN)\b/i.test(t) && /(^|\W)(RISES?|GAINS?|EXTEND\s+GAINS?|HIGHER|RALLY|RALLIES)\b/i.test(t)) {
+      return { charge:1, country:"EUR", reason:"EUROPE/CAC RISES→EUR+" };
+    }
+
     // ASX + Wall Street both positive in the same headline: + + => -.
     if(/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP|BUY|YIELD|YIELDS|DIVIDEND)(\W|$)/.test(t)) {
       return { charge:-1, country:"USD", reason:"ASX+ AND WALL STREET+ => STACKED NEWS-" };
@@ -4040,8 +4061,8 @@ function App() {
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                     <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.uniqueNewsCount||current.activeEvents?.length||0})</div>
                     {current.activeEvents.slice(0,4).map((ev,i)=>(
-                      <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
-                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
+                      <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,whiteSpace:"normal",wordBreak:"break-word",overflowWrap:"anywhere"}}>
+                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{ev.title||""}
                       </div>
                     ))}
                   </div>
