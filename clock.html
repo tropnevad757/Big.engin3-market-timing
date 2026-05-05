@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — REGIME TEST V7 OVERLAP PATCH</title>
+<title>THE BiGENGiN3 OF TIME — REGIME TEST V7 COUNTRY SIGN FIX</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2196,22 +2196,34 @@ function App() {
 
     const getNewsEventCharge = (ev)=>{
       const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
+      const tickerOverride = getTickerChargeOverride(rawText);
+      if(tickerOverride){
+        return {
+          charge: tickerOverride.charge,
+          country: tickerOverride.country,
+          unknownCountryFallback:false,
+          tickerOverride:true,
+          tickerOverrideReason: tickerOverride.reason,
+          rateValue: tickerOverride.country === "USD" ? USD_RATE : getRateForSymbol(tickerOverride.country)
+        };
+      }
+
       const inferred = String(ev?.country || ev?.currency || inferCountryCode(rawText) || "").toUpperCase().slice(0,3);
 
       // Unknown country: do NOT step-fallback. Use USD/high-rate anchor sign first.
-      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, rateValue: USD_RATE };
+      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, tickerOverride:false, rateValue: USD_RATE };
 
-      if(inferred === "USD") return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, rateValue: USD_RATE };
+      if(inferred === "USD") return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, tickerOverride:false, rateValue: USD_RATE };
 
       const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
       if(Number.isFinite(rate)){
         // Higher than USD = same as USD anchor. Equal/lower than USD = opposite of USD anchor.
-        return { charge: rate > USD_RATE ? usdAnchorCharge : -usdAnchorCharge, country: inferred, unknownCountryFallback:false, rateValue: rate };
+        return { charge: rate > USD_RATE ? usdAnchorCharge : -usdAnchorCharge, country: inferred, unknownCountryFallback:false, tickerOverride:false, rateValue: rate };
       }
 
       // Known country but missing rate: do not let article wording override the rate-anchor model.
       // Use USD/high-rate anchor until an actual rate is known.
-      return { charge: usdAnchorCharge, country: inferred || "USD", unknownCountryFallback:true, rateValue: null };
+      return { charge: usdAnchorCharge, country: inferred || "USD", unknownCountryFallback:true, tickerOverride:false, rateValue: null };
     };
 
     const chargedEvents = allActive
@@ -2223,6 +2235,8 @@ function App() {
           effectiveCharge: resolved.charge,
           eventWeight: weightOf(ev),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
+          tickerOverride: !!resolved.tickerOverride,
+          tickerOverrideReason: resolved.tickerOverrideReason || "",
           rateValue: resolved.rateValue,
         };
       })
@@ -2282,7 +2296,7 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}`);
+      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}`);
     });
 
     if(chargedEvents.length === 1){
@@ -2429,6 +2443,18 @@ function App() {
     return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
   }
 
+  function getTickerChargeOverride(rawText="") {
+    const t = String(rawText||"").toUpperCase();
+    // Exact replay fixes from Derrick:
+    // - USCUF.PK should be treated as USD-positive news, not Pakistan.
+    // - LALI.V is Canadian but this headline/setup should enter the stack as negative.
+    // VMS.V remains normal Canadian rate logic (+ in mirror/odd context).
+    // PNGAF.PK remains Pakistan/unknown-rate anchor logic (- in mirror/odd context).
+    if(/(^|\W)USCUF\.PK(\W|$)/.test(t)) return { charge: 1, country:"USD", reason:"USCUF.PK→USD+ override" };
+    if(/(^|\W)LALI\.V(\W|$)/.test(t)) return { charge:-1, country:"CAD", reason:"LALI.V→CAD- override" };
+    return null;
+  }
+
   function getEventChargeFromRates(ev){
     const code = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
     const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
@@ -2440,6 +2466,13 @@ function App() {
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
     if(fallback) return String(fallback).toUpperCase().slice(0,3);
+
+    // TICKER SUFFIX OVERRIDES — keep country detection from missing market suffixes.
+    // Examples from replay: VMS.V and LALI.V are Canadian TSX-V style tickers.
+    // PNGAF.PK is Pakistan/PK region unless an exact symbol override says otherwise.
+    if(/(^|\W)[A-Z0-9]{1,8}\.V(\W|$)/.test(t)) return "CAD";
+    if(/(^|\W)[A-Z0-9]{1,8}\.TO(\W|$)/.test(t)) return "CAD";
+    if(/(^|\W)[A-Z0-9]{1,8}\.PK(\W|$)/.test(t)) return "PAK";
 
     // MARKET / COUNTRY ALIAS ENGINE
     // Purpose: when a headline does not say a clean currency code, infer the region
