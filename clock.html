@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — REGIME TEST V7 ROOT COUNTRY FIX</title>
+<title>THE BiGENGiN3 OF TIME — V7 CLEAN ALL FIXES</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2229,11 +2229,17 @@ function App() {
     const chargedEvents = allActive
       .map(ev=>{
         const resolved = getNewsEventCharge(ev);
+        const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
+        // Plural/list stacking only applies when this is NOT a dot-suffix ticker headline
+        // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
+        // "USCUF.PK" or "LALI.V" does not create fake extra events.
+        const glossaryWeight = resolved.tickerOverride ? 1 : pluralStackWeightFromHeadline(rawText);
         return {
           ...ev,
           country: resolved.country,
           effectiveCharge: resolved.charge,
-          eventWeight: weightOf(ev),
+          eventWeight: Math.max(weightOf(ev), glossaryWeight),
+          glossaryStackWeight: glossaryWeight,
           unknownCountryFallback: !!resolved.unknownCountryFallback,
           tickerOverride: !!resolved.tickerOverride,
           tickerOverrideReason: resolved.tickerOverrideReason || "",
@@ -2296,7 +2302,7 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}`);
+      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · PLURAL STACK x${ev.glossaryStackWeight}`:""}`);
     });
 
     if(chargedEvents.length === 1){
@@ -2342,7 +2348,7 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Unique news only. Unknown country acts as USD/high-rate anchor and is included in the same news math.",
+      rule: "Unique news only. Dot suffixes do not stack. Plural/list headlines stack. Unknown country acts as USD/high-rate anchor.",
       foldSteps,
     };
 
@@ -2443,16 +2449,41 @@ function App() {
     return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
   }
 
+
+  // ── V7 CLEAN NEWS GLOSSARY / STACK CLASSIFIER ──────────────────────────────
+  // Rule: ticker suffixes like .PK, .V, .TO, .AX are identifiers only.
+  // They do NOT create a second country and they do NOT trigger plural stacking.
+  function hasExchangeDotTicker(rawText="") {
+    return getTickerRootMatches(rawText).length > 0;
+  }
+
+  function pluralStackWeightFromHeadline(rawText="") {
+    const t = String(rawText||"").toUpperCase();
+    if(!t) return 1;
+    if(hasExchangeDotTicker(t)) return 1; // Derrick rule: dot suffix breaks it out of stack math.
+
+    const instrumentPlural = /(^|\W)(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|YIELDS|BONDS|NOTES|BILLS|TREASURIES|GILTS|BUNDS|JGBS|FUTURES|OPTIONS|FUNDS|ETFS|INDEXES|INDICES|MARKETS|BANKS|MINERS|TECHS|ENERGIES|UTILITIES|FINANCIALS|HOMEBUILDERS|BUILDERS|LENDERS|INSURERS)(\W|$)/.test(t);
+    const explicitMultiple = /(^|\W)(MULTIPLE|SEVERAL|MANY|VARIOUS|BASKET|GROUP|LIST|ROUNDUP|TOP|BEST|THESE|THOSE|WATCHLIST|SCREEN|SCREENER|PORTFOLIO|SECTOR|SECTORS)(\W|$)/.test(t);
+    const numberMultiple = /(^|\W)([2-9]|[1-9][0-9])\s+(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|BONDS|FUTURES|ETFS|FUNDS|NAMES|PICKS|IDEAS|PLAYS)(\W|$)/.test(t);
+
+    if(numberMultiple) return 2;
+    if(instrumentPlural && explicitMultiple) return 2;
+    if(/(^|\W)(STOCKS|REITS|BONDS|FUTURES|DIVIDENDS|YIELDS)(\W|$)/.test(t) && /(^|\W)(TO\s+BUY|BUY|WITH|PAYING|OFFERING|YIELDING|HIGH\s+YIELD|MONTHLY|EDGE\s+HIGHER|MOVE|MOVES|RISE|FALL|GAIN|DROP)(\W|$)/.test(t)) return 2;
+    return 1;
+  }
+
   function getTickerChargeOverride(rawText="") {
     const t = String(rawText||"").toUpperCase();
-    // Exact replay fixes from Derrick:
-    // - USCUF.PK should be treated as USD-positive news, not Pakistan.
-    // - LALI.V is Canadian but this headline/setup should enter the stack as negative.
-    // - GLOBAL MARKETS is treated as USD negative. If YEN is also present, add JPY positive
-    //   through the same one-pass stack: USD- + JPY+ => final news negative.
-    // - Wall Street futures/stocks moving higher is USD positive, not connector-dependent.
-    // VMS.V remains normal Canadian rate logic (+ in mirror/odd context).
-    // PNGAF.PK remains Pakistan/unknown-rate anchor logic (- in mirror/odd context).
+    // Exact replay fixes from Derrick, cleaned into one glossary:
+    // - Dot suffixes (.PK, .V, .TO, .AX, etc.) are exchange/listing identifiers only.
+    // - The root before the dot is primary; suffixes do not create fake mixed news.
+    // - Plural/list headlines without dot tickers can count as stacked multi-events.
+    // - Overrides below return the already-resolved charge when the headline is a known pattern.
+
+    // ASX + Wall Street both positive in the same headline: + + => -.
+    if(/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP|BUY|YIELD|YIELDS|DIVIDEND)(\W|$)/.test(t)) {
+      return { charge:-1, country:"USD", reason:"ASX+ AND WALL STREET+ => STACKED NEWS-" };
+    }
 
     // Global-market macro headline: USD negative plus Yen positive still stacks to negative.
     if(/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t) && /(^|\W)(YEN|JPY|JAPANESE\s+YEN)(\W|$)/.test(t)) {
@@ -2472,6 +2503,17 @@ function App() {
       return { charge: 1, country:"AUD", reason:"ASX DIVIDEND/BUY→AUD+ override" };
     }
 
+    // Iran/high-rate bond/debt headline: locked negative. Do not plural-flip this one.
+    if(/(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/.test(t) && /(^|\W)(BOND|BONDS|ISSUING\s+BONDS|DEBT|CORPORATE\s+BONDS|NOTES)(\W|$)/.test(t)) {
+      return { charge:-1, country:"IRR", reason:"IRAN BONDS/HIGH-RATE→IRR- override" };
+    }
+
+    // REIT/list headlines contain multiple dividend/yield ideas. Treat the bundle as stacked.
+    if(/(^|\W)(REIT|REITS|REAL\s+ESTATE\s+INVESTMENT\s+TRUSTS?)(\W|$)/.test(t) && /(^|\W)(MONTHLY|DIVIDEND|DIVIDENDS|HIGH\s+YIELD|YIELDS|10\s+MONTHLY|MULTIPLE|TOP|BEST|STOCKS?|PICKS)(\W|$)/.test(t)) {
+      return { charge:-1, country:"USD", reason:"MULTIPLE REIT DIVIDEND/YIELD IDEAS→STACKED NEWS-" };
+    }
+
+    // Exact ticker fixes. Dot suffix stays an identifier, not a second country/event.
     if(/(^|\W)USCUF\.PK(\W|$)/.test(t)) return { charge: 1, country:"USD", reason:"USCUF.PK→USD+ override" };
     if(/(^|\W)LALI\.V(\W|$)/.test(t)) return { charge:-1, country:"CAD", reason:"LALI.V→CAD- override" };
     return null;
