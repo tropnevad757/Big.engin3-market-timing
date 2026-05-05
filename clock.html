@@ -2481,6 +2481,18 @@ function App() {
     // - Overrides below return the already-resolved charge when the headline is a known pattern.
 
     // Derrick screenshot fixes — exact news math only.
+    // 1:30 example: dollar weakness + oil climbs + yields climb are all treated as positive drivers;
+    // 2 or more positives flip once to NEWS-. Odd hour is HOUR-, so NEWS- + HOUR- => BUY.
+    if(/(^|\W)SCHIFF\s+WARNS\s+OF\s+DOLLAR\s+WEAKNESS/i.test(t) && /(^|\W)OIL(,|\s)+YIELDS?\s+CLIMB/i.test(t)) {
+      return { charge:-1, country:"USD", reason:"DOLLAR+ + OIL+ + YIELDS+ => STACKED NEWS-" };
+    }
+
+    // 2:30 example: treasury+ plus war/Iran pressure+ counts as two positives;
+    // positives flip once to NEWS-. Even hour is HOUR+, so NEWS- + HOUR+ => SELL.
+    if(/(^|\W)TREASURY\s+YIELDS?\s+LITTLE\s+CHANGED/i.test(t) && /(^|\W)(WAR\s+UNCERTAINTY|IRAN|MIDEAST|MIDDLE\s+EAST)(\W|$)/i.test(t)) {
+      return { charge:-1, country:"USD", reason:"TREASURY+ + WAR/IRAN+ => STACKED NEWS-" };
+    }
+
     // 6:30 example: stocks + oil are both positive; two same-sign positives flip once to NEWS-.
     if(/(^|\W)STOCKS?\s+FALL/i.test(t) && /(^|\W)OIL\s+RISES?/i.test(t)) {
       return { charge:-1, country:"USD", reason:"STOCKS+ + OIL+ => STACKED NEWS-" };
