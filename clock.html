@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 TP LADDER CLEAN</title>
+<title>THE BiGENGiN3 OF TIME — V7 REPLAY REPAIRED STABLE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -3746,15 +3746,11 @@ function App() {
           const hit = wickHit && bodyOkBuy;
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
           const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && bodyOkBuy]));
-          const best = [...RP_TP_LEVELS].reverse().find(l=>hits["hit"+l.key]);
           return {
             correct: hit, tp1Hit: hit, ...hits,
-            bestTpLabel: best ? best.label : "NONE",
-            bestTpKey: best ? best.key : "",
-            maxMovePct: Number(maxMove),
-            label: hit ? "HIT "+(best ? best.label : tpLabel) : "MISS",
+            label: hit ? "VALID HIT "+tpLabel : "MISS",
             detail: hit
-              ? "+"+(best ? best.label : tpPct)+" max reached · TP1 validated in "+scoreCandleLabel
+              ? "+"+tpPct+" validated in "+scoreCandleLabel
               : "Max +"+maxMove+"% — needed +"+tpPct+" with BUY body confirmation",
             windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
             validationMode:"STRICT", wickHit, bodyOk:bodyOkBuy, scoreCandleLabel
@@ -3765,15 +3761,11 @@ function App() {
           const hit = wickHit && bodyOkSell;
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
           const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && bodyOkSell]));
-          const best = [...RP_TP_LEVELS].reverse().find(l=>hits["hit"+l.key]);
           return {
             correct: hit, tp1Hit: hit, ...hits,
-            bestTpLabel: best ? best.label : "NONE",
-            bestTpKey: best ? best.key : "",
-            maxMovePct: Number(maxDrop),
-            label: hit ? "HIT "+(best ? best.label : tpLabel) : "MISS",
+            label: hit ? "VALID HIT "+tpLabel : "MISS",
             detail: hit
-              ? "-"+(best ? best.label : tpPct)+" max reached · TP1 validated in "+scoreCandleLabel
+              ? "-"+tpPct+" validated in "+scoreCandleLabel
               : "Max -"+maxDrop+"% — needed -"+tpPct+" with SELL body confirmation",
             windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
             validationMode:"STRICT", wickHit, bodyOk:bodyOkSell, scoreCandleLabel
@@ -3914,27 +3906,6 @@ function App() {
 
     const sigCol = s => s==="BUY"?G:R;
     const current = results?.newsSessions?.[playIdx] || null;
-    const replayTpLadder = [
-      {key:"003", label:"EXT 1", pct:"0.03%", primary:true},
-      {key:"006", label:"EXT 2", pct:"0.06%"},
-      {key:"009", label:"EXT 3", pct:"0.09%"},
-      {key:"012", label:"EXT 4", pct:"0.12%"},
-      {key:"030", label:"EXT 5", pct:"0.3%"},
-      {key:"060", label:"EXT 6", pct:"0.6%"},
-      {key:"090", label:"EXT 7", pct:"0.9%"},
-      {key:"120", label:"EXT 8", pct:"1.2%"},
-    ];
-    const replayTpPercent = (key)=>{
-      const stat = results?.tpStats?.[key];
-      return Number.isFinite(Number(stat?.wr)) ? Number(stat.wr) : Number(results?.["wr"+key]||0);
-    };
-    const replayTpWins = (key)=> Number(results?.tpStats?.[key]?.wins||0);
-    const scoreHit = (score,key)=> !!score?.["hit"+key];
-    const scoreBestTp = (score)=>{
-      let best = null;
-      for(const tp of replayTpLadder){ if(scoreHit(score,tp.key)) best = tp; }
-      return best;
-    };
 
     return(
       <div style={{padding:14}}>
@@ -4010,6 +3981,35 @@ function App() {
 
         {results&&(
           <>
+            {/* ALWAYS-VISIBLE TP LADDER — wired to replay scorer */}
+            <div style={{borderRadius:12,border:`1px solid ${A}44`,background:"rgba(240,160,48,0.06)",padding:"12px 14px",marginBottom:8}}>
+              <div style={{fontSize:9,color:"#777",letterSpacing:2,...mono,marginBottom:6}}>TP LEVELS — WIRED TO REPLAY SCORER</div>
+              <div style={{fontSize:10,color:"#888",...mono,lineHeight:1.7,marginBottom:8}}>
+                EXT 1 is the active exit target. EXT 2–EXT 8 are tracked as deeper TP hit levels.
+              </div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {[
+                  {label:"EXT 1", pct:"0.03%", wr:results.wr003, primary:true},
+                  {label:"EXT 2", pct:"0.06%", wr:results.wr006},
+                  {label:"EXT 3", pct:"0.09%", wr:results.wr009},
+                  {label:"EXT 4", pct:"0.12%", wr:results.wr012},
+                  {label:"EXT 5", pct:"0.3%",  wr:results.wr030},
+                  {label:"EXT 6", pct:"0.6%",  wr:results.wr060},
+                  {label:"EXT 7", pct:"0.9%",  wr:results.wr090},
+                  {label:"EXT 8", pct:"1.2%",  wr:results.wr120},
+                ].map(({label,pct,wr,primary})=>(
+                  <div key={label} style={{flex:"1 1 72px",minWidth:68,borderRadius:8,
+                    background:primary?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.03)",
+                    border:`1px solid ${primary?"rgba(0,255,136,0.35)":"rgba(255,255,255,0.08)"}`,
+                    padding:"6px 4px",textAlign:"center"}}>
+                    <div style={{fontSize:7,color:primary?G:"#555",...mono,marginBottom:2,letterSpacing:1}}>{label}</div>
+                    <div style={{fontSize:15,fontWeight:900,color:(wr||0)>=50?G:(wr||0)>=35?A:R,...mono}}>{wr||0}%</div>
+                    <div style={{fontSize:7,color:"#777",...mono}}>{pct}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* PRIMARY SIGNAL HEADLINE — EXECUTE+NEWS win rate */}
             {results.breakdown?.breakingOnly&&(
               <div style={{borderRadius:12,border:`1px solid ${G}44`,background:`${G}0d`,padding:"12px 14px",marginBottom:8}}>
@@ -4080,31 +4080,6 @@ function App() {
                 {l:"LOSSES", v:results.losses, c:R},
                 {l:"SETUPS", v:results.total, c:A},
               ].map(i=>(<div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>))}
-            </div>
-
-            {/* TRUE 8-LEVEL TP LADDER — always visible, wired to independent hit checks */}
-            <div style={{marginBottom:12,borderRadius:12,border:"1px solid rgba(0,255,136,0.18)",background:"rgba(0,255,136,0.035)",padding:"12px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
-                <div style={{fontSize:10,letterSpacing:2,color:G,fontWeight:900,...mono}}>TRUE TP LADDER — INDEPENDENT HIT RATE</div>
-                <div style={{fontSize:9,color:"#555",...mono}}>TP1 win rate controls W/L · higher TPs are separate</div>
-              </div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {replayTpLadder.map(tp=>{
-                  const wr = replayTpPercent(tp.key);
-                  const wins = replayTpWins(tp.key);
-                  return (
-                    <div key={tp.key} style={{flex:"1 1 72px",minWidth:68,borderRadius:9,
-                      background:tp.primary?"rgba(0,255,136,0.09)":"rgba(255,255,255,0.03)",
-                      border:`1px solid ${tp.primary?"rgba(0,255,136,0.35)":"rgba(255,255,255,0.08)"}`,
-                      padding:"7px 5px",textAlign:"center"}}>
-                      <div style={{fontSize:8,color:tp.primary?G:"#555",...mono,letterSpacing:1,marginBottom:2}}>{tp.label}</div>
-                      <div style={{fontSize:16,fontWeight:900,color:wr>=60?G:wr>=35?A:R,...mono,lineHeight:1}}>{wr}%</div>
-                      <div style={{fontSize:8,color:"#777",...mono,marginTop:2}}>{tp.pct}</div>
-                      <div style={{fontSize:8,color:"#333",...mono,marginTop:1}}>{wins}/{results.total}</div>
-                    </div>
-                  );
-                })}
-              </div>
             </div>
             {results.breakdown&&(
               <div style={{background:"rgba(255,255,255,0.02)",borderRadius:10,border:"1px solid rgba(255,255,255,0.06)",padding:"10px 12px",marginBottom:12}}>
@@ -4202,20 +4177,33 @@ function App() {
                   EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGET: {current.sigWindow?.tpLabel} {current.sigWindow?.tpPct}
                 </div>
 
+                {/* TP PRICE LEVELS — visible on every replay card */}
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:9,color:"#555",...mono,letterSpacing:1,marginBottom:5}}>TP PRICE LEVELS FROM ENTRY ${current.open?.toLocaleString?.()||current.open}</div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {[
+                      {label:"E1",pct:"0.03%",v:0.0003,key:"003"}, {label:"E2",pct:"0.06%",v:0.0006,key:"006"},
+                      {label:"E3",pct:"0.09%",v:0.0009,key:"009"}, {label:"E4",pct:"0.12%",v:0.0012,key:"012"},
+                      {label:"E5",pct:"0.3%",v:0.003,key:"030"},   {label:"E6",pct:"0.6%",v:0.006,key:"060"},
+                      {label:"E7",pct:"0.9%",v:0.009,key:"090"},   {label:"E8",pct:"1.2%",v:0.012,key:"120"},
+                    ].map(tp=>{
+                      const price = current.signal==="SELL" ? Math.round(current.open*(1-tp.v)) : Math.round(current.open*(1+tp.v));
+                      const hit = current.score?.["hit"+tp.key]===true;
+                      return (
+                        <div key={tp.label} style={{flex:"1 1 70px",minWidth:68,borderRadius:7,padding:"5px 4px",textAlign:"center",
+                          background:hit?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.025)",border:`1px solid ${hit?"rgba(0,255,136,0.28)":"rgba(255,255,255,0.07)"}`}}>
+                          <div style={{fontSize:7,color:hit?G:"#666",...mono}}>{tp.label} {hit?"✓":""}</div>
+                          <div style={{fontSize:8,color:"#888",...mono}}>{tp.pct}</div>
+                          <div style={{fontSize:10,color:"#bbb",...mono}}>${price.toLocaleString()}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* WIN/LOSS */}
                 <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
-                </div>
-
-                {/* Selected trade TP checklist */}
-                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
-                  {replayTpLadder.map(tp=>{
-                    const hit = scoreHit(current.score,tp.key);
-                    return <div key={tp.key} style={{borderRadius:7,padding:"4px 6px",fontSize:9,fontWeight:900,...mono,
-                      background:hit?"rgba(0,255,136,0.10)":"rgba(255,56,96,0.07)",
-                      border:`1px solid ${hit?"rgba(0,255,136,0.28)":"rgba(255,56,96,0.20)"}`,
-                      color:hit?G:R}}>{hit?"✓":"✗"} {tp.pct}</div>;
-                  })}
                 </div>
 
                 {/* Clean signal summary */}
