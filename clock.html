@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 REAL TRADE VALIDATION + HEADLINE ORIGIN GLOSSARY</title>
+<title>THE BiGENGiN3 OF TIME — V7 STOCKS OIL IRAN EUROPE FIX</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2234,15 +2234,12 @@ function App() {
         // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
         // "USCUF.PK" or "LALI.V" does not create fake extra events.
         const glossaryWeight = resolved.tickerOverride ? 1 : pluralStackWeightFromHeadline(rawText);
-        const glossaryHits = getNewsEntityGlossary(rawText);
         return {
           ...ev,
           country: resolved.country,
           effectiveCharge: resolved.charge,
           eventWeight: Math.max(weightOf(ev), glossaryWeight),
           glossaryStackWeight: glossaryWeight,
-          glossaryHits,
-          glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
           tickerOverride: !!resolved.tickerOverride,
           tickerOverrideReason: resolved.tickerOverrideReason || "",
@@ -2305,7 +2302,7 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · HEADLINE STACK x${ev.glossaryStackWeight}`:""}${ev.glossaryLabel?` · ORIGIN ${ev.glossaryLabel}`:""}`);
+      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · PLURAL STACK x${ev.glossaryStackWeight}`:""}`);
     });
 
     if(chargedEvents.length === 1){
@@ -2460,81 +2457,10 @@ function App() {
     return getTickerRootMatches(rawText).length > 0;
   }
 
-
-  // ── HEADLINE ORIGIN GLOSSARY — country / region detection before flip math ──
-  // Purpose: read market shorthand in headlines and tag WHERE the news is coming from.
-  // Rule: market entities like Treasuries, yields, oil, stocks, bonds, gold, Fed, CPI
-  // default to the active USD anchor unless a foreign country/region term is named.
-  // Multiple USD-anchor entities in one headline count as stacked same-sign items.
-  function getNewsEntityGlossary(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    const hits = [];
-    const add = (key, label, country="USD", anchor=true)=>{
-      if(!hits.some(x=>x.key===key)) hits.push({key,label,country,anchor});
-    };
-
-    // United States / USD anchor entities
-    if(/(^|\W)(USD|U\.S\.?|US|USA|UNITED\s+STATES|AMERICA|WASHINGTON)(\W|$)/.test(t)) add("us","United States / USD","USD",true);
-    if(/(^|\W)(DOLLAR|DOLLARS|DXY|GREENBACK|BUCK)(\W|$)/.test(t)) add("dollar","Dollar / DXY","USD",true);
-    if(/(^|\W)(FED|FEDERAL\s+RESERVE|FOMC|POWELL|YELLEN|RATE\s+DECISION|RATE\s+CUTS?|RATE\s+HIKES?|INTEREST\s+RATES?)(\W|$)/.test(t)) add("fed","Fed / U.S. rates","USD",true);
-    if(/(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|T\-?BILLS?|T\-?NOTES?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|30\s?Y(?:EAR)?|YIELDS?|BOND\s+YIELDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("treasury","Treasury / yields","USD",true);
-    if(/(^|\W)(BONDS?|NOTES?|BILLS?|DEBT\s+MARKETS?|CREDIT\s+MARKETS?|CORPORATE\s+BONDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("bonds","Bonds / credit","USD",true);
-    if(/(^|\W)(WALL\s+STREET|STOCKS?|SHARES?|EQUITIES|S\s*&\s*P\s?500|S&P\s?500|SPX|NASDAQ|NDX|DOW|DJIA|RUSSELL|NYSE|CBOE|VIX|INDEXES|INDICES|FUTURES)(\W|$)/.test(t)) add("stocks","Stocks / Wall Street","USD",true);
-    if(/(^|\W)(OIL|CRUDE|WTI|BRENT|ENERGY|ENERGIES|GASOLINE|NATURAL\s+GAS|OPEC|OPEC\+)(\W|$)/.test(t)) add("oil","Oil / energy","USD",true);
-    if(/(^|\W)(GOLD|XAU|BULLION|SILVER|METALS?|COPPER)(\W|$)/.test(t)) add("gold","Gold / metals","USD",true);
-    if(/(^|\W)(CPI|PPI|PCE|INFLATION|DEFLATION|NFP|NONFARM|PAYROLLS?|JOBS\s+REPORT|JOBLESS|UNEMPLOYMENT|JOLTS|ISM|PMI|GDP|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t)) add("usmacro","U.S. macro data","USD",true);
-
-    // Europe / EUR group
-    if(/(^|\W)(EUR|EURO|EUROZONE|EU|EUROPEAN\s+UNION|EUROPE|EUROPEAN|ECB|LAGARDE|EUREX|EURONEXT|STOXX|EURO\s*STOXX|DAX|GERMANY|GERMAN|BUND|BUNDS|FRANCE|FRENCH|CAC\s?40|CAC|ITALY|ITALIAN|FTSE\s+MIB|SPAIN|SPANISH|IBEX)(\W|$)/.test(t)) add("europe","Europe / EUR","EUR",false);
-
-    // United Kingdom / GBP
-    if(/(^|\W)(GBP|POUND|STERLING|UK|U\.K\.?|BRITAIN|BRITISH|UNITED\s+KINGDOM|ENGLAND|LONDON|BOE|BANK\s+OF\s+ENGLAND|BAILEY|LSE|FTSE|FOOTSIE|GILT|GILTS)(\W|$)/.test(t)) add("uk","United Kingdom / GBP","GBP",false);
-
-    // Asia Pacific majors
-    if(/(^|\W)(JPY|YEN|JAPAN|JAPANESE|TOKYO|BOJ|BANK\s+OF\s+JAPAN|UEDA|TSE|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/.test(t)) add("japan","Japan / JPY","JPY",false);
-    if(/(^|\W)(CNY|CNH|YUAN|RENMINBI|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|PEOPLE'?S\s+BANK\s+OF\s+CHINA|SSE|SZSE|CSI\s?300|PROPERTY\s+SECTOR)(\W|$)/.test(t)) add("china","China / CNY","CNY",false);
-    if(/(^|\W)(HKD|HONG\s+KONG|HKMA|HKEX|HANG\s+SENG|HSI)(\W|$)/.test(t)) add("hongkong","Hong Kong / HKD","HKD",false);
-    if(/(^|\W)(AUD|AUSSIE|AUSTRALIA|AUSTRALIAN|RBA|RESERVE\s+BANK\s+OF\s+AUSTRALIA|ASX|ASX\s?200|S&P\/ASX\s?200|ALL\s+ORDS|CBA|NAB|ANZ|WESTPAC|WBC|BHP|RIO\s+TINTO|SYDNEY)(\W|$)/.test(t)) add("australia","Australia / AUD","AUD",false);
-    if(/(^|\W)(NZD|KIWI|NEW\s+ZEALAND|RBNZ|NZX|WELLINGTON)(\W|$)/.test(t)) add("newzealand","New Zealand / NZD","NZD",false);
-    if(/(^|\W)(KRW|WON|KOREA|SOUTH\s+KOREA|SEOUL|BOK|KOSPI|KOSDAQ)(\W|$)/.test(t)) add("korea","South Korea / KRW","KRW",false);
-    if(/(^|\W)(TWD|TAIWAN|TAIPEI|TAIEX|SEMICONDUCTORS?|TSMC)(\W|$)/.test(t)) add("taiwan","Taiwan / TWD","TWD",false);
-    if(/(^|\W)(INR|RUPEE|INDIA|INDIAN|RBI|RESERVE\s+BANK\s+OF\s+INDIA|NIFTY|SENSEX|BSE|NSE|MUMBAI)(\W|$)/.test(t)) add("india","India / INR","INR",false);
-    if(/(^|\W)(SGD|SINGAPORE|MAS|SGX|STRAITS\s+TIMES|STI)(\W|$)/.test(t)) add("singapore","Singapore / SGD","SGD",false);
-
-    // Americas / commodity FX
-    if(/(^|\W)(CAD|LOONIE|CANADA|CANADIAN|BOC|BANK\s+OF\s+CANADA|TSX|TORONTO|S&P\/TSX)(\W|$)/.test(t)) add("canada","Canada / CAD","CAD",false);
-    if(/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BMV|PESO)(\W|$)/.test(t)) add("mexico","Mexico / MXN","MXN",false);
-    if(/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|B3|IBOVESPA|REAL)(\W|$)/.test(t)) add("brazil","Brazil / BRL","BRL",false);
-
-    // Europe non-EUR / safe haven
-    if(/(^|\W)(CHF|FRANC|SWISS|SWITZERLAND|SNB|SMI|ZURICH)(\W|$)/.test(t)) add("switzerland","Switzerland / CHF","CHF",false);
-    if(/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|STOCKHOLM|OMXS)(\W|$)/.test(t)) add("sweden","Sweden / SEK","SEK",false);
-    if(/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES\s+BANK|OSLO|OSE)(\W|$)/.test(t)) add("norway","Norway / NOK","NOK",false);
-    if(/(^|\W)(DKK|DENMARK|DANISH|DANMARKS\s+NATIONALBANK|COPENHAGEN)(\W|$)/.test(t)) add("denmark","Denmark / DKK","DKK",false);
-    if(/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|WIG20|ZLOTY)(\W|$)/.test(t)) add("poland","Poland / PLN","PLN",false);
-    if(/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA\s+ISTANBUL|ISTANBUL|LIRA)(\W|$)/.test(t)) add("turkey","Turkey / TRY","TRY",false);
-    if(/(^|\W)(ZAR|SOUTH\s+AFRICA|SOUTH\s+AFRICAN|SARB|JOHANNESBURG|JSE|RAND)(\W|$)/.test(t)) add("southafrica","South Africa / ZAR","ZAR",false);
-
-    // Geopolitical risk. If this is not clearly another country's financial market, default to USD risk anchor.
-    if(/(^|\W)(IRAN|IRANIAN|TEHRAN|ISRAEL|ISRAELI|GAZA|HAMAS|MIDEAST|MIDDLE\s+EAST|RED\s+SEA|HOUTHI|RUSSIA|RUSSIAN|UKRAINE|WAR|PEACE\s+PLAN|SANCTIONS?|GEOPOLITICAL|GEOPOLITICS|TENSIONS?|CONFLICT)(\W|$)/.test(t)) add("georisk","Geopolitical risk","USD",true);
-
-    // Crypto still trades like risk / USD unless headline clearly says another region.
-    if(/(^|\W)(BITCOIN|BTC|ETHEREUM|ETH|CRYPTO|CRYPTOCURRENCY|COINBASE|BINANCE|ETF\s+INFLOWS?)(\W|$)/.test(t)) add("crypto","Crypto / USD risk","USD",true);
-
-    return hits;
-  }
   function pluralStackWeightFromHeadline(rawText="") {
     const t = String(rawText||"").toUpperCase();
     if(!t) return 1;
     if(hasExchangeDotTicker(t)) return 1; // Derrick rule: dot suffix breaks it out of stack math.
-
-    const glossaryHits = getNewsEntityGlossary(t);
-    const usdAnchorHits = glossaryHits.filter(x=>x.anchor).length;
-
-    // If one headline names multiple USD-anchor/market entities — oil, stocks, bonds,
-    // treasury, Fed, dollar, gold, U.S. macro, geopolitical risk, crypto — count them
-    // as stacked same-sign anchor items. 2 or more then flips once in news math.
-    if(usdAnchorHits >= 2) return Math.min(5, usdAnchorHits);
 
     const instrumentPlural = /(^|\W)(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|YIELDS|BONDS|NOTES|BILLS|TREASURIES|GILTS|BUNDS|JGBS|FUTURES|OPTIONS|FUNDS|ETFS|INDEXES|INDICES|MARKETS|BANKS|MINERS|TECHS|ENERGIES|UTILITIES|FINANCIALS|HOMEBUILDERS|BUILDERS|LENDERS|INSURERS)(\W|$)/.test(t);
     const explicitMultiple = /(^|\W)(MULTIPLE|SEVERAL|MANY|VARIOUS|BASKET|GROUP|LIST|ROUNDUP|TOP|BEST|THESE|THOSE|WATCHLIST|SCREEN|SCREENER|PORTFOLIO|SECTOR|SECTORS)(\W|$)/.test(t);
@@ -3611,18 +3537,18 @@ function App() {
   // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
   // Exit target starts at 0.03%; TP ladder tracks all eight requested levels.
   function getSignalWindow(activeEvents){
-    const TP_EXIT_VAL = 0.0006; // 0.06% strict tradable validation target; 0.03% remains a weak/noise touch in ladder
+    const TP_EXIT_VAL = 0.0003; // 0.03%
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"step exit" };
+      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"0-20m burst" };
+      return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"0-20m burst" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"90m pre-window + 20m event duration" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"50m pre-window + 20m event duration" };
-    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"20m pre-window + 20m event duration" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"90m pre-window + 20m event duration" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"50m pre-window + 20m event duration" };
+    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"20m pre-window + 20m event duration" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
@@ -3724,78 +3650,47 @@ function App() {
 
       function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
-        const {exitRule, type, tp: exitTP, tpLabel, tpPct, windowMins} = sigWindow;
-
-        // REAL-TRADE VALIDATION MODE — built to expose false 100% replay results.
-        // 1) 0.03% is tracked as a WEAK touch, but a scored WIN now needs the stricter
-        //    trade target from sigWindow (default EXT 2 / 0.06%).
-        // 2) A tiny wick is not enough. The candle must close with the signal direction.
-        // 3) If the opposite side also hits the invalidation threshold, the trade is not
-        //    a clean win. It is marked BOTH_SIDES_HIT / REVERSAL_RISK.
-        // 4) Short news bursts score from the entry candle only. Longer windows may use
-        //    the next candle.
-        const strictWindow = Number(windowMins||20) <= 30;
-        const scoreCandleLabel = strictWindow ? "entry 30m candle only" : "entry + next candle";
-        const high = (!strictWindow && c2) ? Math.max(c1.high, c2.high) : c1.high;
-        const low  = (!strictWindow && c2) ? Math.min(c1.low,  c2.low)  : c1.low;
-        const close = strictWindow ? c1.close : (c2 ? c2.close : c1.close);
-        const bodyOkBuy  = close >= c1.open;
-        const bodyOkSell = close <= c1.open;
-        const invalidation = Math.max(0.0006, Number(exitTP||0.0006)); // at least 0.06% opposite move
-
-        const hitMapBuy = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && bodyOkBuy]));
-        const hitMapSell = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && bodyOkSell]));
+        const {exitRule, type, tp: exitTP, tpLabel, tpPct} = sigWindow;
+        const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
+        const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
 
         if(signal==="BUY"){
-          const weakTouch = high >= c1.open*(1+0.0003);
-          const targetHit = high >= c1.open*(1+exitTP);
-          const oppositeHit = low <= c1.open*(1-invalidation);
-          const bothSidesHit = targetHit && oppositeHit;
-          const cleanWin = targetHit && bodyOkBuy && !bothSidesHit;
+          const hit = high >= c1.open*(1+exitTP);
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const adverse = (((c1.open/low)-1)*100).toFixed(2);
-          let category = cleanWin ? "CLEAN_WIN" : "MISS";
-          if(bothSidesHit) category = "BOTH_SIDES_HIT";
-          else if(oppositeHit) category = "REVERSAL_LOSS";
-          else if(weakTouch && !targetHit) category = "WEAK_TOUCH_ONLY";
-          else if(targetHit && !bodyOkBuy) category = "WICK_ONLY";
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
           return {
-            correct: cleanWin, tp1Hit: cleanWin, ...hitMapBuy,
-            weakTouch, oppositeHit, bothSidesHit, category, scoreable:true,
-            label: cleanWin ? "VALID "+tpLabel : category.replaceAll("_"," "),
-            detail: cleanWin
-              ? "+"+tpPct+" clean hit in "+scoreCandleLabel
-              : category.replaceAll("_"," ")+" — max +"+maxMove+"%, adverse -"+adverse+"%; needed +"+tpPct+" with BUY body confirmation",
-            windowLabel: exitRule+" · REAL TRADE VALIDATION", tp: exitTP, tpPct, tpLabel,
-            validationMode:"REAL_TRADE", targetHit, bodyOk:bodyOkBuy, scoreCandleLabel
+            correct: hit, tp1Hit: hit, ...hits,
+            label: hit ? "HIT "+tpLabel : "MISS",
+            detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
+            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
         if(signal==="SELL"){
-          const weakTouch = low <= c1.open*(1-0.0003);
-          const targetHit = low <= c1.open*(1-exitTP);
-          const oppositeHit = high >= c1.open*(1+invalidation);
-          const bothSidesHit = targetHit && oppositeHit;
-          const cleanWin = targetHit && bodyOkSell && !bothSidesHit;
+          const hit = low <= c1.open*(1-exitTP);
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const adverse = (((high/c1.open)-1)*100).toFixed(2);
-          let category = cleanWin ? "CLEAN_WIN" : "MISS";
-          if(bothSidesHit) category = "BOTH_SIDES_HIT";
-          else if(oppositeHit) category = "REVERSAL_LOSS";
-          else if(weakTouch && !targetHit) category = "WEAK_TOUCH_ONLY";
-          else if(targetHit && !bodyOkSell) category = "WICK_ONLY";
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
           return {
-            correct: cleanWin, tp1Hit: cleanWin, ...hitMapSell,
-            weakTouch, oppositeHit, bothSidesHit, category, scoreable:true,
-            label: cleanWin ? "VALID "+tpLabel : category.replaceAll("_"," "),
-            detail: cleanWin
-              ? "-"+tpPct+" clean hit in "+scoreCandleLabel
-              : category.replaceAll("_"," ")+" — max -"+maxDrop+"%, adverse +"+adverse+"%; needed -"+tpPct+" with SELL body confirmation",
-            windowLabel: exitRule+" · REAL TRADE VALIDATION", tp: exitTP, tpPct, tpLabel,
-            validationMode:"REAL_TRADE", targetHit, bodyOk:bodyOkSell, scoreCandleLabel
+            correct: hit, tp1Hit: hit, ...hits,
+            label: hit ? "HIT "+tpLabel : "MISS",
+            detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
+            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
         return null;
       }
+
+      const replaySlotLabelFor = (events)=>{
+        const list = Array.isArray(events) ? events : [];
+        const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
+        const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
+        const hasCal    = list.some(ev=>replayEventType(ev)==="event");
+        const uniqueCount = uniqueReplayEventCount(list);
+        if(hasSpeech) return uniqueCount >= 2 ? "MIXED_NEWS" : "NEWS_SINGLE";
+        if((hasBreak && hasCal) || uniqueCount > 1) return "MIXED_NEWS";
+        if(hasCal) return "NEWS_SINGLE";
+        if(hasBreak) return "NEWS_SINGLE";
+        return "NEWS_SINGLE";
+      };
 
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
       const sessions = [];
@@ -3828,28 +3723,8 @@ function App() {
         });
       }
 
-      // ONE-SIGNAL-PER-MOVE FILTER — prevents 7:30 BUY, 8:00 BUY, 8:30 BUY
-      // from all being counted as separate perfect wins during the same directional leg.
-      let lastScoredMove = null;
-      for(const s of sessions.sort((a,b)=>a.ts-b.ts)){
-        if(!s.score || typeof s.score.correct!=="boolean") continue;
-        const sameMove = lastScoredMove && s.signal===lastScoredMove.signal && (s.ts-lastScoredMove.ts) <= 90*60*1000;
-        if(sameMove){
-          s.score = {
-            ...s.score,
-            correct:null,
-            scoreable:false,
-            category:"GROUPED_CONTINUATION",
-            label:"GROUPED MOVE",
-            detail:"Skipped from win rate: same-direction continuation within 90 minutes of prior "+s.signal+" setup."
-          };
-        }else{
-          lastScoredMove = s;
-        }
-      }
-
       const newsSessions = sessions.filter(s=>s.hasNews);
-      const scoredRows = newsSessions.filter(s=>s.score?.scoreable!==false && typeof s.score?.correct==="boolean");
+      const scoredRows = newsSessions.filter(s=>typeof s.score?.correct==="boolean");
       const wins   = scoredRows.filter(s=>s.score.correct===true).length;
       const losses = scoredRows.filter(s=>s.score.correct===false).length;
       const total  = wins+losses;
@@ -3971,7 +3846,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>VALIDATION: 0.06% CLEAN HIT · LADDER: 0.03 weak / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -4179,8 +4054,8 @@ function App() {
                 </div>
 
                 {/* WIN/LOSS */}
-                <div style={{fontSize:13,color:current.score?.scoreable===false?A:(current.score?.correct?G:R),fontWeight:900,marginBottom:8,lineHeight:1.6}}>
-                  {current.score?.scoreable===false ? "↔ SKIP" : (current.score?.correct ? "✓ WIN" : "✗ LOSS")} — {current.score?.detail||""}
+                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
+                  {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
                 </div>
 
                 {/* Clean signal summary */}
@@ -4225,8 +4100,7 @@ function App() {
             <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 2 DAYS RECENT NEWS LOG</div>
             {(results.newsSessions||[]).slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
-              const isSkip = s.score?.scoreable===false;
-              const hitCol = isSkip ? A : (s.score?.correct ? G : R);
+              const hitCol = s.score?.correct ? G : R;
               return(
                 <div key={i} onClick={()=>{ const next=(results.newsSessions||[]).findIndex(x=>x.ts===s.ts); setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=(results.newsSessions||[]).length-1); }}
                   style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
@@ -4236,7 +4110,7 @@ function App() {
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
                   <div style={{fontSize:10,color:"#555",...mono,minWidth:32}}>{"📰"+(s.activeCount||0)}</div>
                   <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
-                  <div style={{fontSize:16,fontWeight:900,color:hitCol,minWidth:16}}>{isSkip?"↔":(s.score?.correct?"✓":"✗")}</div>
+                  <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
               );
             })}
@@ -4268,7 +4142,7 @@ const BacktestTab = ()=>{
     return(
       <div style={{padding:14}}>
         <div style={{background:"rgba(240,160,48,0.07)",border:"1px solid rgba(240,160,48,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ STRICT VALIDATION — ENTRY-CANDLE + BODY CONFIRMATION</div>
+          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ REFERENCE DATA — NOT INDEPENDENTLY BACKTESTED</div>
           <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>Win rates are simulated zone reference data. Real results vary by instrument, session, and market regime. Track your own trades.</div>
         </div>
         <div style={lbl("#999",{marginBottom:12,textAlign:"center"})}>ZONE WIN RATE REFERENCE</div>
