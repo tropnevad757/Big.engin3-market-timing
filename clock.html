@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 STRICT VALIDATION + HEADLINE ORIGIN GLOSSARY</title>
+<title>THE BiGENGiN3 OF TIME — V7 REAL TRADE VALIDATION + HEADLINE ORIGIN GLOSSARY</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -3611,18 +3611,18 @@ function App() {
   // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
   // Exit target starts at 0.03%; TP ladder tracks all eight requested levels.
   function getSignalWindow(activeEvents){
-    const TP_EXIT_VAL = 0.0003; // 0.03%
+    const TP_EXIT_VAL = 0.0006; // 0.06% strict tradable validation target; 0.03% remains a weak/noise touch in ladder
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"step exit" };
+      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"0-20m burst" };
+      return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"0-20m burst" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"90m pre-window + 20m event duration" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"50m pre-window + 20m event duration" };
-    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"20m pre-window + 20m event duration" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"90m pre-window + 20m event duration" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"50m pre-window + 20m event duration" };
+    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 2", tpPct:"0.06%", exitRule:"20m pre-window + 20m event duration" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
@@ -3726,66 +3726,76 @@ function App() {
         if(!c1||!c1.open) return null;
         const {exitRule, type, tp: exitTP, tpLabel, tpPct, windowMins} = sigWindow;
 
-        // STRICT VALIDATION MODE — prevents false 100% results.
-        // Before: replay used current candle + next candle highs/lows, which could count
-        // a delayed wick as a win. Now 0–20m burst / 20m news windows score from the
-        // entry candle only. Longer windows may use the next candle.
+        // REAL-TRADE VALIDATION MODE — built to expose false 100% replay results.
+        // 1) 0.03% is tracked as a WEAK touch, but a scored WIN now needs the stricter
+        //    trade target from sigWindow (default EXT 2 / 0.06%).
+        // 2) A tiny wick is not enough. The candle must close with the signal direction.
+        // 3) If the opposite side also hits the invalidation threshold, the trade is not
+        //    a clean win. It is marked BOTH_SIDES_HIT / REVERSAL_RISK.
+        // 4) Short news bursts score from the entry candle only. Longer windows may use
+        //    the next candle.
         const strictWindow = Number(windowMins||20) <= 30;
         const scoreCandleLabel = strictWindow ? "entry 30m candle only" : "entry + next candle";
         const high = (!strictWindow && c2) ? Math.max(c1.high, c2.high) : c1.high;
         const low  = (!strictWindow && c2) ? Math.min(c1.low,  c2.low)  : c1.low;
         const close = strictWindow ? c1.close : (c2 ? c2.close : c1.close);
-
-        // Body confirmation keeps a tiny wick from being counted as a clean win.
-        // BUY needs the candle to close at/above open. SELL needs close at/below open.
         const bodyOkBuy  = close >= c1.open;
         const bodyOkSell = close <= c1.open;
+        const invalidation = Math.max(0.0006, Number(exitTP||0.0006)); // at least 0.06% opposite move
+
+        const hitMapBuy = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && bodyOkBuy]));
+        const hitMapSell = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && bodyOkSell]));
 
         if(signal==="BUY"){
-          const wickHit = high >= c1.open*(1+exitTP);
-          const hit = wickHit && bodyOkBuy;
+          const weakTouch = high >= c1.open*(1+0.0003);
+          const targetHit = high >= c1.open*(1+exitTP);
+          const oppositeHit = low <= c1.open*(1-invalidation);
+          const bothSidesHit = targetHit && oppositeHit;
+          const cleanWin = targetHit && bodyOkBuy && !bothSidesHit;
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && bodyOkBuy]));
+          const adverse = (((c1.open/low)-1)*100).toFixed(2);
+          let category = cleanWin ? "CLEAN_WIN" : "MISS";
+          if(bothSidesHit) category = "BOTH_SIDES_HIT";
+          else if(oppositeHit) category = "REVERSAL_LOSS";
+          else if(weakTouch && !targetHit) category = "WEAK_TOUCH_ONLY";
+          else if(targetHit && !bodyOkBuy) category = "WICK_ONLY";
           return {
-            correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "VALID HIT "+tpLabel : "MISS",
-            detail: hit
-              ? "+"+tpPct+" validated in "+scoreCandleLabel
-              : "Max +"+maxMove+"% — needed +"+tpPct+" with BUY body confirmation",
-            windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
-            validationMode:"STRICT", wickHit, bodyOk:bodyOkBuy, scoreCandleLabel
+            correct: cleanWin, tp1Hit: cleanWin, ...hitMapBuy,
+            weakTouch, oppositeHit, bothSidesHit, category, scoreable:true,
+            label: cleanWin ? "VALID "+tpLabel : category.replaceAll("_"," "),
+            detail: cleanWin
+              ? "+"+tpPct+" clean hit in "+scoreCandleLabel
+              : category.replaceAll("_"," ")+" — max +"+maxMove+"%, adverse -"+adverse+"%; needed +"+tpPct+" with BUY body confirmation",
+            windowLabel: exitRule+" · REAL TRADE VALIDATION", tp: exitTP, tpPct, tpLabel,
+            validationMode:"REAL_TRADE", targetHit, bodyOk:bodyOkBuy, scoreCandleLabel
           };
         }
         if(signal==="SELL"){
-          const wickHit = low <= c1.open*(1-exitTP);
-          const hit = wickHit && bodyOkSell;
+          const weakTouch = low <= c1.open*(1-0.0003);
+          const targetHit = low <= c1.open*(1-exitTP);
+          const oppositeHit = high >= c1.open*(1+invalidation);
+          const bothSidesHit = targetHit && oppositeHit;
+          const cleanWin = targetHit && bodyOkSell && !bothSidesHit;
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && bodyOkSell]));
+          const adverse = (((high/c1.open)-1)*100).toFixed(2);
+          let category = cleanWin ? "CLEAN_WIN" : "MISS";
+          if(bothSidesHit) category = "BOTH_SIDES_HIT";
+          else if(oppositeHit) category = "REVERSAL_LOSS";
+          else if(weakTouch && !targetHit) category = "WEAK_TOUCH_ONLY";
+          else if(targetHit && !bodyOkSell) category = "WICK_ONLY";
           return {
-            correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "VALID HIT "+tpLabel : "MISS",
-            detail: hit
-              ? "-"+tpPct+" validated in "+scoreCandleLabel
-              : "Max -"+maxDrop+"% — needed -"+tpPct+" with SELL body confirmation",
-            windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
-            validationMode:"STRICT", wickHit, bodyOk:bodyOkSell, scoreCandleLabel
+            correct: cleanWin, tp1Hit: cleanWin, ...hitMapSell,
+            weakTouch, oppositeHit, bothSidesHit, category, scoreable:true,
+            label: cleanWin ? "VALID "+tpLabel : category.replaceAll("_"," "),
+            detail: cleanWin
+              ? "-"+tpPct+" clean hit in "+scoreCandleLabel
+              : category.replaceAll("_"," ")+" — max -"+maxDrop+"%, adverse +"+adverse+"%; needed -"+tpPct+" with SELL body confirmation",
+            windowLabel: exitRule+" · REAL TRADE VALIDATION", tp: exitTP, tpPct, tpLabel,
+            validationMode:"REAL_TRADE", targetHit, bodyOk:bodyOkSell, scoreCandleLabel
           };
         }
         return null;
       }
-
-      const replaySlotLabelFor = (events)=>{
-        const list = Array.isArray(events) ? events : [];
-        const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
-        const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
-        const hasCal    = list.some(ev=>replayEventType(ev)==="event");
-        const uniqueCount = uniqueReplayEventCount(list);
-        if(hasSpeech) return uniqueCount >= 2 ? "MIXED_NEWS" : "NEWS_SINGLE";
-        if((hasBreak && hasCal) || uniqueCount > 1) return "MIXED_NEWS";
-        if(hasCal) return "NEWS_SINGLE";
-        if(hasBreak) return "NEWS_SINGLE";
-        return "NEWS_SINGLE";
-      };
 
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
       const sessions = [];
@@ -3818,8 +3828,28 @@ function App() {
         });
       }
 
+      // ONE-SIGNAL-PER-MOVE FILTER — prevents 7:30 BUY, 8:00 BUY, 8:30 BUY
+      // from all being counted as separate perfect wins during the same directional leg.
+      let lastScoredMove = null;
+      for(const s of sessions.sort((a,b)=>a.ts-b.ts)){
+        if(!s.score || typeof s.score.correct!=="boolean") continue;
+        const sameMove = lastScoredMove && s.signal===lastScoredMove.signal && (s.ts-lastScoredMove.ts) <= 90*60*1000;
+        if(sameMove){
+          s.score = {
+            ...s.score,
+            correct:null,
+            scoreable:false,
+            category:"GROUPED_CONTINUATION",
+            label:"GROUPED MOVE",
+            detail:"Skipped from win rate: same-direction continuation within 90 minutes of prior "+s.signal+" setup."
+          };
+        }else{
+          lastScoredMove = s;
+        }
+      }
+
       const newsSessions = sessions.filter(s=>s.hasNews);
-      const scoredRows = newsSessions.filter(s=>typeof s.score?.correct==="boolean");
+      const scoredRows = newsSessions.filter(s=>s.score?.scoreable!==false && typeof s.score?.correct==="boolean");
       const wins   = scoredRows.filter(s=>s.score.correct===true).length;
       const losses = scoredRows.filter(s=>s.score.correct===false).length;
       const total  = wins+losses;
@@ -3941,7 +3971,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>VALIDATION: 0.06% CLEAN HIT · LADDER: 0.03 weak / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -4149,8 +4179,8 @@ function App() {
                 </div>
 
                 {/* WIN/LOSS */}
-                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
-                  {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
+                <div style={{fontSize:13,color:current.score?.scoreable===false?A:(current.score?.correct?G:R),fontWeight:900,marginBottom:8,lineHeight:1.6}}>
+                  {current.score?.scoreable===false ? "↔ SKIP" : (current.score?.correct ? "✓ WIN" : "✗ LOSS")} — {current.score?.detail||""}
                 </div>
 
                 {/* Clean signal summary */}
@@ -4195,7 +4225,8 @@ function App() {
             <div style={{fontSize:10,letterSpacing:2,color:"#444",fontWeight:700,...mono,marginBottom:8}}>LAST 2 DAYS RECENT NEWS LOG</div>
             {(results.newsSessions||[]).slice().reverse().map((s,i)=>{
               const sc = sigCol(s.signal);
-              const hitCol = s.score?.correct ? G : R;
+              const isSkip = s.score?.scoreable===false;
+              const hitCol = isSkip ? A : (s.score?.correct ? G : R);
               return(
                 <div key={i} onClick={()=>{ const next=(results.newsSessions||[]).findIndex(x=>x.ts===s.ts); setRpPlaying(false); setRpPlayIdx(next); setRpEnded(next>=(results.newsSessions||[]).length-1); }}
                   style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
@@ -4205,7 +4236,7 @@ function App() {
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
                   <div style={{fontSize:10,color:"#555",...mono,minWidth:32}}>{"📰"+(s.activeCount||0)}</div>
                   <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
-                  <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
+                  <div style={{fontSize:16,fontWeight:900,color:hitCol,minWidth:16}}>{isSkip?"↔":(s.score?.correct?"✓":"✗")}</div>
                 </div>
               );
             })}
