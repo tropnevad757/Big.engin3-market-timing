@@ -2209,6 +2209,7 @@ function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=nu
 
       // Clean headline classification first so dirty ticker/source tags do not win.
       if(/\bLALT\.V\b|\bTSX\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
+      if(/\bORRAF\.PK\b/.test(t)) return "AUD"; // Derrick lock: ORRAF.PK = Australian news, .PK is only listing suffix
       if(/\bASX\b|AUSTRALIA|AUSSIE|\bAUD\b/.test(t)) return "AUD";
       if(/\bASIA\b|EM ASIA|ASIAN|EMERGING MARKETS?/.test(t)) return "ASI";
       if(/\bUSD\b|DOLLAR|TREASURY|YIELDS?|FED\b|POWELL|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
@@ -2225,8 +2226,12 @@ function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=nu
       if(Number.isFinite(rawPol) && rawPol !== 0) return rawPol > 0 ? 1 : -1;
 
       // Specific interpretations from Derrick's miss review
+      // Falling/tumbling/sliding Treasury/yields/bonds = USD negative.
+      // IMPORTANT: when Treasury/yields are present, oil should NOT add a second stacked item.
+      if(/(TREASUR(?:Y|IES)|YIELDS?|BONDS?|BOND MARKET).*?(TUMBLE|TUMBLES|TUMBLED|SLIDE|SLIDES|SLID|FALL|FALLS|FELL|DROP|DROPS|DROPPED|LOWER)/.test(t)
+        || /(TUMBLE|TUMBLES|TUMBLED|SLIDE|SLIDES|SLID|FALL|FALLS|FELL|DROP|DROPS|DROPPED|LOWER).*?(TREASUR(?:Y|IES)|YIELDS?|BONDS?|BOND MARKET)/.test(t)) return -1;
       if(/OIL PRICE SURGE/.test(t)) return 1;
-      if(/YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?/.test(t)) return 1;
+      if(/YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE/.test(t)) return 1;
       if(/FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS/.test(t)) return 1;
       if(/PREDICTION MARKETS.*GOVERNMENT.*TEST|GOVERNMENT TO THE TEST/.test(t)) return -1;
       if(/DOLLAR WEAKNESS|DOLLAR WEAK|WEAKNESS/.test(t)) return -1;
@@ -2282,6 +2287,12 @@ function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=nu
       const rawPol = Number(ev?.polarity);
       const hasRawPol = Number.isFinite(rawPol) && rawPol !== 0;
       const unknownAnchorFallback = !explicitCountryHit && inferred === "USD";
+      // Ticker-only / dirty-source headlines (ex: ORRAF.PK) should inherit Derrick's current USD anchor sign,
+      // then the Country Rate Brain decides whether the country stays same or inverts.
+      const unknownTickerFallback = hasExchangeDotTicker(rawUpper) && !hasRawPol && !directionalCueHit && !glossaryHits.length;
+      // Plain bond/treasury headlines with no clear up/down wording should also inherit the current USD anchor.
+      const ambiguousDebtAnchorFallback = glossaryHits.some(x=>/^(treasury|bonds)$/.test(String(x.key||"")))
+        && !hasRawPol && !directionalCueHit;
 
       const applyCountryRateRule = (baseCharge, countryCode)=>{
         let c = Number(baseCharge) >= 0 ? 1 : -1;
@@ -2330,7 +2341,7 @@ function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=nu
 
       // 1) Get headline meaning first. If truly unknown with no polarity/cue/glossary hit,
       // use current USD/high-rate anchor sign as fallback. Otherwise use headline sign.
-      const headlineBaseCharge = (unknownAnchorFallback && !hasRawPol && !directionalCueHit && !glossaryHits.length)
+      const headlineBaseCharge = ((unknownAnchorFallback && !hasRawPol && !directionalCueHit && !glossaryHits.length) || unknownTickerFallback || ambiguousDebtAnchorFallback)
         ? usdAnchorCharge
         : inferHeadlineCharge(ev, inferred);
 
@@ -2338,11 +2349,19 @@ function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=nu
       // each entity gets its own country-rate relation before the event is folded.
       // Example: Treasury + oil + stocks = three USD-anchor components;
       // DAX/CAC/FTSE/Nikkei/Hang Seng/ASX keep their own country/rate relation.
-      const uniqueGlossaryHits = [];
+      let uniqueGlossaryHits = [];
       glossaryHits.forEach(hit=>{
         const key = `${hit.key || hit.label || "hit"}:${hit.country || "USD"}`;
         if(!uniqueGlossaryHits.some(x=>`${x.key || x.label || "hit"}:${x.country || "USD"}` === key)) uniqueGlossaryHits.push(hit);
       });
+
+      // Derrick lock: in Treasury/yield/bond headlines, use the Treasury/Bond part as USD.
+      // Do NOT let oil/crude become a second USD component in that situation.
+      // Example: "Treasury yields tumble as oil prices slid" = Treasury/yields USD only, not Treasury + Oil stack.
+      if(uniqueGlossaryHits.some(x=>/^(treasury|bonds)$/.test(String(x.key||"")))){
+        uniqueGlossaryHits = uniqueGlossaryHits.filter(x=>!/^(oil)$/.test(String(x.key||"")));
+      }
+
       if(uniqueGlossaryHits.length >= 2){
         const glossaryComponents = uniqueGlossaryHits.map(hit=>{
           const baseForHit = inferHeadlineCharge(ev, hit.country || inferred || "USD");
@@ -2704,12 +2723,16 @@ function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=nu
     if(!t) return 1;
     if(hasExchangeDotTicker(t)) return 1; // Derrick rule: dot suffix breaks it out of stack math.
 
-    const glossaryHits = getNewsEntityGlossary(t);
+    let glossaryHits = getNewsEntityGlossary(t);
+    // Derrick lock: Treasury/yield/bond headlines do not stack oil/crude as a second USD item.
+    if(glossaryHits.some(x=>/^(treasury|bonds)$/.test(String(x.key||"")))){
+      glossaryHits = glossaryHits.filter(x=>!/^(oil)$/.test(String(x.key||"")));
+    }
     const usdAnchorHits = glossaryHits.filter(x=>x.anchor).length;
 
-    // If one headline names multiple USD-anchor/market entities — oil, stocks, bonds,
+    // If one headline names multiple USD-anchor/market entities — stocks, bonds,
     // treasury, Fed, dollar, gold, U.S. macro, geopolitical risk, crypto — count them
-    // as stacked same-sign anchor items. 2 or more then flips once in news math.
+    // as stacked same-sign anchor items. Oil is ignored when Treasury/yields/bonds are present.
     if(usdAnchorHits >= 2) return Math.min(5, usdAnchorHits);
 
     const instrumentPlural = /(^|\W)(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|YIELDS|BONDS|NOTES|BILLS|TREASURIES|GILTS|BUNDS|JGBS|FUTURES|OPTIONS|FUNDS|ETFS|INDEXES|INDICES|MARKETS|BANKS|MINERS|TECHS|ENERGIES|UTILITIES|FINANCIALS|HOMEBUILDERS|BUILDERS|LENDERS|INSURERS)(\W|$)/.test(t);
@@ -2824,6 +2847,7 @@ function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=nu
       // Example: USCUF.PK is U.S. news first; .PK is only where it is quoted/listed.
       if(/^(USD|US|USA)/.test(root) || /US/.test(root)) return "USD";
       if(/^(CAD|CA|CNDA|CDN)/.test(root)) return "CAD";
+      if(/^ORRAF$/.test(root)) return "AUD"; // Derrick lock: ORRAF.PK = Australian news
       if(/^(AUD|AU|ASX)/.test(root)) return "AUD";
       if(/^(GBP|UK|GB)/.test(root)) return "GBP";
       if(/^(EUR|EU)/.test(root)) return "EUR";
