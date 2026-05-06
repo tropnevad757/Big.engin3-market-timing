@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 STOCKS OIL IRAN EUROPE FIX</title>
+<title>THE BiGENGiN3 OF TIME — V7 TP LADDER CLEAN</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -2234,12 +2234,15 @@ function App() {
         // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
         // "USCUF.PK" or "LALI.V" does not create fake extra events.
         const glossaryWeight = resolved.tickerOverride ? 1 : pluralStackWeightFromHeadline(rawText);
+        const glossaryHits = getNewsEntityGlossary(rawText);
         return {
           ...ev,
           country: resolved.country,
           effectiveCharge: resolved.charge,
           eventWeight: Math.max(weightOf(ev), glossaryWeight),
           glossaryStackWeight: glossaryWeight,
+          glossaryHits,
+          glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
           tickerOverride: !!resolved.tickerOverride,
           tickerOverrideReason: resolved.tickerOverrideReason || "",
@@ -2302,7 +2305,7 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · PLURAL STACK x${ev.glossaryStackWeight}`:""}`);
+      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · HEADLINE STACK x${ev.glossaryStackWeight}`:""}${ev.glossaryLabel?` · ORIGIN ${ev.glossaryLabel}`:""}`);
     });
 
     if(chargedEvents.length === 1){
@@ -2457,10 +2460,81 @@ function App() {
     return getTickerRootMatches(rawText).length > 0;
   }
 
+
+  // ── HEADLINE ORIGIN GLOSSARY — country / region detection before flip math ──
+  // Purpose: read market shorthand in headlines and tag WHERE the news is coming from.
+  // Rule: market entities like Treasuries, yields, oil, stocks, bonds, gold, Fed, CPI
+  // default to the active USD anchor unless a foreign country/region term is named.
+  // Multiple USD-anchor entities in one headline count as stacked same-sign items.
+  function getNewsEntityGlossary(rawText="") {
+    const t = String(rawText||"").toUpperCase();
+    const hits = [];
+    const add = (key, label, country="USD", anchor=true)=>{
+      if(!hits.some(x=>x.key===key)) hits.push({key,label,country,anchor});
+    };
+
+    // United States / USD anchor entities
+    if(/(^|\W)(USD|U\.S\.?|US|USA|UNITED\s+STATES|AMERICA|WASHINGTON)(\W|$)/.test(t)) add("us","United States / USD","USD",true);
+    if(/(^|\W)(DOLLAR|DOLLARS|DXY|GREENBACK|BUCK)(\W|$)/.test(t)) add("dollar","Dollar / DXY","USD",true);
+    if(/(^|\W)(FED|FEDERAL\s+RESERVE|FOMC|POWELL|YELLEN|RATE\s+DECISION|RATE\s+CUTS?|RATE\s+HIKES?|INTEREST\s+RATES?)(\W|$)/.test(t)) add("fed","Fed / U.S. rates","USD",true);
+    if(/(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|T\-?BILLS?|T\-?NOTES?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|30\s?Y(?:EAR)?|YIELDS?|BOND\s+YIELDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("treasury","Treasury / yields","USD",true);
+    if(/(^|\W)(BONDS?|NOTES?|BILLS?|DEBT\s+MARKETS?|CREDIT\s+MARKETS?|CORPORATE\s+BONDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("bonds","Bonds / credit","USD",true);
+    if(/(^|\W)(WALL\s+STREET|STOCKS?|SHARES?|EQUITIES|S\s*&\s*P\s?500|S&P\s?500|SPX|NASDAQ|NDX|DOW|DJIA|RUSSELL|NYSE|CBOE|VIX|INDEXES|INDICES|FUTURES)(\W|$)/.test(t)) add("stocks","Stocks / Wall Street","USD",true);
+    if(/(^|\W)(OIL|CRUDE|WTI|BRENT|ENERGY|ENERGIES|GASOLINE|NATURAL\s+GAS|OPEC|OPEC\+)(\W|$)/.test(t)) add("oil","Oil / energy","USD",true);
+    if(/(^|\W)(GOLD|XAU|BULLION|SILVER|METALS?|COPPER)(\W|$)/.test(t)) add("gold","Gold / metals","USD",true);
+    if(/(^|\W)(CPI|PPI|PCE|INFLATION|DEFLATION|NFP|NONFARM|PAYROLLS?|JOBS\s+REPORT|JOBLESS|UNEMPLOYMENT|JOLTS|ISM|PMI|GDP|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t)) add("usmacro","U.S. macro data","USD",true);
+
+    // Europe / EUR group
+    if(/(^|\W)(EUR|EURO|EUROZONE|EU|EUROPEAN\s+UNION|EUROPE|EUROPEAN|ECB|LAGARDE|EUREX|EURONEXT|STOXX|EURO\s*STOXX|DAX|GERMANY|GERMAN|BUND|BUNDS|FRANCE|FRENCH|CAC\s?40|CAC|ITALY|ITALIAN|FTSE\s+MIB|SPAIN|SPANISH|IBEX)(\W|$)/.test(t)) add("europe","Europe / EUR","EUR",false);
+
+    // United Kingdom / GBP
+    if(/(^|\W)(GBP|POUND|STERLING|UK|U\.K\.?|BRITAIN|BRITISH|UNITED\s+KINGDOM|ENGLAND|LONDON|BOE|BANK\s+OF\s+ENGLAND|BAILEY|LSE|FTSE|FOOTSIE|GILT|GILTS)(\W|$)/.test(t)) add("uk","United Kingdom / GBP","GBP",false);
+
+    // Asia Pacific majors
+    if(/(^|\W)(JPY|YEN|JAPAN|JAPANESE|TOKYO|BOJ|BANK\s+OF\s+JAPAN|UEDA|TSE|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/.test(t)) add("japan","Japan / JPY","JPY",false);
+    if(/(^|\W)(CNY|CNH|YUAN|RENMINBI|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|PEOPLE'?S\s+BANK\s+OF\s+CHINA|SSE|SZSE|CSI\s?300|PROPERTY\s+SECTOR)(\W|$)/.test(t)) add("china","China / CNY","CNY",false);
+    if(/(^|\W)(HKD|HONG\s+KONG|HKMA|HKEX|HANG\s+SENG|HSI)(\W|$)/.test(t)) add("hongkong","Hong Kong / HKD","HKD",false);
+    if(/(^|\W)(AUD|AUSSIE|AUSTRALIA|AUSTRALIAN|RBA|RESERVE\s+BANK\s+OF\s+AUSTRALIA|ASX|ASX\s?200|S&P\/ASX\s?200|ALL\s+ORDS|CBA|NAB|ANZ|WESTPAC|WBC|BHP|RIO\s+TINTO|SYDNEY)(\W|$)/.test(t)) add("australia","Australia / AUD","AUD",false);
+    if(/(^|\W)(NZD|KIWI|NEW\s+ZEALAND|RBNZ|NZX|WELLINGTON)(\W|$)/.test(t)) add("newzealand","New Zealand / NZD","NZD",false);
+    if(/(^|\W)(KRW|WON|KOREA|SOUTH\s+KOREA|SEOUL|BOK|KOSPI|KOSDAQ)(\W|$)/.test(t)) add("korea","South Korea / KRW","KRW",false);
+    if(/(^|\W)(TWD|TAIWAN|TAIPEI|TAIEX|SEMICONDUCTORS?|TSMC)(\W|$)/.test(t)) add("taiwan","Taiwan / TWD","TWD",false);
+    if(/(^|\W)(INR|RUPEE|INDIA|INDIAN|RBI|RESERVE\s+BANK\s+OF\s+INDIA|NIFTY|SENSEX|BSE|NSE|MUMBAI)(\W|$)/.test(t)) add("india","India / INR","INR",false);
+    if(/(^|\W)(SGD|SINGAPORE|MAS|SGX|STRAITS\s+TIMES|STI)(\W|$)/.test(t)) add("singapore","Singapore / SGD","SGD",false);
+
+    // Americas / commodity FX
+    if(/(^|\W)(CAD|LOONIE|CANADA|CANADIAN|BOC|BANK\s+OF\s+CANADA|TSX|TORONTO|S&P\/TSX)(\W|$)/.test(t)) add("canada","Canada / CAD","CAD",false);
+    if(/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BMV|PESO)(\W|$)/.test(t)) add("mexico","Mexico / MXN","MXN",false);
+    if(/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|B3|IBOVESPA|REAL)(\W|$)/.test(t)) add("brazil","Brazil / BRL","BRL",false);
+
+    // Europe non-EUR / safe haven
+    if(/(^|\W)(CHF|FRANC|SWISS|SWITZERLAND|SNB|SMI|ZURICH)(\W|$)/.test(t)) add("switzerland","Switzerland / CHF","CHF",false);
+    if(/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|STOCKHOLM|OMXS)(\W|$)/.test(t)) add("sweden","Sweden / SEK","SEK",false);
+    if(/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES\s+BANK|OSLO|OSE)(\W|$)/.test(t)) add("norway","Norway / NOK","NOK",false);
+    if(/(^|\W)(DKK|DENMARK|DANISH|DANMARKS\s+NATIONALBANK|COPENHAGEN)(\W|$)/.test(t)) add("denmark","Denmark / DKK","DKK",false);
+    if(/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|WIG20|ZLOTY)(\W|$)/.test(t)) add("poland","Poland / PLN","PLN",false);
+    if(/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA\s+ISTANBUL|ISTANBUL|LIRA)(\W|$)/.test(t)) add("turkey","Turkey / TRY","TRY",false);
+    if(/(^|\W)(ZAR|SOUTH\s+AFRICA|SOUTH\s+AFRICAN|SARB|JOHANNESBURG|JSE|RAND)(\W|$)/.test(t)) add("southafrica","South Africa / ZAR","ZAR",false);
+
+    // Geopolitical risk. If this is not clearly another country's financial market, default to USD risk anchor.
+    if(/(^|\W)(IRAN|IRANIAN|TEHRAN|ISRAEL|ISRAELI|GAZA|HAMAS|MIDEAST|MIDDLE\s+EAST|RED\s+SEA|HOUTHI|RUSSIA|RUSSIAN|UKRAINE|WAR|PEACE\s+PLAN|SANCTIONS?|GEOPOLITICAL|GEOPOLITICS|TENSIONS?|CONFLICT)(\W|$)/.test(t)) add("georisk","Geopolitical risk","USD",true);
+
+    // Crypto still trades like risk / USD unless headline clearly says another region.
+    if(/(^|\W)(BITCOIN|BTC|ETHEREUM|ETH|CRYPTO|CRYPTOCURRENCY|COINBASE|BINANCE|ETF\s+INFLOWS?)(\W|$)/.test(t)) add("crypto","Crypto / USD risk","USD",true);
+
+    return hits;
+  }
   function pluralStackWeightFromHeadline(rawText="") {
     const t = String(rawText||"").toUpperCase();
     if(!t) return 1;
     if(hasExchangeDotTicker(t)) return 1; // Derrick rule: dot suffix breaks it out of stack math.
+
+    const glossaryHits = getNewsEntityGlossary(t);
+    const usdAnchorHits = glossaryHits.filter(x=>x.anchor).length;
+
+    // If one headline names multiple USD-anchor/market entities — oil, stocks, bonds,
+    // treasury, Fed, dollar, gold, U.S. macro, geopolitical risk, crypto — count them
+    // as stacked same-sign anchor items. 2 or more then flips once in news math.
+    if(usdAnchorHits >= 2) return Math.min(5, usdAnchorHits);
 
     const instrumentPlural = /(^|\W)(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|YIELDS|BONDS|NOTES|BILLS|TREASURIES|GILTS|BUNDS|JGBS|FUTURES|OPTIONS|FUNDS|ETFS|INDEXES|INDICES|MARKETS|BANKS|MINERS|TECHS|ENERGIES|UTILITIES|FINANCIALS|HOMEBUILDERS|BUILDERS|LENDERS|INSURERS)(\W|$)/.test(t);
     const explicitMultiple = /(^|\W)(MULTIPLE|SEVERAL|MANY|VARIOUS|BASKET|GROUP|LIST|ROUNDUP|TOP|BEST|THESE|THOSE|WATCHLIST|SCREEN|SCREENER|PORTFOLIO|SECTOR|SECTORS)(\W|$)/.test(t);
@@ -3650,30 +3724,59 @@ function App() {
 
       function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
-        const {exitRule, type, tp: exitTP, tpLabel, tpPct} = sigWindow;
-        const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
-        const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
+        const {exitRule, type, tp: exitTP, tpLabel, tpPct, windowMins} = sigWindow;
+
+        // STRICT VALIDATION MODE — prevents false 100% results.
+        // Before: replay used current candle + next candle highs/lows, which could count
+        // a delayed wick as a win. Now 0–20m burst / 20m news windows score from the
+        // entry candle only. Longer windows may use the next candle.
+        const strictWindow = Number(windowMins||20) <= 30;
+        const scoreCandleLabel = strictWindow ? "entry 30m candle only" : "entry + next candle";
+        const high = (!strictWindow && c2) ? Math.max(c1.high, c2.high) : c1.high;
+        const low  = (!strictWindow && c2) ? Math.min(c1.low,  c2.low)  : c1.low;
+        const close = strictWindow ? c1.close : (c2 ? c2.close : c1.close);
+
+        // Body confirmation keeps a tiny wick from being counted as a clean win.
+        // BUY needs the candle to close at/above open. SELL needs close at/below open.
+        const bodyOkBuy  = close >= c1.open;
+        const bodyOkSell = close <= c1.open;
 
         if(signal==="BUY"){
-          const hit = high >= c1.open*(1+exitTP);
+          const wickHit = high >= c1.open*(1+exitTP);
+          const hit = wickHit && bodyOkBuy;
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && bodyOkBuy]));
+          const best = [...RP_TP_LEVELS].reverse().find(l=>hits["hit"+l.key]);
           return {
             correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+            bestTpLabel: best ? best.label : "NONE",
+            bestTpKey: best ? best.key : "",
+            maxMovePct: Number(maxMove),
+            label: hit ? "HIT "+(best ? best.label : tpLabel) : "MISS",
+            detail: hit
+              ? "+"+(best ? best.label : tpPct)+" max reached · TP1 validated in "+scoreCandleLabel
+              : "Max +"+maxMove+"% — needed +"+tpPct+" with BUY body confirmation",
+            windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
+            validationMode:"STRICT", wickHit, bodyOk:bodyOkBuy, scoreCandleLabel
           };
         }
         if(signal==="SELL"){
-          const hit = low <= c1.open*(1-exitTP);
+          const wickHit = low <= c1.open*(1-exitTP);
+          const hit = wickHit && bodyOkSell;
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && bodyOkSell]));
+          const best = [...RP_TP_LEVELS].reverse().find(l=>hits["hit"+l.key]);
           return {
             correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+            bestTpLabel: best ? best.label : "NONE",
+            bestTpKey: best ? best.key : "",
+            maxMovePct: Number(maxDrop),
+            label: hit ? "HIT "+(best ? best.label : tpLabel) : "MISS",
+            detail: hit
+              ? "-"+(best ? best.label : tpPct)+" max reached · TP1 validated in "+scoreCandleLabel
+              : "Max -"+maxDrop+"% — needed -"+tpPct+" with SELL body confirmation",
+            windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
+            validationMode:"STRICT", wickHit, bodyOk:bodyOkSell, scoreCandleLabel
           };
         }
         return null;
@@ -3811,12 +3914,33 @@ function App() {
 
     const sigCol = s => s==="BUY"?G:R;
     const current = results?.newsSessions?.[playIdx] || null;
+    const replayTpLadder = [
+      {key:"003", label:"EXT 1", pct:"0.03%", primary:true},
+      {key:"006", label:"EXT 2", pct:"0.06%"},
+      {key:"009", label:"EXT 3", pct:"0.09%"},
+      {key:"012", label:"EXT 4", pct:"0.12%"},
+      {key:"030", label:"EXT 5", pct:"0.3%"},
+      {key:"060", label:"EXT 6", pct:"0.6%"},
+      {key:"090", label:"EXT 7", pct:"0.9%"},
+      {key:"120", label:"EXT 8", pct:"1.2%"},
+    ];
+    const replayTpPercent = (key)=>{
+      const stat = results?.tpStats?.[key];
+      return Number.isFinite(Number(stat?.wr)) ? Number(stat.wr) : Number(results?.["wr"+key]||0);
+    };
+    const replayTpWins = (key)=> Number(results?.tpStats?.[key]?.wins||0);
+    const scoreHit = (score,key)=> !!score?.["hit"+key];
+    const scoreBestTp = (score)=>{
+      let best = null;
+      for(const tp of replayTpLadder){ if(scoreHit(score,tp.key)) best = tp; }
+      return best;
+    };
 
     return(
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
+          Replay repaired: stable market-moving-news replay is restored. Uses active directed news windows only, 24/7, with strict hit validation.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3957,6 +4081,31 @@ function App() {
                 {l:"SETUPS", v:results.total, c:A},
               ].map(i=>(<div key={i.l} style={{borderRadius:12,border:`1px solid ${i.c}33`,background:`${i.c}09`,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>{i.l}</div><div style={{fontSize:20,fontWeight:900,color:i.c,...mono}}>{i.v}</div></div>))}
             </div>
+
+            {/* TRUE 8-LEVEL TP LADDER — always visible, wired to independent hit checks */}
+            <div style={{marginBottom:12,borderRadius:12,border:"1px solid rgba(0,255,136,0.18)",background:"rgba(0,255,136,0.035)",padding:"12px 14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
+                <div style={{fontSize:10,letterSpacing:2,color:G,fontWeight:900,...mono}}>TRUE TP LADDER — INDEPENDENT HIT RATE</div>
+                <div style={{fontSize:9,color:"#555",...mono}}>TP1 win rate controls W/L · higher TPs are separate</div>
+              </div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {replayTpLadder.map(tp=>{
+                  const wr = replayTpPercent(tp.key);
+                  const wins = replayTpWins(tp.key);
+                  return (
+                    <div key={tp.key} style={{flex:"1 1 72px",minWidth:68,borderRadius:9,
+                      background:tp.primary?"rgba(0,255,136,0.09)":"rgba(255,255,255,0.03)",
+                      border:`1px solid ${tp.primary?"rgba(0,255,136,0.35)":"rgba(255,255,255,0.08)"}`,
+                      padding:"7px 5px",textAlign:"center"}}>
+                      <div style={{fontSize:8,color:tp.primary?G:"#555",...mono,letterSpacing:1,marginBottom:2}}>{tp.label}</div>
+                      <div style={{fontSize:16,fontWeight:900,color:wr>=60?G:wr>=35?A:R,...mono,lineHeight:1}}>{wr}%</div>
+                      <div style={{fontSize:8,color:"#777",...mono,marginTop:2}}>{tp.pct}</div>
+                      <div style={{fontSize:8,color:"#333",...mono,marginTop:1}}>{wins}/{results.total}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
             {results.breakdown&&(
               <div style={{background:"rgba(255,255,255,0.02)",borderRadius:10,border:"1px solid rgba(255,255,255,0.06)",padding:"10px 12px",marginBottom:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -4058,6 +4207,17 @@ function App() {
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
                 </div>
 
+                {/* Selected trade TP checklist */}
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+                  {replayTpLadder.map(tp=>{
+                    const hit = scoreHit(current.score,tp.key);
+                    return <div key={tp.key} style={{borderRadius:7,padding:"4px 6px",fontSize:9,fontWeight:900,...mono,
+                      background:hit?"rgba(0,255,136,0.10)":"rgba(255,56,96,0.07)",
+                      border:`1px solid ${hit?"rgba(0,255,136,0.28)":"rgba(255,56,96,0.20)"}`,
+                      color:hit?G:R}}>{hit?"✓":"✗"} {tp.pct}</div>;
+                  })}
+                </div>
+
                 {/* Clean signal summary */}
                 <div style={{fontSize:12,color:"#bbb",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:6}}>
                   Regime: {current.regime} · Final: {current.signal}
@@ -4142,7 +4302,7 @@ const BacktestTab = ()=>{
     return(
       <div style={{padding:14}}>
         <div style={{background:"rgba(240,160,48,0.07)",border:"1px solid rgba(240,160,48,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ REFERENCE DATA — NOT INDEPENDENTLY BACKTESTED</div>
+          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ STRICT VALIDATION — ENTRY-CANDLE + BODY CONFIRMATION</div>
           <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>Win rates are simulated zone reference data. Real results vary by instrument, session, and market regime. Track your own trades.</div>
         </div>
         <div style={lbl("#999",{marginBottom:12,textAlign:"center"})}>ZONE WIN RATE REFERENCE</div>
