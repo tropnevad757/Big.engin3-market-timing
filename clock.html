@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 BEST HEADLINE ORIGIN GLOSSARY</title>
+<title>THE BiGENGiN3 OF TIME — V7 STRICT VALIDATION + HEADLINE ORIGIN GLOSSARY</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -3724,30 +3724,51 @@ function App() {
 
       function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
-        const {exitRule, type, tp: exitTP, tpLabel, tpPct} = sigWindow;
-        const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
-        const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
+        const {exitRule, type, tp: exitTP, tpLabel, tpPct, windowMins} = sigWindow;
+
+        // STRICT VALIDATION MODE — prevents false 100% results.
+        // Before: replay used current candle + next candle highs/lows, which could count
+        // a delayed wick as a win. Now 0–20m burst / 20m news windows score from the
+        // entry candle only. Longer windows may use the next candle.
+        const strictWindow = Number(windowMins||20) <= 30;
+        const scoreCandleLabel = strictWindow ? "entry 30m candle only" : "entry + next candle";
+        const high = (!strictWindow && c2) ? Math.max(c1.high, c2.high) : c1.high;
+        const low  = (!strictWindow && c2) ? Math.min(c1.low,  c2.low)  : c1.low;
+        const close = strictWindow ? c1.close : (c2 ? c2.close : c1.close);
+
+        // Body confirmation keeps a tiny wick from being counted as a clean win.
+        // BUY needs the candle to close at/above open. SELL needs close at/below open.
+        const bodyOkBuy  = close >= c1.open;
+        const bodyOkSell = close <= c1.open;
 
         if(signal==="BUY"){
-          const hit = high >= c1.open*(1+exitTP);
+          const wickHit = high >= c1.open*(1+exitTP);
+          const hit = wickHit && bodyOkBuy;
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && bodyOkBuy]));
           return {
             correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+            label: hit ? "VALID HIT "+tpLabel : "MISS",
+            detail: hit
+              ? "+"+tpPct+" validated in "+scoreCandleLabel
+              : "Max +"+maxMove+"% — needed +"+tpPct+" with BUY body confirmation",
+            windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
+            validationMode:"STRICT", wickHit, bodyOk:bodyOkBuy, scoreCandleLabel
           };
         }
         if(signal==="SELL"){
-          const hit = low <= c1.open*(1-exitTP);
+          const wickHit = low <= c1.open*(1-exitTP);
+          const hit = wickHit && bodyOkSell;
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && bodyOkSell]));
           return {
             correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+            label: hit ? "VALID HIT "+tpLabel : "MISS",
+            detail: hit
+              ? "-"+tpPct+" validated in "+scoreCandleLabel
+              : "Max -"+maxDrop+"% — needed -"+tpPct+" with SELL body confirmation",
+            windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
+            validationMode:"STRICT", wickHit, bodyOk:bodyOkSell, scoreCandleLabel
           };
         }
         return null;
@@ -4216,7 +4237,7 @@ const BacktestTab = ()=>{
     return(
       <div style={{padding:14}}>
         <div style={{background:"rgba(240,160,48,0.07)",border:"1px solid rgba(240,160,48,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ REFERENCE DATA — NOT INDEPENDENTLY BACKTESTED</div>
+          <div style={{fontSize:13,letterSpacing:1.5,color:A,fontWeight:700,marginBottom:4}}>⚠ STRICT VALIDATION — ENTRY-CANDLE + BODY CONFIRMATION</div>
           <div style={{fontSize:13,color:"#bbb",...mono,lineHeight:1.7}}>Win rates are simulated zone reference data. Real results vary by instrument, session, and market regime. Track your own trades.</div>
         </div>
         <div style={lbl("#999",{marginBottom:12,textAlign:"center"})}>ZONE WIN RATE REFERENCE</div>
