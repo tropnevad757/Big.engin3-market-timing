@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 TP LADDER FULLY WIRED</title>
+<title>THE BiGENGiN3 OF TIME — V7 SAFE MERGED COUNTRY RATE GLOSSARY</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -34,6 +34,8 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
 <script type="text/babel">
+<!-- SAFE MERGE: V7 UI/replay/TP ladder + V7 headline-origin glossary + V12 Country Rate Brain. -->
+
 // ─── UTILITIES ────────────────────────────────────────────────────────────────
 const toAngle = (h,m) => ((h%12)*60+m)*0.5;
 const polar   = (cx,cy,r,d) => ({ x:cx+r*Math.cos(((d-90)*Math.PI)/180), y:cy+r*Math.sin(((d-90)*Math.PI)/180) });
@@ -1328,26 +1330,22 @@ function App() {
   // SELL RESET REGIME — Connector: + = aligned, USD+ anchor
   //   1:30–3:30 / 4:30–6:30 / 7:30–9:30 / 10:30–12:30 (AM + PM)
   const MIRROR_RANGES = [
-    [30, 90],     // 12:30 AM – 1:30 AM
-    [210, 270],   // 3:30 AM – 4:30 AM
-    [390, 450],   // 6:30 AM – 7:30 AM
-    [570, 630],   // 9:30 AM – 10:30 AM
-    [750, 810],   // 12:30 PM – 1:30 PM
-    [930, 990],   // 3:30 PM – 4:30 PM
-    [1110, 1170], // 6:30 PM – 7:30 PM
-    [1290, 1350]  // 9:30 PM – 10:30 PM
+    [30, 90],      // 12:30 AM – 1:30 AM BUY CORE
+    [270, 390],    // 4:30 AM – 6:30 AM BUY CORE
+    [450, 630],    // 7:30 AM – 10:30 AM BUY CORE
+    [750, 810],    // 12:30 PM – 1:30 PM BUY CORE
+    [990, 1110],   // 4:30 PM – 6:30 PM BUY CORE
+    [1170, 1350],  // 7:30 PM – 10:30 PM BUY CORE
   ];
 
   const ALIGNED_RANGES = [
-    [0, 30],      // 12:00 AM – 12:30 AM (continuation of 10:30 PM – 12:30 AM reset)
-    [90, 210],    // 1:30 AM – 3:30 AM
-    [270, 390],   // 4:30 AM – 6:30 AM
-    [450, 570],   // 7:30 AM – 9:30 AM
-    [630, 750],   // 10:30 AM – 12:30 PM
-    [810, 930],   // 1:30 PM – 3:30 PM
-    [990, 1110],  // 4:30 PM – 6:30 PM
-    [1170, 1290], // 7:30 PM – 9:30 PM
-    [1350, 1440]  // 10:30 PM – 12:00 AM
+    [0, 30],       // 12:00 AM – 12:30 AM SELL RESET continuation
+    [90, 270],     // 1:30 AM – 4:30 AM SELL RESET
+    [390, 450],    // 6:30 AM – 7:30 AM SELL RESET
+    [630, 750],    // 10:30 AM – 12:30 PM SELL RESET
+    [810, 990],    // 1:30 PM – 4:30 PM SELL RESET
+    [1110, 1170],  // 6:30 PM – 7:30 PM SELL RESET
+    [1350, 1440],  // 10:30 PM – 12:00 AM SELL RESET
   ];
 
   function getConnectorMode(h24, m) {
@@ -2156,13 +2154,26 @@ function App() {
   }
 
 
-  function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
+  
+  // ── DERRICK SAFE-MERGE LOCKED RULES ───────────────────────────────────────
+  // Odd hour = negative (-). Even hour = positive (+).
+  // ++ flips to -. -- flips to +. +- resolves negative.
+  // Multiple same-sign entities flip once via grouped same-sign news math.
+  // Active news uses headline sign first, then country interest-rate relation vs USD anchor.
+  // Dynamic rate override: if symbol rate <= USD anchor, invert that symbol's headline sign.
+  // Fallback runs only when there is no valid active news.
+  // Replay and live call resolveStackedNewsSign / computeReplayPolarity.
+function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
+    // SAFE MERGE LOCK:
+    // Active news: headline sign -> country/rate relation -> grouped sign math -> odd/even hour comparison.
+    // No valid news: use unchanged V7 CORE/RESET fallback.
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
+    const hourCharge = Number.isFinite(Number(h24)) && (Number(h24) % 2 === 0) ? 1 : -1;
 
     // De-dupe first so the same headline does not count twice in the stack.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || "").slice(0,160);
+    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || ev?.headline || "").slice(0,160);
     const duplicateEvents = [];
     const allActive = [];
     rawActive.forEach(ev=>{
@@ -2177,75 +2188,235 @@ function App() {
       else allActive.push(ev);
     });
 
-    const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
-    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
-    const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
-
-    // USD / high-interest-rate anchor sign for unknown-country news.
-    // IMPORTANT: this is NOT step fallback.
-    // Unknown active news receives the USD/high-rate anchor sign first:
-    // Mirror = - ; Aligned = +. Step direction is used only when there is no active news.
+    // USD / high-interest-rate anchor sign for unknown-country fallback.
+    // Unknown/no-news still uses the active regime anchor. Active directed news uses
+    // Derrick's brain logic: resolve the news sign first, then compare it to odd/even hour sign.
     let usdAnchorCharge = 1;
     if(Number.isFinite(Number(h24))){
       try{ usdAnchorCharge = getConnectorMode(Number(h24), Number(m)||0) === "aligned" ? 1 : -1; }
       catch(_){ usdAnchorCharge = slotCharge; }
     } else {
-      // If a caller does not pass time, fall back to the current slot sign so unknown news still has a sign.
       usdAnchorCharge = slotCharge;
     }
 
+    const textOf = (ev)=>String(`${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||""} ${ev?.note||""} ${ev?.country||""} ${ev?.currency||""}`).trim();
+
+    function inferBrainCountry(rawText="", fallback=""){
+      const t = String(rawText||"").toUpperCase();
+      const fbRaw = String(fallback||"").toUpperCase().trim();
+      const fb3 = fbRaw.slice(0,3);
+      const known = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR"]);
+
+      // Clean headline classification first so dirty ticker/source tags do not win.
+      if(/\bLALT\.V\b|\bTSX\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
+      if(/\bASX\b|AUSTRALIA|AUSSIE|\bAUD\b/.test(t)) return "AUD";
+      if(/\bASIA\b|EM ASIA|ASIAN|EMERGING MARKETS?/.test(t)) return "ASI";
+      if(/\bUSD\b|DOLLAR|TREASURY|YIELDS?|FED\b|POWELL|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
+
+      // Trust fallback only when it is a clean currency code. Bad tags like LALT.V/PNGAF.PK fall through.
+      if(known.has(fb3)) return fb3;
+
+      try{ return inferCountryCode(rawText) || "USD"; }catch(_){ return "USD"; }
+    }
+
+    function inferHeadlineCharge(ev, country){
+      const t = textOf(ev).toUpperCase();
+      const rawPol = Number(ev?.polarity);
+      if(Number.isFinite(rawPol) && rawPol !== 0) return rawPol > 0 ? 1 : -1;
+
+      // Specific interpretations from Derrick's miss review
+      if(/OIL PRICE SURGE/.test(t)) return 1;
+      if(/YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?/.test(t)) return 1;
+      if(/FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS/.test(t)) return 1;
+      if(/PREDICTION MARKETS.*GOVERNMENT.*TEST|GOVERNMENT TO THE TEST/.test(t)) return -1;
+      if(/DOLLAR WEAKNESS|DOLLAR WEAK|WEAKNESS/.test(t)) return -1;
+      if(/STOCKS FALL|FALL IN ASIA|SELL[- ]?OFF|THREATENS.*SELLOFF|WARNS|WARNING|DEEPEN SELLOFF/.test(t)) return -1;
+
+      // Country-only default: a detected news item starts positive, then the interest-rate override below can invert it.
+      return 1;
+    }
+
+    function isPluralBrainEvent(ev){
+      const t = textOf(ev).toUpperCase();
+      // Count only Derrick-style plural/multiple ideas as two charges.
+      // Avoid treating every generic "stocks" headline as plural; ASX/dividend/markets are intentional.
+      return /\b(MULTIPLE|SEVERAL|MANY|TWO OR MORE)\b/.test(t)
+        || /\bPREDICTION MARKETS\b/.test(t)
+        || /\bASX\b/.test(t)
+        || /\bDIVIDEND STOCKS\b/.test(t)
+        || replayEventType(ev)==="speech";
+    }
+
+    const weightOf = (ev)=>isPluralBrainEvent(ev) ? 2 : 1;
+    const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
+    const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
+
     const getNewsEventCharge = (ev)=>{
-      const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
+      const rawText = textOf(ev);
+      const rawUpper = rawText.toUpperCase();
+      const fallbackRaw = String(ev?.country || ev?.currency || "").toUpperCase().trim();
+      const fallback3 = fallbackRaw.slice(0,3);
+      const cleanCurrencyCodes = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR","AOA","NOK","BRL","TRY","MXN","ISK","ZAR","HUF","RON","PLN","CZK","SEK","DKK","HKD","IRR","PKR","ILS","AED","SAR","QAR","KWD"]);
+
+      // FULL GLOSSARY BRAIN WIRING:
+      // 1) Read every entity hit from the full glossary.
+      // 2) Apply locked special overrides first; they are already resolved stack outcomes.
+      // 3) Use glossary entity country before generic inference so ASX/RBA/AUD, DAX/CAC/FTSE,
+      //    Nikkei/Hang Seng, Treasury/yields/bonds/oil/stocks/DXY/Wall Street/Fed all affect final charge.
+      // 4) Then apply Country Rate Brain: headline sign -> country rate vs USD anchor -> dynamic inversion.
+      const glossaryHits = getNewsEntityGlossary(rawText);
       const tickerOverride = getTickerChargeOverride(rawText);
+      const glossaryAnchorHits = glossaryHits.filter(x=>x.anchor).length;
+      const glossaryPrimary = tickerOverride
+        ? { country:tickerOverride.country || "USD", label:tickerOverride.reason || "locked override", anchor:true }
+        : (glossaryHits.find(x=>x.anchor) || glossaryHits[0] || null);
+      const glossaryCountry = String(glossaryPrimary?.country || "").toUpperCase().slice(0,3);
+      const inferred = String(tickerOverride?.country || glossaryCountry || inferBrainCountry(rawText, fallbackRaw) || "USD").toUpperCase().slice(0,3);
+
+      const explicitCountryHit = cleanCurrencyCodes.has(fallback3)
+        || glossaryHits.length > 0
+        || /\b(USD|DOLLAR|DXY|FED|FOMC|POWELL|TREASURY|YIELDS?|BONDS?|UNITED STATES|U\.?S\.?|WALL STREET|STOCKS?|OIL|WTI|CRUDE|CAD|CANADA|CANADIAN|TSX|LALT\.V|AUD|AUSTRALIA|AUSSIE|ASX|RBA|GBP|BOE|BRITAIN|UNITED KINGDOM|FTSE|JPY|JAPAN|BOJ|NIKKEI|EUR|ECB|EUROZONE|CAC|DAX|CHF|SWISS|NZD|RBNZ|HANG SENG|IRAN|GLOBAL MARKETS?)\b/.test(rawUpper);
+
+      const directionalCueHit = /OIL PRICE SURGE|YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?|FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS|PREDICTION MARKETS.*GOVERNMENT.*TEST|GOVERNMENT TO THE TEST|DOLLAR WEAKNESS|DOLLAR WEAK|WEAKNESS|STOCKS FALL|FALL IN ASIA|SELL[- ]?OFF|THREATENS.*SELLOFF|WARNS|WARNING|DEEPEN SELLOFF/.test(rawUpper);
+
+      const rawPol = Number(ev?.polarity);
+      const hasRawPol = Number.isFinite(rawPol) && rawPol !== 0;
+      const unknownAnchorFallback = !explicitCountryHit && inferred === "USD";
+
+      const applyCountryRateRule = (baseCharge, countryCode)=>{
+        let c = Number(baseCharge) >= 0 ? 1 : -1;
+        const code = String(countryCode || "USD").toUpperCase().slice(0,3) || "USD";
+        const eventRate = (code === inferred && Number.isFinite(Number(ev?.rateValue))) ? Number(ev.rateValue) : null;
+        const rate = Number(eventRate ?? getRateForSymbol(code));
+        let relation = "unknown";
+        if(Number.isFinite(rate)){
+          if(code === "USD" || rate > USD_RATE){
+            relation = code === "USD" ? "usd-anchor-same" : "above-usd-same";
+          } else {
+            relation = "at-or-below-usd-inverted";
+            c = -c;
+          }
+        }
+        return { charge:c, country:code, rateRelation:relation, rateValue:Number.isFinite(rate) ? rate : (code==="USD" ? USD_RATE : null) };
+      };
+
+      const resolveInternalGlossaryStack = (components)=>{
+        const pos = components.filter(x=>x.charge > 0).length;
+        const neg = components.filter(x=>x.charge < 0).length;
+        if(pos && neg) return -1;       // +- resolves negative
+        if(pos >= 2) return -1;         // ++ flips once to negative
+        if(neg >= 2) return 1;          // -- flips once to positive
+        if(pos === 1) return 1;
+        if(neg === 1) return -1;
+        return 0;
+      };
+
+      // Locked glossary overrides (ASX+Wall Street, global markets, Iran bonds, exact ticker fixes, etc.)
+      // are treated as final headline/stack charges and do NOT get re-inverted afterward.
       if(tickerOverride){
         return {
-          charge: tickerOverride.charge,
-          country: tickerOverride.country,
-          unknownCountryFallback:false,
-          tickerOverride:true,
-          tickerOverrideReason: tickerOverride.reason,
-          rateValue: tickerOverride.country === "USD" ? USD_RATE : getRateForSymbol(tickerOverride.country)
+          charge: Number(tickerOverride.charge) > 0 ? 1 : -1,
+          country: inferred || "USD",
+          unknownCountryFallback: false,
+          rateRelation: "locked-glossary-override",
+          rateValue: applyCountryRateRule(tickerOverride.charge, inferred).rateValue,
+          glossaryHits,
+          glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
+          glossaryAnchorHits,
+          tickerOverride: true,
+          tickerOverrideReason: tickerOverride.reason || "glossary override"
         };
       }
 
-      const inferred = String(ev?.country || ev?.currency || inferCountryCode(rawText) || "").toUpperCase().slice(0,3);
+      // 1) Get headline meaning first. If truly unknown with no polarity/cue/glossary hit,
+      // use current USD/high-rate anchor sign as fallback. Otherwise use headline sign.
+      const headlineBaseCharge = (unknownAnchorFallback && !hasRawPol && !directionalCueHit && !glossaryHits.length)
+        ? usdAnchorCharge
+        : inferHeadlineCharge(ev, inferred);
 
-      // Unknown country: do NOT step-fallback. Use USD/high-rate anchor sign first.
-      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, tickerOverride:false, rateValue: USD_RATE };
-
-      if(inferred === "USD") return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, tickerOverride:false, rateValue: USD_RATE };
-
-      const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
-      if(Number.isFinite(rate)){
-        // Higher than USD = same as USD anchor. Equal/lower than USD = opposite of USD anchor.
-        return { charge: rate > USD_RATE ? usdAnchorCharge : -usdAnchorCharge, country: inferred, unknownCountryFallback:false, tickerOverride:false, rateValue: rate };
+      // 2) FULL ENTITY STACK: when a single headline names multiple glossary entities,
+      // each entity gets its own country-rate relation before the event is folded.
+      // Example: Treasury + oil + stocks = three USD-anchor components;
+      // DAX/CAC/FTSE/Nikkei/Hang Seng/ASX keep their own country/rate relation.
+      const uniqueGlossaryHits = [];
+      glossaryHits.forEach(hit=>{
+        const key = `${hit.key || hit.label || "hit"}:${hit.country || "USD"}`;
+        if(!uniqueGlossaryHits.some(x=>`${x.key || x.label || "hit"}:${x.country || "USD"}` === key)) uniqueGlossaryHits.push(hit);
+      });
+      if(uniqueGlossaryHits.length >= 2){
+        const glossaryComponents = uniqueGlossaryHits.map(hit=>{
+          const baseForHit = inferHeadlineCharge(ev, hit.country || inferred || "USD");
+          const applied = applyCountryRateRule(baseForHit, hit.country || inferred || "USD");
+          return {
+            key: hit.key,
+            label: hit.label,
+            country: applied.country,
+            anchor: !!hit.anchor,
+            baseCharge: baseForHit,
+            charge: applied.charge,
+            rateRelation: applied.rateRelation,
+            rateValue: applied.rateValue
+          };
+        });
+        const internalCharge = resolveInternalGlossaryStack(glossaryComponents);
+        if(internalCharge !== 0){
+          return {
+            charge: internalCharge,
+            country: inferred || glossaryComponents[0]?.country || "USD",
+            unknownCountryFallback: false,
+            rateRelation: "glossary-entity-stack",
+            rateValue: glossaryComponents[0]?.rateValue ?? (inferred==="USD" ? USD_RATE : null),
+            glossaryHits,
+            glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
+            glossaryAnchorHits,
+            glossaryComponents,
+            internalGlossaryStack: true,
+            tickerOverride: false,
+            tickerOverrideReason: ""
+          };
+        }
       }
 
-      // Known country but missing rate: do not let article wording override the rate-anchor model.
-      // Use USD/high-rate anchor until an actual rate is known.
-      return { charge: usdAnchorCharge, country: inferred || "USD", unknownCountryFallback:true, tickerOverride:false, rateValue: null };
+      // 3) Single-entity / regular headline: apply Country Rate Brain normally.
+      const applied = applyCountryRateRule(headlineBaseCharge, inferred);
+      return {
+        charge: applied.charge,
+        country: applied.country || inferred || "USD",
+        unknownCountryFallback: unknownAnchorFallback,
+        rateRelation: applied.rateRelation,
+        rateValue: applied.rateValue,
+        glossaryHits,
+        glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
+        glossaryAnchorHits,
+        glossaryComponents: [],
+        internalGlossaryStack: false,
+        tickerOverride: false,
+        tickerOverrideReason: ""
+      };
     };
 
     const chargedEvents = allActive
       .map(ev=>{
         const resolved = getNewsEventCharge(ev);
-        const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
-        // Plural/list stacking only applies when this is NOT a dot-suffix ticker headline
-        // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
-        // "USCUF.PK" or "LALI.V" does not create fake extra events.
-        const glossaryWeight = resolved.tickerOverride ? 1 : pluralStackWeightFromHeadline(rawText);
-        const glossaryHits = getNewsEntityGlossary(rawText);
+        const rawText = textOf(ev);
+        // Glossary stack weight is now fully wired into the active event object.
+        // Locked overrides already include their own final stack result, so keep those at weight 1.
+        const glossaryWeight = (resolved.tickerOverride || resolved.internalGlossaryStack) ? 1 : pluralStackWeightFromHeadline(rawText);
         return {
           ...ev,
           country: resolved.country,
           effectiveCharge: resolved.charge,
           eventWeight: Math.max(weightOf(ev), glossaryWeight),
           glossaryStackWeight: glossaryWeight,
-          glossaryHits,
-          glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
-          unknownCountryFallback: !!resolved.unknownCountryFallback,
+          glossaryHits: resolved.glossaryHits || [],
+          glossaryLabel: resolved.glossaryLabel || "",
+          glossaryAnchorHits: resolved.glossaryAnchorHits || 0,
           tickerOverride: !!resolved.tickerOverride,
           tickerOverrideReason: resolved.tickerOverrideReason || "",
+          glossaryComponents: resolved.glossaryComponents || [],
+          internalGlossaryStack: !!resolved.internalGlossaryStack,
+          unknownCountryFallback: !!resolved.unknownCountryFallback,
+          rateRelation: resolved.rateRelation || "unknown",
           rateValue: resolved.rateValue,
         };
       })
@@ -2256,9 +2427,10 @@ function App() {
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
 
     if(!activeCount){
+      // No active news: use the USD/STEP/regime anchor fallback exactly like V7.
       const anchorDirection = usdAnchorCharge === slotCharge ? "buy" : "sell";
       const anchorFinalCharge = anchorDirection === "buy" ? 1 : -1;
-      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · HOUR ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
+      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · STEP ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
       return {
         finalDirection: anchorDirection,
         baseCharge,
@@ -2273,9 +2445,10 @@ function App() {
         activeEvents: [],
         chargeFlip: false,
         clusterResult: null,
-        dominantSource: "USD/high-rate anchor",
+        dominantSource: "USD/high-rate anchor fallback",
         newsSign: usdAnchorCharge===1?"+":"-",
         slotSign: slotCharge===1?"+":"-",
+        hourSign: hourCharge===1?"+":"-",
         stepSign: usdAnchorCharge===1?"+":"-",
         sellRestriction: false,
         reason: "USD/high-rate anchor fallback",
@@ -2305,13 +2478,13 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · HEADLINE STACK x${ev.glossaryStackWeight}`:""}${ev.glossaryLabel?` · ORIGIN ${ev.glossaryLabel}`:""}`);
+      foldSteps.push(`${ev.eventWeight>1?"MULTI ":""}${ev.unknownCountryFallback?"UNKNOWN→USD/HIGH ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} ${ev.rateRelation?"("+ev.rateRelation+")":""} => ${ev.effectiveCharge===1?'+':'-'} x${ev.eventWeight}`);
     });
 
-    if(chargedEvents.length === 1){
+    if(chargedEvents.length === 1 && chargedEvents[0].eventWeight === 1){
       newsCharge = chargedEvents[0].effectiveCharge;
       dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"}${chargedEvents[0].unknownCountryFallback?" anchor fallback":""}`;
-    } else if(chargedEvents.length >= 2){
+    } else if(chargedEvents.length >= 1){
       // MULTI-NEWS RESOLUTION — group SAME SIGNS first, then combine the resolved groups.
       // + x1 => +        - x1 => -
       // + x2 or more => -     - x2 or more => +
@@ -2336,13 +2509,13 @@ function App() {
         newsCharge = positiveCount > 0 ? positiveResolved : negativeResolved;
       }
 
-      chargeFlip = true;
+      chargeFlip = activeCount >= 2;
       dominantSource = "grouped same-sign news math";
     }
 
     clusterResult = {
       dominantSource,
-      stackSize: chargedEvents.length,
+      stackSize: activeCount,
       rawStackSize: rawActive.length,
       duplicateCount,
       positiveCount: positives,
@@ -2351,26 +2524,28 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Unique news only. Dot suffixes do not stack. Plural/list headlines stack. Unknown country acts as USD/high-rate anchor.",
+      rule: "Brain logic: unique news only; plural/multiple headlines can count as 2; dynamic rate override applies before stacking; active news compares to odd/even hour.",
       foldSteps,
     };
 
-    // FINAL DIRECTION LAYER
-    // Fallback/step direction is ONLY used when there is no active news.
-    // If news is active, compare the resolved NEWS SIGN against the odd/even HOUR SIGN.
-    const stepSign = baseCharge === 1 ? "+" : "-";
+    // FINAL DIRECTION LAYER — DERRICK BRAIN LOGIC
+    // Active news: compare resolved NEWS SIGN to ODD/EVEN HOUR SIGN.
+    // Even hour = +. Odd hour = -.
+    // Same signs = BUY. Different signs = SELL.
+    const hourSign = hourCharge === 1 ? "+" : "-";
     let finalDirection = newsCharge === 0
       ? null
-      : (newsCharge === slotCharge ? "buy" : "sell");
+      : (newsCharge === hourCharge ? "buy" : "sell");
 
     const sellRestriction = false;
     const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
     const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
     const slotSign = slotCharge === 1 ? "+" : "-";
+    const stepSign = baseCharge === 1 ? "+" : "-";
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `NEWS ACTIVE · NO DIRECTED SIGN · FINAL WAIT`
-      : `NEWS ${newsSign} · HOUR ${slotSign} · FINAL ${finalDirection.toUpperCase()}`;
+      ? `HOUR ${hourSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `NEWS ${newsSign} · HOUR ${hourSign} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2389,11 +2564,12 @@ function App() {
       dominantSource,
       newsSign,
       slotSign,
+      hourSign,
       stepSign,
       sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed sign"
-        : "unique active news resolved; unknown country uses USD/high-rate anchor",
+        : "brain logic: resolved news sign compared to odd/even hour sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -3741,64 +3917,31 @@ function App() {
         const bodyOkBuy  = close >= c1.open;
         const bodyOkSell = close <= c1.open;
 
-        // FULL TP LADDER VALIDATION — do not stop at EXT 1.
-        // correct stays tied to the active exit target, but highestHit stores
-        // the deepest TP reached so the replay log/card can say EXT 2–EXT 8.
-        const buildTpResult = (direction, bodyOk)=>{
-          const levels = RP_TP_LEVELS.map((l, i)=>{
-            const touched = direction === "BUY"
-              ? high >= c1.open*(1+l.value)
-              : low <= c1.open*(1-l.value);
-            return {...l, ext:i+1, hit:touched && bodyOk};
-          });
-          const highestHit = [...levels].reverse().find(l=>l.hit) || null;
-          const hits = Object.fromEntries(levels.map(l=>["hit"+l.key, l.hit]));
-          const hitExt1 = !!levels[0]?.hit;
-          const bestLabel = highestHit ? "VALID HIT EXT "+highestHit.ext : "MISS";
-          const bestPct = highestHit ? highestHit.label : tpPct;
-          const bestKey = highestHit ? highestHit.key : null;
-          const bestExt = highestHit ? highestHit.ext : 0;
-          const bestValue = highestHit ? highestHit.value : 0;
-          return {levels, highestHit, hits, hitExt1, bestLabel, bestPct, bestKey, bestExt, bestValue};
-        };
-
         if(signal==="BUY"){
-          const tpResult = buildTpResult("BUY", bodyOkBuy);
           const wickHit = high >= c1.open*(1+exitTP);
-          const hit = tpResult.hitExt1;
+          const hit = wickHit && bodyOkBuy;
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (high >= c1.open*(1+l.value)) && bodyOkBuy]));
           return {
-            correct: hit, tp1Hit: hit, ...tpResult.hits,
-            label: hit ? tpResult.bestLabel : "MISS",
-            bestLabel: tpResult.bestLabel,
-            bestTpPct: tpResult.bestPct,
-            bestTpKey: tpResult.bestKey,
-            bestExt: tpResult.bestExt,
-            bestTpValue: tpResult.bestValue,
-            tpLevelHitCount: tpResult.bestExt,
+            correct: hit, tp1Hit: hit, ...hits,
+            label: hit ? "VALID HIT "+tpLabel : "MISS",
             detail: hit
-              ? "+"+tpResult.bestPct+" deepest validated in "+scoreCandleLabel
+              ? "+"+tpPct+" validated in "+scoreCandleLabel
               : "Max +"+maxMove+"% — needed +"+tpPct+" with BUY body confirmation",
             windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
             validationMode:"STRICT", wickHit, bodyOk:bodyOkBuy, scoreCandleLabel
           };
         }
         if(signal==="SELL"){
-          const tpResult = buildTpResult("SELL", bodyOkSell);
           const wickHit = low <= c1.open*(1-exitTP);
-          const hit = tpResult.hitExt1;
+          const hit = wickHit && bodyOkSell;
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, (low <= c1.open*(1-l.value)) && bodyOkSell]));
           return {
-            correct: hit, tp1Hit: hit, ...tpResult.hits,
-            label: hit ? tpResult.bestLabel : "MISS",
-            bestLabel: tpResult.bestLabel,
-            bestTpPct: tpResult.bestPct,
-            bestTpKey: tpResult.bestKey,
-            bestExt: tpResult.bestExt,
-            bestTpValue: tpResult.bestValue,
-            tpLevelHitCount: tpResult.bestExt,
+            correct: hit, tp1Hit: hit, ...hits,
+            label: hit ? "VALID HIT "+tpLabel : "MISS",
             detail: hit
-              ? "-"+tpResult.bestPct+" deepest validated in "+scoreCandleLabel
+              ? "-"+tpPct+" validated in "+scoreCandleLabel
               : "Max -"+maxDrop+"% — needed -"+tpPct+" with SELL body confirmation",
             windowLabel: exitRule+" · STRICT VALIDATION", tp: exitTP, tpPct, tpLabel,
             validationMode:"STRICT", wickHit, bodyOk:bodyOkSell, scoreCandleLabel
@@ -4014,35 +4157,6 @@ function App() {
 
         {results&&(
           <>
-            {/* ALWAYS-VISIBLE TP LADDER — wired to replay scorer */}
-            <div style={{borderRadius:12,border:`1px solid ${A}44`,background:"rgba(240,160,48,0.06)",padding:"12px 14px",marginBottom:8}}>
-              <div style={{fontSize:9,color:"#777",letterSpacing:2,...mono,marginBottom:6}}>TP LEVELS — WIRED TO REPLAY SCORER</div>
-              <div style={{fontSize:10,color:"#888",...mono,lineHeight:1.7,marginBottom:8}}>
-                EXT 1 is the active exit target. EXT 2–EXT 8 are tracked as deeper TP hit levels.
-              </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {[
-                  {label:"EXT 1", pct:"0.03%", wr:results.wr003, primary:true},
-                  {label:"EXT 2", pct:"0.06%", wr:results.wr006},
-                  {label:"EXT 3", pct:"0.09%", wr:results.wr009},
-                  {label:"EXT 4", pct:"0.12%", wr:results.wr012},
-                  {label:"EXT 5", pct:"0.3%",  wr:results.wr030},
-                  {label:"EXT 6", pct:"0.6%",  wr:results.wr060},
-                  {label:"EXT 7", pct:"0.9%",  wr:results.wr090},
-                  {label:"EXT 8", pct:"1.2%",  wr:results.wr120},
-                ].map(({label,pct,wr,primary})=>(
-                  <div key={label} style={{flex:"1 1 72px",minWidth:68,borderRadius:8,
-                    background:primary?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.03)",
-                    border:`1px solid ${primary?"rgba(0,255,136,0.35)":"rgba(255,255,255,0.08)"}`,
-                    padding:"6px 4px",textAlign:"center"}}>
-                    <div style={{fontSize:7,color:primary?G:"#555",...mono,marginBottom:2,letterSpacing:1}}>{label}</div>
-                    <div style={{fontSize:15,fontWeight:900,color:(wr||0)>=50?G:(wr||0)>=35?A:R,...mono}}>{wr||0}%</div>
-                    <div style={{fontSize:7,color:"#777",...mono}}>{pct}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* PRIMARY SIGNAL HEADLINE — EXECUTE+NEWS win rate */}
             {results.breakdown?.breakingOnly&&(
               <div style={{borderRadius:12,border:`1px solid ${G}44`,background:`${G}0d`,padding:"12px 14px",marginBottom:8}}>
@@ -4210,33 +4324,9 @@ function App() {
                   EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGET: {current.sigWindow?.tpLabel} {current.sigWindow?.tpPct}
                 </div>
 
-                {/* TP PRICE LEVELS — visible on every replay card */}
-                <div style={{marginBottom:8}}>
-                  <div style={{fontSize:9,color:"#555",...mono,letterSpacing:1,marginBottom:5}}>TP PRICE LEVELS FROM ENTRY ${current.open?.toLocaleString?.()||current.open}</div>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                    {[
-                      {label:"E1",pct:"0.03%",v:0.0003,key:"003"}, {label:"E2",pct:"0.06%",v:0.0006,key:"006"},
-                      {label:"E3",pct:"0.09%",v:0.0009,key:"009"}, {label:"E4",pct:"0.12%",v:0.0012,key:"012"},
-                      {label:"E5",pct:"0.3%",v:0.003,key:"030"},   {label:"E6",pct:"0.6%",v:0.006,key:"060"},
-                      {label:"E7",pct:"0.9%",v:0.009,key:"090"},   {label:"E8",pct:"1.2%",v:0.012,key:"120"},
-                    ].map(tp=>{
-                      const price = current.signal==="SELL" ? Math.round(current.open*(1-tp.v)) : Math.round(current.open*(1+tp.v));
-                      const hit = current.score?.["hit"+tp.key]===true;
-                      return (
-                        <div key={tp.label} style={{flex:"1 1 70px",minWidth:68,borderRadius:7,padding:"5px 4px",textAlign:"center",
-                          background:hit?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.025)",border:`1px solid ${hit?"rgba(0,255,136,0.28)":"rgba(255,255,255,0.07)"}`}}>
-                          <div style={{fontSize:7,color:hit?G:"#666",...mono}}>{tp.label} {hit?"✓":""}</div>
-                          <div style={{fontSize:8,color:"#888",...mono}}>{tp.pct}</div>
-                          <div style={{fontSize:10,color:"#bbb",...mono}}>${price.toLocaleString()}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
                 {/* WIN/LOSS */}
                 <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
-                  {current.score?.correct ? "✓ WIN" : "✗ MISS"} {current.score?.correct && current.score?.bestLabel ? "— "+current.score.bestLabel : ""} — {current.score?.detail||""}
+                  {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
                 </div>
 
                 {/* Clean signal summary */}
@@ -4290,7 +4380,7 @@ function App() {
                   <div style={{fontSize:9,...mono,color:G,minWidth:52}}>{s.slotType||"BREAK"}</div>
                   <div style={{flex:1,fontSize:12,fontWeight:900,color:sc,...mono}}>{s.signal}</div>
                   <div style={{fontSize:10,color:"#555",...mono,minWidth:32}}>{"📰"+(s.activeCount||0)}</div>
-                  <div style={{fontSize:11,color:hitCol,...mono,minWidth:96,textAlign:"right"}}>{s.score?.bestLabel||s.score?.label||"MISS"}</div>
+                  <div style={{fontSize:11,color:hitCol,...mono,minWidth:64,textAlign:"right"}}>{s.score?.label||"MISS"}</div>
                   <div style={{fontSize:16,fontWeight:900,color:s.score?.correct?G:R,minWidth:16}}>{s.score?.correct?"✓":"✗"}</div>
                 </div>
               );
