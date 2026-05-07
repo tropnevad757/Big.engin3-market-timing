@@ -272,6 +272,103 @@ return sg}"object"===typeof exports&&"undefined"!==typeof module?module.exports=
 
 </script>
 <script>
+(function(){
+  if(!window.React || !window.ReactDOM) return;
+  // ENGiN3 Hooks Shim: the bundled offline React in this file is React 16.0,
+  // which predates hooks. The app code uses hooks, so we provide a small
+  // stable hook layer without touching the engine, UI, replay, TP ladder, or glossary logic.
+  var hookState=[];
+  var hookDeps=[];
+  var hookCleanups=[];
+  var hookIndex=0;
+  var pendingEffects=[];
+  var rootElement=null;
+  var rootContainer=null;
+  var isRendering=false;
+  var renderQueued=false;
+  function depsChanged(oldDeps,newDeps){
+    if(!oldDeps || !newDeps) return true;
+    if(oldDeps.length !== newDeps.length) return true;
+    for(var i=0;i<newDeps.length;i++){ if(oldDeps[i] !== newDeps[i]) return true; }
+    return false;
+  }
+  function scheduleRender(){
+    if(!rootElement || !rootContainer) return;
+    if(renderQueued) return;
+    renderQueued=true;
+    setTimeout(function(){
+      renderQueued=false;
+      try{ patchedRender(rootElement, rootContainer); }
+      catch(e){ throw e; }
+    },0);
+  }
+  function runEffects(){
+    var list=pendingEffects.slice();
+    pendingEffects.length=0;
+    for(var i=0;i<list.length;i++){
+      try{
+        var idx=list[i].idx;
+        if(typeof hookCleanups[idx] === 'function'){
+          try{ hookCleanups[idx](); }catch(_e){}
+        }
+        var cleanup=list[i].fn();
+        hookCleanups[idx] = (typeof cleanup === 'function') ? cleanup : null;
+      }catch(e){ setTimeout(function(err){ return function(){ throw err; }; }(e),0); }
+    }
+  }
+  React.useState=function(initial){
+    var idx=hookIndex++;
+    if(hookState[idx] === undefined){ hookState[idx] = (typeof initial === 'function') ? initial() : initial; }
+    function setState(next){
+      var value = (typeof next === 'function') ? next(hookState[idx]) : next;
+      if(value !== hookState[idx]){ hookState[idx]=value; scheduleRender(); }
+    }
+    return [hookState[idx], setState];
+  };
+  React.useRef=function(initial){
+    var idx=hookIndex++;
+    if(!hookState[idx]) hookState[idx] = { current: initial };
+    return hookState[idx];
+  };
+  React.useEffect=function(fn,deps){
+    var idx=hookIndex++;
+    if(depsChanged(hookDeps[idx], deps)){
+      hookDeps[idx] = deps;
+      pendingEffects.push({idx:idx, fn:fn});
+    }
+  };
+  React.useMemo=function(fn,deps){
+    var idx=hookIndex++;
+    if(depsChanged(hookDeps[idx], deps)){
+      hookDeps[idx] = deps;
+      hookState[idx] = fn();
+    }
+    return hookState[idx];
+  };
+  React.useCallback=function(fn,deps){
+    var idx=hookIndex++;
+    if(depsChanged(hookDeps[idx], deps)){
+      hookDeps[idx] = deps;
+      hookState[idx] = fn;
+    }
+    return hookState[idx];
+  };
+  var originalRender = ReactDOM.render.bind(ReactDOM);
+  function patchedRender(element, container){
+    rootElement=element; rootContainer=container;
+    hookIndex=0; pendingEffects=[]; isRendering=true;
+    var result=originalRender(element, container);
+    isRendering=false;
+    setTimeout(runEffects,0);
+    return result;
+  }
+  window.__ENGIN3_HOOKS_SHIM_ACTIVE=true;
+  window.__ENGIN3_RENDER_AGAIN=scheduleRender;
+  ReactDOM.render=patchedRender;
+})();
+</script>
+
+<script>
 window.__ENGIN3_BOOT_ERRORS=[];window.addEventListener("error",function(e){try{window.__ENGIN3_BOOT_ERRORS.push({message:e.message,filename:e.filename,lineno:e.lineno,colno:e.colno});}catch(_){}});
 </script>
 <script>
