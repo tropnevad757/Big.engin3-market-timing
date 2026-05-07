@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — UPDATED FROM V7 BEST + V12 COUNTRY RATE</title>
+<title>THE BiGENGiN3 OF TIME — MERGED V7 BEST + V12 COUNTRY RATE LOAD SAFE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -22,6 +22,8 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
 #spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
 #loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
 </style>
+
+<!-- MERGED LOAD-SAFE BUILD: React18 runtime from V7 update + final V12 app script + fixed appZType initialization. -->
 </head>
 <body>
 <div id="loader">
@@ -2920,167 +2922,183 @@ function App() {
     // ── V7 CLEAN NEWS GLOSSARY / STACK CLASSIFIER ──────────────────────────────
     // Rule: ticker suffixes like .PK, .V, .TO, .AX are identifiers only.
     // They do NOT create a second country and they do NOT trigger plural stacking.
-    function hasExchangeDotTicker(rawText="") {
-    return getTickerRootMatches(rawText).length > 0;
-  }
+    function hasExchangeDotTicker(rawText = "") {
+        return getTickerRootMatches(rawText).length > 0;
+    }
     // ── HEADLINE ORIGIN GLOSSARY — country / region detection before flip math ──
     // Purpose: read market shorthand in headlines and tag WHERE the news is coming from.
     // Rule: market entities like Treasuries, yields, oil, stocks, bonds, gold, Fed, CPI
     // default to the active USD anchor unless a foreign country/region term is named.
     // Multiple USD-anchor entities in one headline count as stacked same-sign items.
-    function getNewsEntityGlossary(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    const hits = [];
-    const add = (key, label, country="USD", anchor=true)=>{
-      if(!hits.some(x=>x.key===key)) hits.push({key,label,country,anchor});
-    };
-
-    // United States / USD anchor entities
-    if(/(^|\W)(USD|U\.S\.?|US|USA|UNITED\s+STATES|AMERICA|WASHINGTON)(\W|$)/.test(t)) add("us","United States / USD","USD",true);
-    if(/(^|\W)(DOLLAR|DOLLARS|DXY|GREENBACK|BUCK)(\W|$)/.test(t)) add("dollar","Dollar / DXY","USD",true);
-    if(/(^|\W)(FED|FEDERAL\s+RESERVE|FOMC|POWELL|YELLEN|RATE\s+DECISION|RATE\s+CUTS?|RATE\s+HIKES?|INTEREST\s+RATES?)(\W|$)/.test(t)) add("fed","Fed / U.S. rates","USD",true);
-    if(/(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|T\-?BILLS?|T\-?NOTES?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|30\s?Y(?:EAR)?|YIELDS?|BOND\s+YIELDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("treasury","Treasury / yields","USD",true);
-    if(/(^|\W)(BONDS?|NOTES?|BILLS?|DEBT\s+MARKETS?|CREDIT\s+MARKETS?|CORPORATE\s+BONDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("bonds","Bonds / credit","USD",true);
-    if(/(^|\W)(WALL\s+STREET|STOCKS?|SHARES?|EQUITIES|S\s*&\s*P\s?500|S&P\s?500|SPX|NASDAQ|NDX|DOW|DJIA|RUSSELL|NYSE|CBOE|VIX|INDEXES|INDICES|FUTURES)(\W|$)/.test(t)) add("stocks","Stocks / Wall Street","USD",true);
-    if(/(^|\W)(OIL|CRUDE|WTI|BRENT|ENERGY|ENERGIES|GASOLINE|NATURAL\s+GAS|OPEC|OPEC\+)(\W|$)/.test(t)) add("oil","Oil / energy","USD",true);
-    if(/(^|\W)(GOLD|XAU|BULLION|SILVER|METALS?|COPPER)(\W|$)/.test(t)) add("gold","Gold / metals","USD",true);
-    if(/(^|\W)(CPI|PPI|PCE|INFLATION|DEFLATION|NFP|NONFARM|PAYROLLS?|JOBS\s+REPORT|JOBLESS|UNEMPLOYMENT|JOLTS|ISM|PMI|GDP|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t)) add("usmacro","U.S. macro data","USD",true);
-
-    // Europe / EUR group
-    if(/(^|\W)(EUR|EURO|EUROZONE|EU|EUROPEAN\s+UNION|EUROPE|EUROPEAN|ECB|LAGARDE|EUREX|EURONEXT|STOXX|EURO\s*STOXX|DAX|GERMANY|GERMAN|BUND|BUNDS|FRANCE|FRENCH|CAC\s?40|CAC|ITALY|ITALIAN|FTSE\s+MIB|SPAIN|SPANISH|IBEX)(\W|$)/.test(t)) add("europe","Europe / EUR","EUR",false);
-
-    // United Kingdom / GBP
-    if(/(^|\W)(GBP|POUND|STERLING|UK|U\.K\.?|BRITAIN|BRITISH|UNITED\s+KINGDOM|ENGLAND|LONDON|BOE|BANK\s+OF\s+ENGLAND|BAILEY|LSE|FTSE|FOOTSIE|GILT|GILTS)(\W|$)/.test(t)) add("uk","United Kingdom / GBP","GBP",false);
-
-    // Asia Pacific majors
-    if(/(^|\W)(JPY|YEN|JAPAN|JAPANESE|TOKYO|BOJ|BANK\s+OF\s+JAPAN|UEDA|TSE|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/.test(t)) add("japan","Japan / JPY","JPY",false);
-    if(/(^|\W)(CNY|CNH|YUAN|RENMINBI|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|PEOPLE'?S\s+BANK\s+OF\s+CHINA|SSE|SZSE|CSI\s?300|PROPERTY\s+SECTOR)(\W|$)/.test(t)) add("china","China / CNY","CNY",false);
-    if(/(^|\W)(HKD|HONG\s+KONG|HKMA|HKEX|HANG\s+SENG|HSI)(\W|$)/.test(t)) add("hongkong","Hong Kong / HKD","HKD",false);
-    if(/(^|\W)(AUD|AUSSIE|AUSTRALIA|AUSTRALIAN|RBA|RESERVE\s+BANK\s+OF\s+AUSTRALIA|ASX|ASX\s?200|S&P\/ASX\s?200|ALL\s+ORDS|CBA|NAB|ANZ|WESTPAC|WBC|BHP|RIO\s+TINTO|SYDNEY)(\W|$)/.test(t)) add("australia","Australia / AUD","AUD",false);
-    if(/(^|\W)(NZD|KIWI|NEW\s+ZEALAND|RBNZ|NZX|WELLINGTON)(\W|$)/.test(t)) add("newzealand","New Zealand / NZD","NZD",false);
-    if(/(^|\W)(KRW|WON|KOREA|SOUTH\s+KOREA|SEOUL|BOK|KOSPI|KOSDAQ)(\W|$)/.test(t)) add("korea","South Korea / KRW","KRW",false);
-    if(/(^|\W)(TWD|TAIWAN|TAIPEI|TAIEX|SEMICONDUCTORS?|TSMC)(\W|$)/.test(t)) add("taiwan","Taiwan / TWD","TWD",false);
-    if(/(^|\W)(INR|RUPEE|INDIA|INDIAN|RBI|RESERVE\s+BANK\s+OF\s+INDIA|NIFTY|SENSEX|BSE|NSE|MUMBAI)(\W|$)/.test(t)) add("india","India / INR","INR",false);
-    if(/(^|\W)(SGD|SINGAPORE|MAS|SGX|STRAITS\s+TIMES|STI)(\W|$)/.test(t)) add("singapore","Singapore / SGD","SGD",false);
-
-    // Americas / commodity FX
-    if(/(^|\W)(CAD|LOONIE|CANADA|CANADIAN|BOC|BANK\s+OF\s+CANADA|TSX|TORONTO|S&P\/TSX)(\W|$)/.test(t)) add("canada","Canada / CAD","CAD",false);
-    if(/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BMV|PESO)(\W|$)/.test(t)) add("mexico","Mexico / MXN","MXN",false);
-    if(/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|B3|IBOVESPA|REAL)(\W|$)/.test(t)) add("brazil","Brazil / BRL","BRL",false);
-
-    // Europe non-EUR / safe haven
-    if(/(^|\W)(CHF|FRANC|SWISS|SWITZERLAND|SNB|SMI|ZURICH)(\W|$)/.test(t)) add("switzerland","Switzerland / CHF","CHF",false);
-    if(/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|STOCKHOLM|OMXS)(\W|$)/.test(t)) add("sweden","Sweden / SEK","SEK",false);
-    if(/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES\s+BANK|OSLO|OSE)(\W|$)/.test(t)) add("norway","Norway / NOK","NOK",false);
-    if(/(^|\W)(DKK|DENMARK|DANISH|DANMARKS\s+NATIONALBANK|COPENHAGEN)(\W|$)/.test(t)) add("denmark","Denmark / DKK","DKK",false);
-    if(/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|WIG20|ZLOTY)(\W|$)/.test(t)) add("poland","Poland / PLN","PLN",false);
-    if(/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA\s+ISTANBUL|ISTANBUL|LIRA)(\W|$)/.test(t)) add("turkey","Turkey / TRY","TRY",false);
-    if(/(^|\W)(ZAR|SOUTH\s+AFRICA|SOUTH\s+AFRICAN|SARB|JOHANNESBURG|JSE|RAND)(\W|$)/.test(t)) add("southafrica","South Africa / ZAR","ZAR",false);
-
-    // Geopolitical risk. If this is not clearly another country's financial market, default to USD risk anchor.
-    if(/(^|\W)(IRAN|IRANIAN|TEHRAN|ISRAEL|ISRAELI|GAZA|HAMAS|MIDEAST|MIDDLE\s+EAST|RED\s+SEA|HOUTHI|RUSSIA|RUSSIAN|UKRAINE|WAR|PEACE\s+PLAN|SANCTIONS?|GEOPOLITICAL|GEOPOLITICS|TENSIONS?|CONFLICT)(\W|$)/.test(t)) add("georisk","Geopolitical risk","USD",true);
-
-    // Crypto still trades like risk / USD unless headline clearly says another region.
-    if(/(^|\W)(BITCOIN|BTC|ETHEREUM|ETH|CRYPTO|CRYPTOCURRENCY|COINBASE|BINANCE|ETF\s+INFLOWS?)(\W|$)/.test(t)) add("crypto","Crypto / USD risk","USD",true);
-
-    return hits;
-  }
-    function pluralStackWeightFromHeadline(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    if(!t) return 1;
-    if(hasExchangeDotTicker(t)) return 1; // Derrick rule: dot suffix breaks it out of stack math.
-
-    const glossaryHits = getNewsEntityGlossary(t);
-    const usdAnchorHits = glossaryHits.filter(x=>x.anchor).length;
-
-    // If one headline names multiple USD-anchor/market entities — oil, stocks, bonds,
-    // treasury, Fed, dollar, gold, U.S. macro, geopolitical risk, crypto — count them
-    // as stacked same-sign anchor items. 2 or more then flips once in news math.
-    if(usdAnchorHits >= 2) return Math.min(5, usdAnchorHits);
-
-    const instrumentPlural = /(^|\W)(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|YIELDS|BONDS|NOTES|BILLS|TREASURIES|GILTS|BUNDS|JGBS|FUTURES|OPTIONS|FUNDS|ETFS|INDEXES|INDICES|MARKETS|BANKS|MINERS|TECHS|ENERGIES|UTILITIES|FINANCIALS|HOMEBUILDERS|BUILDERS|LENDERS|INSURERS)(\W|$)/.test(t);
-    const explicitMultiple = /(^|\W)(MULTIPLE|SEVERAL|MANY|VARIOUS|BASKET|GROUP|LIST|ROUNDUP|TOP|BEST|THESE|THOSE|WATCHLIST|SCREEN|SCREENER|PORTFOLIO|SECTOR|SECTORS)(\W|$)/.test(t);
-    const numberMultiple = /(^|\W)([2-9]|[1-9][0-9])\s+(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|BONDS|FUTURES|ETFS|FUNDS|NAMES|PICKS|IDEAS|PLAYS)(\W|$)/.test(t);
-
-    if(numberMultiple) return 2;
-    if(instrumentPlural && explicitMultiple) return 2;
-    if(/(^|\W)(STOCKS|REITS|BONDS|FUTURES|DIVIDENDS|YIELDS)(\W|$)/.test(t) && /(^|\W)(TO\s+BUY|BUY|WITH|PAYING|OFFERING|YIELDING|HIGH\s+YIELD|MONTHLY|EDGE\s+HIGHER|MOVE|MOVES|RISE|FALL|GAIN|DROP)(\W|$)/.test(t)) return 2;
-    return 1;
-  }
-    function getTickerChargeOverride(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    // Exact replay fixes from Derrick, cleaned into one glossary:
-    // - Dot suffixes (.PK, .V, .TO, .AX, etc.) are exchange/listing identifiers only.
-    // - The root before the dot is primary; suffixes do not create fake mixed news.
-    // - Plural/list headlines without dot tickers can count as stacked multi-events.
-    // - Overrides below return the already-resolved charge when the headline is a known pattern.
-
-    // Derrick screenshot fixes — exact news math only.
-    // 1:30 example: dollar weakness + oil climbs + yields climb are all treated as positive drivers;
-    // 2 or more positives flip once to NEWS-. Odd hour is HOUR-, so NEWS- + HOUR- => BUY.
-    if(/(^|\W)SCHIFF\s+WARNS\s+OF\s+DOLLAR\s+WEAKNESS/i.test(t) && /(^|\W)OIL(,|\s)+YIELDS?\s+CLIMB/i.test(t)) {
-      return { charge:-1, country:"USD", reason:"DOLLAR+ + OIL+ + YIELDS+ => STACKED NEWS-" };
+    function getNewsEntityGlossary(rawText = "") {
+        const t = String(rawText || "").toUpperCase();
+        const hits = [];
+        const add = (key, label, country = "USD", anchor = true) => {
+            if (!hits.some(x => x.key === key))
+                hits.push({ key, label, country, anchor });
+        };
+        // United States / USD anchor entities
+        if (/(^|\W)(USD|U\.S\.?|US|USA|UNITED\s+STATES|AMERICA|WASHINGTON)(\W|$)/.test(t))
+            add("us", "United States / USD", "USD", true);
+        if (/(^|\W)(DOLLAR|DOLLARS|DXY|GREENBACK|BUCK)(\W|$)/.test(t))
+            add("dollar", "Dollar / DXY", "USD", true);
+        if (/(^|\W)(FED|FEDERAL\s+RESERVE|FOMC|POWELL|YELLEN|RATE\s+DECISION|RATE\s+CUTS?|RATE\s+HIKES?|INTEREST\s+RATES?)(\W|$)/.test(t))
+            add("fed", "Fed / U.S. rates", "USD", true);
+        if (/(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|T\-?BILLS?|T\-?NOTES?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|30\s?Y(?:EAR)?|YIELDS?|BOND\s+YIELDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t))
+            add("treasury", "Treasury / yields", "USD", true);
+        if (/(^|\W)(BONDS?|NOTES?|BILLS?|DEBT\s+MARKETS?|CREDIT\s+MARKETS?|CORPORATE\s+BONDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t))
+            add("bonds", "Bonds / credit", "USD", true);
+        if (/(^|\W)(WALL\s+STREET|STOCKS?|SHARES?|EQUITIES|S\s*&\s*P\s?500|S&P\s?500|SPX|NASDAQ|NDX|DOW|DJIA|RUSSELL|NYSE|CBOE|VIX|INDEXES|INDICES|FUTURES)(\W|$)/.test(t))
+            add("stocks", "Stocks / Wall Street", "USD", true);
+        if (/(^|\W)(OIL|CRUDE|WTI|BRENT|ENERGY|ENERGIES|GASOLINE|NATURAL\s+GAS|OPEC|OPEC\+)(\W|$)/.test(t))
+            add("oil", "Oil / energy", "USD", true);
+        if (/(^|\W)(GOLD|XAU|BULLION|SILVER|METALS?|COPPER)(\W|$)/.test(t))
+            add("gold", "Gold / metals", "USD", true);
+        if (/(^|\W)(CPI|PPI|PCE|INFLATION|DEFLATION|NFP|NONFARM|PAYROLLS?|JOBS\s+REPORT|JOBLESS|UNEMPLOYMENT|JOLTS|ISM|PMI|GDP|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t))
+            add("usmacro", "U.S. macro data", "USD", true);
+        // Europe / EUR group
+        if (/(^|\W)(EUR|EURO|EUROZONE|EU|EUROPEAN\s+UNION|EUROPE|EUROPEAN|ECB|LAGARDE|EUREX|EURONEXT|STOXX|EURO\s*STOXX|DAX|GERMANY|GERMAN|BUND|BUNDS|FRANCE|FRENCH|CAC\s?40|CAC|ITALY|ITALIAN|FTSE\s+MIB|SPAIN|SPANISH|IBEX)(\W|$)/.test(t))
+            add("europe", "Europe / EUR", "EUR", false);
+        // United Kingdom / GBP
+        if (/(^|\W)(GBP|POUND|STERLING|UK|U\.K\.?|BRITAIN|BRITISH|UNITED\s+KINGDOM|ENGLAND|LONDON|BOE|BANK\s+OF\s+ENGLAND|BAILEY|LSE|FTSE|FOOTSIE|GILT|GILTS)(\W|$)/.test(t))
+            add("uk", "United Kingdom / GBP", "GBP", false);
+        // Asia Pacific majors
+        if (/(^|\W)(JPY|YEN|JAPAN|JAPANESE|TOKYO|BOJ|BANK\s+OF\s+JAPAN|UEDA|TSE|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/.test(t))
+            add("japan", "Japan / JPY", "JPY", false);
+        if (/(^|\W)(CNY|CNH|YUAN|RENMINBI|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|PEOPLE'?S\s+BANK\s+OF\s+CHINA|SSE|SZSE|CSI\s?300|PROPERTY\s+SECTOR)(\W|$)/.test(t))
+            add("china", "China / CNY", "CNY", false);
+        if (/(^|\W)(HKD|HONG\s+KONG|HKMA|HKEX|HANG\s+SENG|HSI)(\W|$)/.test(t))
+            add("hongkong", "Hong Kong / HKD", "HKD", false);
+        if (/(^|\W)(AUD|AUSSIE|AUSTRALIA|AUSTRALIAN|RBA|RESERVE\s+BANK\s+OF\s+AUSTRALIA|ASX|ASX\s?200|S&P\/ASX\s?200|ALL\s+ORDS|CBA|NAB|ANZ|WESTPAC|WBC|BHP|RIO\s+TINTO|SYDNEY)(\W|$)/.test(t))
+            add("australia", "Australia / AUD", "AUD", false);
+        if (/(^|\W)(NZD|KIWI|NEW\s+ZEALAND|RBNZ|NZX|WELLINGTON)(\W|$)/.test(t))
+            add("newzealand", "New Zealand / NZD", "NZD", false);
+        if (/(^|\W)(KRW|WON|KOREA|SOUTH\s+KOREA|SEOUL|BOK|KOSPI|KOSDAQ)(\W|$)/.test(t))
+            add("korea", "South Korea / KRW", "KRW", false);
+        if (/(^|\W)(TWD|TAIWAN|TAIPEI|TAIEX|SEMICONDUCTORS?|TSMC)(\W|$)/.test(t))
+            add("taiwan", "Taiwan / TWD", "TWD", false);
+        if (/(^|\W)(INR|RUPEE|INDIA|INDIAN|RBI|RESERVE\s+BANK\s+OF\s+INDIA|NIFTY|SENSEX|BSE|NSE|MUMBAI)(\W|$)/.test(t))
+            add("india", "India / INR", "INR", false);
+        if (/(^|\W)(SGD|SINGAPORE|MAS|SGX|STRAITS\s+TIMES|STI)(\W|$)/.test(t))
+            add("singapore", "Singapore / SGD", "SGD", false);
+        // Americas / commodity FX
+        if (/(^|\W)(CAD|LOONIE|CANADA|CANADIAN|BOC|BANK\s+OF\s+CANADA|TSX|TORONTO|S&P\/TSX)(\W|$)/.test(t))
+            add("canada", "Canada / CAD", "CAD", false);
+        if (/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BMV|PESO)(\W|$)/.test(t))
+            add("mexico", "Mexico / MXN", "MXN", false);
+        if (/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|B3|IBOVESPA|REAL)(\W|$)/.test(t))
+            add("brazil", "Brazil / BRL", "BRL", false);
+        // Europe non-EUR / safe haven
+        if (/(^|\W)(CHF|FRANC|SWISS|SWITZERLAND|SNB|SMI|ZURICH)(\W|$)/.test(t))
+            add("switzerland", "Switzerland / CHF", "CHF", false);
+        if (/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|STOCKHOLM|OMXS)(\W|$)/.test(t))
+            add("sweden", "Sweden / SEK", "SEK", false);
+        if (/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES\s+BANK|OSLO|OSE)(\W|$)/.test(t))
+            add("norway", "Norway / NOK", "NOK", false);
+        if (/(^|\W)(DKK|DENMARK|DANISH|DANMARKS\s+NATIONALBANK|COPENHAGEN)(\W|$)/.test(t))
+            add("denmark", "Denmark / DKK", "DKK", false);
+        if (/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|WIG20|ZLOTY)(\W|$)/.test(t))
+            add("poland", "Poland / PLN", "PLN", false);
+        if (/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA\s+ISTANBUL|ISTANBUL|LIRA)(\W|$)/.test(t))
+            add("turkey", "Turkey / TRY", "TRY", false);
+        if (/(^|\W)(ZAR|SOUTH\s+AFRICA|SOUTH\s+AFRICAN|SARB|JOHANNESBURG|JSE|RAND)(\W|$)/.test(t))
+            add("southafrica", "South Africa / ZAR", "ZAR", false);
+        // Geopolitical risk. If this is not clearly another country's financial market, default to USD risk anchor.
+        if (/(^|\W)(IRAN|IRANIAN|TEHRAN|ISRAEL|ISRAELI|GAZA|HAMAS|MIDEAST|MIDDLE\s+EAST|RED\s+SEA|HOUTHI|RUSSIA|RUSSIAN|UKRAINE|WAR|PEACE\s+PLAN|SANCTIONS?|GEOPOLITICAL|GEOPOLITICS|TENSIONS?|CONFLICT)(\W|$)/.test(t))
+            add("georisk", "Geopolitical risk", "USD", true);
+        // Crypto still trades like risk / USD unless headline clearly says another region.
+        if (/(^|\W)(BITCOIN|BTC|ETHEREUM|ETH|CRYPTO|CRYPTOCURRENCY|COINBASE|BINANCE|ETF\s+INFLOWS?)(\W|$)/.test(t))
+            add("crypto", "Crypto / USD risk", "USD", true);
+        return hits;
     }
-
-    // 2:30 example: treasury+ plus war/Iran pressure+ counts as two positives;
-    // positives flip once to NEWS-. Even hour is HOUR+, so NEWS- + HOUR+ => SELL.
-    if(/(^|\W)TREASURY\s+YIELDS?\s+LITTLE\s+CHANGED/i.test(t) && /(^|\W)(WAR\s+UNCERTAINTY|IRAN|MIDEAST|MIDDLE\s+EAST)(\W|$)/i.test(t)) {
-      return { charge:-1, country:"USD", reason:"TREASURY+ + WAR/IRAN+ => STACKED NEWS-" };
+    function pluralStackWeightFromHeadline(rawText = "") {
+        const t = String(rawText || "").toUpperCase();
+        if (!t)
+            return 1;
+        if (hasExchangeDotTicker(t))
+            return 1; // Derrick rule: dot suffix breaks it out of stack math.
+        const glossaryHits = getNewsEntityGlossary(t);
+        const usdAnchorHits = glossaryHits.filter(x => x.anchor).length;
+        // If one headline names multiple USD-anchor/market entities — oil, stocks, bonds,
+        // treasury, Fed, dollar, gold, U.S. macro, geopolitical risk, crypto — count them
+        // as stacked same-sign anchor items. 2 or more then flips once in news math.
+        if (usdAnchorHits >= 2)
+            return Math.min(5, usdAnchorHits);
+        const instrumentPlural = /(^|\W)(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|YIELDS|BONDS|NOTES|BILLS|TREASURIES|GILTS|BUNDS|JGBS|FUTURES|OPTIONS|FUNDS|ETFS|INDEXES|INDICES|MARKETS|BANKS|MINERS|TECHS|ENERGIES|UTILITIES|FINANCIALS|HOMEBUILDERS|BUILDERS|LENDERS|INSURERS)(\W|$)/.test(t);
+        const explicitMultiple = /(^|\W)(MULTIPLE|SEVERAL|MANY|VARIOUS|BASKET|GROUP|LIST|ROUNDUP|TOP|BEST|THESE|THOSE|WATCHLIST|SCREEN|SCREENER|PORTFOLIO|SECTOR|SECTORS)(\W|$)/.test(t);
+        const numberMultiple = /(^|\W)([2-9]|[1-9][0-9])\s+(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|BONDS|FUTURES|ETFS|FUNDS|NAMES|PICKS|IDEAS|PLAYS)(\W|$)/.test(t);
+        if (numberMultiple)
+            return 2;
+        if (instrumentPlural && explicitMultiple)
+            return 2;
+        if (/(^|\W)(STOCKS|REITS|BONDS|FUTURES|DIVIDENDS|YIELDS)(\W|$)/.test(t) && /(^|\W)(TO\s+BUY|BUY|WITH|PAYING|OFFERING|YIELDING|HIGH\s+YIELD|MONTHLY|EDGE\s+HIGHER|MOVE|MOVES|RISE|FALL|GAIN|DROP)(\W|$)/.test(t))
+            return 2;
+        return 1;
     }
-
-    // 6:30 example: stocks + oil are both positive; two same-sign positives flip once to NEWS-.
-    if(/(^|\W)STOCKS?\s+FALL/i.test(t) && /(^|\W)OIL\s+RISES?/i.test(t)) {
-      return { charge:-1, country:"USD", reason:"STOCKS+ + OIL+ => STACKED NEWS-" };
+    function getTickerChargeOverride(rawText = "") {
+        const t = String(rawText || "").toUpperCase();
+        // Exact replay fixes from Derrick, cleaned into one glossary:
+        // - Dot suffixes (.PK, .V, .TO, .AX, etc.) are exchange/listing identifiers only.
+        // - The root before the dot is primary; suffixes do not create fake mixed news.
+        // - Plural/list headlines without dot tickers can count as stacked multi-events.
+        // - Overrides below return the already-resolved charge when the headline is a known pattern.
+        // Derrick screenshot fixes — exact news math only.
+        // 1:30 example: dollar weakness + oil climbs + yields climb are all treated as positive drivers;
+        // 2 or more positives flip once to NEWS-. Odd hour is HOUR-, so NEWS- + HOUR- => BUY.
+        if (/(^|\W)SCHIFF\s+WARNS\s+OF\s+DOLLAR\s+WEAKNESS/i.test(t) && /(^|\W)OIL(,|\s)+YIELDS?\s+CLIMB/i.test(t)) {
+            return { charge: -1, country: "USD", reason: "DOLLAR+ + OIL+ + YIELDS+ => STACKED NEWS-" };
+        }
+        // 2:30 example: treasury+ plus war/Iran pressure+ counts as two positives;
+        // positives flip once to NEWS-. Even hour is HOUR+, so NEWS- + HOUR+ => SELL.
+        if (/(^|\W)TREASURY\s+YIELDS?\s+LITTLE\s+CHANGED/i.test(t) && /(^|\W)(WAR\s+UNCERTAINTY|IRAN|MIDEAST|MIDDLE\s+EAST)(\W|$)/i.test(t)) {
+            return { charge: -1, country: "USD", reason: "TREASURY+ + WAR/IRAN+ => STACKED NEWS-" };
+        }
+        // 6:30 example: stocks + oil are both positive; two same-sign positives flip once to NEWS-.
+        if (/(^|\W)STOCKS?\s+FALL/i.test(t) && /(^|\W)OIL\s+RISES?/i.test(t)) {
+            return { charge: -1, country: "USD", reason: "STOCKS+ + OIL+ => STACKED NEWS-" };
+        }
+        // Iran bond stress is negative and must not plural-flip because of the word bonds.
+        if (/(^|\W)(CORPORATIONS?|COMPANIES)\s+ARE\s+STILL\s+ISSUING\s+BONDS/i.test(t) && /(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/i.test(t)) {
+            return { charge: -1, country: "IRR", reason: "IRAN CORPORATE BONDS→IRR-" };
+        }
+        // CAC / Europe rising is positive. Mixed with Iran-: + - => NEWS-, then odd hour - gives BUY.
+        if (/(^|\W)(CAC\s*40|EUROPE|EUROPEAN)\b/i.test(t) && /(^|\W)(RISES?|GAINS?|EXTEND\s+GAINS?|HIGHER|RALLY|RALLIES)\b/i.test(t)) {
+            return { charge: 1, country: "EUR", reason: "EUROPE/CAC RISES→EUR+" };
+        }
+        // ASX + Wall Street both positive in the same headline: + + => -.
+        if (/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP|BUY|YIELD|YIELDS|DIVIDEND)(\W|$)/.test(t)) {
+            return { charge: -1, country: "USD", reason: "ASX+ AND WALL STREET+ => STACKED NEWS-" };
+        }
+        // Global-market macro headline: USD negative plus Yen positive still stacks to negative.
+        if (/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t) && /(^|\W)(YEN|JPY|JAPANESE\s+YEN)(\W|$)/.test(t)) {
+            return { charge: -1, country: "USD", reason: "GLOBAL MARKETS USD- + YEN/JPY+ => NEWS-" };
+        }
+        if (/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t)) {
+            return { charge: -1, country: "USD", reason: "GLOBAL MARKETS→USD- override" };
+        }
+        // U.S. market headline: Wall Street moving higher is USD positive.
+        if (/(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP)(\W|$)/.test(t)) {
+            return { charge: 1, country: "USD", reason: "WALL STREET HIGHER→USD+ override" };
+        }
+        // Australian market headline: ASX dividend/buy/yield stock idea is AUD positive.
+        if (/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)(DIVIDEND|YIELD|YIELDS|BUY|STOCKS?)(\W|$)/.test(t)) {
+            return { charge: 1, country: "AUD", reason: "ASX DIVIDEND/BUY→AUD+ override" };
+        }
+        // Iran/high-rate bond/debt headline: locked negative. Do not plural-flip this one.
+        if (/(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/.test(t) && /(^|\W)(BOND|BONDS|ISSUING\s+BONDS|DEBT|CORPORATE\s+BONDS|NOTES)(\W|$)/.test(t)) {
+            return { charge: -1, country: "IRR", reason: "IRAN BONDS/HIGH-RATE→IRR- override" };
+        }
+        // REIT/list headlines contain multiple dividend/yield ideas. Treat the bundle as stacked.
+        if (/(^|\W)(REIT|REITS|REAL\s+ESTATE\s+INVESTMENT\s+TRUSTS?)(\W|$)/.test(t) && /(^|\W)(MONTHLY|DIVIDEND|DIVIDENDS|HIGH\s+YIELD|YIELDS|10\s+MONTHLY|MULTIPLE|TOP|BEST|STOCKS?|PICKS)(\W|$)/.test(t)) {
+            return { charge: -1, country: "USD", reason: "MULTIPLE REIT DIVIDEND/YIELD IDEAS→STACKED NEWS-" };
+        }
+        // Exact ticker fixes. Dot suffix stays an identifier, not a second country/event.
+        if (/(^|\W)USCUF\.PK(\W|$)/.test(t))
+            return { charge: 1, country: "USD", reason: "USCUF.PK→USD+ override" };
+        if (/(^|\W)LALI\.V(\W|$)/.test(t))
+            return { charge: -1, country: "CAD", reason: "LALI.V→CAD- override" };
+        return null;
     }
-
-    // Iran bond stress is negative and must not plural-flip because of the word bonds.
-    if(/(^|\W)(CORPORATIONS?|COMPANIES)\s+ARE\s+STILL\s+ISSUING\s+BONDS/i.test(t) && /(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/i.test(t)) {
-      return { charge:-1, country:"IRR", reason:"IRAN CORPORATE BONDS→IRR-" };
-    }
-
-    // CAC / Europe rising is positive. Mixed with Iran-: + - => NEWS-, then odd hour - gives BUY.
-    if(/(^|\W)(CAC\s*40|EUROPE|EUROPEAN)\b/i.test(t) && /(^|\W)(RISES?|GAINS?|EXTEND\s+GAINS?|HIGHER|RALLY|RALLIES)\b/i.test(t)) {
-      return { charge:1, country:"EUR", reason:"EUROPE/CAC RISES→EUR+" };
-    }
-
-    // ASX + Wall Street both positive in the same headline: + + => -.
-    if(/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP|BUY|YIELD|YIELDS|DIVIDEND)(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"ASX+ AND WALL STREET+ => STACKED NEWS-" };
-    }
-
-    // Global-market macro headline: USD negative plus Yen positive still stacks to negative.
-    if(/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t) && /(^|\W)(YEN|JPY|JAPANESE\s+YEN)(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"GLOBAL MARKETS USD- + YEN/JPY+ => NEWS-" };
-    }
-    if(/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"GLOBAL MARKETS→USD- override" };
-    }
-
-    // U.S. market headline: Wall Street moving higher is USD positive.
-    if(/(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP)(\W|$)/.test(t)) {
-      return { charge: 1, country:"USD", reason:"WALL STREET HIGHER→USD+ override" };
-    }
-
-    // Australian market headline: ASX dividend/buy/yield stock idea is AUD positive.
-    if(/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)(DIVIDEND|YIELD|YIELDS|BUY|STOCKS?)(\W|$)/.test(t)) {
-      return { charge: 1, country:"AUD", reason:"ASX DIVIDEND/BUY→AUD+ override" };
-    }
-
-    // Iran/high-rate bond/debt headline: locked negative. Do not plural-flip this one.
-    if(/(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/.test(t) && /(^|\W)(BOND|BONDS|ISSUING\s+BONDS|DEBT|CORPORATE\s+BONDS|NOTES)(\W|$)/.test(t)) {
-      return { charge:-1, country:"IRR", reason:"IRAN BONDS/HIGH-RATE→IRR- override" };
-    }
-
-    // REIT/list headlines contain multiple dividend/yield ideas. Treat the bundle as stacked.
-    if(/(^|\W)(REIT|REITS|REAL\s+ESTATE\s+INVESTMENT\s+TRUSTS?)(\W|$)/.test(t) && /(^|\W)(MONTHLY|DIVIDEND|DIVIDENDS|HIGH\s+YIELD|YIELDS|10\s+MONTHLY|MULTIPLE|TOP|BEST|STOCKS?|PICKS)(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"MULTIPLE REIT DIVIDEND/YIELD IDEAS→STACKED NEWS-" };
-    }
-
-    // Exact ticker fixes. Dot suffix stays an identifier, not a second country/event.
-    if(/(^|\W)USCUF\.PK(\W|$)/.test(t)) return { charge: 1, country:"USD", reason:"USCUF.PK→USD+ override" };
-    if(/(^|\W)LALI\.V(\W|$)/.test(t)) return { charge:-1, country:"CAD", reason:"LALI.V→CAD- override" };
-    return null;
-  }
     function getEventChargeFromRates(ev) {
         var _a;
         const code = String((ev === null || ev === void 0 ? void 0 : ev.country) || (ev === null || ev === void 0 ? void 0 : ev.currency) || "").toUpperCase().slice(0, 3);
@@ -3090,65 +3108,83 @@ function App() {
         const base = rate > USD_RATE ? 1 : -1;
         return rate <= USD_RATE ? -base : base;
     }
-    function getTickerRootMatches(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    const out = [];
-    const re = /(^|[^A-Z0-9])([A-Z0-9]{1,12})\.([A-Z]{1,4})(?=\W|$)/g;
-    let m;
-    while((m = re.exec(t))){
-      out.push({ root:m[2], suffix:m[3], full:`${m[2]}.${m[3]}` });
+    function getTickerRootMatches(rawText = "") {
+        const t = String(rawText || "").toUpperCase();
+        const out = [];
+        const re = /(^|[^A-Z0-9])([A-Z0-9]{1,12})\.([A-Z]{1,4})(?=\W|$)/g;
+        let m;
+        while ((m = re.exec(t))) {
+            out.push({ root: m[2], suffix: m[3], full: `${m[2]}.${m[3]}` });
+        }
+        return out;
     }
-    return out;
-  }
-    function getPrimaryCountryFromTickerRoot(rawText="") {
-    const matches = getTickerRootMatches(rawText);
-    for(const m of matches){
-      const root = String(m.root||"").toUpperCase();
-      // Derrick rule: the part BEFORE the dot is the primary driver.
-      // Example: USCUF.PK is U.S. news first; .PK is only where it is quoted/listed.
-      if(/^(USD|US|USA)/.test(root) || /US/.test(root)) return "USD";
-      if(/^(CAD|CA|CNDA|CDN)/.test(root)) return "CAD";
-      if(/^(AUD|AU|ASX)/.test(root)) return "AUD";
-      if(/^(GBP|UK|GB)/.test(root)) return "GBP";
-      if(/^(EUR|EU)/.test(root)) return "EUR";
-      if(/^(JPY|JP|JPN)/.test(root)) return "JPY";
-      if(/^(CNY|CN|CHN)/.test(root)) return "CNY";
-      if(/^(HKD|HK)/.test(root)) return "HKD";
-      if(/^(INR|IN|IND)/.test(root)) return "INR";
-      if(/^(PKR|PK|PAK)/.test(root)) return "PKR";
-      if(/^(SGD|SG|SGX)/.test(root)) return "SGD";
-      if(/^(KRW|KR|KOR)/.test(root)) return "KRW";
-      if(/^(TWD|TW|TWN)/.test(root)) return "TWD";
-      if(/^(ZAR|ZA|SAF)/.test(root)) return "ZAR";
-      if(/^(BRL|BR|BRA)/.test(root)) return "BRL";
-      if(/^(MXN|MX|MEX)/.test(root)) return "MXN";
+    function getPrimaryCountryFromTickerRoot(rawText = "") {
+        const matches = getTickerRootMatches(rawText);
+        for (const m of matches) {
+            const root = String(m.root || "").toUpperCase();
+            // Derrick rule: the part BEFORE the dot is the primary driver.
+            // Example: USCUF.PK is U.S. news first; .PK is only where it is quoted/listed.
+            if (/^(USD|US|USA)/.test(root) || /US/.test(root))
+                return "USD";
+            if (/^(CAD|CA|CNDA|CDN)/.test(root))
+                return "CAD";
+            if (/^(AUD|AU|ASX)/.test(root))
+                return "AUD";
+            if (/^(GBP|UK|GB)/.test(root))
+                return "GBP";
+            if (/^(EUR|EU)/.test(root))
+                return "EUR";
+            if (/^(JPY|JP|JPN)/.test(root))
+                return "JPY";
+            if (/^(CNY|CN|CHN)/.test(root))
+                return "CNY";
+            if (/^(HKD|HK)/.test(root))
+                return "HKD";
+            if (/^(INR|IN|IND)/.test(root))
+                return "INR";
+            if (/^(PKR|PK|PAK)/.test(root))
+                return "PKR";
+            if (/^(SGD|SG|SGX)/.test(root))
+                return "SGD";
+            if (/^(KRW|KR|KOR)/.test(root))
+                return "KRW";
+            if (/^(TWD|TW|TWN)/.test(root))
+                return "TWD";
+            if (/^(ZAR|ZA|SAF)/.test(root))
+                return "ZAR";
+            if (/^(BRL|BR|BRA)/.test(root))
+                return "BRL";
+            if (/^(MXN|MX|MEX)/.test(root))
+                return "MXN";
+        }
+        return "";
     }
-    return "";
-  }
-    function getCountryFromExchangeSuffix(rawText="") {
-    const matches = getTickerRootMatches(rawText);
-    if(!matches.length) return "";
-    const suffixMap = {
-      // North America / OTC / Yahoo-style suffixes. Used only as fallback.
-      "V":"CAD", "TO":"CAD", "CN":"CAD", "NE":"CAD",
-      "PK":"PKR", "OB":"USD", "OQ":"USD", "N":"USD", "A":"USD",
-      // Major global Yahoo/market suffixes.
-      "AX":"AUD", "AU":"AUD",
-      "L":"GBP", "IL":"GBP",
-      "PA":"EUR", "AS":"EUR", "DE":"EUR", "F":"EUR", "BE":"EUR", "DU":"EUR", "HM":"EUR", "HA":"EUR", "MU":"EUR", "SG":"EUR", "VI":"EUR", "MI":"EUR", "MC":"EUR", "MA":"EUR", "LS":"EUR", "IR":"EUR", "BR":"EUR",
-      "SW":"CHF", "VX":"CHF",
-      "ST":"SEK", "OL":"NOK", "CO":"DKK", "HE":"EUR", "IC":"ISK",
-      "HK":"HKD", "SS":"CNY", "SZ":"CNY", "TW":"TWD", "TWO":"TWD",
-      "T":"JPY", "KS":"KRW", "KQ":"KRW",
-      "SI":"SGD", "KL":"MYR", "BK":"THB", "JK":"IDR", "BO":"INR", "NS":"INR",
-      "SA":"BRL", "MX":"MXN", "BA":"ARS", "JO":"ZAR", "IS":"TRY", "TA":"ILS", "QA":"QAR", "KW":"KWD", "AE":"AED", "SR":"SAR"
-    };
-    for(const m of matches){
-      const hit = suffixMap[String(m.suffix||"").toUpperCase()];
-      if(hit) return hit;
+    function getCountryFromExchangeSuffix(rawText = "") {
+        const matches = getTickerRootMatches(rawText);
+        if (!matches.length)
+            return "";
+        const suffixMap = {
+            // North America / OTC / Yahoo-style suffixes. Used only as fallback.
+            "V": "CAD", "TO": "CAD", "CN": "CAD", "NE": "CAD",
+            "PK": "PKR", "OB": "USD", "OQ": "USD", "N": "USD", "A": "USD",
+            // Major global Yahoo/market suffixes.
+            "AX": "AUD", "AU": "AUD",
+            "L": "GBP", "IL": "GBP",
+            "PA": "EUR", "AS": "EUR", "DE": "EUR", "F": "EUR", "BE": "EUR", "DU": "EUR", "HM": "EUR", "HA": "EUR", "MU": "EUR", "SG": "EUR", "VI": "EUR", "MI": "EUR", "MC": "EUR", "MA": "EUR", "LS": "EUR", "IR": "EUR", "BR": "EUR",
+            "SW": "CHF", "VX": "CHF",
+            "ST": "SEK", "OL": "NOK", "CO": "DKK", "HE": "EUR", "IC": "ISK",
+            "HK": "HKD", "SS": "CNY", "SZ": "CNY", "TW": "TWD", "TWO": "TWD",
+            "T": "JPY", "KS": "KRW", "KQ": "KRW",
+            "SI": "SGD", "KL": "MYR", "BK": "THB", "JK": "IDR", "BO": "INR", "NS": "INR",
+            "SA": "BRL", "MX": "MXN", "BA": "ARS", "JO": "ZAR", "IS": "TRY", "TA": "ILS", "QA": "QAR", "KW": "KWD", "AE": "AED", "SR": "SAR"
+        };
+        for (const m of matches) {
+            const hit = suffixMap[String(m.suffix || "").toUpperCase()];
+            if (hit)
+                return hit;
+        }
+        return "";
     }
-    return "";
-  }
     function inferCountryCode(rawText = "", fallback = "") {
         const t = String(rawText || " ").toUpperCase();
         if (fallback)
