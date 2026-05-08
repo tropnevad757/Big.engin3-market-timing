@@ -1630,9 +1630,9 @@ function App() {
     const zDir = liveZoneTypeNow || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
-      const t = Date.parse(ev.pub||0);
-      if(!t || Number.isNaN(t)) return null;
+    const allEvents = normalizeAndKeepOverlaps(buildUnifiedNewsEvents(nowMs), nowMs).map(ev=>{
+      const t = getEventTimeMs(ev);
+      if(!t) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
       const win = eventWindowMinutes(ev);
       const isBreaking = replayEventType(ev) === "breaking";
@@ -1649,7 +1649,7 @@ function App() {
       else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
       else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
-    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
+    }).filter(Boolean).sort((a,b)=>(getEventTimeMs(b)||0)-(getEventTimeMs(a)||0));
 
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
@@ -2098,14 +2098,79 @@ function App() {
     return "breaking";
   }
 
+  function getEventTimeMs(ev){
+    const raw = ev?.date || ev?.pub || ev?.time || ev?.timestamp || ((ev?.d && ev?.t) ? `${ev.d}T${ev.t}:00` : "");
+    const t = Date.parse(raw || 0);
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function strictDedupeFeedItems(items){
+    const seen = new Set();
+    return (items || []).filter(Boolean).filter(ev=>{
+      const key = makeStrictEventKey(ev);
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  // STRICT ACTIVE-WINDOW + OVERLAP PATCH
+  // Keeps overlapping economic events live together, uses newest-first ordering,
+  // and only removes true duplicates by strict event key.
+  function getEventWindowMinutes(ev){
+    const impact = Number(ev?.impact || ev?.stars || ev?.importance || 1);
+    const src = String(ev?.source || ev?.feed || ev?.type || ev?.kind || "").toLowerCase();
+
+    if(src.includes("breaking") || src.includes("reuters") || src.includes("bloomberg") || replayEventType(ev)==="breaking" || replayEventType(ev)==="speech"){
+      return { before: 0, after: 20 };
+    }
+
+    if(impact >= 3) return { before: 90, after: 90 };
+    if(impact === 2) return { before: 60, after: 60 };
+    return { before: 30, after: 30 };
+  }
+
   function eventWindowMinutes(ev){
-    const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
-    const type = replayEventType(ev);
-    if(type === "breaking") return {pre:0, post:20};
-    if(type === "speech") return {pre:0, post:20};
-    if(stars === 1) return {pre:20, post:20};
-    if(stars === 2) return {pre:50, post:20};
-    return {pre:90, post:20};
+    const w = getEventWindowMinutes(ev);
+    return { pre: w.before, post: w.after, before: w.before, after: w.after };
+  }
+
+  function isEventActiveAt(ev, currentTime){
+    const t = getEventTimeMs(ev);
+    if(!t) return false;
+
+    const w = getEventWindowMinutes(ev);
+    const now = new Date(currentTime).getTime();
+    if(!Number.isFinite(now)) return false;
+
+    return now >= t - w.before * 60000 && now <= t + w.after * 60000;
+  }
+
+  function makeStrictEventKey(ev){
+    return [
+      canonicalNewsText(ev?.title || ev?.headline || ev?.label || ev?.l || ""),
+      ev?.source || ev?.feed || "",
+      ev?.country || ev?.currency || "",
+      getEventTimeMs(ev) || ""
+    ].join("|");
+  }
+
+  function normalizeAndKeepOverlaps(events, currentTime){
+    const seen = new Set();
+
+    return (events || [])
+      .filter(ev => isEventActiveAt(ev, currentTime))
+      .sort((a,b) => {
+        const ta = getEventTimeMs(a) || 0;
+        const tb = getEventTimeMs(b) || 0;
+        return tb - ta; // newest first
+      })
+      .filter(ev => {
+        const key = makeStrictEventKey(ev);
+        if(seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
   }
 
   function calendarAdvanceMinutes(item){
@@ -2148,16 +2213,16 @@ function App() {
 
     // Calendar/eco events: keep 90 days for backtest viewing
     // Breaking/manual events: keep 7 days (live news)
-    return dedupeFeedItems([...scheduled, ...breaking, ...manual])
+    return [...scheduled, ...breaking, ...manual]
       .filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        if(!t || Number.isNaN(t)) return false;
+        const t = getEventTimeMs(ev);
+        if(!t) return false;
         const age = nowMs - t;
         const isCalendar = ev.kind === "event" || ev.kind === "speech";
         const maxAge = isCalendar ? 90*24*60*60*1000 : 7*24*60*60*1000;
         return age <= maxAge;
       })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+      .sort((a,b)=>(getEventTimeMs(a)||0)-(getEventTimeMs(b)||0));
   }
 
 
@@ -2165,21 +2230,20 @@ function App() {
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
 
-    // De-dupe first so the same headline does not count twice in the stack.
+    // STRICT overlap-safe de-dupe:
+    // Only remove true duplicates with same normalized title + source/feed + country/currency + exact timestamp.
+    // Do NOT fuzzy-remove similar headlines within 90 minutes, because that hides legitimate overlapping events.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || "").slice(0,160);
     const duplicateEvents = [];
     const allActive = [];
+    const seenActiveKeys = new Set();
     rawActive.forEach(ev=>{
-      const key = normalizeNewsKey(ev);
-      const t = Date.parse(ev?.pub||ev?.date||0);
-      const isDup = key && allActive.some(prev=>{
-        const pt = Date.parse(prev?.pub||prev?.date||0);
-        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 90*60000;
-        return closeTime && newsTextSimilar(key, normalizeNewsKey(prev));
-      });
-      if(isDup) duplicateEvents.push(ev);
-      else allActive.push(ev);
+      const key = makeStrictEventKey(ev);
+      if(seenActiveKeys.has(key)) duplicateEvents.push(ev);
+      else {
+        seenActiveKeys.add(key);
+        allActive.push(ev);
+      }
     });
 
     const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
@@ -3721,12 +3785,8 @@ function App() {
   }
 
   function rpActiveEventsFor(tsMs, eventsPool){
-    const pool = eventsPool || loggedLastWeek;
-    return pool.filter(ev=>{
-      const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
-      const w=eventWindowMinutes(ev);
-      return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
-    }).map(ev=>{
+    const pool = normalizeAndKeepOverlaps(eventsPool || loggedLastWeek, tsMs);
+    return pool.map(ev=>{
       // Re-classify polarity on-the-fly using current keyword list
       if(Number(ev.polarity)!==0) return ev;
       const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
@@ -4695,7 +4755,7 @@ const BacktestTab = ()=>{
                 source:item.source||"Manual Replay",
                 color:item.kind==="breaking"?"#ff6b35":"#00aaff"
               }));
-              const allMerged = dedupeFeedItems([...calendarTimeline, ...breakingTimeline, ...manualTimeline]);
+              const allMerged = strictDedupeFeedItems([...calendarTimeline, ...breakingTimeline, ...manualTimeline]);
               const liveBucket     = allMerged.filter(i=>classify(i)==="live").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const upcomingBucket = allMerged.filter(i=>classify(i)==="upcoming").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const pastBucket     = allMerged.filter(i=>classify(i)==="past").sort((a,b)=>Date.parse(b.pub)-Date.parse(a.pub));
