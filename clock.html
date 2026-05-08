@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 BEST BASE + TP WICK REPLAY FIX</title>
+<title>THE BiGENGiN3 OF TIME — V7 BEST BASE + COUNTRY RATE REGIME LOCK + TP LADDER</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -185,11 +185,12 @@ const CATS = [
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // BUY CORE REGIME
 // Connector: − = mirror
-// 12:30-1:30 / 3:30-4:30 / 6:30-7:30 / 9:30-10:30
-// Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
+// 12:30-1:30 / 4:30-6:30 / 7:30-10:30
+// Higher rates = − ; lower/equal rates = +
 // SELL RESET REGIME
 // Connector: + = aligned
-// 1:30-3:30 / 4:30-6:30 / 7:30-9:30 / 10:30-12:30
+// 6:30-7:30 / 10:30-12:30 / 1:30-4:30
+// Higher rates = + ; lower/equal rates = −
 const REGIME_CURRENCIES = {
   sellReset: {
     // connector: + (aligned)
@@ -1325,31 +1326,29 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
-  // NEW REGIME TEST V7
+  // DERRICK LOCKED COUNTRY-RATE REGIME ENGINE
   // BUY CORE REGIME  — Connector: − = mirror, USD− anchor
-  //   12:30–1:30 / 3:30–4:30 / 6:30–7:30 / 9:30–10:30 (AM + PM)
+  //   12:30–1:30 / 4:30–6:30 / 7:30–10:30 (AM + PM)
+  //   Higher rates = − ; Lower/equal rates = +
   // SELL RESET REGIME — Connector: + = aligned, USD+ anchor
-  //   1:30–3:30 / 4:30–6:30 / 7:30–9:30 / 10:30–12:30 (AM + PM)
+  //   6:30–7:30 / 10:30–12:30 / 1:30–4:30 (AM + PM)
+  //   Higher rates = + ; Lower/equal rates = −
   const MIRROR_RANGES = [
     [30, 90],     // 12:30 AM – 1:30 AM
-    [210, 270],   // 3:30 AM – 4:30 AM
-    [390, 450],   // 6:30 AM – 7:30 AM
-    [570, 630],   // 9:30 AM – 10:30 AM
+    [270, 390],   // 4:30 AM – 6:30 AM
+    [450, 630],   // 7:30 AM – 10:30 AM
     [750, 810],   // 12:30 PM – 1:30 PM
-    [930, 990],   // 3:30 PM – 4:30 PM
-    [1110, 1170], // 6:30 PM – 7:30 PM
-    [1290, 1350]  // 9:30 PM – 10:30 PM
+    [990, 1110],  // 4:30 PM – 6:30 PM
+    [1170, 1350]  // 7:30 PM – 10:30 PM
   ];
 
   const ALIGNED_RANGES = [
     [0, 30],      // 12:00 AM – 12:30 AM (continuation of 10:30 PM – 12:30 AM reset)
-    [90, 210],    // 1:30 AM – 3:30 AM
-    [270, 390],   // 4:30 AM – 6:30 AM
-    [450, 570],   // 7:30 AM – 9:30 AM
+    [90, 270],    // 1:30 AM – 4:30 AM
+    [390, 450],   // 6:30 AM – 7:30 AM
     [630, 750],   // 10:30 AM – 12:30 PM
-    [810, 930],   // 1:30 PM – 3:30 PM
-    [990, 1110],  // 4:30 PM – 6:30 PM
-    [1170, 1290], // 7:30 PM – 9:30 PM
+    [810, 990],   // 1:30 PM – 4:30 PM
+    [1110, 1170], // 6:30 PM – 7:30 PM
     [1350, 1440]  // 10:30 PM – 12:00 AM
   ];
 
@@ -2200,8 +2199,35 @@ function App() {
       usdAnchorCharge = slotCharge;
     }
 
+    const hasSpecificAsiaCountry = (rawText="")=>{
+      const t = String(rawText||"").toUpperCase();
+      return /(^|\W)(JAPAN|JAPANESE|TOKYO|NIKKEI|TOPIX|BOJ|JPY|YEN|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|CNY|CNH|YUAN|HONG\s+KONG|HANG\s+SENG|HKD|KOREA|SOUTH\s+KOREA|SEOUL|KOSPI|KRW|TAIWAN|TAIPEI|TAIEX|TWD|INDIA|INDIAN|NIFTY|SENSEX|INR|SINGAPORE|SGX|SGD|AUSTRALIA|AUSTRALIAN|ASX|AUD|RBA|NEW\s+ZEALAND|NZD)(\W|$)/.test(t);
+    };
+
+    const isGenericAsiaHeadline = (rawText="")=>{
+      const t = String(rawText||"").toUpperCase();
+      return /(^|\W)(ASIA|ASIAN|ASIA\-PACIFIC|APAC|REGIONAL\s+ASIA|ACROSS\s+ASIA)(\W|$)/.test(t) && !hasSpecificAsiaCountry(t);
+    };
+
+    const isUsdDefaultHeadline = (rawText="")=>{
+      const t = String(rawText||"").toUpperCase();
+      const hits = getNewsEntityGlossary(t);
+      const foreignHits = hits.filter(x=>!x.anchor && x.country !== "USD");
+      // Derrick lock: Treasuries, yields, bonds, ISM, and unknown-style macro headlines
+      // default to the active USD sign at that time. They must not be turned into
+      // a fake multi-entity flip just because the headline also names oil/stocks/risk.
+      const usdDefaultTerm = /(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|YIELDS?|BONDS?|BOND\s+YIELDS?|NOTES?|BILLS?|T\-?BILLS?|T\-?NOTES?|30\s?Y(?:EAR)?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|ISM|PMI|GDP|CPI|PPI|PCE|NFP|PAYROLLS?|JOBLESS|UNEMPLOYMENT|JOLTS|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t);
+      return usdDefaultTerm && foreignHits.length === 0;
+    };
+
     const getNewsEventCharge = (ev)=>{
       const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
+
+      // Asia rule: generic "Asia/Asian markets" is negative unless a specific country is named.
+      if(isGenericAsiaHeadline(rawText)){
+        return { charge:-1, country:"ASIA", unknownCountryFallback:false, tickerOverride:true, lockedUsdDefault:false, asiaDefault:true, tickerOverrideReason:"GENERIC ASIA→NEWS- unless specific country named", rateValue:null };
+      }
+
       const tickerOverride = getTickerChargeOverride(rawText);
       if(tickerOverride){
         return {
@@ -2209,27 +2235,30 @@ function App() {
           country: tickerOverride.country,
           unknownCountryFallback:false,
           tickerOverride:true,
+          lockedUsdDefault:false,
+          asiaDefault:false,
           tickerOverrideReason: tickerOverride.reason,
           rateValue: tickerOverride.country === "USD" ? USD_RATE : getRateForSymbol(tickerOverride.country)
         };
       }
 
+      // Treasury / yields / bonds / ISM / unknown-style U.S. macro: same sign as USD at that time.
+      if(isUsdDefaultHeadline(rawText)){
+        return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"USD DEFAULT: Treasury/bonds/ISM/unknown macro follows active USD sign", rateValue: USD_RATE };
+      }
+
       const inferred = String(ev?.country || ev?.currency || inferCountryCode(rawText) || "").toUpperCase().slice(0,3);
 
       // Unknown country: do NOT step-fallback. Use USD/high-rate anchor sign first.
-      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, tickerOverride:false, rateValue: USD_RATE };
+      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"UNKNOWN→USD DEFAULT", rateValue: USD_RATE };
 
-      if(inferred === "USD") return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, tickerOverride:false, rateValue: USD_RATE };
-
-      const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
-      if(Number.isFinite(rate)){
-        // Higher than USD = same as USD anchor. Equal/lower than USD = opposite of USD anchor.
-        return { charge: rate > USD_RATE ? usdAnchorCharge : -usdAnchorCharge, country: inferred, unknownCountryFallback:false, tickerOverride:false, rateValue: rate };
+      const rateLocked = getCountryRateCharge(inferred || "USD", ev?.rateValue, h24, m);
+      if(rateLocked.relation === "MISSING_RATE_USD_DEFAULT"){
+        // Known country but missing rate: do not let article wording override the rate-anchor model.
+        // Use USD/high-rate anchor until an actual rate is known.
+        return { charge: rateLocked.charge, country: rateLocked.country, unknownCountryFallback:true, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"MISSING RATE→USD DEFAULT", rateValue: null, rateRelation: rateLocked.relation, regime: rateLocked.regime, connector: rateLocked.mode };
       }
-
-      // Known country but missing rate: do not let article wording override the rate-anchor model.
-      // Use USD/high-rate anchor until an actual rate is known.
-      return { charge: usdAnchorCharge, country: inferred || "USD", unknownCountryFallback:true, tickerOverride:false, rateValue: null };
+      return { charge: rateLocked.charge, country: rateLocked.country, unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:false, asiaDefault:false, rateValue: rateLocked.rateValue, rateRelation: rateLocked.relation, regime: rateLocked.regime, connector: rateLocked.mode };
     };
 
     const chargedEvents = allActive
@@ -2239,7 +2268,7 @@ function App() {
         // Plural/list stacking only applies when this is NOT a dot-suffix ticker headline
         // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
         // "USCUF.PK" or "LALI.V" does not create fake extra events.
-        const glossaryWeight = resolved.tickerOverride ? 1 : pluralStackWeightFromHeadline(rawText);
+        const glossaryWeight = (resolved.tickerOverride || resolved.lockedUsdDefault || resolved.asiaDefault) ? 1 : pluralStackWeightFromHeadline(rawText);
         const glossaryHits = getNewsEntityGlossary(rawText);
         return {
           ...ev,
@@ -2251,8 +2280,13 @@ function App() {
           glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
           tickerOverride: !!resolved.tickerOverride,
+          lockedUsdDefault: !!resolved.lockedUsdDefault,
+          asiaDefault: !!resolved.asiaDefault,
           tickerOverrideReason: resolved.tickerOverrideReason || "",
           rateValue: resolved.rateValue,
+          rateRelation: resolved.rateRelation || (resolved.country === "USD" ? "USD_ANCHOR" : ""),
+          rateRegime: resolved.regime || "",
+          rateConnector: resolved.connector || "",
         };
       })
       .filter(ev=>ev.effectiveCharge!==0);
@@ -2456,6 +2490,27 @@ function App() {
     const code = String(sym||"").toUpperCase().slice(0,3);
     const hit = CHARGE_CURRENCIES.find(c=>c.sym===code);
     return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
+  }
+
+  // Derrick country-rate sign lock:
+  // BUY CORE / mirror / USD−: higher-than-USD rates are negative, lower/equal rates are positive.
+  // SELL RESET / aligned / USD+: higher-than-USD rates are positive, lower/equal rates are negative.
+  // This is the single helper used by active news so headline country charge cannot drift.
+  function getCountryRateCharge(sym, rateValue, h24, m){
+    const code = String(sym||"USD").toUpperCase().slice(0,3) || "USD";
+    let mode = "aligned";
+    try{ mode = getConnectorMode(Number(h24)||0, Number(m)||0); }catch(_){ mode = "aligned"; }
+    const usdAnchorCharge = mode === "mirror" ? -1 : 1;
+    if(code === "USD"){
+      return { charge: usdAnchorCharge, country: "USD", mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: "USD_ANCHOR", rateValue: USD_RATE };
+    }
+    const rate = Number.isFinite(Number(rateValue)) ? Number(rateValue) : getRateForSymbol(code);
+    if(Number.isFinite(rate)){
+      const higher = rate > USD_RATE;
+      const charge = higher ? usdAnchorCharge : -usdAnchorCharge;
+      return { charge, country: code, mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: higher ? "HIGHER_THAN_USD" : "LOWER_OR_EQUAL_USD", rateValue: rate };
+    }
+    return { charge: usdAnchorCharge, country: code, mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: "MISSING_RATE_USD_DEFAULT", rateValue: null };
   }
 
 
@@ -3928,6 +3983,7 @@ function App() {
     function getETParts(tsMs){ return rpGetETParts(tsMs); }
 
     const sigCol = s => s==="BUY"?G:R;
+    const tpLadderText = TP_LADDER_LEVELS.map((pct,i)=>`${TP_LADDER_LABELS[i]} ${pct}%`).join(" · ");
     const current = results?.newsSessions?.[playIdx] || null;
 
     return(
@@ -4168,12 +4224,15 @@ function App() {
 
                 {/* EXIT WINDOW — the signal's own lifespan */}
                 <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",marginBottom:6,letterSpacing:1}}>
-                  EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGET: {current.sigWindow?.tpLabel} {current.sigWindow?.tpPct}
+                  EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGETS: {tpLadderText}
                 </div>
 
                 {/* WIN/LOSS */}
-                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
+                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:6,lineHeight:1.6}}>
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
+                </div>
+                <div style={{fontSize:10,color:"#666",fontFamily:"'Share Tech Mono',monospace",marginBottom:8,lineHeight:1.6}}>
+                  TP LEVELS: {tpLadderText}
                 </div>
 
                 {/* Clean signal summary */}
