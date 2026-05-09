@@ -2226,6 +2226,160 @@ function App() {
   }
 
 
+  /* =========================================================
+     REGIME-BASED USD ENTITY SIGN
+  ========================================================= */
+
+  function getRegimeUSDSign(now){
+    const d = now instanceof Date ? now : new Date(now || Date.now());
+    const t = d.getHours() * 60 + d.getMinutes();
+
+    // BUY CORE REGIME — USD− / mirror
+    // 12:30–1:30, 4:30–6:30, 7:30–10:30 AM + PM
+    const buyCore = [
+      [30, 90],     // 12:30 AM – 1:30 AM
+      [270, 390],   // 4:30 AM – 6:30 AM
+      [450, 630],   // 7:30 AM – 10:30 AM
+      [750, 810],   // 12:30 PM – 1:30 PM
+      [990, 1110],  // 4:30 PM – 6:30 PM
+      [1170, 1350]  // 7:30 PM – 10:30 PM
+    ].some(([s,e]) => t >= s && t < e);
+
+    if(buyCore) return -1;
+
+    // SELL RESET REGIME — USD+ / aligned
+    // 6:30–7:30, 10:30–12:30, 1:30–4:30 AM + PM
+    return +1;
+  }
+
+  /* =========================================================
+     USD FINANCIAL ENTITY DETECTION
+  ========================================================= */
+
+  function isUSDFinancialEntity(text){
+    const s = String(text || "").toLowerCase();
+
+    return [
+      "treasury",
+      "bond",
+      "bonds",
+      "yield",
+      "yields",
+      "wall street",
+      "stocks",
+      "oil",
+      "fed",
+      "federal reserve",
+      "dxy",
+      "ism"
+    ].some(k => s.includes(k));
+  }
+
+
+
+  function getUSDFinancialEntityStackWeight(text){
+    const s = String(text || "").toLowerCase();
+    const groups = [];
+
+    // Count entity GROUPS, not repeated words. Example: "bond yields ... stocks"
+    // = bond/yield group + stocks group => 2 same-sign USD entities, so stacking flips once.
+    if(/(treasur(?:y|ies)|t\-?bills?|t\-?notes?|30\s?y(?:ear)?|10\s?y(?:ear)?|2\s?y(?:ear)?)/.test(s)) groups.push("treasury");
+    if(/(bond|bonds|yield|yields|bond\s+yields?)/.test(s)) groups.push("bond_yields");
+    if(/(stocks?|equities|wall\s+street|s\s*&\s*p|nasdaq|dow)/.test(s)) groups.push("stocks");
+    if(/(oil|crude|wti|brent)/.test(s)) groups.push("oil");
+    if(/(fed|federal\s+reserve|fomc|powell)/.test(s)) groups.push("fed");
+    if(/(dxy|dollar\s+index)/.test(s)) groups.push("dxy");
+    if(/(ism|pmi|cpi|ppi|pce|nfp|payrolls?|jobless|unemployment|jolts|retail\s+sales|consumer\s+confidence|michigan\s+sentiment)/.test(s)) groups.push("macro");
+
+    return Math.max(1, new Set(groups).size);
+  }
+
+  function makeRegimeDate(h24=null, m=0){
+    const d = new Date();
+    if(Number.isFinite(Number(h24))){
+      d.setHours(Number(h24), Number(m)||0, 0, 0);
+    }
+    return d;
+  }
+
+  function isOddHour(now){
+    const d = now instanceof Date ? now : new Date(now || Date.now());
+    return (d.getHours() % 2) !== 0;
+  }
+
+  /* =========================================================
+     FALLBACK COUNTRY LOGIC
+  ========================================================= */
+
+  function inferCountryCharge(ev, now){
+    const d = now instanceof Date ? now : new Date(now || Date.now());
+    const h24 = d.getHours();
+    const m = d.getMinutes();
+    const text = `${ev?.title || ""} ${ev?.headline || ""} ${ev?.desc || ""} ${ev?.note || ""}`;
+    const inferred = String(ev?.country || ev?.currency || inferCountryCode(text) || "USD").toUpperCase().slice(0,3);
+    const rateLocked = getCountryRateCharge(inferred || "USD", ev?.rateValue, h24, m);
+    return rateLocked.charge || getRegimeUSDSign(d);
+  }
+
+  /* =========================================================
+     ENTITY SIGN FROM ACTIVE REGIME
+  ========================================================= */
+
+  function getEntitySignFromRegime(ev, now){
+
+    const text =
+      `${ev?.title || ""} ${ev?.headline || ""}`.toLowerCase();
+
+    // USD financial entities inherit regime USD sign
+    if(isUSDFinancialEntity(text)){
+      return getRegimeUSDSign(now);
+    }
+
+    // fallback country logic
+    return inferCountryCharge(ev, now);
+  }
+
+  /* =========================================================
+     STACKING RULE
+  ========================================================= */
+
+  function resolveStackedSigns(signs){
+
+    if(!signs.length) return 0;
+
+    let pos = signs.filter(x => x > 0).length;
+    let neg = signs.filter(x => x < 0).length;
+
+    // mixed always negative
+    if(pos > 0 && neg > 0){
+      return -1;
+    }
+
+    // 2+ same sign flips ONCE
+    if(pos >= 2){
+      return -1;
+    }
+
+    if(neg >= 2){
+      return +1;
+    }
+
+    return signs[0];
+  }
+
+  /* =========================================================
+     FINAL ACTIVE NEWS SIGN
+  ========================================================= */
+
+  function getFinalNewsSign(activeEvents, now){
+
+    const signs = (activeEvents || []).map(ev =>
+      getEntitySignFromRegime(ev, now)
+    );
+
+    return resolveStackedSigns(signs);
+  }
+
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
@@ -2251,17 +2405,10 @@ function App() {
     const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
 
     // USD / high-interest-rate anchor sign for unknown-country news.
-    // IMPORTANT: this is NOT step fallback.
-    // Unknown active news receives the USD/high-rate anchor sign first:
-    // Mirror = - ; Aligned = +. Step direction is used only when there is no active news.
-    let usdAnchorCharge = 1;
-    if(Number.isFinite(Number(h24))){
-      try{ usdAnchorCharge = getConnectorMode(Number(h24), Number(m)||0) === "aligned" ? 1 : -1; }
-      catch(_){ usdAnchorCharge = slotCharge; }
-    } else {
-      // If a caller does not pass time, fall back to the current slot sign so unknown news still has a sign.
-      usdAnchorCharge = slotCharge;
-    }
+    // IMPORTANT: regime determines the USD entity sign BEFORE stacking.
+    // BUY CORE (4:30-10:30) => USD−. SELL RESET => USD+.
+    const regimeNow = makeRegimeDate(h24, m);
+    let usdAnchorCharge = getRegimeUSDSign(regimeNow);
 
     const hasSpecificAsiaCountry = (rawText="")=>{
       const t = String(rawText||"").toUpperCase();
@@ -2285,7 +2432,15 @@ function App() {
     };
 
     const getNewsEventCharge = (ev)=>{
-      const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
+      const rawText = `${ev?.title||""} ${ev?.headline||""} ${ev?.desc||""} ${ev?.note||""}`;
+
+      // USD financial entities inherit the active regime sign BEFORE stacking.
+      // Treasury / bonds / yields / Wall Street / stocks / oil / Fed / DXY / ISM
+      // are treated as USD− during BUY CORE and USD+ during SELL RESET.
+      if(isUSDFinancialEntity(rawText)){
+        const usdStackWeight = getUSDFinancialEntityStackWeight(rawText);
+        return { charge: getRegimeUSDSign(regimeNow), country:"USD", unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, usdFinancialStackWeight:usdStackWeight, tickerOverrideReason:`USD FINANCIAL ENTITY→ACTIVE REGIME SIGN${usdStackWeight>1?` · USD ENTITY STACK x${usdStackWeight}`:""}`, rateValue: USD_RATE, rateRelation:"USD_REGIME_ENTITY", regime: getRegimeUSDSign(regimeNow) < 0 ? "BUY_CORE" : "SELL_RESET", connector: getRegimeUSDSign(regimeNow) < 0 ? "mirror" : "aligned" };
+      }
 
       // Asia rule: generic "Asia/Asian markets" is negative unless a specific country is named.
       if(isGenericAsiaHeadline(rawText)){
@@ -2332,7 +2487,7 @@ function App() {
         // Plural/list stacking only applies when this is NOT a dot-suffix ticker headline
         // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
         // "USCUF.PK" or "LALI.V" does not create fake extra events.
-        const glossaryWeight = (resolved.tickerOverride || resolved.lockedUsdDefault || resolved.asiaDefault) ? 1 : pluralStackWeightFromHeadline(rawText);
+        const glossaryWeight = resolved.usdFinancialStackWeight || ((resolved.tickerOverride || resolved.lockedUsdDefault || resolved.asiaDefault) ? 1 : pluralStackWeightFromHeadline(rawText));
         const glossaryHits = getNewsEntityGlossary(rawText);
         return {
           ...ev,
@@ -2346,6 +2501,7 @@ function App() {
           tickerOverride: !!resolved.tickerOverride,
           lockedUsdDefault: !!resolved.lockedUsdDefault,
           asiaDefault: !!resolved.asiaDefault,
+          usdFinancialStackWeight: resolved.usdFinancialStackWeight || 1,
           tickerOverrideReason: resolved.tickerOverrideReason || "",
           rateValue: resolved.rateValue,
           rateRelation: resolved.rateRelation || (resolved.country === "USD" ? "USD_ANCHOR" : ""),
@@ -2412,36 +2568,33 @@ function App() {
       foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · HEADLINE STACK x${ev.glossaryStackWeight}`:""}${ev.glossaryLabel?` · ORIGIN ${ev.glossaryLabel}`:""}`);
     });
 
-    if(chargedEvents.length === 1){
+    if(chargedEvents.length === 1 && (Number(chargedEvents[0].eventWeight)||1) < 2){
       newsCharge = chargedEvents[0].effectiveCharge;
       dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"}${chargedEvents[0].unknownCountryFallback?" anchor fallback":""}`;
-    } else if(chargedEvents.length >= 2){
-      // MULTI-NEWS RESOLUTION — group SAME SIGNS first, then combine the resolved groups.
-      // + x1 => +        - x1 => -
-      // + x2 or more => -     - x2 or more => +
-      // Then combine the resolved groups with news math:
-      // + + => -   - - => +   + - / - + => -
-      const positiveCount = positives;
-      const negativeCount = negatives;
-      const positiveResolved = resolveGroupedCharge(1, positiveCount);
-      const negativeResolved = resolveGroupedCharge(-1, negativeCount);
+    } else if(chargedEvents.length >= 1){
+      // STACKING RULE — regime/entity signs are resolved first, then stacked.
+      // mixed always negative
+      // 2+ same sign flips ONCE
+      const expandedSigns = [];
+      chargedEvents.forEach(ev=>{
+        const w = Math.max(1, Number(ev.eventWeight)||1);
+        for(let i=0;i<w;i++) expandedSigns.push(ev.effectiveCharge);
+      });
+      const positiveCount = expandedSigns.filter(x=>x > 0).length;
+      const negativeCount = expandedSigns.filter(x=>x < 0).length;
 
-      if(positiveCount > 0){
-        foldSteps.push(`POSITIVE GROUP + x${positiveCount} -> ${positiveResolved===1?'+':'-'}`);
-      }
-      if(negativeCount > 0){
-        foldSteps.push(`NEGATIVE GROUP - x${negativeCount} -> ${negativeResolved===1?'+':'-'}`);
-      }
+      newsCharge = resolveStackedSigns(expandedSigns);
 
       if(positiveCount > 0 && negativeCount > 0){
-        newsCharge = combineCharges(positiveResolved, negativeResolved);
-        foldSteps.push(`COMBINE ${positiveResolved===1?'+':'-'} ${negativeResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
-      } else {
-        newsCharge = positiveCount > 0 ? positiveResolved : negativeResolved;
+        foldSteps.push(`MIXED SIGNS + x${positiveCount} / - x${negativeCount} -> -`);
+      } else if(positiveCount >= 2){
+        foldSteps.push(`POSITIVE GROUP + x${positiveCount} -> - (2+ flips once)`);
+      } else if(negativeCount >= 2){
+        foldSteps.push(`NEGATIVE GROUP - x${negativeCount} -> + (2+ flips once)`);
       }
 
-      chargeFlip = true;
-      dominantSource = "grouped same-sign news math";
+      chargeFlip = positiveCount >= 2 || negativeCount >= 2 || (positiveCount > 0 && negativeCount > 0);
+      dominantSource = "regime-first stacked news math";
     }
 
     clusterResult = {
@@ -2455,23 +2608,26 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Unique news only. Dot suffixes do not stack. Plural/list headlines stack. Unknown country acts as USD/high-rate anchor.",
+      rule: "Regime-first entity sign. USD financial entities follow active USD regime before stacking. Mixed = -, 2+ same sign flips once.",
       foldSteps,
     };
 
     // FINAL DIRECTION LAYER
     // Fallback/step direction is ONLY used when there is no active news.
     // If news is active, compare the resolved NEWS SIGN against the odd/even HOUR SIGN.
+    // SAME SIGN = BUY. DIFFERENT SIGN = SELL.
     const stepSign = baseCharge === 1 ? "+" : "-";
-    let finalDirection = newsCharge === 0
+    const hourSign = isOddHour(regimeNow) ? -1 : +1;
+    const finalNewsSign = newsCharge;
+    let finalDirection = finalNewsSign === 0
       ? null
-      : (newsCharge === slotCharge ? "buy" : "sell");
+      : (hourSign === finalNewsSign ? "buy" : "sell");
 
     const sellRestriction = false;
     const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
     const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
-    const slotSign = slotCharge === 1 ? "+" : "-";
-    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const slotSign = hourSign === 1 ? "+" : "-";
+    const newsSign = finalNewsSign === 1 ? "+" : finalNewsSign === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `NEWS ACTIVE · NO DIRECTED SIGN · FINAL WAIT`
       : `NEWS ${newsSign} · HOUR ${slotSign} · FINAL ${finalDirection.toUpperCase()}`;
