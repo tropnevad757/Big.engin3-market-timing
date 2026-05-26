@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 BEST HEADLINE ORIGIN GLOSSARY</title>
+<title>THE BiGENGiN3 OF TIME — V7 BEST BASE + COUNTRY RATE REGIME LOCK + TP LADDER</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -185,11 +185,12 @@ const CATS = [
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // BUY CORE REGIME
 // Connector: − = mirror
-// 12:30-1:30 / 3:30-4:30 / 6:30-7:30 / 9:30-10:30
-// Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
+// 12:30-1:30 / 4:30-6:30 / 7:30-10:30
+// Higher rates = − ; lower/equal rates = +
 // SELL RESET REGIME
 // Connector: + = aligned
-// 1:30-3:30 / 4:30-6:30 / 7:30-9:30 / 10:30-12:30
+// 6:30-7:30 / 10:30-12:30 / 1:30-4:30
+// Higher rates = + ; lower/equal rates = −
 const REGIME_CURRENCIES = {
   sellReset: {
     // connector: + (aligned)
@@ -208,11 +209,14 @@ const REGIME_CURRENCIES = {
 // Calendar events may reach BEFORE release by impact; breaking news starts at publication.
 // Mixed news is not a separate engine: any events overlapping the current minute are
 // collected first, then the same stacking math is applied once before hour-sign compare.
+const TP_LADDER_LEVELS = [0.03, 0.06, 0.09, 0.12, 0.3, 0.6, 0.9, 1.2];
+const TP_LADDER_LABELS = ["EXT 1", "EXT 2", "EXT 3", "EXT 4", "EXT 5", "EXT 6", "EXT 7", "EXT 8"];
+
 const NEWS_REACTION = {
-  break: { pre: 0,  post: 20, window: 20, fibs: [38.2], tps: [0.1146], label:"BREAKING NEWS" },
-  1:     { pre: 20, post: 20, window: 20, fibs: [61.8], tps: [0.185],  label:"★" },
-  2:     { pre: 50, post: 20, window: 50, fibs: [61.8], tps: [0.185],  label:"★★" },
-  3:     { pre: 90, post: 20, window: 90, fibs: [61.8], tps: [0.185],  label:"★★★" },
+  break: { pre: 0,  post: 20, window: 20, fibs: [38.2], tps: TP_LADDER_LEVELS, label:"BREAKING NEWS" },
+  1:     { pre: 20, post: 20, window: 20, fibs: [61.8], tps: TP_LADDER_LEVELS, label:"★" },
+  2:     { pre: 50, post: 20, window: 50, fibs: [61.8], tps: TP_LADDER_LEVELS, label:"★★" },
+  3:     { pre: 90, post: 20, window: 90, fibs: [61.8], tps: TP_LADDER_LEVELS, label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -1322,31 +1326,29 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
-  // NEW REGIME TEST V7
+  // DERRICK LOCKED COUNTRY-RATE REGIME ENGINE
   // BUY CORE REGIME  — Connector: − = mirror, USD− anchor
-  //   12:30–1:30 / 3:30–4:30 / 6:30–7:30 / 9:30–10:30 (AM + PM)
+  //   12:30–1:30 / 4:30–6:30 / 7:30–10:30 (AM + PM)
+  //   Higher rates = − ; Lower/equal rates = +
   // SELL RESET REGIME — Connector: + = aligned, USD+ anchor
-  //   1:30–3:30 / 4:30–6:30 / 7:30–9:30 / 10:30–12:30 (AM + PM)
+  //   6:30–7:30 / 10:30–12:30 / 1:30–4:30 (AM + PM)
+  //   Higher rates = + ; Lower/equal rates = −
   const MIRROR_RANGES = [
     [30, 90],     // 12:30 AM – 1:30 AM
-    [210, 270],   // 3:30 AM – 4:30 AM
-    [390, 450],   // 6:30 AM – 7:30 AM
-    [570, 630],   // 9:30 AM – 10:30 AM
+    [270, 390],   // 4:30 AM – 6:30 AM
+    [450, 630],   // 7:30 AM – 10:30 AM
     [750, 810],   // 12:30 PM – 1:30 PM
-    [930, 990],   // 3:30 PM – 4:30 PM
-    [1110, 1170], // 6:30 PM – 7:30 PM
-    [1290, 1350]  // 9:30 PM – 10:30 PM
+    [990, 1110],  // 4:30 PM – 6:30 PM
+    [1170, 1350]  // 7:30 PM – 10:30 PM
   ];
 
   const ALIGNED_RANGES = [
     [0, 30],      // 12:00 AM – 12:30 AM (continuation of 10:30 PM – 12:30 AM reset)
-    [90, 210],    // 1:30 AM – 3:30 AM
-    [270, 390],   // 4:30 AM – 6:30 AM
-    [450, 570],   // 7:30 AM – 9:30 AM
+    [90, 270],    // 1:30 AM – 4:30 AM
+    [390, 450],   // 6:30 AM – 7:30 AM
     [630, 750],   // 10:30 AM – 12:30 PM
-    [810, 930],   // 1:30 PM – 3:30 PM
-    [990, 1110],  // 4:30 PM – 6:30 PM
-    [1170, 1290], // 7:30 PM – 9:30 PM
+    [810, 990],   // 1:30 PM – 4:30 PM
+    [1110, 1170], // 6:30 PM – 7:30 PM
     [1350, 1440]  // 10:30 PM – 12:00 AM
   ];
 
@@ -1622,12 +1624,15 @@ function App() {
   // ── NEWS REACTION ENGINE — unified feeds, symmetric windows, TP levels ──────
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
+    // Load-safe: do not read appZType before it is declared later in App().
+    // This preserves the same zone-first behavior using the current liveZ array.
+    const liveZoneTypeNow = (liveZ[0] && liveZ[0].type !== "dead") ? liveZ[0].type : null;
+    const zDir = liveZoneTypeNow || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
-      const t = Date.parse(ev.pub||0);
-      if(!t || Number.isNaN(t)) return null;
+    const allEvents = normalizeAndKeepOverlaps(buildUnifiedNewsEvents(nowMs), nowMs).map(ev=>{
+      const t = getEventTimeMs(ev);
+      if(!t) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
       const win = eventWindowMinutes(ev);
       const isBreaking = replayEventType(ev) === "breaking";
@@ -1644,7 +1649,7 @@ function App() {
       else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
       else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
-    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
+    }).filter(Boolean).sort((a,b)=>(getEventTimeMs(b)||0)-(getEventTimeMs(a)||0));
 
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
@@ -1659,7 +1664,7 @@ function App() {
       const dir = zDir === "buy" ? 1 : -1;
       tpLevels = {
         fibs: fibs.map(f=>({ pct: f/100, price: Math.round(btcPrice*(1+dir*(f/1000))) })),
-        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct:t, price: Math.round(btcPrice*(1+dir*t/100)) })),
+        tps:  tps.map((t,i)=>({ label:TP_LADDER_LABELS[i] || `TP${i+1}`, pct:t, price: Math.round(btcPrice*(1+dir*t/100)) })),
       };
     }
 
@@ -2093,14 +2098,79 @@ function App() {
     return "breaking";
   }
 
+  function getEventTimeMs(ev){
+    const raw = ev?.date || ev?.pub || ev?.time || ev?.timestamp || ((ev?.d && ev?.t) ? `${ev.d}T${ev.t}:00` : "");
+    const t = Date.parse(raw || 0);
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  function strictDedupeFeedItems(items){
+    const seen = new Set();
+    return (items || []).filter(Boolean).filter(ev=>{
+      const key = makeStrictEventKey(ev);
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  // STRICT ACTIVE-WINDOW + OVERLAP PATCH
+  // Keeps overlapping economic events live together, uses newest-first ordering,
+  // and only removes true duplicates by strict event key.
+  function getEventWindowMinutes(ev){
+    const impact = Number(ev?.impact || ev?.stars || ev?.importance || 1);
+    const src = String(ev?.source || ev?.feed || ev?.type || ev?.kind || "").toLowerCase();
+
+    if(src.includes("breaking") || src.includes("reuters") || src.includes("bloomberg") || replayEventType(ev)==="breaking" || replayEventType(ev)==="speech"){
+      return { before: 0, after: 20 };
+    }
+
+    if(impact >= 3) return { before: 90, after: 90 };
+    if(impact === 2) return { before: 60, after: 60 };
+    return { before: 30, after: 30 };
+  }
+
   function eventWindowMinutes(ev){
-    const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
-    const type = replayEventType(ev);
-    if(type === "breaking") return {pre:0, post:20};
-    if(type === "speech") return {pre:0, post:20};
-    if(stars === 1) return {pre:20, post:20};
-    if(stars === 2) return {pre:50, post:20};
-    return {pre:90, post:20};
+    const w = getEventWindowMinutes(ev);
+    return { pre: w.before, post: w.after, before: w.before, after: w.after };
+  }
+
+  function isEventActiveAt(ev, currentTime){
+    const t = getEventTimeMs(ev);
+    if(!t) return false;
+
+    const w = getEventWindowMinutes(ev);
+    const now = new Date(currentTime).getTime();
+    if(!Number.isFinite(now)) return false;
+
+    return now >= t - w.before * 60000 && now <= t + w.after * 60000;
+  }
+
+  function makeStrictEventKey(ev){
+    return [
+      canonicalNewsText(ev?.title || ev?.headline || ev?.label || ev?.l || ""),
+      ev?.source || ev?.feed || "",
+      ev?.country || ev?.currency || "",
+      getEventTimeMs(ev) || ""
+    ].join("|");
+  }
+
+  function normalizeAndKeepOverlaps(events, currentTime){
+    const seen = new Set();
+
+    return (events || [])
+      .filter(ev => isEventActiveAt(ev, currentTime))
+      .sort((a,b) => {
+        const ta = getEventTimeMs(a) || 0;
+        const tb = getEventTimeMs(b) || 0;
+        return tb - ta; // newest first
+      })
+      .filter(ev => {
+        const key = makeStrictEventKey(ev);
+        if(seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
   }
 
   function calendarAdvanceMinutes(item){
@@ -2143,38 +2213,169 @@ function App() {
 
     // Calendar/eco events: keep 90 days for backtest viewing
     // Breaking/manual events: keep 7 days (live news)
-    return dedupeFeedItems([...scheduled, ...breaking, ...manual])
+    return [...scheduled, ...breaking, ...manual]
       .filter(ev=>{
-        const t = Date.parse(ev.pub||0);
-        if(!t || Number.isNaN(t)) return false;
+        const t = getEventTimeMs(ev);
+        if(!t) return false;
         const age = nowMs - t;
         const isCalendar = ev.kind === "event" || ev.kind === "speech";
         const maxAge = isCalendar ? 90*24*60*60*1000 : 7*24*60*60*1000;
         return age <= maxAge;
       })
-      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+      .sort((a,b)=>(getEventTimeMs(a)||0)-(getEventTimeMs(b)||0));
   }
 
+
+  /* =========================================================
+     REGIME-BASED USD ENTITY SIGN
+  ========================================================= */
+
+  function getRegimeUSDSign(now){
+    const d = now instanceof Date ? now : new Date(now || Date.now());
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const t = h + (m >= 30 ? 0.5 : 0);
+
+    // BUY CORE REGIME
+    // USD− / mirror
+    if(
+      (t >= 4.5 && t < 10.5)
+    ){
+      return -1;
+    }
+
+    // SELL RESET REGIME
+    // USD+ / aligned
+    return +1;
+  }
+
+  /* =========================================================
+     USD FINANCIAL ENTITY DETECTION
+  ========================================================= */
+
+  function isUSDFinancialEntity(text){
+    const s = String(text || "").toLowerCase();
+
+    return [
+      "treasury",
+      "bond",
+      "bonds",
+      "yield",
+      "yields",
+      "wall street",
+      "stocks",
+      "oil",
+      "fed",
+      "federal reserve",
+      "dxy",
+      "ism"
+    ].some(k => s.includes(k));
+  }
+
+  function makeRegimeDate(h24=null, m=0){
+    const d = new Date();
+    if(Number.isFinite(Number(h24))){
+      d.setHours(Number(h24), Number(m)||0, 0, 0);
+    }
+    return d;
+  }
+
+  function isOddHour(now){
+    const d = now instanceof Date ? now : new Date(now || Date.now());
+    return (d.getHours() % 2) !== 0;
+  }
+
+  /* =========================================================
+     FALLBACK COUNTRY LOGIC
+  ========================================================= */
+
+  function inferCountryCharge(ev, now){
+    const d = now instanceof Date ? now : new Date(now || Date.now());
+    const h24 = d.getHours();
+    const m = d.getMinutes();
+    const text = `${ev?.title || ""} ${ev?.headline || ""} ${ev?.desc || ""} ${ev?.note || ""}`;
+    const inferred = String(ev?.country || ev?.currency || inferCountryCode(text) || "USD").toUpperCase().slice(0,3);
+    const rateLocked = getCountryRateCharge(inferred || "USD", ev?.rateValue, h24, m);
+    return rateLocked.charge || getRegimeUSDSign(d);
+  }
+
+  /* =========================================================
+     ENTITY SIGN FROM ACTIVE REGIME
+  ========================================================= */
+
+  function getEntitySignFromRegime(ev, now){
+
+    const text =
+      `${ev?.title || ""} ${ev?.headline || ""}`.toLowerCase();
+
+    // USD financial entities inherit regime USD sign
+    if(isUSDFinancialEntity(text)){
+      return getRegimeUSDSign(now);
+    }
+
+    // fallback country logic
+    return inferCountryCharge(ev, now);
+  }
+
+  /* =========================================================
+     STACKING RULE
+  ========================================================= */
+
+  function resolveStackedSigns(signs){
+
+    if(!signs.length) return 0;
+
+    let pos = signs.filter(x => x > 0).length;
+    let neg = signs.filter(x => x < 0).length;
+
+    // mixed always negative
+    if(pos > 0 && neg > 0){
+      return -1;
+    }
+
+    // 2+ same sign flips ONCE
+    if(pos >= 2){
+      return -1;
+    }
+
+    if(neg >= 2){
+      return +1;
+    }
+
+    return signs[0];
+  }
+
+  /* =========================================================
+     FINAL ACTIVE NEWS SIGN
+  ========================================================= */
+
+  function getFinalNewsSign(activeEvents, now){
+
+    const signs = (activeEvents || []).map(ev =>
+      getEntitySignFromRegime(ev, now)
+    );
+
+    return resolveStackedSigns(signs);
+  }
 
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
 
-    // De-dupe first so the same headline does not count twice in the stack.
+    // STRICT overlap-safe de-dupe:
+    // Only remove true duplicates with same normalized title + source/feed + country/currency + exact timestamp.
+    // Do NOT fuzzy-remove similar headlines within 90 minutes, because that hides legitimate overlapping events.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || "").slice(0,160);
     const duplicateEvents = [];
     const allActive = [];
+    const seenActiveKeys = new Set();
     rawActive.forEach(ev=>{
-      const key = normalizeNewsKey(ev);
-      const t = Date.parse(ev?.pub||ev?.date||0);
-      const isDup = key && allActive.some(prev=>{
-        const pt = Date.parse(prev?.pub||prev?.date||0);
-        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 90*60000;
-        return closeTime && newsTextSimilar(key, normalizeNewsKey(prev));
-      });
-      if(isDup) duplicateEvents.push(ev);
-      else allActive.push(ev);
+      const key = makeStrictEventKey(ev);
+      if(seenActiveKeys.has(key)) duplicateEvents.push(ev);
+      else {
+        seenActiveKeys.add(key);
+        allActive.push(ev);
+      }
     });
 
     const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
@@ -2182,20 +2383,47 @@ function App() {
     const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
 
     // USD / high-interest-rate anchor sign for unknown-country news.
-    // IMPORTANT: this is NOT step fallback.
-    // Unknown active news receives the USD/high-rate anchor sign first:
-    // Mirror = - ; Aligned = +. Step direction is used only when there is no active news.
-    let usdAnchorCharge = 1;
-    if(Number.isFinite(Number(h24))){
-      try{ usdAnchorCharge = getConnectorMode(Number(h24), Number(m)||0) === "aligned" ? 1 : -1; }
-      catch(_){ usdAnchorCharge = slotCharge; }
-    } else {
-      // If a caller does not pass time, fall back to the current slot sign so unknown news still has a sign.
-      usdAnchorCharge = slotCharge;
-    }
+    // IMPORTANT: regime determines the USD entity sign BEFORE stacking.
+    // BUY CORE (4:30-10:30) => USD−. SELL RESET => USD+.
+    const regimeNow = makeRegimeDate(h24, m);
+    let usdAnchorCharge = getRegimeUSDSign(regimeNow);
+
+    const hasSpecificAsiaCountry = (rawText="")=>{
+      const t = String(rawText||"").toUpperCase();
+      return /(^|\W)(JAPAN|JAPANESE|TOKYO|NIKKEI|TOPIX|BOJ|JPY|YEN|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|CNY|CNH|YUAN|HONG\s+KONG|HANG\s+SENG|HKD|KOREA|SOUTH\s+KOREA|SEOUL|KOSPI|KRW|TAIWAN|TAIPEI|TAIEX|TWD|INDIA|INDIAN|NIFTY|SENSEX|INR|SINGAPORE|SGX|SGD|AUSTRALIA|AUSTRALIAN|ASX|AUD|RBA|NEW\s+ZEALAND|NZD)(\W|$)/.test(t);
+    };
+
+    const isGenericAsiaHeadline = (rawText="")=>{
+      const t = String(rawText||"").toUpperCase();
+      return /(^|\W)(ASIA|ASIAN|ASIA\-PACIFIC|APAC|REGIONAL\s+ASIA|ACROSS\s+ASIA)(\W|$)/.test(t) && !hasSpecificAsiaCountry(t);
+    };
+
+    const isUsdDefaultHeadline = (rawText="")=>{
+      const t = String(rawText||"").toUpperCase();
+      const hits = getNewsEntityGlossary(t);
+      const foreignHits = hits.filter(x=>!x.anchor && x.country !== "USD");
+      // Derrick lock: Treasuries, yields, bonds, ISM, and unknown-style macro headlines
+      // default to the active USD sign at that time. They must not be turned into
+      // a fake multi-entity flip just because the headline also names oil/stocks/risk.
+      const usdDefaultTerm = /(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|YIELDS?|BONDS?|BOND\s+YIELDS?|NOTES?|BILLS?|T\-?BILLS?|T\-?NOTES?|30\s?Y(?:EAR)?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|ISM|PMI|GDP|CPI|PPI|PCE|NFP|PAYROLLS?|JOBLESS|UNEMPLOYMENT|JOLTS|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t);
+      return usdDefaultTerm && foreignHits.length === 0;
+    };
 
     const getNewsEventCharge = (ev)=>{
-      const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
+      const rawText = `${ev?.title||""} ${ev?.headline||""} ${ev?.desc||""} ${ev?.note||""}`;
+
+      // USD financial entities inherit the active regime sign BEFORE stacking.
+      // Treasury / bonds / yields / Wall Street / stocks / oil / Fed / DXY / ISM
+      // are treated as USD− during BUY CORE and USD+ during SELL RESET.
+      if(isUSDFinancialEntity(rawText)){
+        return { charge: getRegimeUSDSign(regimeNow), country:"USD", unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"USD FINANCIAL ENTITY→ACTIVE REGIME SIGN", rateValue: USD_RATE, rateRelation:"USD_REGIME_ENTITY", regime: getRegimeUSDSign(regimeNow) < 0 ? "BUY_CORE" : "SELL_RESET", connector: getRegimeUSDSign(regimeNow) < 0 ? "mirror" : "aligned" };
+      }
+
+      // Asia rule: generic "Asia/Asian markets" is negative unless a specific country is named.
+      if(isGenericAsiaHeadline(rawText)){
+        return { charge:-1, country:"ASIA", unknownCountryFallback:false, tickerOverride:true, lockedUsdDefault:false, asiaDefault:true, tickerOverrideReason:"GENERIC ASIA→NEWS- unless specific country named", rateValue:null };
+      }
+
       const tickerOverride = getTickerChargeOverride(rawText);
       if(tickerOverride){
         return {
@@ -2203,27 +2431,30 @@ function App() {
           country: tickerOverride.country,
           unknownCountryFallback:false,
           tickerOverride:true,
+          lockedUsdDefault:false,
+          asiaDefault:false,
           tickerOverrideReason: tickerOverride.reason,
           rateValue: tickerOverride.country === "USD" ? USD_RATE : getRateForSymbol(tickerOverride.country)
         };
       }
 
+      // Treasury / yields / bonds / ISM / unknown-style U.S. macro: same sign as USD at that time.
+      if(isUsdDefaultHeadline(rawText)){
+        return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"USD DEFAULT: Treasury/bonds/ISM/unknown macro follows active USD sign", rateValue: USD_RATE };
+      }
+
       const inferred = String(ev?.country || ev?.currency || inferCountryCode(rawText) || "").toUpperCase().slice(0,3);
 
       // Unknown country: do NOT step-fallback. Use USD/high-rate anchor sign first.
-      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, tickerOverride:false, rateValue: USD_RATE };
+      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"UNKNOWN→USD DEFAULT", rateValue: USD_RATE };
 
-      if(inferred === "USD") return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, tickerOverride:false, rateValue: USD_RATE };
-
-      const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
-      if(Number.isFinite(rate)){
-        // Higher than USD = same as USD anchor. Equal/lower than USD = opposite of USD anchor.
-        return { charge: rate > USD_RATE ? usdAnchorCharge : -usdAnchorCharge, country: inferred, unknownCountryFallback:false, tickerOverride:false, rateValue: rate };
+      const rateLocked = getCountryRateCharge(inferred || "USD", ev?.rateValue, h24, m);
+      if(rateLocked.relation === "MISSING_RATE_USD_DEFAULT"){
+        // Known country but missing rate: do not let article wording override the rate-anchor model.
+        // Use USD/high-rate anchor until an actual rate is known.
+        return { charge: rateLocked.charge, country: rateLocked.country, unknownCountryFallback:true, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"MISSING RATE→USD DEFAULT", rateValue: null, rateRelation: rateLocked.relation, regime: rateLocked.regime, connector: rateLocked.mode };
       }
-
-      // Known country but missing rate: do not let article wording override the rate-anchor model.
-      // Use USD/high-rate anchor until an actual rate is known.
-      return { charge: usdAnchorCharge, country: inferred || "USD", unknownCountryFallback:true, tickerOverride:false, rateValue: null };
+      return { charge: rateLocked.charge, country: rateLocked.country, unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:false, asiaDefault:false, rateValue: rateLocked.rateValue, rateRelation: rateLocked.relation, regime: rateLocked.regime, connector: rateLocked.mode };
     };
 
     const chargedEvents = allActive
@@ -2233,7 +2464,7 @@ function App() {
         // Plural/list stacking only applies when this is NOT a dot-suffix ticker headline
         // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
         // "USCUF.PK" or "LALI.V" does not create fake extra events.
-        const glossaryWeight = resolved.tickerOverride ? 1 : pluralStackWeightFromHeadline(rawText);
+        const glossaryWeight = (resolved.tickerOverride || resolved.lockedUsdDefault || resolved.asiaDefault) ? 1 : pluralStackWeightFromHeadline(rawText);
         const glossaryHits = getNewsEntityGlossary(rawText);
         return {
           ...ev,
@@ -2245,8 +2476,13 @@ function App() {
           glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
           tickerOverride: !!resolved.tickerOverride,
+          lockedUsdDefault: !!resolved.lockedUsdDefault,
+          asiaDefault: !!resolved.asiaDefault,
           tickerOverrideReason: resolved.tickerOverrideReason || "",
           rateValue: resolved.rateValue,
+          rateRelation: resolved.rateRelation || (resolved.country === "USD" ? "USD_ANCHOR" : ""),
+          rateRegime: resolved.regime || "",
+          rateConnector: resolved.connector || "",
         };
       })
       .filter(ev=>ev.effectiveCharge!==0);
@@ -2312,32 +2548,29 @@ function App() {
       newsCharge = chargedEvents[0].effectiveCharge;
       dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"}${chargedEvents[0].unknownCountryFallback?" anchor fallback":""}`;
     } else if(chargedEvents.length >= 2){
-      // MULTI-NEWS RESOLUTION — group SAME SIGNS first, then combine the resolved groups.
-      // + x1 => +        - x1 => -
-      // + x2 or more => -     - x2 or more => +
-      // Then combine the resolved groups with news math:
-      // + + => -   - - => +   + - / - + => -
-      const positiveCount = positives;
-      const negativeCount = negatives;
-      const positiveResolved = resolveGroupedCharge(1, positiveCount);
-      const negativeResolved = resolveGroupedCharge(-1, negativeCount);
+      // STACKING RULE — regime/entity signs are resolved first, then stacked.
+      // mixed always negative
+      // 2+ same sign flips ONCE
+      const expandedSigns = [];
+      chargedEvents.forEach(ev=>{
+        const w = Math.max(1, Number(ev.eventWeight)||1);
+        for(let i=0;i<w;i++) expandedSigns.push(ev.effectiveCharge);
+      });
+      const positiveCount = expandedSigns.filter(x=>x > 0).length;
+      const negativeCount = expandedSigns.filter(x=>x < 0).length;
 
-      if(positiveCount > 0){
-        foldSteps.push(`POSITIVE GROUP + x${positiveCount} -> ${positiveResolved===1?'+':'-'}`);
-      }
-      if(negativeCount > 0){
-        foldSteps.push(`NEGATIVE GROUP - x${negativeCount} -> ${negativeResolved===1?'+':'-'}`);
-      }
+      newsCharge = resolveStackedSigns(expandedSigns);
 
       if(positiveCount > 0 && negativeCount > 0){
-        newsCharge = combineCharges(positiveResolved, negativeResolved);
-        foldSteps.push(`COMBINE ${positiveResolved===1?'+':'-'} ${negativeResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
-      } else {
-        newsCharge = positiveCount > 0 ? positiveResolved : negativeResolved;
+        foldSteps.push(`MIXED SIGNS + x${positiveCount} / - x${negativeCount} -> -`);
+      } else if(positiveCount >= 2){
+        foldSteps.push(`POSITIVE GROUP + x${positiveCount} -> - (2+ flips once)`);
+      } else if(negativeCount >= 2){
+        foldSteps.push(`NEGATIVE GROUP - x${negativeCount} -> + (2+ flips once)`);
       }
 
-      chargeFlip = true;
-      dominantSource = "grouped same-sign news math";
+      chargeFlip = positiveCount >= 2 || negativeCount >= 2 || (positiveCount > 0 && negativeCount > 0);
+      dominantSource = "regime-first stacked news math";
     }
 
     clusterResult = {
@@ -2351,23 +2584,26 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Unique news only. Dot suffixes do not stack. Plural/list headlines stack. Unknown country acts as USD/high-rate anchor.",
+      rule: "Regime-first entity sign. USD financial entities follow active USD regime before stacking. Mixed = -, 2+ same sign flips once.",
       foldSteps,
     };
 
     // FINAL DIRECTION LAYER
     // Fallback/step direction is ONLY used when there is no active news.
     // If news is active, compare the resolved NEWS SIGN against the odd/even HOUR SIGN.
+    // SAME SIGN = BUY. DIFFERENT SIGN = SELL.
     const stepSign = baseCharge === 1 ? "+" : "-";
-    let finalDirection = newsCharge === 0
+    const hourSign = isOddHour(regimeNow) ? -1 : +1;
+    const finalNewsSign = newsCharge;
+    let finalDirection = finalNewsSign === 0
       ? null
-      : (newsCharge === slotCharge ? "buy" : "sell");
+      : (hourSign === finalNewsSign ? "buy" : "sell");
 
     const sellRestriction = false;
     const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
     const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
-    const slotSign = slotCharge === 1 ? "+" : "-";
-    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
+    const slotSign = hourSign === 1 ? "+" : "-";
+    const newsSign = finalNewsSign === 1 ? "+" : finalNewsSign === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `NEWS ACTIVE · NO DIRECTED SIGN · FINAL WAIT`
       : `NEWS ${newsSign} · HOUR ${slotSign} · FINAL ${finalDirection.toUpperCase()}`;
@@ -2450,6 +2686,27 @@ function App() {
     const code = String(sym||"").toUpperCase().slice(0,3);
     const hit = CHARGE_CURRENCIES.find(c=>c.sym===code);
     return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
+  }
+
+  // Derrick country-rate sign lock:
+  // BUY CORE / mirror / USD−: higher-than-USD rates are negative, lower/equal rates are positive.
+  // SELL RESET / aligned / USD+: higher-than-USD rates are positive, lower/equal rates are negative.
+  // This is the single helper used by active news so headline country charge cannot drift.
+  function getCountryRateCharge(sym, rateValue, h24, m){
+    const code = String(sym||"USD").toUpperCase().slice(0,3) || "USD";
+    let mode = "aligned";
+    try{ mode = getConnectorMode(Number(h24)||0, Number(m)||0); }catch(_){ mode = "aligned"; }
+    const usdAnchorCharge = mode === "mirror" ? -1 : 1;
+    if(code === "USD"){
+      return { charge: usdAnchorCharge, country: "USD", mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: "USD_ANCHOR", rateValue: USD_RATE };
+    }
+    const rate = Number.isFinite(Number(rateValue)) ? Number(rateValue) : getRateForSymbol(code);
+    if(Number.isFinite(rate)){
+      const higher = rate > USD_RATE;
+      const charge = higher ? usdAnchorCharge : -usdAnchorCharge;
+      return { charge, country: code, mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: higher ? "HIGHER_THAN_USD" : "LOWER_OR_EQUAL_USD", rateValue: rate };
+    }
+    return { charge: usdAnchorCharge, country: code, mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: "MISSING_RATE_USD_DEFAULT", rateValue: null };
   }
 
 
@@ -3625,47 +3882,165 @@ function App() {
     return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"20m pre-window + 20m event duration" };
   }
 
-  // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
-  // A WIN = price moved the required % in the right direction before the window expired
-  // Using 1H candle H/L as proxy (we have hourly data; window is <=80min so 1H is fair)
-  function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
-    if(!openPrice) return null;
-    const w = sigWindow || getSignalWindow([]);
-    const { tp, tpLabel, tpPct, exitRule } = w;
-    if(signal==="BUY"){
-      const target = openPrice*(1+tp);
-      const hit = highPrice >= target;
+  // ── CLEAN TRADE VALIDATION ENGINE ───────────────────────────────────────
+  // BUY and SELL use the same rules:
+  // 1) Entry triggered
+  // 2) Stop not hit first
+  // 3) TP1 reached = win
+  // 4) TP2 reached = extended win
+  // 5) TP3 reached = full expansion
+  // IMPORTANT: this checks WHAT HIT FIRST. It does NOT count "eventually touched" TP
+  // after the invalidation/stop already hit.
+  function bePriceLevels(signal, entry, tpPct, stopPct){
+    if(signal === "BUY"){
       return {
-        correct: hit, tp1Hit: hit,
-        label:  hit ? `${tpLabel} (${tpPct})` : "MISS",
-        detail: hit
-          ? `+${tpPct} hit — exit at ${tpLabel} per ${exitRule}`
-          : `Needed +${tpPct} before ${exitRule} — price only reached +${(((highPrice/openPrice)-1)*100).toFixed(2)}%`,
-        windowLabel: exitRule, tp, tpLabel, tpPct,
+        tp: entry * (1 + tpPct),
+        stop: entry * (1 - stopPct),
       };
     }
-    if(signal==="SELL"){
-      const target = openPrice*(1-tp);
-      const hit = lowPrice <= target;
+    if(signal === "SELL"){
       return {
-        correct: hit, tp1Hit: hit,
-        label:  hit ? `${tpLabel} (${tpPct})` : "MISS",
-        detail: hit
-          ? `-${tpPct} hit — exit at ${tpLabel} per ${exitRule}`
-          : `Needed -${tpPct} before ${exitRule} — price only dropped -${(((openPrice/lowPrice)-1)*100).toFixed(2)}%`,
-        windowLabel: exitRule, tp, tpLabel, tpPct,
+        tp: entry * (1 - tpPct),
+        stop: entry * (1 + stopPct),
       };
     }
     return null;
   }
 
+  function beTouched(signal, row, entry, tpPct, stopPct){
+    const high = Number(row?.high) || entry;
+    const low  = Number(row?.low)  || entry;
+    const lv = bePriceLevels(signal, entry, tpPct, stopPct);
+    if(!lv) return {tp:false, stop:false};
+    if(signal === "BUY"){
+      return { tp: high >= lv.tp, stop: low <= lv.stop };
+    }
+    if(signal === "SELL"){
+      return { tp: low <= lv.tp, stop: high >= lv.stop };
+    }
+    return {tp:false, stop:false};
+  }
+
+  function beFirstHit(signal, entry, rows, tpPct, stopPct){
+    const safeRows = Array.isArray(rows) && rows.length ? rows : [];
+    for(let i=0;i<safeRows.length;i++){
+      const hit = beTouched(signal, safeRows[i], entry, tpPct, stopPct);
+      // Same candle order is unknowable with OHLC, so score conservatively.
+      // This prevents fake wins when both stop and TP were inside the same bar.
+      if(hit.stop && hit.tp) return { outcome:"LOSS", reason:"STOP_AND_TP_SAME_CANDLE", index:i };
+      if(hit.stop) return { outcome:"LOSS", reason:"STOP_FIRST", index:i };
+      if(hit.tp) return { outcome:"TP", reason:"TP_FIRST", index:i };
+    }
+    return { outcome:"TIMEOUT", reason:"NO_TP_OR_STOP", index:-1 };
+  }
+
+  function beDirectionalStats(signal, entry, rows){
+    const safeRows = Array.isArray(rows) && rows.length ? rows : [];
+    const high = Math.max(...safeRows.map(x=>Number(x.high)||entry), entry);
+    const low  = Math.min(...safeRows.map(x=>Number(x.low)||entry), entry);
+    const maxClose = Math.max(...safeRows.map(x=>Number(x.close)||entry), entry);
+    const minClose = Math.min(...safeRows.map(x=>Number(x.close)||entry), entry);
+    if(signal === "BUY"){
+      return {
+        maxMove: Number((((high/entry)-1)*100).toFixed(2)),
+        bodyMove: Number((((maxClose/entry)-1)*100).toFixed(2)),
+        high, low, maxClose, minClose,
+      };
+    }
+    if(signal === "SELL"){
+      return {
+        maxMove: -Number((((entry/low)-1)*100).toFixed(2)),
+        bodyMove: -Number((((entry/minClose)-1)*100).toFixed(2)),
+        high, low, maxClose, minClose,
+      };
+    }
+    return {maxMove:0, bodyMove:0, high, low, maxClose, minClose};
+  }
+
+  function beCleanScore(signal, entry, rows, sigWindow){
+    if(!entry || (signal!=="BUY" && signal!=="SELL")) return null;
+    const safeRows = Array.isArray(rows) && rows.length ? rows : [{open:entry, high:entry, low:entry, close:entry}];
+    const w = sigWindow || getSignalWindow([]);
+    const exitTP = Number(w.tp || 0.0003);
+    const stopPct = Number(w.stopPct || w.stop || exitTP); // structure stop can override later
+    const {exitRule, tpLabel, tpPct} = w;
+    const first = beFirstHit(signal, entry, safeRows, exitTP, stopPct);
+    const stats = beDirectionalStats(signal, entry, safeRows);
+    const tp1Hit = first.outcome === "TP";
+
+    const levelHits = {};
+    const bodyHits = {};
+    if(typeof RP_TP_LEVELS !== "undefined"){
+      for(const l of RP_TP_LEVELS){
+        const hit = beTouched(signal, {high:stats.high, low:stats.low}, entry, l.value, stopPct).tp;
+        const bodyHit = signal === "BUY"
+          ? stats.maxClose >= entry*(1+l.value)
+          : stats.minClose <= entry*(1-l.value);
+        // Gate every extension behind TP1-first validation.
+        levelHits["hit"+l.key] = tp1Hit && hit;
+        bodyHits["body"+l.key] = tp1Hit && bodyHit;
+      }
+    }
+
+    const tp2Level = (typeof RP_TP_LEVELS !== "undefined" && RP_TP_LEVELS[1]) ? RP_TP_LEVELS[1].key : "006";
+    const tp3Level = (typeof RP_TP_LEVELS !== "undefined" && RP_TP_LEVELS[2]) ? RP_TP_LEVELS[2].key : "009";
+    const tp2Hit = !!levelHits["hit"+tp2Level];
+    const tp3Hit = !!levelHits["hit"+tp3Level];
+    const bodyConfirmed = tp1Hit && (signal === "BUY"
+      ? stats.maxClose >= entry*(1+exitTP)
+      : stats.minClose <= entry*(1-exitTP));
+
+    const correct = tp1Hit;
+    const label = first.outcome === "LOSS"
+      ? "LOSS — STOP FIRST"
+      : tp1Hit
+        ? (tp3Hit ? "FULL EXPANSION" : tp2Hit ? "EXTENDED WIN" : "WIN — "+tpLabel)
+        : "TIMEOUT / MISS";
+
+    const detail = first.outcome === "LOSS"
+      ? (first.reason === "STOP_AND_TP_SAME_CANDLE"
+          ? "Stop and TP were inside the same candle — counted as loss to prevent false wins"
+          : "Stop hit before TP1 — loss")
+      : tp1Hit
+        ? `${tpPct} TP1 reached first${tp2Hit?" · TP2 extended":""}${tp3Hit?" · TP3 full expansion":""}${bodyConfirmed?" · body confirmed":" · wick only"}`
+        : `No TP1 or stop reached inside ${exitRule} — timeout/miss`;
+
+    return {
+      correct,
+      entryTriggered:true,
+      stopFirst:first.outcome === "LOSS",
+      tp1Hit,
+      tp2Hit,
+      tp3Hit,
+      extendedWin: tp2Hit,
+      fullExpansion: tp3Hit,
+      validationOrder:first.reason,
+      firstHitIndex:first.index,
+      label, detail,
+      bodyConfirmed,
+      ...levelHits,
+      ...bodyHits,
+      windowLabel: exitRule,
+      tp: exitTP,
+      tpPct,
+      tpLabel,
+      stopPct,
+      maxMove: stats.maxMove,
+      bodyMove: stats.bodyMove,
+      candlesUsed: safeRows.length,
+    };
+  }
+
+  // Backward-compatible scorer for any older display path.
+  function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
+    if(!openPrice) return null;
+    const row = {open:openPrice, high:highPrice, low:lowPrice, close:openPrice};
+    return beCleanScore(signal, openPrice, [row], sigWindow || getSignalWindow([]));
+  }
+
   function rpActiveEventsFor(tsMs, eventsPool){
-    const pool = eventsPool || loggedLastWeek;
-    return pool.filter(ev=>{
-      const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
-      const w=eventWindowMinutes(ev);
-      return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
-    }).map(ev=>{
+    const pool = normalizeAndKeepOverlaps(eventsPool || loggedLastWeek, tsMs);
+    return pool.map(ev=>{
       // Re-classify polarity on-the-fly using current keyword list
       if(Number(ev.polarity)!==0) return ev;
       const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
@@ -3710,47 +4085,45 @@ function App() {
         return candleByTs[sortedTs[idx+1]]||null;
       }
 
-      // ── SCORER — updated replay extension ladder ─────────────────────────────
-      const RP_TP_LEVELS = [
-        { key:"003",  label:"0.03%", value:0.0003 },
-        { key:"006",  label:"0.06%", value:0.0006 },
-        { key:"009",  label:"0.09%", value:0.0009 },
-        { key:"012",  label:"0.12%", value:0.0012 },
-        { key:"030",  label:"0.3%",  value:0.003  },
-        { key:"060",  label:"0.6%",  value:0.006  },
-        { key:"090",  label:"0.9%",  value:0.009  },
-        { key:"120",  label:"1.2%",  value:0.012  },
-      ];
-
-      function rpScore2(signal, c1, c2, sigWindow){
-        if(!c1||!c1.open) return null;
-        const {exitRule, type, tp: exitTP, tpLabel, tpPct} = sigWindow;
-        const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
-        const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
-
-        if(signal==="BUY"){
-          const hit = high >= c1.open*(1+exitTP);
-          const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
-          return {
-            correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
-          };
+      // Median candle size lets the scorer include the true replay window without
+      // assuming 30m/1h. This keeps the old replay intact but stops false TP misses
+      // caused by checking only one fixed candle pair.
+      const candleMs = (()=>{
+        const diffs = [];
+        for(let i=1;i<sortedTs.length;i++){
+          const d = sortedTs[i]-sortedTs[i-1];
+          if(d>0) diffs.push(d);
         }
-        if(signal==="SELL"){
-          const hit = low <= c1.open*(1-exitTP);
-          const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
-          return {
-            correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : "MISS",
-            detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
-          };
-        }
-        return null;
+        if(!diffs.length) return 30*60000;
+        diffs.sort((a,b)=>a-b);
+        return diffs[Math.floor(diffs.length/2)] || 30*60000;
+      })();
+
+      function getReplayWindowCandles(startTs, windowMins){
+        const mins = Math.max(1, Number(windowMins)||20);
+        const endTs = startTs + mins*60000;
+        const rows = sortedTs
+          .filter(ts => ts < endTs && (ts + candleMs) > startTs)
+          .map(ts => candleByTs[ts])
+          .filter(Boolean);
+        return rows.length ? rows : [candleByTs[startTs]].filter(Boolean);
+      }
+
+      // ── SCORER — wick-based burst / TP extension ladder ─────────────────────
+      // A WIN = price REACHED the target during the replay window. That uses
+      // high/low wick expansion, not close-to-close, so fast news bursts are not
+      // counted as false misses. Body confirmation is tracked separately.
+      const RP_TP_LEVELS = TP_LADDER_LEVELS.map((pct, i)=>({
+        key: String(Math.round(pct*100)).padStart(3,"0"),
+        label: (pct >= 1 ? pct.toFixed(1) : pct.toString()) + "%",
+        value: pct/100,
+        ext: TP_LADDER_LABELS[i] || `EXT ${i+1}`
+      }));
+
+      function rpScore2(signal, c1, windowCandles, sigWindow){
+        if(!c1 || !c1.open) return null;
+        const rows = Array.isArray(windowCandles) && windowCandles.length ? windowCandles : [c1];
+        return beCleanScore(signal, c1.open, rows, sigWindow);
       }
 
       const replaySlotLabelFor = (events)=>{
@@ -3779,8 +4152,8 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const nextC = getNextCandle(c.ts);
-        const score = rpScore2(replay.signal, c, nextC, sigWindow);
+        const windowCandles = getReplayWindowCandles(c.ts, sigWindow.windowMins);
+        const score = rpScore2(replay.signal, c, windowCandles, sigWindow);
 
         if(!hasNews || !replay.signal) continue;
 
@@ -3793,7 +4166,7 @@ function App() {
           high: Math.round(c.high), low: Math.round(c.low),
           isExecute: isExec, isTrap: slotLabel==="TRAP", hasNews, quality,
           slotType: slotLabel,
-          sigWindow, ...replay, score,
+          sigWindow, windowCandlesUsed: score?.candlesUsed || 1, ...replay, score,
         });
       }
 
@@ -3884,13 +4257,14 @@ function App() {
     function getETParts(tsMs){ return rpGetETParts(tsMs); }
 
     const sigCol = s => s==="BUY"?G:R;
+    const tpLadderText = TP_LADDER_LEVELS.map((pct,i)=>`${TP_LADDER_LABELS[i]} ${pct}%`).join(" · ");
     const current = results?.newsSessions?.[playIdx] || null;
 
     return(
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
+          Replay runs in MARKET-MOVING-NEWS-ONLY mode and now grades with clean first-hit validation: stop first = loss, TP1 first = win.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3920,7 +4294,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>VALIDATION: STOP FIRST = LOSS · TP1 = WIN · TP2 = EXTENDED · TP3 = FULL</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -3973,7 +4347,7 @@ function App() {
                 </div>
                 {/* 8-level TP hit ladder per spec */}
                 <div style={{marginBottom:6}}>
-                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — EXITS / EXTENSIONS</div>
+                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — CLEAN FIRST-HIT VALIDATION</div>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {[
                       {label:"EXT 1", pct:"0.03%", wr:results.wr003, primary:true},
@@ -4124,12 +4498,15 @@ function App() {
 
                 {/* EXIT WINDOW — the signal's own lifespan */}
                 <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",marginBottom:6,letterSpacing:1}}>
-                  EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGET: {current.sigWindow?.tpLabel} {current.sigWindow?.tpPct}
+                  EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGETS: {tpLadderText}
                 </div>
 
                 {/* WIN/LOSS */}
-                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
+                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:6,lineHeight:1.6}}>
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
+                </div>
+                <div style={{fontSize:10,color:"#666",fontFamily:"'Share Tech Mono',monospace",marginBottom:8,lineHeight:1.6}}>
+                  TP LEVELS: {tpLadderText}
                 </div>
 
                 {/* Clean signal summary */}
@@ -4592,7 +4969,7 @@ const BacktestTab = ()=>{
                 source:item.source||"Manual Replay",
                 color:item.kind==="breaking"?"#ff6b35":"#00aaff"
               }));
-              const allMerged = dedupeFeedItems([...calendarTimeline, ...breakingTimeline, ...manualTimeline]);
+              const allMerged = strictDedupeFeedItems([...calendarTimeline, ...breakingTimeline, ...manualTimeline]);
               const liveBucket     = allMerged.filter(i=>classify(i)==="live").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const upcomingBucket = allMerged.filter(i=>classify(i)==="upcoming").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const pastBucket     = allMerged.filter(i=>classify(i)==="past").sort((a,b)=>Date.parse(b.pub)-Date.parse(a.pub));
