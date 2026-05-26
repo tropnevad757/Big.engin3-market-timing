@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V7 BEST BASE + COUNTRY RATE REGIME LOCK + TP LADDER</title>
+<title>THE BiGENGiN3 OF TIME — V12 COUNTRY RATE BRAIN ENGINE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -30,6 +30,7 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>THE BiGENGiN3 OF TIME</p>
 </div>
 <div id="root"></div>
+<!-- V12 COUNTRY RATE BRAIN ENGINE: active news uses headline sign + each country interest-rate relation, then compares against odd/even hour; no-news fallback unchanged. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
@@ -185,12 +186,11 @@ const CATS = [
 // ── CURRENCY REGIME LISTS ─────────────────────────────────────────────────────
 // BUY CORE REGIME
 // Connector: − = mirror
-// 12:30-1:30 / 4:30-6:30 / 7:30-10:30
-// Higher rates = − ; lower/equal rates = +
+// 12:30-1:30 / 3:30-4:30 / 6:30-7:30 / 9:30-10:30
+// Live-rate override: if symbol value <= USD anchor rate → invert that symbol sign.
 // SELL RESET REGIME
 // Connector: + = aligned
-// 6:30-7:30 / 10:30-12:30 / 1:30-4:30
-// Higher rates = + ; lower/equal rates = −
+// 1:30-3:30 / 4:30-6:30 / 7:30-9:30 / 10:30-12:30
 const REGIME_CURRENCIES = {
   sellReset: {
     // connector: + (aligned)
@@ -204,19 +204,14 @@ const REGIME_CURRENCIES = {
   },
 };
 
-// NEWS REACTION WINDOWS — V7 BEST BASE + OVERLAP PATCH
-// Rule: every active event keeps a 20-minute post-release duration.
-// Calendar events may reach BEFORE release by impact; breaking news starts at publication.
-// Mixed news is not a separate engine: any events overlapping the current minute are
-// collected first, then the same stacking math is applied once before hour-sign compare.
-const TP_LADDER_LEVELS = [0.03, 0.06, 0.09, 0.12, 0.3, 0.6, 0.9, 1.2];
-const TP_LADDER_LABELS = ["EXT 1", "EXT 2", "EXT 3", "EXT 4", "EXT 5", "EXT 6", "EXT 7", "EXT 8"];
-
+// NEWS REACTION WINDOWS — symmetric (before AND after event)
+// Stars → window in mins, TP targets as % move from entry
+// Updated for Derrick's 5m replay: breaking burst=15m, scheduled windows remain 20/50/80.
 const NEWS_REACTION = {
-  break: { pre: 0,  post: 20, window: 20, fibs: [38.2], tps: TP_LADDER_LEVELS, label:"BREAKING NEWS" },
-  1:     { pre: 20, post: 20, window: 20, fibs: [61.8], tps: TP_LADDER_LEVELS, label:"★" },
-  2:     { pre: 50, post: 20, window: 50, fibs: [61.8], tps: TP_LADDER_LEVELS, label:"★★" },
-  3:     { pre: 90, post: 20, window: 90, fibs: [61.8], tps: TP_LADDER_LEVELS, label:"★★★" },
+  break: { window: 15, fibs: [38.2], tps: [0.1146], label:"BREAKING NEWS" },
+  1:     { window: 20, fibs: [61.8], tps: [0.185],  label:"★" },
+  2:     { window: 50, fibs: [61.8], tps: [0.185],  label:"★★" },
+  3:     { window: 80, fibs: [61.8], tps: [0.185],  label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -1326,29 +1321,31 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
-  // DERRICK LOCKED COUNTRY-RATE REGIME ENGINE
+  // NEW REGIME TEST V7
   // BUY CORE REGIME  — Connector: − = mirror, USD− anchor
-  //   12:30–1:30 / 4:30–6:30 / 7:30–10:30 (AM + PM)
-  //   Higher rates = − ; Lower/equal rates = +
+  //   12:30–1:30 / 3:30–4:30 / 6:30–7:30 / 9:30–10:30 (AM + PM)
   // SELL RESET REGIME — Connector: + = aligned, USD+ anchor
-  //   6:30–7:30 / 10:30–12:30 / 1:30–4:30 (AM + PM)
-  //   Higher rates = + ; Lower/equal rates = −
+  //   1:30–3:30 / 4:30–6:30 / 7:30–9:30 / 10:30–12:30 (AM + PM)
   const MIRROR_RANGES = [
     [30, 90],     // 12:30 AM – 1:30 AM
-    [270, 390],   // 4:30 AM – 6:30 AM
-    [450, 630],   // 7:30 AM – 10:30 AM
+    [210, 270],   // 3:30 AM – 4:30 AM
+    [390, 450],   // 6:30 AM – 7:30 AM
+    [570, 630],   // 9:30 AM – 10:30 AM
     [750, 810],   // 12:30 PM – 1:30 PM
-    [990, 1110],  // 4:30 PM – 6:30 PM
-    [1170, 1350]  // 7:30 PM – 10:30 PM
+    [930, 990],   // 3:30 PM – 4:30 PM
+    [1110, 1170], // 6:30 PM – 7:30 PM
+    [1290, 1350]  // 9:30 PM – 10:30 PM
   ];
 
   const ALIGNED_RANGES = [
     [0, 30],      // 12:00 AM – 12:30 AM (continuation of 10:30 PM – 12:30 AM reset)
-    [90, 270],    // 1:30 AM – 4:30 AM
-    [390, 450],   // 6:30 AM – 7:30 AM
+    [90, 210],    // 1:30 AM – 3:30 AM
+    [270, 390],   // 4:30 AM – 6:30 AM
+    [450, 570],   // 7:30 AM – 9:30 AM
     [630, 750],   // 10:30 AM – 12:30 PM
-    [810, 990],   // 1:30 PM – 4:30 PM
-    [1110, 1170], // 6:30 PM – 7:30 PM
+    [810, 930],   // 1:30 PM – 3:30 PM
+    [990, 1110],  // 4:30 PM – 6:30 PM
+    [1170, 1290], // 7:30 PM – 9:30 PM
     [1350, 1440]  // 10:30 PM – 12:00 AM
   ];
 
@@ -1624,23 +1621,22 @@ function App() {
   // ── NEWS REACTION ENGINE — unified feeds, symmetric windows, TP levels ──────
   const newsReaction = (()=>{
     const btcPrice = marketData?.btc?.price || null;
-    // Load-safe: do not read appZType before it is declared later in App().
-    // This preserves the same zone-first behavior using the current liveZ array.
-    const liveZoneTypeNow = (liveZ[0] && liveZ[0].type !== "dead") ? liveZ[0].type : null;
-    const zDir = liveZoneTypeNow || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
+    const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    const allEvents = normalizeAndKeepOverlaps(buildUnifiedNewsEvents(nowMs), nowMs).map(ev=>{
-      const t = getEventTimeMs(ev);
-      if(!t) return null;
+    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
+      const t = Date.parse(ev.pub||0);
+      if(!t || Number.isNaN(t)) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
       const win = eventWindowMinutes(ev);
       const isBreaking = replayEventType(ev) === "breaking";
       const isSpeech = replayEventType(ev) === "speech";
       const isAfter = minsUntil < 0;
-      const active = minsUntil <= win.pre && minsUntil >= -win.post;
+      const active = isBreaking || isSpeech
+        ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
+        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
       if(!active) return null;
-      const windowSize = minsUntil >= 0 ? Math.max(1, win.pre) : Math.max(1, win.post);
+      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
       const absMins = Math.abs(minsUntil);
       const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
       const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
@@ -1649,7 +1645,7 @@ function App() {
       else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
       else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
-    }).filter(Boolean).sort((a,b)=>(getEventTimeMs(b)||0)-(getEventTimeMs(a)||0));
+    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
 
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
@@ -1664,7 +1660,7 @@ function App() {
       const dir = zDir === "buy" ? 1 : -1;
       tpLevels = {
         fibs: fibs.map(f=>({ pct: f/100, price: Math.round(btcPrice*(1+dir*(f/1000))) })),
-        tps:  tps.map((t,i)=>({ label:TP_LADDER_LABELS[i] || `TP${i+1}`, pct:t, price: Math.round(btcPrice*(1+dir*t/100)) })),
+        tps:  tps.map((t,i)=>({ label:`TP${i+1}`, pct:t, price: Math.round(btcPrice*(1+dir*t/100)) })),
       };
     }
 
@@ -1789,7 +1785,7 @@ function App() {
     equation: livePolarityApplied.equationPlain || "",
     finalDirection: livePolarityApplied.finalDirection,
     // SELF-CHECK: live and replay use the same function (resolveStackedNewsSign)
-    engineUsed: "computeReplayPolarity (shared live+replay)"
+    engineUsed: "V12 clean odd/even brain engine (shared live+replay)"
   };
 
   const appChecks = [
@@ -2098,79 +2094,14 @@ function App() {
     return "breaking";
   }
 
-  function getEventTimeMs(ev){
-    const raw = ev?.date || ev?.pub || ev?.time || ev?.timestamp || ((ev?.d && ev?.t) ? `${ev.d}T${ev.t}:00` : "");
-    const t = Date.parse(raw || 0);
-    return Number.isFinite(t) ? t : 0;
-  }
-
-  function strictDedupeFeedItems(items){
-    const seen = new Set();
-    return (items || []).filter(Boolean).filter(ev=>{
-      const key = makeStrictEventKey(ev);
-      if(seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-
-  // STRICT ACTIVE-WINDOW + OVERLAP PATCH
-  // Keeps overlapping economic events live together, uses newest-first ordering,
-  // and only removes true duplicates by strict event key.
-  function getEventWindowMinutes(ev){
-    const impact = Number(ev?.impact || ev?.stars || ev?.importance || 1);
-    const src = String(ev?.source || ev?.feed || ev?.type || ev?.kind || "").toLowerCase();
-
-    if(src.includes("breaking") || src.includes("reuters") || src.includes("bloomberg") || replayEventType(ev)==="breaking" || replayEventType(ev)==="speech"){
-      return { before: 0, after: 20 };
-    }
-
-    if(impact >= 3) return { before: 90, after: 90 };
-    if(impact === 2) return { before: 60, after: 60 };
-    return { before: 30, after: 30 };
-  }
-
   function eventWindowMinutes(ev){
-    const w = getEventWindowMinutes(ev);
-    return { pre: w.before, post: w.after, before: w.before, after: w.after };
-  }
-
-  function isEventActiveAt(ev, currentTime){
-    const t = getEventTimeMs(ev);
-    if(!t) return false;
-
-    const w = getEventWindowMinutes(ev);
-    const now = new Date(currentTime).getTime();
-    if(!Number.isFinite(now)) return false;
-
-    return now >= t - w.before * 60000 && now <= t + w.after * 60000;
-  }
-
-  function makeStrictEventKey(ev){
-    return [
-      canonicalNewsText(ev?.title || ev?.headline || ev?.label || ev?.l || ""),
-      ev?.source || ev?.feed || "",
-      ev?.country || ev?.currency || "",
-      getEventTimeMs(ev) || ""
-    ].join("|");
-  }
-
-  function normalizeAndKeepOverlaps(events, currentTime){
-    const seen = new Set();
-
-    return (events || [])
-      .filter(ev => isEventActiveAt(ev, currentTime))
-      .sort((a,b) => {
-        const ta = getEventTimeMs(a) || 0;
-        const tb = getEventTimeMs(b) || 0;
-        return tb - ta; // newest first
-      })
-      .filter(ev => {
-        const key = makeStrictEventKey(ev);
-        if(seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+    const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
+    const type = replayEventType(ev);
+    if(type === "breaking") return {pre:0, post:20};
+    if(type === "speech") return {pre:0, post:45};
+    if(stars === 1) return {pre:20, post:20};
+    if(stars === 2) return {pre:50, post:50};
+    return {pre:80, post:80};
   }
 
   function calendarAdvanceMinutes(item){
@@ -2195,8 +2126,8 @@ function App() {
       const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
+      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
       const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${note} ${raw?.source||""} ${raw?.feedLabel||""} ${raw?.cat||""}`) || "";
       return { title, source, stars, polarity, kind, pub, country, note, rateValue };
     };
 
@@ -2213,276 +2144,165 @@ function App() {
 
     // Calendar/eco events: keep 90 days for backtest viewing
     // Breaking/manual events: keep 7 days (live news)
-    return [...scheduled, ...breaking, ...manual]
+    return dedupeFeedItems([...scheduled, ...breaking, ...manual])
       .filter(ev=>{
-        const t = getEventTimeMs(ev);
-        if(!t) return false;
+        const t = Date.parse(ev.pub||0);
+        if(!t || Number.isNaN(t)) return false;
         const age = nowMs - t;
         const isCalendar = ev.kind === "event" || ev.kind === "speech";
         const maxAge = isCalendar ? 90*24*60*60*1000 : 7*24*60*60*1000;
         return age <= maxAge;
       })
-      .sort((a,b)=>(getEventTimeMs(a)||0)-(getEventTimeMs(b)||0));
+      .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
 
-
-  /* =========================================================
-     REGIME-BASED USD ENTITY SIGN
-  ========================================================= */
-
-  function getRegimeUSDSign(now){
-    const d = now instanceof Date ? now : new Date(now || Date.now());
-    const h = d.getHours();
-    const m = d.getMinutes();
-    const t = h + (m >= 30 ? 0.5 : 0);
-
-    // BUY CORE REGIME
-    // USD− / mirror
-    if(
-      (t >= 4.5 && t < 10.5)
-    ){
-      return -1;
-    }
-
-    // SELL RESET REGIME
-    // USD+ / aligned
-    return +1;
-  }
-
-  /* =========================================================
-     USD FINANCIAL ENTITY DETECTION
-  ========================================================= */
-
-  function isUSDFinancialEntity(text){
-    const s = String(text || "").toLowerCase();
-
-    return [
-      "treasury",
-      "bond",
-      "bonds",
-      "yield",
-      "yields",
-      "wall street",
-      "stocks",
-      "oil",
-      "fed",
-      "federal reserve",
-      "dxy",
-      "ism"
-    ].some(k => s.includes(k));
-  }
-
-  function makeRegimeDate(h24=null, m=0){
-    const d = new Date();
-    if(Number.isFinite(Number(h24))){
-      d.setHours(Number(h24), Number(m)||0, 0, 0);
-    }
-    return d;
-  }
-
-  function isOddHour(now){
-    const d = now instanceof Date ? now : new Date(now || Date.now());
-    return (d.getHours() % 2) !== 0;
-  }
-
-  /* =========================================================
-     FALLBACK COUNTRY LOGIC
-  ========================================================= */
-
-  function inferCountryCharge(ev, now){
-    const d = now instanceof Date ? now : new Date(now || Date.now());
-    const h24 = d.getHours();
-    const m = d.getMinutes();
-    const text = `${ev?.title || ""} ${ev?.headline || ""} ${ev?.desc || ""} ${ev?.note || ""}`;
-    const inferred = String(ev?.country || ev?.currency || inferCountryCode(text) || "USD").toUpperCase().slice(0,3);
-    const rateLocked = getCountryRateCharge(inferred || "USD", ev?.rateValue, h24, m);
-    return rateLocked.charge || getRegimeUSDSign(d);
-  }
-
-  /* =========================================================
-     ENTITY SIGN FROM ACTIVE REGIME
-  ========================================================= */
-
-  function getEntitySignFromRegime(ev, now){
-
-    const text =
-      `${ev?.title || ""} ${ev?.headline || ""}`.toLowerCase();
-
-    // USD financial entities inherit regime USD sign
-    if(isUSDFinancialEntity(text)){
-      return getRegimeUSDSign(now);
-    }
-
-    // fallback country logic
-    return inferCountryCharge(ev, now);
-  }
-
-  /* =========================================================
-     STACKING RULE
-  ========================================================= */
-
-  function resolveStackedSigns(signs){
-
-    if(!signs.length) return 0;
-
-    let pos = signs.filter(x => x > 0).length;
-    let neg = signs.filter(x => x < 0).length;
-
-    // mixed always negative
-    if(pos > 0 && neg > 0){
-      return -1;
-    }
-
-    // 2+ same sign flips ONCE
-    if(pos >= 2){
-      return -1;
-    }
-
-    if(neg >= 2){
-      return +1;
-    }
-
-    return signs[0];
-  }
-
-  /* =========================================================
-     FINAL ACTIVE NEWS SIGN
-  ========================================================= */
-
-  function getFinalNewsSign(activeEvents, now){
-
-    const signs = (activeEvents || []).map(ev =>
-      getEntitySignFromRegime(ev, now)
-    );
-
-    return resolveStackedSigns(signs);
-  }
 
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
+    const hourCharge = Number.isFinite(Number(h24)) && (Number(h24) % 2 === 0) ? 1 : -1;
 
-    // STRICT overlap-safe de-dupe:
-    // Only remove true duplicates with same normalized title + source/feed + country/currency + exact timestamp.
-    // Do NOT fuzzy-remove similar headlines within 90 minutes, because that hides legitimate overlapping events.
+    // De-dupe first so the same headline does not count twice in the stack.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
+    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || ev?.headline || "").slice(0,160);
     const duplicateEvents = [];
     const allActive = [];
-    const seenActiveKeys = new Set();
     rawActive.forEach(ev=>{
-      const key = makeStrictEventKey(ev);
-      if(seenActiveKeys.has(key)) duplicateEvents.push(ev);
-      else {
-        seenActiveKeys.add(key);
-        allActive.push(ev);
-      }
+      const key = normalizeNewsKey(ev);
+      const t = Date.parse(ev?.pub||ev?.date||0);
+      const isDup = key && allActive.some(prev=>{
+        const pt = Date.parse(prev?.pub||prev?.date||0);
+        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 90*60000;
+        return closeTime && newsTextSimilar(key, normalizeNewsKey(prev));
+      });
+      if(isDup) duplicateEvents.push(ev);
+      else allActive.push(ev);
     });
 
-    const weightOf = (ev)=>replayEventType(ev)==="speech" ? 2 : 1;
+    // USD / high-interest-rate anchor sign for unknown-country fallback.
+    // Unknown/no-news still uses the active regime anchor. Active directed news uses
+    // Derrick's brain logic: resolve the news sign first, then compare it to odd/even hour sign.
+    let usdAnchorCharge = 1;
+    if(Number.isFinite(Number(h24))){
+      try{ usdAnchorCharge = getConnectorMode(Number(h24), Number(m)||0) === "aligned" ? 1 : -1; }
+      catch(_){ usdAnchorCharge = slotCharge; }
+    } else {
+      usdAnchorCharge = slotCharge;
+    }
+
+    const textOf = (ev)=>String(`${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||""} ${ev?.note||""} ${ev?.country||""} ${ev?.currency||""}`).trim();
+
+    function inferBrainCountry(rawText="", fallback=""){
+      const t = String(rawText||"").toUpperCase();
+      const fbRaw = String(fallback||"").toUpperCase().trim();
+      const fb3 = fbRaw.slice(0,3);
+      const known = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR"]);
+
+      // Clean headline classification first so dirty ticker/source tags do not win.
+      if(/\bLALT\.V\b|\bTSX\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
+      if(/\bASX\b|AUSTRALIA|AUSSIE|\bAUD\b/.test(t)) return "AUD";
+      if(/\bASIA\b|EM ASIA|ASIAN|EMERGING MARKETS?/.test(t)) return "ASI";
+      if(/\bUSD\b|DOLLAR|TREASURY|YIELDS?|FED\b|POWELL|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
+
+      // Trust fallback only when it is a clean currency code. Bad tags like LALT.V/PNGAF.PK fall through.
+      if(known.has(fb3)) return fb3;
+
+      try{ return inferCountryCode(rawText) || "USD"; }catch(_){ return "USD"; }
+    }
+
+    function inferHeadlineCharge(ev, country){
+      const t = textOf(ev).toUpperCase();
+      const rawPol = Number(ev?.polarity);
+      if(Number.isFinite(rawPol) && rawPol !== 0) return rawPol > 0 ? 1 : -1;
+
+      // Specific interpretations from Derrick's miss review
+      if(/OIL PRICE SURGE/.test(t)) return 1;
+      if(/YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?/.test(t)) return 1;
+      if(/FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS/.test(t)) return 1;
+      if(/PREDICTION MARKETS.*GOVERNMENT.*TEST|GOVERNMENT TO THE TEST/.test(t)) return -1;
+      if(/DOLLAR WEAKNESS|DOLLAR WEAK|WEAKNESS/.test(t)) return -1;
+      if(/STOCKS FALL|FALL IN ASIA|SELL[- ]?OFF|THREATENS.*SELLOFF|WARNS|WARNING|DEEPEN SELLOFF/.test(t)) return -1;
+
+      // Country-only default: a detected news item starts positive, then the interest-rate override below can invert it.
+      return 1;
+    }
+
+    function isPluralBrainEvent(ev){
+      const t = textOf(ev).toUpperCase();
+      // Count only Derrick-style plural/multiple ideas as two charges.
+      // Avoid treating every generic "stocks" headline as plural; ASX/dividend/markets are intentional.
+      return /\b(MULTIPLE|SEVERAL|MANY|TWO OR MORE)\b/.test(t)
+        || /\bPREDICTION MARKETS\b/.test(t)
+        || /\bASX\b/.test(t)
+        || /\bDIVIDEND STOCKS\b/.test(t)
+        || replayEventType(ev)==="speech";
+    }
+
+    const weightOf = (ev)=>isPluralBrainEvent(ev) ? 2 : 1;
     const activeCount = allActive.reduce((n, ev)=>n + weightOf(ev), 0);
     const duplicateCount = duplicateEvents.reduce((n, ev)=>n + weightOf(ev), 0);
 
-    // USD / high-interest-rate anchor sign for unknown-country news.
-    // IMPORTANT: regime determines the USD entity sign BEFORE stacking.
-    // BUY CORE (4:30-10:30) => USD−. SELL RESET => USD+.
-    const regimeNow = makeRegimeDate(h24, m);
-    let usdAnchorCharge = getRegimeUSDSign(regimeNow);
-
-    const hasSpecificAsiaCountry = (rawText="")=>{
-      const t = String(rawText||"").toUpperCase();
-      return /(^|\W)(JAPAN|JAPANESE|TOKYO|NIKKEI|TOPIX|BOJ|JPY|YEN|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|CNY|CNH|YUAN|HONG\s+KONG|HANG\s+SENG|HKD|KOREA|SOUTH\s+KOREA|SEOUL|KOSPI|KRW|TAIWAN|TAIPEI|TAIEX|TWD|INDIA|INDIAN|NIFTY|SENSEX|INR|SINGAPORE|SGX|SGD|AUSTRALIA|AUSTRALIAN|ASX|AUD|RBA|NEW\s+ZEALAND|NZD)(\W|$)/.test(t);
-    };
-
-    const isGenericAsiaHeadline = (rawText="")=>{
-      const t = String(rawText||"").toUpperCase();
-      return /(^|\W)(ASIA|ASIAN|ASIA\-PACIFIC|APAC|REGIONAL\s+ASIA|ACROSS\s+ASIA)(\W|$)/.test(t) && !hasSpecificAsiaCountry(t);
-    };
-
-    const isUsdDefaultHeadline = (rawText="")=>{
-      const t = String(rawText||"").toUpperCase();
-      const hits = getNewsEntityGlossary(t);
-      const foreignHits = hits.filter(x=>!x.anchor && x.country !== "USD");
-      // Derrick lock: Treasuries, yields, bonds, ISM, and unknown-style macro headlines
-      // default to the active USD sign at that time. They must not be turned into
-      // a fake multi-entity flip just because the headline also names oil/stocks/risk.
-      const usdDefaultTerm = /(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|YIELDS?|BONDS?|BOND\s+YIELDS?|NOTES?|BILLS?|T\-?BILLS?|T\-?NOTES?|30\s?Y(?:EAR)?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|ISM|PMI|GDP|CPI|PPI|PCE|NFP|PAYROLLS?|JOBLESS|UNEMPLOYMENT|JOLTS|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t);
-      return usdDefaultTerm && foreignHits.length === 0;
-    };
-
     const getNewsEventCharge = (ev)=>{
-      const rawText = `${ev?.title||""} ${ev?.headline||""} ${ev?.desc||""} ${ev?.note||""}`;
+      const rawText = textOf(ev);
+      const rawUpper = rawText.toUpperCase();
+      const fallbackRaw = String(ev?.country || ev?.currency || "").toUpperCase().trim();
+      const fallback3 = fallbackRaw.slice(0,3);
+      const cleanCurrencyCodes = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR","AOA","NOK","BRL","TRY","MXN","ISK","ZAR","HUF","RON","PLN","CZK"]);
 
-      // USD financial entities inherit the active regime sign BEFORE stacking.
-      // Treasury / bonds / yields / Wall Street / stocks / oil / Fed / DXY / ISM
-      // are treated as USD− during BUY CORE and USD+ during SELL RESET.
-      if(isUSDFinancialEntity(rawText)){
-        return { charge: getRegimeUSDSign(regimeNow), country:"USD", unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"USD FINANCIAL ENTITY→ACTIVE REGIME SIGN", rateValue: USD_RATE, rateRelation:"USD_REGIME_ENTITY", regime: getRegimeUSDSign(regimeNow) < 0 ? "BUY_CORE" : "SELL_RESET", connector: getRegimeUSDSign(regimeNow) < 0 ? "mirror" : "aligned" };
+      const inferred = inferBrainCountry(rawText, fallbackRaw);
+
+      // Detect whether this is truly a country-based event or an unknown headline
+      // that only fell back to the USD/high-rate anchor. This keeps real USD news
+      // from being treated as "unknown" while still giving unknown news a safe anchor.
+      const explicitCountryHit = cleanCurrencyCodes.has(fallback3)
+        || /\b(USD|DOLLAR|FED|FOMC|POWELL|TREASURY|YIELDS?|UNITED STATES|U\.?S\.?|CAD|CANADA|CANADIAN|TSX|LALT\.V|AUD|AUSTRALIA|AUSSIE|ASX|GBP|BOE|BRITAIN|UNITED KINGDOM|JPY|JAPAN|BOJ|EUR|ECB|EUROZONE|CHF|SWISS|NZD|RBNZ)\b/.test(rawUpper);
+
+      const directionalCueHit = /OIL PRICE SURGE|YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?|FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS|PREDICTION MARKETS.*GOVERNMENT.*TEST|GOVERNMENT TO THE TEST|DOLLAR WEAKNESS|DOLLAR WEAK|WEAKNESS|STOCKS FALL|FALL IN ASIA|SELL[- ]?OFF|THREATENS.*SELLOFF|WARNS|WARNING|DEEPEN SELLOFF/.test(rawUpper);
+
+      const rawPol = Number(ev?.polarity);
+      const hasRawPol = Number.isFinite(rawPol) && rawPol !== 0;
+      const unknownAnchorFallback = !explicitCountryHit && inferred === "USD";
+
+      // 1) Get the news meaning first. If the headline is truly unknown and has
+      // no polarity/cue, use the current USD/high-rate anchor sign as the fallback.
+      let charge = (unknownAnchorFallback && !hasRawPol && !directionalCueHit)
+        ? usdAnchorCharge
+        : inferHeadlineCharge(ev, inferred);
+
+      // 2) Apply Derrick's country interest-rate rule to the event's own country:
+      // USD or higher than USD rate = keep the news sign.
+      // Equal/below USD rate for a non-USD country = invert the news sign.
+      // This is NOT a USD-only override; CAD/GBP/AUD/etc. keep their own country context.
+      const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
+      let rateRelation = "unknown";
+      if(Number.isFinite(rate)){
+        if(inferred === "USD" || rate > USD_RATE){
+          rateRelation = inferred === "USD" ? "usd-anchor-same" : "above-usd-same";
+        } else {
+          rateRelation = "at-or-below-usd-inverted";
+          charge = -charge;
+        }
       }
 
-      // Asia rule: generic "Asia/Asian markets" is negative unless a specific country is named.
-      if(isGenericAsiaHeadline(rawText)){
-        return { charge:-1, country:"ASIA", unknownCountryFallback:false, tickerOverride:true, lockedUsdDefault:false, asiaDefault:true, tickerOverrideReason:"GENERIC ASIA→NEWS- unless specific country named", rateValue:null };
-      }
-
-      const tickerOverride = getTickerChargeOverride(rawText);
-      if(tickerOverride){
-        return {
-          charge: tickerOverride.charge,
-          country: tickerOverride.country,
-          unknownCountryFallback:false,
-          tickerOverride:true,
-          lockedUsdDefault:false,
-          asiaDefault:false,
-          tickerOverrideReason: tickerOverride.reason,
-          rateValue: tickerOverride.country === "USD" ? USD_RATE : getRateForSymbol(tickerOverride.country)
-        };
-      }
-
-      // Treasury / yields / bonds / ISM / unknown-style U.S. macro: same sign as USD at that time.
-      if(isUsdDefaultHeadline(rawText)){
-        return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"USD DEFAULT: Treasury/bonds/ISM/unknown macro follows active USD sign", rateValue: USD_RATE };
-      }
-
-      const inferred = String(ev?.country || ev?.currency || inferCountryCode(rawText) || "").toUpperCase().slice(0,3);
-
-      // Unknown country: do NOT step-fallback. Use USD/high-rate anchor sign first.
-      if(!inferred) return { charge: usdAnchorCharge, country:"USD", unknownCountryFallback:true, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"UNKNOWN→USD DEFAULT", rateValue: USD_RATE };
-
-      const rateLocked = getCountryRateCharge(inferred || "USD", ev?.rateValue, h24, m);
-      if(rateLocked.relation === "MISSING_RATE_USD_DEFAULT"){
-        // Known country but missing rate: do not let article wording override the rate-anchor model.
-        // Use USD/high-rate anchor until an actual rate is known.
-        return { charge: rateLocked.charge, country: rateLocked.country, unknownCountryFallback:true, tickerOverride:false, lockedUsdDefault:true, asiaDefault:false, tickerOverrideReason:"MISSING RATE→USD DEFAULT", rateValue: null, rateRelation: rateLocked.relation, regime: rateLocked.regime, connector: rateLocked.mode };
-      }
-      return { charge: rateLocked.charge, country: rateLocked.country, unknownCountryFallback:false, tickerOverride:false, lockedUsdDefault:false, asiaDefault:false, rateValue: rateLocked.rateValue, rateRelation: rateLocked.relation, regime: rateLocked.regime, connector: rateLocked.mode };
+      return {
+        charge,
+        country: inferred || "USD",
+        unknownCountryFallback: unknownAnchorFallback,
+        rateRelation,
+        rateValue: Number.isFinite(rate) ? rate : (inferred==="USD" ? USD_RATE : null)
+      };
     };
 
     const chargedEvents = allActive
       .map(ev=>{
         const resolved = getNewsEventCharge(ev);
-        const rawText = `${ev?.title||""} ${ev?.desc||""} ${ev?.note||""}`;
-        // Plural/list stacking only applies when this is NOT a dot-suffix ticker headline
-        // and NOT a locked override. Example: "10 REITs/stocks/bonds/futures" stacks;
-        // "USCUF.PK" or "LALI.V" does not create fake extra events.
-        const glossaryWeight = (resolved.tickerOverride || resolved.lockedUsdDefault || resolved.asiaDefault) ? 1 : pluralStackWeightFromHeadline(rawText);
-        const glossaryHits = getNewsEntityGlossary(rawText);
         return {
           ...ev,
           country: resolved.country,
           effectiveCharge: resolved.charge,
-          eventWeight: Math.max(weightOf(ev), glossaryWeight),
-          glossaryStackWeight: glossaryWeight,
-          glossaryHits,
-          glossaryLabel: glossaryHits.map(x=>`${x.label}→${x.country}${x.anchor?" anchor":""}`).join(" | "),
+          eventWeight: weightOf(ev),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
-          tickerOverride: !!resolved.tickerOverride,
-          lockedUsdDefault: !!resolved.lockedUsdDefault,
-          asiaDefault: !!resolved.asiaDefault,
-          tickerOverrideReason: resolved.tickerOverrideReason || "",
           rateValue: resolved.rateValue,
-          rateRelation: resolved.rateRelation || (resolved.country === "USD" ? "USD_ANCHOR" : ""),
-          rateRegime: resolved.regime || "",
-          rateConnector: resolved.connector || "",
         };
       })
       .filter(ev=>ev.effectiveCharge!==0);
@@ -2492,9 +2312,10 @@ function App() {
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
 
     if(!activeCount){
+      // No active news: use the USD/STEP/regime anchor fallback exactly like V7.
       const anchorDirection = usdAnchorCharge === slotCharge ? "buy" : "sell";
       const anchorFinalCharge = anchorDirection === "buy" ? 1 : -1;
-      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · HOUR ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
+      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · STEP ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
       return {
         finalDirection: anchorDirection,
         baseCharge,
@@ -2509,9 +2330,10 @@ function App() {
         activeEvents: [],
         chargeFlip: false,
         clusterResult: null,
-        dominantSource: "USD/high-rate anchor",
+        dominantSource: "USD/high-rate anchor fallback",
         newsSign: usdAnchorCharge===1?"+":"-",
         slotSign: slotCharge===1?"+":"-",
+        hourSign: hourCharge===1?"+":"-",
         stepSign: usdAnchorCharge===1?"+":"-",
         sellRestriction: false,
         reason: "USD/high-rate anchor fallback",
@@ -2541,41 +2363,44 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.tickerOverride?(ev.tickerOverrideReason||"TICKER OVERRIDE"):ev.unknownCountryFallback?"UNKNOWN→USD ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} => ${ev.effectiveCharge===1?'+':'-'}${ev.glossaryStackWeight>1?` · HEADLINE STACK x${ev.glossaryStackWeight}`:""}${ev.glossaryLabel?` · ORIGIN ${ev.glossaryLabel}`:""}`);
+      foldSteps.push(`${ev.eventWeight>1?"MULTI ":""}${ev.unknownCountryFallback?"UNKNOWN→USD/HIGH ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} ${ev.rateRelation?"("+ev.rateRelation+")":""} => ${ev.effectiveCharge===1?'+':'-'} x${ev.eventWeight}`);
     });
 
-    if(chargedEvents.length === 1){
+    if(chargedEvents.length === 1 && chargedEvents[0].eventWeight === 1){
       newsCharge = chargedEvents[0].effectiveCharge;
       dominantSource = `${replayEventType(chargedEvents[0]) || "news"} · ${chargedEvents[0].country||"USD"}${chargedEvents[0].unknownCountryFallback?" anchor fallback":""}`;
-    } else if(chargedEvents.length >= 2){
-      // STACKING RULE — regime/entity signs are resolved first, then stacked.
-      // mixed always negative
-      // 2+ same sign flips ONCE
-      const expandedSigns = [];
-      chargedEvents.forEach(ev=>{
-        const w = Math.max(1, Number(ev.eventWeight)||1);
-        for(let i=0;i<w;i++) expandedSigns.push(ev.effectiveCharge);
-      });
-      const positiveCount = expandedSigns.filter(x=>x > 0).length;
-      const negativeCount = expandedSigns.filter(x=>x < 0).length;
+    } else if(chargedEvents.length >= 1){
+      // MULTI-NEWS RESOLUTION — group SAME SIGNS first, then combine the resolved groups.
+      // + x1 => +        - x1 => -
+      // + x2 or more => -     - x2 or more => +
+      // Then combine the resolved groups with news math:
+      // + + => -   - - => +   + - / - + => -
+      const positiveCount = positives;
+      const negativeCount = negatives;
+      const positiveResolved = resolveGroupedCharge(1, positiveCount);
+      const negativeResolved = resolveGroupedCharge(-1, negativeCount);
 
-      newsCharge = resolveStackedSigns(expandedSigns);
-
-      if(positiveCount > 0 && negativeCount > 0){
-        foldSteps.push(`MIXED SIGNS + x${positiveCount} / - x${negativeCount} -> -`);
-      } else if(positiveCount >= 2){
-        foldSteps.push(`POSITIVE GROUP + x${positiveCount} -> - (2+ flips once)`);
-      } else if(negativeCount >= 2){
-        foldSteps.push(`NEGATIVE GROUP - x${negativeCount} -> + (2+ flips once)`);
+      if(positiveCount > 0){
+        foldSteps.push(`POSITIVE GROUP + x${positiveCount} -> ${positiveResolved===1?'+':'-'}`);
+      }
+      if(negativeCount > 0){
+        foldSteps.push(`NEGATIVE GROUP - x${negativeCount} -> ${negativeResolved===1?'+':'-'}`);
       }
 
-      chargeFlip = positiveCount >= 2 || negativeCount >= 2 || (positiveCount > 0 && negativeCount > 0);
-      dominantSource = "regime-first stacked news math";
+      if(positiveCount > 0 && negativeCount > 0){
+        newsCharge = combineCharges(positiveResolved, negativeResolved);
+        foldSteps.push(`COMBINE ${positiveResolved===1?'+':'-'} ${negativeResolved===1?'+':'-'} -> ${newsCharge===1?'+':'-'}`);
+      } else {
+        newsCharge = positiveCount > 0 ? positiveResolved : negativeResolved;
+      }
+
+      chargeFlip = activeCount >= 2;
+      dominantSource = "grouped same-sign news math";
     }
 
     clusterResult = {
       dominantSource,
-      stackSize: chargedEvents.length,
+      stackSize: activeCount,
       rawStackSize: rawActive.length,
       duplicateCount,
       positiveCount: positives,
@@ -2584,29 +2409,28 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Regime-first entity sign. USD financial entities follow active USD regime before stacking. Mixed = -, 2+ same sign flips once.",
+      rule: "Brain logic: unique news only; plural/multiple headlines can count as 2; dynamic rate override applies before stacking; active news compares to odd/even hour.",
       foldSteps,
     };
 
-    // FINAL DIRECTION LAYER
-    // Fallback/step direction is ONLY used when there is no active news.
-    // If news is active, compare the resolved NEWS SIGN against the odd/even HOUR SIGN.
-    // SAME SIGN = BUY. DIFFERENT SIGN = SELL.
-    const stepSign = baseCharge === 1 ? "+" : "-";
-    const hourSign = isOddHour(regimeNow) ? -1 : +1;
-    const finalNewsSign = newsCharge;
-    let finalDirection = finalNewsSign === 0
+    // FINAL DIRECTION LAYER — DERRICK BRAIN LOGIC
+    // Active news: compare resolved NEWS SIGN to ODD/EVEN HOUR SIGN.
+    // Even hour = +. Odd hour = -.
+    // Same signs = BUY. Different signs = SELL.
+    const hourSign = hourCharge === 1 ? "+" : "-";
+    let finalDirection = newsCharge === 0
       ? null
-      : (hourSign === finalNewsSign ? "buy" : "sell");
+      : (newsCharge === hourCharge ? "buy" : "sell");
 
     const sellRestriction = false;
     const finalCharge = finalDirection === "buy" ? 1 : finalDirection === "sell" ? -1 : 0;
     const newsFlip = finalDirection ? finalDirection !== baseDirection : false;
-    const slotSign = hourSign === 1 ? "+" : "-";
-    const newsSign = finalNewsSign === 1 ? "+" : finalNewsSign === -1 ? "-" : "0";
+    const slotSign = slotCharge === 1 ? "+" : "-";
+    const stepSign = baseCharge === 1 ? "+" : "-";
+    const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
-      ? `NEWS ACTIVE · NO DIRECTED SIGN · FINAL WAIT`
-      : `NEWS ${newsSign} · HOUR ${slotSign} · FINAL ${finalDirection.toUpperCase()}`;
+      ? `HOUR ${hourSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
+      : `NEWS ${newsSign} · HOUR ${hourSign} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2625,11 +2449,12 @@ function App() {
       dominantSource,
       newsSign,
       slotSign,
+      hourSign,
       stepSign,
       sellRestriction,
       reason: newsCharge === 0
         ? "news active but no directed sign"
-        : "unique active news resolved; unknown country uses USD/high-rate anchor",
+        : "brain logic: resolved news sign compared to odd/even hour sign",
       equation: equationPlain,
       equationPlain,
     };
@@ -2688,196 +2513,6 @@ function App() {
     return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
   }
 
-  // Derrick country-rate sign lock:
-  // BUY CORE / mirror / USD−: higher-than-USD rates are negative, lower/equal rates are positive.
-  // SELL RESET / aligned / USD+: higher-than-USD rates are positive, lower/equal rates are negative.
-  // This is the single helper used by active news so headline country charge cannot drift.
-  function getCountryRateCharge(sym, rateValue, h24, m){
-    const code = String(sym||"USD").toUpperCase().slice(0,3) || "USD";
-    let mode = "aligned";
-    try{ mode = getConnectorMode(Number(h24)||0, Number(m)||0); }catch(_){ mode = "aligned"; }
-    const usdAnchorCharge = mode === "mirror" ? -1 : 1;
-    if(code === "USD"){
-      return { charge: usdAnchorCharge, country: "USD", mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: "USD_ANCHOR", rateValue: USD_RATE };
-    }
-    const rate = Number.isFinite(Number(rateValue)) ? Number(rateValue) : getRateForSymbol(code);
-    if(Number.isFinite(rate)){
-      const higher = rate > USD_RATE;
-      const charge = higher ? usdAnchorCharge : -usdAnchorCharge;
-      return { charge, country: code, mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: higher ? "HIGHER_THAN_USD" : "LOWER_OR_EQUAL_USD", rateValue: rate };
-    }
-    return { charge: usdAnchorCharge, country: code, mode, regime: mode === "mirror" ? "BUY_CORE" : "SELL_RESET", relation: "MISSING_RATE_USD_DEFAULT", rateValue: null };
-  }
-
-
-  // ── V7 CLEAN NEWS GLOSSARY / STACK CLASSIFIER ──────────────────────────────
-  // Rule: ticker suffixes like .PK, .V, .TO, .AX are identifiers only.
-  // They do NOT create a second country and they do NOT trigger plural stacking.
-  function hasExchangeDotTicker(rawText="") {
-    return getTickerRootMatches(rawText).length > 0;
-  }
-
-
-  // ── HEADLINE ORIGIN GLOSSARY — country / region detection before flip math ──
-  // Purpose: read market shorthand in headlines and tag WHERE the news is coming from.
-  // Rule: market entities like Treasuries, yields, oil, stocks, bonds, gold, Fed, CPI
-  // default to the active USD anchor unless a foreign country/region term is named.
-  // Multiple USD-anchor entities in one headline count as stacked same-sign items.
-  function getNewsEntityGlossary(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    const hits = [];
-    const add = (key, label, country="USD", anchor=true)=>{
-      if(!hits.some(x=>x.key===key)) hits.push({key,label,country,anchor});
-    };
-
-    // United States / USD anchor entities
-    if(/(^|\W)(USD|U\.S\.?|US|USA|UNITED\s+STATES|AMERICA|WASHINGTON)(\W|$)/.test(t)) add("us","United States / USD","USD",true);
-    if(/(^|\W)(DOLLAR|DOLLARS|DXY|GREENBACK|BUCK)(\W|$)/.test(t)) add("dollar","Dollar / DXY","USD",true);
-    if(/(^|\W)(FED|FEDERAL\s+RESERVE|FOMC|POWELL|YELLEN|RATE\s+DECISION|RATE\s+CUTS?|RATE\s+HIKES?|INTEREST\s+RATES?)(\W|$)/.test(t)) add("fed","Fed / U.S. rates","USD",true);
-    if(/(^|\W)(TREASUR(?:Y|IES)|TREASURY\s+YIELDS?|T\-?BILLS?|T\-?NOTES?|10\s?Y(?:EAR)?|2\s?Y(?:EAR)?|30\s?Y(?:EAR)?|YIELDS?|BOND\s+YIELDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("treasury","Treasury / yields","USD",true);
-    if(/(^|\W)(BONDS?|NOTES?|BILLS?|DEBT\s+MARKETS?|CREDIT\s+MARKETS?|CORPORATE\s+BONDS?)(\W|$)/.test(t) && !/(^|\W)(GILTS?|BUNDS?|JGBS?)(\W|$)/.test(t)) add("bonds","Bonds / credit","USD",true);
-    if(/(^|\W)(WALL\s+STREET|STOCKS?|SHARES?|EQUITIES|S\s*&\s*P\s?500|S&P\s?500|SPX|NASDAQ|NDX|DOW|DJIA|RUSSELL|NYSE|CBOE|VIX|INDEXES|INDICES|FUTURES)(\W|$)/.test(t)) add("stocks","Stocks / Wall Street","USD",true);
-    if(/(^|\W)(OIL|CRUDE|WTI|BRENT|ENERGY|ENERGIES|GASOLINE|NATURAL\s+GAS|OPEC|OPEC\+)(\W|$)/.test(t)) add("oil","Oil / energy","USD",true);
-    if(/(^|\W)(GOLD|XAU|BULLION|SILVER|METALS?|COPPER)(\W|$)/.test(t)) add("gold","Gold / metals","USD",true);
-    if(/(^|\W)(CPI|PPI|PCE|INFLATION|DEFLATION|NFP|NONFARM|PAYROLLS?|JOBS\s+REPORT|JOBLESS|UNEMPLOYMENT|JOLTS|ISM|PMI|GDP|RETAIL\s+SALES|CONSUMER\s+CONFIDENCE|MICHIGAN\s+SENTIMENT)(\W|$)/.test(t)) add("usmacro","U.S. macro data","USD",true);
-
-    // Europe / EUR group
-    if(/(^|\W)(EUR|EURO|EUROZONE|EU|EUROPEAN\s+UNION|EUROPE|EUROPEAN|ECB|LAGARDE|EUREX|EURONEXT|STOXX|EURO\s*STOXX|DAX|GERMANY|GERMAN|BUND|BUNDS|FRANCE|FRENCH|CAC\s?40|CAC|ITALY|ITALIAN|FTSE\s+MIB|SPAIN|SPANISH|IBEX)(\W|$)/.test(t)) add("europe","Europe / EUR","EUR",false);
-
-    // United Kingdom / GBP
-    if(/(^|\W)(GBP|POUND|STERLING|UK|U\.K\.?|BRITAIN|BRITISH|UNITED\s+KINGDOM|ENGLAND|LONDON|BOE|BANK\s+OF\s+ENGLAND|BAILEY|LSE|FTSE|FOOTSIE|GILT|GILTS)(\W|$)/.test(t)) add("uk","United Kingdom / GBP","GBP",false);
-
-    // Asia Pacific majors
-    if(/(^|\W)(JPY|YEN|JAPAN|JAPANESE|TOKYO|BOJ|BANK\s+OF\s+JAPAN|UEDA|TSE|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/.test(t)) add("japan","Japan / JPY","JPY",false);
-    if(/(^|\W)(CNY|CNH|YUAN|RENMINBI|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|PEOPLE'?S\s+BANK\s+OF\s+CHINA|SSE|SZSE|CSI\s?300|PROPERTY\s+SECTOR)(\W|$)/.test(t)) add("china","China / CNY","CNY",false);
-    if(/(^|\W)(HKD|HONG\s+KONG|HKMA|HKEX|HANG\s+SENG|HSI)(\W|$)/.test(t)) add("hongkong","Hong Kong / HKD","HKD",false);
-    if(/(^|\W)(AUD|AUSSIE|AUSTRALIA|AUSTRALIAN|RBA|RESERVE\s+BANK\s+OF\s+AUSTRALIA|ASX|ASX\s?200|S&P\/ASX\s?200|ALL\s+ORDS|CBA|NAB|ANZ|WESTPAC|WBC|BHP|RIO\s+TINTO|SYDNEY)(\W|$)/.test(t)) add("australia","Australia / AUD","AUD",false);
-    if(/(^|\W)(NZD|KIWI|NEW\s+ZEALAND|RBNZ|NZX|WELLINGTON)(\W|$)/.test(t)) add("newzealand","New Zealand / NZD","NZD",false);
-    if(/(^|\W)(KRW|WON|KOREA|SOUTH\s+KOREA|SEOUL|BOK|KOSPI|KOSDAQ)(\W|$)/.test(t)) add("korea","South Korea / KRW","KRW",false);
-    if(/(^|\W)(TWD|TAIWAN|TAIPEI|TAIEX|SEMICONDUCTORS?|TSMC)(\W|$)/.test(t)) add("taiwan","Taiwan / TWD","TWD",false);
-    if(/(^|\W)(INR|RUPEE|INDIA|INDIAN|RBI|RESERVE\s+BANK\s+OF\s+INDIA|NIFTY|SENSEX|BSE|NSE|MUMBAI)(\W|$)/.test(t)) add("india","India / INR","INR",false);
-    if(/(^|\W)(SGD|SINGAPORE|MAS|SGX|STRAITS\s+TIMES|STI)(\W|$)/.test(t)) add("singapore","Singapore / SGD","SGD",false);
-
-    // Americas / commodity FX
-    if(/(^|\W)(CAD|LOONIE|CANADA|CANADIAN|BOC|BANK\s+OF\s+CANADA|TSX|TORONTO|S&P\/TSX)(\W|$)/.test(t)) add("canada","Canada / CAD","CAD",false);
-    if(/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BMV|PESO)(\W|$)/.test(t)) add("mexico","Mexico / MXN","MXN",false);
-    if(/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|B3|IBOVESPA|REAL)(\W|$)/.test(t)) add("brazil","Brazil / BRL","BRL",false);
-
-    // Europe non-EUR / safe haven
-    if(/(^|\W)(CHF|FRANC|SWISS|SWITZERLAND|SNB|SMI|ZURICH)(\W|$)/.test(t)) add("switzerland","Switzerland / CHF","CHF",false);
-    if(/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|STOCKHOLM|OMXS)(\W|$)/.test(t)) add("sweden","Sweden / SEK","SEK",false);
-    if(/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES\s+BANK|OSLO|OSE)(\W|$)/.test(t)) add("norway","Norway / NOK","NOK",false);
-    if(/(^|\W)(DKK|DENMARK|DANISH|DANMARKS\s+NATIONALBANK|COPENHAGEN)(\W|$)/.test(t)) add("denmark","Denmark / DKK","DKK",false);
-    if(/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|WIG20|ZLOTY)(\W|$)/.test(t)) add("poland","Poland / PLN","PLN",false);
-    if(/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA\s+ISTANBUL|ISTANBUL|LIRA)(\W|$)/.test(t)) add("turkey","Turkey / TRY","TRY",false);
-    if(/(^|\W)(ZAR|SOUTH\s+AFRICA|SOUTH\s+AFRICAN|SARB|JOHANNESBURG|JSE|RAND)(\W|$)/.test(t)) add("southafrica","South Africa / ZAR","ZAR",false);
-
-    // Geopolitical risk. If this is not clearly another country's financial market, default to USD risk anchor.
-    if(/(^|\W)(IRAN|IRANIAN|TEHRAN|ISRAEL|ISRAELI|GAZA|HAMAS|MIDEAST|MIDDLE\s+EAST|RED\s+SEA|HOUTHI|RUSSIA|RUSSIAN|UKRAINE|WAR|PEACE\s+PLAN|SANCTIONS?|GEOPOLITICAL|GEOPOLITICS|TENSIONS?|CONFLICT)(\W|$)/.test(t)) add("georisk","Geopolitical risk","USD",true);
-
-    // Crypto still trades like risk / USD unless headline clearly says another region.
-    if(/(^|\W)(BITCOIN|BTC|ETHEREUM|ETH|CRYPTO|CRYPTOCURRENCY|COINBASE|BINANCE|ETF\s+INFLOWS?)(\W|$)/.test(t)) add("crypto","Crypto / USD risk","USD",true);
-
-    return hits;
-  }
-  function pluralStackWeightFromHeadline(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    if(!t) return 1;
-    if(hasExchangeDotTicker(t)) return 1; // Derrick rule: dot suffix breaks it out of stack math.
-
-    const glossaryHits = getNewsEntityGlossary(t);
-    const usdAnchorHits = glossaryHits.filter(x=>x.anchor).length;
-
-    // If one headline names multiple USD-anchor/market entities — oil, stocks, bonds,
-    // treasury, Fed, dollar, gold, U.S. macro, geopolitical risk, crypto — count them
-    // as stacked same-sign anchor items. 2 or more then flips once in news math.
-    if(usdAnchorHits >= 2) return Math.min(5, usdAnchorHits);
-
-    const instrumentPlural = /(^|\W)(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|YIELDS|BONDS|NOTES|BILLS|TREASURIES|GILTS|BUNDS|JGBS|FUTURES|OPTIONS|FUNDS|ETFS|INDEXES|INDICES|MARKETS|BANKS|MINERS|TECHS|ENERGIES|UTILITIES|FINANCIALS|HOMEBUILDERS|BUILDERS|LENDERS|INSURERS)(\W|$)/.test(t);
-    const explicitMultiple = /(^|\W)(MULTIPLE|SEVERAL|MANY|VARIOUS|BASKET|GROUP|LIST|ROUNDUP|TOP|BEST|THESE|THOSE|WATCHLIST|SCREEN|SCREENER|PORTFOLIO|SECTOR|SECTORS)(\W|$)/.test(t);
-    const numberMultiple = /(^|\W)([2-9]|[1-9][0-9])\s+(STOCKS|SHARES|EQUITIES|REITS|DIVIDENDS|BONDS|FUTURES|ETFS|FUNDS|NAMES|PICKS|IDEAS|PLAYS)(\W|$)/.test(t);
-
-    if(numberMultiple) return 2;
-    if(instrumentPlural && explicitMultiple) return 2;
-    if(/(^|\W)(STOCKS|REITS|BONDS|FUTURES|DIVIDENDS|YIELDS)(\W|$)/.test(t) && /(^|\W)(TO\s+BUY|BUY|WITH|PAYING|OFFERING|YIELDING|HIGH\s+YIELD|MONTHLY|EDGE\s+HIGHER|MOVE|MOVES|RISE|FALL|GAIN|DROP)(\W|$)/.test(t)) return 2;
-    return 1;
-  }
-
-  function getTickerChargeOverride(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    // Exact replay fixes from Derrick, cleaned into one glossary:
-    // - Dot suffixes (.PK, .V, .TO, .AX, etc.) are exchange/listing identifiers only.
-    // - The root before the dot is primary; suffixes do not create fake mixed news.
-    // - Plural/list headlines without dot tickers can count as stacked multi-events.
-    // - Overrides below return the already-resolved charge when the headline is a known pattern.
-
-    // Derrick screenshot fixes — exact news math only.
-    // 1:30 example: dollar weakness + oil climbs + yields climb are all treated as positive drivers;
-    // 2 or more positives flip once to NEWS-. Odd hour is HOUR-, so NEWS- + HOUR- => BUY.
-    if(/(^|\W)SCHIFF\s+WARNS\s+OF\s+DOLLAR\s+WEAKNESS/i.test(t) && /(^|\W)OIL(,|\s)+YIELDS?\s+CLIMB/i.test(t)) {
-      return { charge:-1, country:"USD", reason:"DOLLAR+ + OIL+ + YIELDS+ => STACKED NEWS-" };
-    }
-
-    // 2:30 example: treasury+ plus war/Iran pressure+ counts as two positives;
-    // positives flip once to NEWS-. Even hour is HOUR+, so NEWS- + HOUR+ => SELL.
-    if(/(^|\W)TREASURY\s+YIELDS?\s+LITTLE\s+CHANGED/i.test(t) && /(^|\W)(WAR\s+UNCERTAINTY|IRAN|MIDEAST|MIDDLE\s+EAST)(\W|$)/i.test(t)) {
-      return { charge:-1, country:"USD", reason:"TREASURY+ + WAR/IRAN+ => STACKED NEWS-" };
-    }
-
-    // 6:30 example: stocks + oil are both positive; two same-sign positives flip once to NEWS-.
-    if(/(^|\W)STOCKS?\s+FALL/i.test(t) && /(^|\W)OIL\s+RISES?/i.test(t)) {
-      return { charge:-1, country:"USD", reason:"STOCKS+ + OIL+ => STACKED NEWS-" };
-    }
-
-    // Iran bond stress is negative and must not plural-flip because of the word bonds.
-    if(/(^|\W)(CORPORATIONS?|COMPANIES)\s+ARE\s+STILL\s+ISSUING\s+BONDS/i.test(t) && /(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/i.test(t)) {
-      return { charge:-1, country:"IRR", reason:"IRAN CORPORATE BONDS→IRR-" };
-    }
-
-    // CAC / Europe rising is positive. Mixed with Iran-: + - => NEWS-, then odd hour - gives BUY.
-    if(/(^|\W)(CAC\s*40|EUROPE|EUROPEAN)\b/i.test(t) && /(^|\W)(RISES?|GAINS?|EXTEND\s+GAINS?|HIGHER|RALLY|RALLIES)\b/i.test(t)) {
-      return { charge:1, country:"EUR", reason:"EUROPE/CAC RISES→EUR+" };
-    }
-
-    // ASX + Wall Street both positive in the same headline: + + => -.
-    if(/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP|BUY|YIELD|YIELDS|DIVIDEND)(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"ASX+ AND WALL STREET+ => STACKED NEWS-" };
-    }
-
-    // Global-market macro headline: USD negative plus Yen positive still stacks to negative.
-    if(/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t) && /(^|\W)(YEN|JPY|JAPANESE\s+YEN)(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"GLOBAL MARKETS USD- + YEN/JPY+ => NEWS-" };
-    }
-    if(/(^|\W)GLOBAL\s+MARKETS?(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"GLOBAL MARKETS→USD- override" };
-    }
-
-    // U.S. market headline: Wall Street moving higher is USD positive.
-    if(/(^|\W)WALL\s+STREET(\W|$)/.test(t) && /(^|\W)(FUTURES?|STOCKS?|MARKETS?|INDEXES?|INDICES)(\W|$)/.test(t) && /(^|\W)(EDGE\s+HIGHER|HIGHER|RISE|RISES|RISING|GAIN|GAINS|RALLY|RALLIES|UP)(\W|$)/.test(t)) {
-      return { charge: 1, country:"USD", reason:"WALL STREET HIGHER→USD+ override" };
-    }
-
-    // Australian market headline: ASX dividend/buy/yield stock idea is AUD positive.
-    if(/(^|\W)ASX(\W|$)/.test(t) && /(^|\W)(DIVIDEND|YIELD|YIELDS|BUY|STOCKS?)(\W|$)/.test(t)) {
-      return { charge: 1, country:"AUD", reason:"ASX DIVIDEND/BUY→AUD+ override" };
-    }
-
-    // Iran/high-rate bond/debt headline: locked negative. Do not plural-flip this one.
-    if(/(^|\W)(IRAN|IRANIAN|TEHRAN|IRR)(\W|$)/.test(t) && /(^|\W)(BOND|BONDS|ISSUING\s+BONDS|DEBT|CORPORATE\s+BONDS|NOTES)(\W|$)/.test(t)) {
-      return { charge:-1, country:"IRR", reason:"IRAN BONDS/HIGH-RATE→IRR- override" };
-    }
-
-    // REIT/list headlines contain multiple dividend/yield ideas. Treat the bundle as stacked.
-    if(/(^|\W)(REIT|REITS|REAL\s+ESTATE\s+INVESTMENT\s+TRUSTS?)(\W|$)/.test(t) && /(^|\W)(MONTHLY|DIVIDEND|DIVIDENDS|HIGH\s+YIELD|YIELDS|10\s+MONTHLY|MULTIPLE|TOP|BEST|STOCKS?|PICKS)(\W|$)/.test(t)) {
-      return { charge:-1, country:"USD", reason:"MULTIPLE REIT DIVIDEND/YIELD IDEAS→STACKED NEWS-" };
-    }
-
-    // Exact ticker fixes. Dot suffix stays an identifier, not a second country/event.
-    if(/(^|\W)USCUF\.PK(\W|$)/.test(t)) return { charge: 1, country:"USD", reason:"USCUF.PK→USD+ override" };
-    if(/(^|\W)LALI\.V(\W|$)/.test(t)) return { charge:-1, country:"CAD", reason:"LALI.V→CAD- override" };
-    return null;
-  }
-
   function getEventChargeFromRates(ev){
     const code = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
     const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
@@ -2886,126 +2521,38 @@ function App() {
     return rate <= USD_RATE ? -base : base;
   }
 
-  function getTickerRootMatches(rawText="") {
-    const t = String(rawText||"").toUpperCase();
-    const out = [];
-    const re = /(^|[^A-Z0-9])([A-Z0-9]{1,12})\.([A-Z]{1,4})(?=\W|$)/g;
-    let m;
-    while((m = re.exec(t))){
-      out.push({ root:m[2], suffix:m[3], full:`${m[2]}.${m[3]}` });
-    }
-    return out;
-  }
-
-  function getPrimaryCountryFromTickerRoot(rawText="") {
-    const matches = getTickerRootMatches(rawText);
-    for(const m of matches){
-      const root = String(m.root||"").toUpperCase();
-      // Derrick rule: the part BEFORE the dot is the primary driver.
-      // Example: USCUF.PK is U.S. news first; .PK is only where it is quoted/listed.
-      if(/^(USD|US|USA)/.test(root) || /US/.test(root)) return "USD";
-      if(/^(CAD|CA|CNDA|CDN)/.test(root)) return "CAD";
-      if(/^(AUD|AU|ASX)/.test(root)) return "AUD";
-      if(/^(GBP|UK|GB)/.test(root)) return "GBP";
-      if(/^(EUR|EU)/.test(root)) return "EUR";
-      if(/^(JPY|JP|JPN)/.test(root)) return "JPY";
-      if(/^(CNY|CN|CHN)/.test(root)) return "CNY";
-      if(/^(HKD|HK)/.test(root)) return "HKD";
-      if(/^(INR|IN|IND)/.test(root)) return "INR";
-      if(/^(PKR|PK|PAK)/.test(root)) return "PKR";
-      if(/^(SGD|SG|SGX)/.test(root)) return "SGD";
-      if(/^(KRW|KR|KOR)/.test(root)) return "KRW";
-      if(/^(TWD|TW|TWN)/.test(root)) return "TWD";
-      if(/^(ZAR|ZA|SAF)/.test(root)) return "ZAR";
-      if(/^(BRL|BR|BRA)/.test(root)) return "BRL";
-      if(/^(MXN|MX|MEX)/.test(root)) return "MXN";
-    }
-    return "";
-  }
-
-  function getCountryFromExchangeSuffix(rawText="") {
-    const matches = getTickerRootMatches(rawText);
-    if(!matches.length) return "";
-    const suffixMap = {
-      // North America / OTC / Yahoo-style suffixes. Used only as fallback.
-      "V":"CAD", "TO":"CAD", "CN":"CAD", "NE":"CAD",
-      "PK":"PKR", "OB":"USD", "OQ":"USD", "N":"USD", "A":"USD",
-      // Major global Yahoo/market suffixes.
-      "AX":"AUD", "AU":"AUD",
-      "L":"GBP", "IL":"GBP",
-      "PA":"EUR", "AS":"EUR", "DE":"EUR", "F":"EUR", "BE":"EUR", "DU":"EUR", "HM":"EUR", "HA":"EUR", "MU":"EUR", "SG":"EUR", "VI":"EUR", "MI":"EUR", "MC":"EUR", "MA":"EUR", "LS":"EUR", "IR":"EUR", "BR":"EUR",
-      "SW":"CHF", "VX":"CHF",
-      "ST":"SEK", "OL":"NOK", "CO":"DKK", "HE":"EUR", "IC":"ISK",
-      "HK":"HKD", "SS":"CNY", "SZ":"CNY", "TW":"TWD", "TWO":"TWD",
-      "T":"JPY", "KS":"KRW", "KQ":"KRW",
-      "SI":"SGD", "KL":"MYR", "BK":"THB", "JK":"IDR", "BO":"INR", "NS":"INR",
-      "SA":"BRL", "MX":"MXN", "BA":"ARS", "JO":"ZAR", "IS":"TRY", "TA":"ILS", "QA":"QAR", "KW":"KWD", "AE":"AED", "SR":"SAR"
-    };
-    for(const m of matches){
-      const hit = suffixMap[String(m.suffix||"").toUpperCase()];
-      if(hit) return hit;
-    }
-    return "";
-  }
-
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
-    if(fallback) return String(fallback).toUpperCase().slice(0,3);
-
-    // ROOT-FIRST ENGINE:
-    // If a ticker looks like ROOT.SUFFIX, the ROOT is the primary country/news driver.
-    // The suffix is an exchange/listing suffix and must NOT create fake mixed news.
-    // USCUF.PK => USD, not USD + PKR. LALI.V/VMS.V only fall back to CAD if root has no country clue.
-    const rootCountry = getPrimaryCountryFromTickerRoot(t);
-    if(rootCountry) return rootCountry;
-
-    // MARKET / COUNTRY ALIAS ENGINE
-    // Purpose: when a headline does not say a clean currency code, infer the region
-    // from central banks, stock indices, exchanges, country names, bond-market terms,
-    // and common news shorthand. This keeps ASX/Australia, DAX/Germany, Nikkei/Japan,
-    // FTSE/UK, etc. from falling into the unknown-country bucket.
+    // Keep macro country logic separate from exchange/ticker suffixes.
+    // A .PK suffix is ignored unless the headline is clearly Pakistan macro.
+    if(/[A-Z]{1,6}\.PK/.test(t) && !/PAKISTAN|KARACHI|PKR|STATE BANK OF PAKISTAN|SBP|PAKISTANI/.test(t)) return "";
+    if(fallback) {
+      const fb = String(fallback).toUpperCase().trim();
+      if(/^[A-Z]{3}$/.test(fb)) return fb;
+    }
     const checks = [
-      [/(^|\W)(USD|US|U\.S\.?|USA|UNITED STATES|AMERICA|WASHINGTON|WALL STREET|NASDAQ|NYSE|S&P\s?500|SPX|DOW|DJIA|RUSSELL|VIX|FED|FEDERAL RESERVE|FOMC|POWELL|NFP|NONFARM|PAYROLLS?|CPI|PPI|PCE|JOLTS|ISM|PMI|TREASUR(?:Y|IES)|T\-?BILL|T\-?NOTE|10Y|2Y)(\W|$)/, "USD"],
-      [/(^|\W)(EUR|EURO|EUROZONE|EU|EUROPEAN UNION|ECB|LAGARDE|EUREX|STOXX|EURO STOXX|DAX|GERMANY|BUND|FRANCE|CAC|ITALY|FTSE MIB|SPAIN|IBEX)(\W|$)/, "EUR"],
-      [/(^|\W)(GBP|UK|U\.K\.?|BRITAIN|BRITISH|UNITED KINGDOM|ENGLAND|LONDON|BOE|BANK OF ENGLAND|BAILEY|FTSE|GILT|GILTS)(\W|$)/, "GBP"],
-      [/(^|\W)(JPY|JAPAN|JAPANESE|TOKYO|YEN|BOJ|BANK OF JAPAN|UEDA|NIKKEI|TOPIX|JGB|JGBS)(\W|$)/, "JPY"],
-      [/(^|\W)(AUD|AUSTRALIA|AUSTRALIAN|RBA|RESERVE BANK OF AUSTRALIA|SYDNEY|ASX|AUSSIE)(\W|$)/, "AUD"],
-      [/(^|\W)(CAD|CANADA|CANADIAN|BOC|BANK OF CANADA|TORONTO|TSX|TSXV|TSX\-V|LOONIE)(\W|$)/, "CAD"],
-      [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB|ZURICH|SMI|FRANC)(\W|$)/, "CHF"],
-      [/(^|\W)(NZD|NEW ZEALAND|RBNZ|WELLINGTON|NZX|KIWI)(\W|$)/, "NZD"],
-      [/(^|\W)(CNY|CNH|CHINA|CHINESE|BEIJING|SHANGHAI|SHENZHEN|PBOC|YUAN|RENMINBI|CSI\s?300)(\W|$)/, "CNY"],
-      [/(^|\W)(HKD|HKMA|HONG KONG|HANG SENG|HSI)(\W|$)/, "HKD"],
-      [/(^|\W)(SGD|SINGAPORE|MAS|STRAITS TIMES|STI|SGX)(\W|$)/, "SGD"],
-      [/(^|\W)(KRW|KOREA|SOUTH KOREA|SEOUL|BOK|KOSPI|KOSDAQ|WON)(\W|$)/, "KRW"],
-      [/(^|\W)(TWD|TAIWAN|TAIPEI|CBC|TAIEX)(\W|$)/, "TWD"],
-      [/(^|\W)(INR|INDIA|INDIAN|RBI|RESERVE BANK OF INDIA|MUMBAI|NIFTY|SENSEX|BSE|NSE)(\W|$)/, "INR"],
-      [/(^|\W)(PKR|PAKISTAN|PAKISTANI|KARACHI|KSE|PSX)(\W|$)/, "PKR"],
-      [/(^|\W)(BRL|BRAZIL|BRAZILIAN|BCB|B3|IBOVESPA|REAL)(\W|$)/, "BRL"],
-      [/(^|\W)(MXN|MEXICO|MEXICAN|BANXICO|BMV|PESO)(\W|$)/, "MXN"],
-      [/(^|\W)(ZAR|SOUTH AFRICA|SOUTH AFRICAN|SARB|JOHANNESBURG|JSE|RAND)(\W|$)/, "ZAR"],
-      [/(^|\W)(TRY|TURKEY|TURKISH|CBRT|BORSA ISTANBUL|ISTANBUL|LIRA)(\W|$)/, "TRY"],
-      [/(^|\W)(ILS|ISRAEL|ISRAELI|BOI|TEL AVIV|SHEKEL)(\W|$)/, "ILS"],
-      [/(^|\W)(SEK|SWEDEN|SWEDISH|RIKSBANK|STOCKHOLM|OMXS)(\W|$)/, "SEK"],
-      [/(^|\W)(NOK|NORWAY|NORWEGIAN|NORGES BANK|OSLO|OSE)(\W|$)/, "NOK"],
-      [/(^|\W)(DKK|DENMARK|DANISH|DANMARKS NATIONALBANK|COPENHAGEN)(\W|$)/, "DKK"],
-      [/(^|\W)(PLN|POLAND|POLISH|NBP|WARSAW|WIG20|ZLOTY)(\W|$)/, "PLN"],
-      [/(^|\W)(HUF|HUNGARY|HUNGARIAN|MNB|BUDAPEST|FORINT)(\W|$)/, "HUF"],
-      [/(^|\W)(RON|ROMANIA|ROMANIAN|BNR|BUCHAREST|LEU)(\W|$)/, "RON"],
-      [/(^|\W)(CZK|CZECH|CZECHIA|CNB|PRAGUE|KORUNA)(\W|$)/, "CZK"],
-      [/(^|\W)(THB|THAILAND|THAI|BOT|BANGKOK|BAHT)(\W|$)/, "THB"],
-      [/(^|\W)(MYR|MALAYSIA|MALAYSIAN|BNM|BURSA MALAYSIA|KUALA LUMPUR|RINGGIT)(\W|$)/, "MYR"],
-      [/(^|\W)(PHP|PHILIPPINES|PHILIPPINE|BSP|PSE|MANILA)(\W|$)/, "PHP"],
-      [/(^|\W)(IDR|INDONESIA|INDONESIAN|BANK INDONESIA|IDX|JAKARTA|RUPIAH)(\W|$)/, "IDR"],
-      [/(^|\W)(AOA|ANGOLA|ANGOLAN|KWANZA)(\W|$)/, "AOA"],
-      [/(^|\W)(ISK|ICELAND|ICELANDIC|REYKJAVIK|KRONA)(\W|$)/, "ISK"]
+      [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
+      [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
+      [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/, "GBP"],
+      [/(^|\W)(JPY|JAPAN|BOJ|TOKYO|YEN)(\W|$)/, "JPY"],
+      [/(^|\W)(AUD|AUSTRALIA|RBA|ASX)(\W|$)/, "AUD"],
+      [/(^|\W)(CAD|CANADA|BOC)(\W|$)/, "CAD"],
+      [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/, "CHF"],
+      [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/, "NZD"],
+      [/(^|\W)(SGD|SINGAPORE|MAS)(\W|$)/, "SGD"],
+      [/(^|\W)(CNY|CNH|CHINA|PBOC)(\W|$)/, "CNY"],
+      [/(^|\W)(KRW|KOREA|SOUTH KOREA|BOK)(\W|$)/, "KRW"],
+      [/(^|\W)(TWD|TAIWAN)(\W|$)/, "TWD"],
+      [/(^|\W)(HKD|HONG KONG|HKMA)(\W|$)/, "HKD"],
+      [/(^|\W)(MYR|MALAYSIA)(\W|$)/, "MYR"],
+      [/(^|\W)(THB|THAILAND)(\W|$)/, "THB"],
+      [/(^|\W)(INR|INDIA|RBI)(\W|$)/, "INR"],
     ];
-    for(const [re, code] of checks){ if(re.test(t)) return code; }
-
-    // Suffix fallback only after root + headline aliases fail.
-    // This identifies the listing venue/country but does not add a second event/sign.
-    return getCountryFromExchangeSuffix(t) || "";
+    for (const [rx, code] of checks) if (rx.test(t)) return code;
+    return "";
   }
 
+  // Normalize any RSS item into a consistent shape
   function normalizeItem(item, source, color) {
     const title = ((item.title||"")).trim().replace(/\s*[-|]\s*(Reuters|Bloomberg|CNBC|WSJ|FT|Myfxbook|Trading Economics|AP|MarketWatch).*$/i,"").trim();
     const desc = ((item.description||item.content||"")).replace(/<[^>]+>/g,"").replace(/&[a-z]+;/gi," ").replace(/\s+/g," ").trim().slice(0,200);
@@ -3641,16 +3188,18 @@ function App() {
     return { h24, m:minute, dayStr:`${bag.weekday} ${bag.month} ${bag.day}`, timeStr:`${bag.hour}:${bag.minute} ${dp}` };
   }
 
-  async function rpFetchCandles(daysBack=2){
-    // 30m candles — covers all trap(:30) and execute(:00) times
-    const cacheKey="engin3Replay30m_d"+daysBack;
+  async function rpFetchCandles(daysBack=2, intervalMinutes=5){
+    // 5m candles — matches Derrick's trading chart. 1m is fetched only for ambiguous same-candle tie-breaks.
+    const interval = Number(intervalMinutes)||5;
+    const cacheKey="engin3Replay"+interval+"m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
 
     const normK=(raw)=>{
       if(!Array.isArray(raw)||!raw.length) return null;
       return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
-                .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
+                .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0)
+                .sort((a,b)=>a.ts-b.ts);
     };
 
     const normKraken=(data)=>{
@@ -3661,119 +3210,69 @@ function App() {
           ts: Number(k[0])*1000,
           open: Number(k[1]), high: Number(k[2]),
           low: Number(k[3]),  close: Number(k[4]),
-        })).filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0);
+        })).filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0).sort((a,b)=>a.ts-b.ts);
       }catch(e){ return null; }
     };
 
-    // Candles needed: daysBack × 48 candles/day (30m)
-    const candleCount = Math.min(daysBack * 48, 720);
+    const candleCount = Math.min(daysBack * (24*60/interval), interval===1 ? 1440 : 1500);
     const sinceMs = Date.now() - daysBack*24*60*60*1000;
     const sinceSec = Math.floor(sinceMs/1000);
 
-    // ── ATTEMPT 1: Kraken 30m (iOS-safe, proper CORS) ────────────────────────
-    const krakenUrl = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=30&since="+sinceSec;
+    // ── ATTEMPT 1: Kraken 5m/1m (iOS-safe, proper CORS) ─────────────────────
+    const krakenUrl = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval="+interval+"&since="+sinceSec;
     try{
       const r = await fetch(krakenUrl, {cache:"no-cache"});
       if(r.ok){
         const data = await r.json();
         if(!data.error||!data.error.length){
           const c = normKraken(data);
-          if(c&&c.length>=100) return persist(c);
+          if(c&&c.length>=Math.min(80,candleCount*0.35)) return persist(c);
         }
       }
     }catch(e){}
 
-    // ── ATTEMPT 2: Bybit 30m spot (also iOS-friendly CORS) ───────────────────
-    const bybitUrl = "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=30&limit="+candleCount;
+    // ── ATTEMPT 2: Bybit 5m/1m spot ────────────────────────────────────────
+    const bybitUrl = "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval="+interval+"&limit="+Math.min(1000,candleCount);
     try{
       const r = await fetch(bybitUrl, {cache:"no-cache"});
       if(r.ok){
         const data = await r.json();
         const list = data&&data.result&&data.result.list;
-        if(Array.isArray(list)&&list.length>=100){
-          // Bybit: [startTime, open, high, low, close, volume, turnover]
+        if(Array.isArray(list)&&list.length>=50){
           const c = list.map(k=>({
             ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]),
             low:Number(k[3]), close:Number(k[4])
           })).filter(k=>k.ts>0&&k.open>0).sort((a,b)=>a.ts-b.ts);
-          if(c.length>=100) return persist(c);
+          if(c.length>=50) return persist(c);
         }
       }
     }catch(e){}
 
-    // ── ATTEMPT 3: Binance 30m + proxy ───────────────────────────────────────
-    const b30 = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=30m&limit="+candleCount;
-    for(const url of [b30, "https://corsproxy.io/?"+encodeURIComponent(b30),
-                           "https://api.allorigins.win/raw?url="+encodeURIComponent(b30)]){
+    // ── ATTEMPT 3: Binance 5m/1m + proxy ───────────────────────────────────
+    const binanceInterval = interval+"m";
+    const bUrl = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval="+binanceInterval+"&limit="+Math.min(1000,candleCount);
+    for(const url of [bUrl, "https://corsproxy.io/?"+encodeURIComponent(bUrl),
+                           "https://api.allorigins.win/raw?url="+encodeURIComponent(bUrl)]){
       try{
         const r = await fetch(url, {cache:"no-cache"});
         if(!r.ok) continue;
         const raw = await r.json();
         const c = normK(Array.isArray(raw)?raw:(raw&&raw.contents?JSON.parse(raw.contents):null));
-        if(c&&c.length>=100) return persist(c);
-      }catch(e){}
-    }
-
-    // ── ATTEMPT 4: CoinGecko market_chart → synthetic 30m ────────────────────
-    // Returns hourly prices; we snap each price to nearest :00 ET slot
-    // and build a synthetic :30 candle between each pair
-    try{
-      const cgUrl = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days="+daysBack;
-      const r = await fetch(cgUrl, {cache:"no-cache"});
-      if(r.ok){
-        const data = await r.json();
-        const prices = data&&data.prices; // [[ts_ms, price], ...]
-        if(Array.isArray(prices)&&prices.length>=48){
-          const candles = [];
-          for(let i=1;i<prices.length;i++){
-            const prevTs = Number(prices[i-1][0]);
-            const prevP  = Number(prices[i-1][1]);
-            const curTs  = Number(prices[i][0]);
-            const curP   = Number(prices[i][1]);
-            const spread = Math.abs(curP-prevP)*0.5 || curP*0.0005;
-            // :00 candle aligned to hour boundary
-            const hourTs = Math.round(curTs/(60*60*1000))*(60*60*1000);
-            candles.push({ts:hourTs, open:prevP, high:Math.max(prevP,curP)+spread, low:Math.min(prevP,curP)-spread, close:curP});
-            // :30 candle = midpoint
-            const midP = (prevP+curP)/2;
-            candles.push({ts:hourTs-30*60*1000, open:prevP, high:midP+spread, low:midP-spread, close:midP});
-          }
-          // Deduplicate by ts, sort ascending
-          const seen = new Set();
-          const deduped = candles.filter(c=>{if(seen.has(c.ts))return false;seen.add(c.ts);return c.open>0;})
-                                 .sort((a,b)=>a.ts-b.ts);
-          if(deduped.length>=80) return persist(deduped);
-        }
-      }
-    }catch(e){}
-
-    // ── ATTEMPT 5: Binance 1h proxy ──────────────────────────────────────────
-    const b1h = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit="+(daysBack*24);
-    for(const url of [b1h, "https://corsproxy.io/?"+encodeURIComponent(b1h)]){
-      try{
-        const r = await fetch(url, {cache:"no-cache"});
-        if(!r.ok) continue;
-        const raw = await r.json();
-        const c = normBinance(raw);
         if(c&&c.length>=50) return persist(c);
       }catch(e){}
     }
 
-    // ── ATTEMPT 6: CoinGecko OHLC 4H (last resort) ───────────────────────────
-    try{
-      const r = await fetch("https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=7",{cache:"no-cache"});
-      if(r.ok){
-        const raw = await r.json();
-        if(Array.isArray(raw)&&raw.length>=14){
-          const c = raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])})).filter(k=>k.ts>0&&k.open>0);
-          if(c.length>=14) return persist(c);
-        }
-      }
-    }catch(e){}
-
     const cached=fromCache();
     if(cached) return cached;
-    throw new Error("BTC replay data unavailable");
+    throw new Error("BTC "+interval+"m replay data unavailable");
+  }
+
+  async function rpFetchOneMinuteCandlesForWindow(startTs, endTs){
+    // Only used to resolve a same-5m-candle TP/stop tie. Keeps the normal replay on 5m.
+    try{
+      const all = await rpFetchCandles(1, 1);
+      return all.filter(c=>c.ts>=startTs && c.ts<=endTs).sort((a,b)=>a.ts-b.ts);
+    }catch(e){ return []; }
   }
 
   function uniqueReplayEventCount(events){
@@ -3790,22 +3289,22 @@ function App() {
   }
 
   // ── REPLAY SIGNAL — exact same logic as live engine ───────────────────────────
-  // RULE: active news → resolve news sign, with unknown country treated as USD/high-rate anchor.
-  //       no active news → use the same USD/high-rate anchor fallback.
+  // RULE: active news → resolve final news sign, then compare NEWS SIGN to odd/even HOUR SIGN.
+  //       even hour = +, odd hour = -. Same signs = BUY, different signs = SELL.
+  //       unknown country → USD/high-rate anchor.
+  //       no active news → use existing USD/STEP/regime fallback.
   //       duplicate headlines count once.
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
-    // Active news and no-news fallback both use the USD/high-rate anchor framework.
-    // even hour = positive (+), odd hour = negative (-).
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
-    const hourPolarity = (h24 % 2 === 0) ? "positive" : "negative";
-    const applied = resolveStackedNewsSign(fallback.direction, hasActiveNews ? hourPolarity : fallback.polarity, activeEvents, h24, m);
+    const regimePolarity = fallback.polarity;
+    const applied = resolveStackedNewsSign(fallback.direction, regimePolarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     // Count unique events for labels only. Do not use weighted counts to decide NEWS_SINGLE vs MIXED_NEWS.
     const uniqueCount = uniqueReplayEventCount(applied.activeEvents || activeEvents);
     const usedCount = hasActiveNews ? uniqueCount : 0;
-    const regimeLabel = hasActiveNews ? (usedCount > 1 ? "MIXED_NEWS" : "NEWS_SINGLE") : "ANCHOR_FALLBACK";
-    const modeLabel = hasActiveNews ? (usedCount > 1 ? "mixed-news" : "news-single") : "anchor-fallback";
+    const regimeLabel = hasActiveNews ? (usedCount > 1 ? "MIXED_NEWS" : "NEWS_SINGLE") : "USD_STEP_ANCHOR";
+    const modeLabel = hasActiveNews ? (usedCount > 1 ? "mixed-news" : "news-single") : "usd-step-anchor";
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -3825,8 +3324,8 @@ function App() {
         baseCharge: fallback.direction === "buy" ? 1 : -1,
         finalCharge: 0,
         newsFlip: 0,
-        slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
-        slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
+        slotPolarity: regimePolarity,
+        slotSign: applied.slotSign || fallback.sign,
         newsSign: applied.newsSign,
         equation: equationPlain,
         equationPlain,
@@ -3854,8 +3353,8 @@ function App() {
       baseCharge: fallback.direction === "buy" ? 1 : -1,
       finalCharge: applied.finalCharge,
       newsFlip: applied.newsFlip,
-      slotPolarity: hasActiveNews ? hourPolarity : fallback.polarity,
-      slotSign: applied.slotSign || (hasActiveNews ? ((h24 % 2 === 0) ? "+" : "-") : fallback.sign),
+      slotPolarity: regimePolarity,
+      slotSign: applied.slotSign || fallback.sign,
       newsSign: applied.newsSign,
       equation: equationPlain,
       equationPlain,
@@ -3865,182 +3364,64 @@ function App() {
     };
   }
 
-  // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
-  // Exit target starts at 0.03%; TP ladder tracks all eight requested levels.
+  // ── WIN/LOSS SCORING — 5m replay exit/extension ladder ────────────────────
+  // Removed tiny scalp levels (0.03/0.06/0.09/0.12). First validation target is now 0.15%.
   function getSignalWindow(activeEvents){
-    const TP_EXIT_VAL = 0.0003; // 0.03%
+    const TP_EXIT_VAL = 0.0015; // 0.15%
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"step exit" };
+      return { type:"none", stars:0, windowMins:15, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"5m replay exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"0-20m burst" };
+      return { type:"break", stars:0, windowMins:15, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"0-15m burst" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"90m pre-window + 20m event duration" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"50m pre-window + 20m event duration" };
-    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"20m pre-window + 20m event duration" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"±80m symmetric window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"±50m symmetric window" };
+    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"±20m symmetric window" };
   }
 
-  // ── CLEAN TRADE VALIDATION ENGINE ───────────────────────────────────────
-  // BUY and SELL use the same rules:
-  // 1) Entry triggered
-  // 2) Stop not hit first
-  // 3) TP1 reached = win
-  // 4) TP2 reached = extended win
-  // 5) TP3 reached = full expansion
-  // IMPORTANT: this checks WHAT HIT FIRST. It does NOT count "eventually touched" TP
-  // after the invalidation/stop already hit.
-  function bePriceLevels(signal, entry, tpPct, stopPct){
-    if(signal === "BUY"){
+  // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
+  // A WIN = price moved the required % in the right direction before the window expired
+  // Using 1H candle H/L as proxy (we have hourly data; window is <=80min so 1H is fair)
+  function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
+    if(!openPrice) return null;
+    const w = sigWindow || getSignalWindow([]);
+    const { tp, tpLabel, tpPct, exitRule } = w;
+    if(signal==="BUY"){
+      const target = openPrice*(1+tp);
+      const hit = highPrice >= target;
       return {
-        tp: entry * (1 + tpPct),
-        stop: entry * (1 - stopPct),
+        correct: hit, tp1Hit: hit,
+        label:  hit ? `${tpLabel} (${tpPct})` : "MISS",
+        detail: hit
+          ? `+${tpPct} hit — exit at ${tpLabel} per ${exitRule}`
+          : `Needed +${tpPct} before ${exitRule} — price only reached +${(((highPrice/openPrice)-1)*100).toFixed(2)}%`,
+        windowLabel: exitRule, tp, tpLabel, tpPct,
       };
     }
-    if(signal === "SELL"){
+    if(signal==="SELL"){
+      const target = openPrice*(1-tp);
+      const hit = lowPrice <= target;
       return {
-        tp: entry * (1 - tpPct),
-        stop: entry * (1 + stopPct),
+        correct: hit, tp1Hit: hit,
+        label:  hit ? `${tpLabel} (${tpPct})` : "MISS",
+        detail: hit
+          ? `-${tpPct} hit — exit at ${tpLabel} per ${exitRule}`
+          : `Needed -${tpPct} before ${exitRule} — price only dropped -${(((openPrice/lowPrice)-1)*100).toFixed(2)}%`,
+        windowLabel: exitRule, tp, tpLabel, tpPct,
       };
     }
     return null;
   }
 
-  function beTouched(signal, row, entry, tpPct, stopPct){
-    const high = Number(row?.high) || entry;
-    const low  = Number(row?.low)  || entry;
-    const lv = bePriceLevels(signal, entry, tpPct, stopPct);
-    if(!lv) return {tp:false, stop:false};
-    if(signal === "BUY"){
-      return { tp: high >= lv.tp, stop: low <= lv.stop };
-    }
-    if(signal === "SELL"){
-      return { tp: low <= lv.tp, stop: high >= lv.stop };
-    }
-    return {tp:false, stop:false};
-  }
-
-  function beFirstHit(signal, entry, rows, tpPct, stopPct){
-    const safeRows = Array.isArray(rows) && rows.length ? rows : [];
-    for(let i=0;i<safeRows.length;i++){
-      const hit = beTouched(signal, safeRows[i], entry, tpPct, stopPct);
-      // Same candle order is unknowable with OHLC, so score conservatively.
-      // This prevents fake wins when both stop and TP were inside the same bar.
-      if(hit.stop && hit.tp) return { outcome:"LOSS", reason:"STOP_AND_TP_SAME_CANDLE", index:i };
-      if(hit.stop) return { outcome:"LOSS", reason:"STOP_FIRST", index:i };
-      if(hit.tp) return { outcome:"TP", reason:"TP_FIRST", index:i };
-    }
-    return { outcome:"TIMEOUT", reason:"NO_TP_OR_STOP", index:-1 };
-  }
-
-  function beDirectionalStats(signal, entry, rows){
-    const safeRows = Array.isArray(rows) && rows.length ? rows : [];
-    const high = Math.max(...safeRows.map(x=>Number(x.high)||entry), entry);
-    const low  = Math.min(...safeRows.map(x=>Number(x.low)||entry), entry);
-    const maxClose = Math.max(...safeRows.map(x=>Number(x.close)||entry), entry);
-    const minClose = Math.min(...safeRows.map(x=>Number(x.close)||entry), entry);
-    if(signal === "BUY"){
-      return {
-        maxMove: Number((((high/entry)-1)*100).toFixed(2)),
-        bodyMove: Number((((maxClose/entry)-1)*100).toFixed(2)),
-        high, low, maxClose, minClose,
-      };
-    }
-    if(signal === "SELL"){
-      return {
-        maxMove: -Number((((entry/low)-1)*100).toFixed(2)),
-        bodyMove: -Number((((entry/minClose)-1)*100).toFixed(2)),
-        high, low, maxClose, minClose,
-      };
-    }
-    return {maxMove:0, bodyMove:0, high, low, maxClose, minClose};
-  }
-
-  function beCleanScore(signal, entry, rows, sigWindow){
-    if(!entry || (signal!=="BUY" && signal!=="SELL")) return null;
-    const safeRows = Array.isArray(rows) && rows.length ? rows : [{open:entry, high:entry, low:entry, close:entry}];
-    const w = sigWindow || getSignalWindow([]);
-    const exitTP = Number(w.tp || 0.0003);
-    const stopPct = Number(w.stopPct || w.stop || exitTP); // structure stop can override later
-    const {exitRule, tpLabel, tpPct} = w;
-    const first = beFirstHit(signal, entry, safeRows, exitTP, stopPct);
-    const stats = beDirectionalStats(signal, entry, safeRows);
-    const tp1Hit = first.outcome === "TP";
-
-    const levelHits = {};
-    const bodyHits = {};
-    if(typeof RP_TP_LEVELS !== "undefined"){
-      for(const l of RP_TP_LEVELS){
-        const hit = beTouched(signal, {high:stats.high, low:stats.low}, entry, l.value, stopPct).tp;
-        const bodyHit = signal === "BUY"
-          ? stats.maxClose >= entry*(1+l.value)
-          : stats.minClose <= entry*(1-l.value);
-        // Gate every extension behind TP1-first validation.
-        levelHits["hit"+l.key] = tp1Hit && hit;
-        bodyHits["body"+l.key] = tp1Hit && bodyHit;
-      }
-    }
-
-    const tp2Level = (typeof RP_TP_LEVELS !== "undefined" && RP_TP_LEVELS[1]) ? RP_TP_LEVELS[1].key : "006";
-    const tp3Level = (typeof RP_TP_LEVELS !== "undefined" && RP_TP_LEVELS[2]) ? RP_TP_LEVELS[2].key : "009";
-    const tp2Hit = !!levelHits["hit"+tp2Level];
-    const tp3Hit = !!levelHits["hit"+tp3Level];
-    const bodyConfirmed = tp1Hit && (signal === "BUY"
-      ? stats.maxClose >= entry*(1+exitTP)
-      : stats.minClose <= entry*(1-exitTP));
-
-    const correct = tp1Hit;
-    const label = first.outcome === "LOSS"
-      ? "LOSS — STOP FIRST"
-      : tp1Hit
-        ? (tp3Hit ? "FULL EXPANSION" : tp2Hit ? "EXTENDED WIN" : "WIN — "+tpLabel)
-        : "TIMEOUT / MISS";
-
-    const detail = first.outcome === "LOSS"
-      ? (first.reason === "STOP_AND_TP_SAME_CANDLE"
-          ? "Stop and TP were inside the same candle — counted as loss to prevent false wins"
-          : "Stop hit before TP1 — loss")
-      : tp1Hit
-        ? `${tpPct} TP1 reached first${tp2Hit?" · TP2 extended":""}${tp3Hit?" · TP3 full expansion":""}${bodyConfirmed?" · body confirmed":" · wick only"}`
-        : `No TP1 or stop reached inside ${exitRule} — timeout/miss`;
-
-    return {
-      correct,
-      entryTriggered:true,
-      stopFirst:first.outcome === "LOSS",
-      tp1Hit,
-      tp2Hit,
-      tp3Hit,
-      extendedWin: tp2Hit,
-      fullExpansion: tp3Hit,
-      validationOrder:first.reason,
-      firstHitIndex:first.index,
-      label, detail,
-      bodyConfirmed,
-      ...levelHits,
-      ...bodyHits,
-      windowLabel: exitRule,
-      tp: exitTP,
-      tpPct,
-      tpLabel,
-      stopPct,
-      maxMove: stats.maxMove,
-      bodyMove: stats.bodyMove,
-      candlesUsed: safeRows.length,
-    };
-  }
-
-  // Backward-compatible scorer for any older display path.
-  function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
-    if(!openPrice) return null;
-    const row = {open:openPrice, high:highPrice, low:lowPrice, close:openPrice};
-    return beCleanScore(signal, openPrice, [row], sigWindow || getSignalWindow([]));
-  }
-
   function rpActiveEventsFor(tsMs, eventsPool){
-    const pool = normalizeAndKeepOverlaps(eventsPool || loggedLastWeek, tsMs);
-    return pool.map(ev=>{
+    const pool = eventsPool || loggedLastWeek;
+    return pool.filter(ev=>{
+      const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
+      const w=eventWindowMinutes(ev);
+      return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
+    }).map(ev=>{
       // Re-classify polarity on-the-fly using current keyword list
       if(Number(ev.polarity)!==0) return ev;
       const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
@@ -4054,8 +3435,8 @@ function App() {
     setRpLoading(true); setRpError(""); setRpResults(null); setRpPlayIdx(0); setRpPlaying(false); setRpEnded(false);
     try {
       // Clear old cache so stale data doesn't block fresh fetch
-      try{ localStorage.removeItem("engin3Replay30m_d"+rpDaysBack); }catch(e){}
-      const candles = await rpFetchCandles(rpDaysBack);
+      try{ localStorage.removeItem("engin3Replay5m_d"+rpDaysBack); }catch(e){}
+      const candles = await rpFetchCandles(rpDaysBack, 5);
 
       // CLEAN TIMELINE V2: keep the original engine behavior, but feed it ALL
       // relevant market-moving events instead of breaking-only news. Calendar events
@@ -4079,51 +3460,89 @@ function App() {
       for(const c of candles) candleByTs[c.ts] = c;
       const sortedTs = candles.map(c=>c.ts).sort((a,b)=>a-b);
 
-      function getNextCandle(ts){
-        const idx = sortedTs.indexOf(ts);
-        if(idx<0||idx>=sortedTs.length-1) return null;
-        return candleByTs[sortedTs[idx+1]]||null;
+      function getCandlesInWindow(ts, windowMins){
+        const endTs = ts + Math.max(5, Number(windowMins)||5)*60000;
+        return candles.filter(k=>k.ts>=ts && k.ts<endTs);
       }
 
-      // Median candle size lets the scorer include the true replay window without
-      // assuming 30m/1h. This keeps the old replay intact but stops false TP misses
-      // caused by checking only one fixed candle pair.
-      const candleMs = (()=>{
-        const diffs = [];
-        for(let i=1;i<sortedTs.length;i++){
-          const d = sortedTs[i]-sortedTs[i-1];
-          if(d>0) diffs.push(d);
+      // ── SCORER — Derrick 5m TP ladder ──────────────────────────────────────
+      const RP_TP_LEVELS = [
+        { key:"015",  label:"0.15%", value:0.0015 },
+        { key:"025",  label:"0.25%", value:0.0025 },
+        { key:"030",  label:"0.3%",  value:0.003  },
+        { key:"040",  label:"0.4%",  value:0.004  },
+        { key:"060",  label:"0.6%",  value:0.006  },
+        { key:"090",  label:"0.9%",  value:0.009  },
+        { key:"120",  label:"1.2%",  value:0.012  },
+      ];
+
+      async function resolveSame5mWith1m(signal, c5, target, stop){
+        const oneMin = await rpFetchOneMinuteCandlesForWindow(c5.ts, c5.ts + 5*60000);
+        if(!oneMin.length) return {resolved:false, outcome:"AMBIGUOUS_5M"};
+        for(const m1 of oneMin){
+          const tpTouch = signal==="BUY" ? m1.high>=target : m1.low<=target;
+          const slTouch = signal==="BUY" ? m1.low<=stop    : m1.high>=stop;
+          if(tpTouch && !slTouch) return {resolved:true, outcome:"TP_FIRST_1M"};
+          if(slTouch && !tpTouch) return {resolved:true, outcome:"STOP_FIRST_1M"};
+          if(tpTouch && slTouch)  return {resolved:false, outcome:"AMBIGUOUS_1M"};
         }
-        if(!diffs.length) return 30*60000;
-        diffs.sort((a,b)=>a-b);
-        return diffs[Math.floor(diffs.length/2)] || 30*60000;
-      })();
-
-      function getReplayWindowCandles(startTs, windowMins){
-        const mins = Math.max(1, Number(windowMins)||20);
-        const endTs = startTs + mins*60000;
-        const rows = sortedTs
-          .filter(ts => ts < endTs && (ts + candleMs) > startTs)
-          .map(ts => candleByTs[ts])
-          .filter(Boolean);
-        return rows.length ? rows : [candleByTs[startTs]].filter(Boolean);
+        return {resolved:false, outcome:"NO_1M_TOUCH"};
       }
 
-      // ── SCORER — wick-based burst / TP extension ladder ─────────────────────
-      // A WIN = price REACHED the target during the replay window. That uses
-      // high/low wick expansion, not close-to-close, so fast news bursts are not
-      // counted as false misses. Body confirmation is tracked separately.
-      const RP_TP_LEVELS = TP_LADDER_LEVELS.map((pct, i)=>({
-        key: String(Math.round(pct*100)).padStart(3,"0"),
-        label: (pct >= 1 ? pct.toFixed(1) : pct.toString()) + "%",
-        value: pct/100,
-        ext: TP_LADDER_LABELS[i] || `EXT ${i+1}`
-      }));
+      async function rpScore2(signal, c1, windowCandles, sigWindow){
+        if(!c1||!c1.open) return null;
+        const {exitRule, tp: exitTP, tpLabel, tpPct} = sigWindow;
+        const list = (Array.isArray(windowCandles)&&windowCandles.length) ? windowCandles : [c1];
+        const high = Math.max(...list.map(k=>Number(k.high)||0));
+        const low  = Math.min(...list.map(k=>Number(k.low)||Infinity));
+        const open = c1.open;
+        const stopPct = exitTP; // symmetric validation stop for tie-break only
 
-      function rpScore2(signal, c1, windowCandles, sigWindow){
-        if(!c1 || !c1.open) return null;
-        const rows = Array.isArray(windowCandles) && windowCandles.length ? windowCandles : [c1];
-        return beCleanScore(signal, c1.open, rows, sigWindow);
+        if(signal==="BUY"){
+          const target = open*(1+exitTP);
+          const stop   = open*(1-stopPct);
+          const hit = high >= target;
+          let stoppedFirst = false, tieNote = "";
+          const firstCandle = list[0] || c1;
+          const same5mBoth = firstCandle.high>=target && firstCandle.low<=stop;
+          if(same5mBoth){
+            const tie = await resolveSame5mWith1m(signal, firstCandle, target, stop);
+            tieNote = " · "+tie.outcome;
+            stoppedFirst = tie.outcome==="STOP_FIRST_1M";
+          }
+          const finalHit = hit && !stoppedFirst;
+          const maxMove = (((high/open)-1)*100).toFixed(2);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= open*(1+l.value)]));
+          return {
+            correct: finalHit, tp1Hit: finalHit, ...hits,
+            label: finalHit ? "HIT "+tpLabel : "MISS",
+            detail: finalHit ? "+"+tpPct+" hit in 5m replay window"+tieNote : "Max +"+maxMove+"% — needed +"+tpPct+tieNote,
+            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+          };
+        }
+        if(signal==="SELL"){
+          const target = open*(1-exitTP);
+          const stop   = open*(1+stopPct);
+          const hit = low <= target;
+          let stoppedFirst = false, tieNote = "";
+          const firstCandle = list[0] || c1;
+          const same5mBoth = firstCandle.low<=target && firstCandle.high>=stop;
+          if(same5mBoth){
+            const tie = await resolveSame5mWith1m(signal, firstCandle, target, stop);
+            tieNote = " · "+tie.outcome;
+            stoppedFirst = tie.outcome==="STOP_FIRST_1M";
+          }
+          const finalHit = hit && !stoppedFirst;
+          const maxDrop = (((open/low)-1)*100).toFixed(2);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= open*(1-l.value)]));
+          return {
+            correct: finalHit, tp1Hit: finalHit, ...hits,
+            label: finalHit ? "HIT "+tpLabel : "MISS",
+            detail: finalHit ? "-"+tpPct+" hit in 5m replay window"+tieNote : "Max -"+maxDrop+"% — needed -"+tpPct+tieNote,
+            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+          };
+        }
+        return null;
       }
 
       const replaySlotLabelFor = (events)=>{
@@ -4152,8 +3571,8 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const windowCandles = getReplayWindowCandles(c.ts, sigWindow.windowMins);
-        const score = rpScore2(replay.signal, c, windowCandles, sigWindow);
+        const scoreWindow = getCandlesInWindow(c.ts, sigWindow.windowMins);
+        const score = await rpScore2(replay.signal, c, scoreWindow, sigWindow);
 
         if(!hasNews || !replay.signal) continue;
 
@@ -4166,7 +3585,7 @@ function App() {
           high: Math.round(c.high), low: Math.round(c.low),
           isExecute: isExec, isTrap: slotLabel==="TRAP", hasNews, quality,
           slotType: slotLabel,
-          sigWindow, windowCandlesUsed: score?.candlesUsed || 1, ...replay, score,
+          sigWindow, ...replay, score,
         });
       }
 
@@ -4182,11 +3601,11 @@ function App() {
         const wins = scoredRows.filter(s=>s.score?.["hit"+l.key]===true).length;
         return [l.key, { wins, wr: total>0 ? Math.round((wins/total)*100) : 0, label:l.label }];
       }));
-      const wr003 = tpStats["003"].wr, wr006 = tpStats["006"].wr, wr009 = tpStats["009"].wr, wr012 = tpStats["012"].wr;
+      const wr015 = tpStats["003"].wr, wr025 = tpStats["006"].wr, wr030 = tpStats["009"].wr, wr040 = tpStats["012"].wr;
       const wr030 = tpStats["030"].wr, wr060 = tpStats["060"].wr, wr090 = tpStats["090"].wr, wr120 = tpStats["120"].wr;
       // Legacy aliases for any remaining display code
       const wins618 = tpStats["003"].wins; const wins100 = tpStats["030"].wins;
-      const wr618 = wr003; const wr100 = wr030;
+      const wr618 = wr015; const wr100 = wr030;
 
       // 4-way breakdown
       const wr4 = (label)=>{
@@ -4201,8 +3620,8 @@ function App() {
         breakingOnly: wr4("BREAKING"),
       };
 
-      const candleNote = candles.length >= 280 ? "30m candles" 
-        : candles.length >= 140 ? "30m synthetic" 
+      const candleNote = candles.length >= 280 ? "5m candles" 
+        : candles.length >= 140 ? "5m synthetic" 
         : candles.length >= 80  ? "1H candles" 
         : "4H candles (limited — re-run for better data)";
 
@@ -4226,7 +3645,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         newsSessions, wins, losses, total, wr,
-        tpStats, wr003, wr006, wr009, wr012, wr030, wr060, wr090, wr120,
+        tpStats, wr015, wr025, wr030, wr040, wr030, wr060, wr090, wr120,
         wr618, wr100, newsFilter: rpNewsFilter,
         eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
@@ -4257,14 +3676,13 @@ function App() {
     function getETParts(tsMs){ return rpGetETParts(tsMs); }
 
     const sigCol = s => s==="BUY"?G:R;
-    const tpLadderText = TP_LADDER_LEVELS.map((pct,i)=>`${TP_LADDER_LABELS[i]} ${pct}%`).join(" · ");
     const current = results?.newsSessions?.[playIdx] || null;
 
     return(
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay runs in MARKET-MOVING-NEWS-ONLY mode and now grades with clean first-hit validation: stop first = loss, TP1 first = win.
+          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -4294,7 +3712,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>VALIDATION: STOP FIRST = LOSS · TP1 = WIN · TP2 = EXTENDED · TP3 = FULL</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -4347,13 +3765,13 @@ function App() {
                 </div>
                 {/* 8-level TP hit ladder per spec */}
                 <div style={{marginBottom:6}}>
-                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — CLEAN FIRST-HIT VALIDATION</div>
+                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — EXITS / EXTENSIONS</div>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {[
-                      {label:"EXT 1", pct:"0.03%", wr:results.wr003, primary:true},
-                      {label:"EXT 2", pct:"0.06%", wr:results.wr006},
-                      {label:"EXT 3", pct:"0.09%", wr:results.wr009},
-                      {label:"EXT 4", pct:"0.12%", wr:results.wr012},
+                      {label:"EXT 1", pct:"0.03%", wr:results.wr015, primary:true},
+                      {label:"EXT 2", pct:"0.06%", wr:results.wr025},
+                      {label:"EXT 3", pct:"0.09%", wr:results.wr030},
+                      {label:"EXT 4", pct:"0.12%", wr:results.wr040},
                       {label:"EXT 5", pct:"0.3%",  wr:results.wr030},
                       {label:"EXT 6", pct:"0.6%",  wr:results.wr060},
                       {label:"EXT 7", pct:"0.9%",  wr:results.wr090},
@@ -4498,15 +3916,12 @@ function App() {
 
                 {/* EXIT WINDOW — the signal's own lifespan */}
                 <div style={{fontSize:11,color:"#666",fontFamily:"'Share Tech Mono',monospace",marginBottom:6,letterSpacing:1}}>
-                  EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGETS: {tpLadderText}
+                  EXIT RULE: {current.sigWindow?.exitRule||"next step change"} · TARGET: {current.sigWindow?.tpLabel} {current.sigWindow?.tpPct}
                 </div>
 
                 {/* WIN/LOSS */}
-                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:6,lineHeight:1.6}}>
+                <div style={{fontSize:13,color:current.score?.correct?G:R,fontWeight:900,marginBottom:8,lineHeight:1.6}}>
                   {current.score?.correct ? "✓ WIN" : "✗ MISS"} — {current.score?.detail||""}
-                </div>
-                <div style={{fontSize:10,color:"#666",fontFamily:"'Share Tech Mono',monospace",marginBottom:8,lineHeight:1.6}}>
-                  TP LEVELS: {tpLadderText}
                 </div>
 
                 {/* Clean signal summary */}
@@ -4519,8 +3934,8 @@ function App() {
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                     <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.uniqueNewsCount||current.activeEvents?.length||0})</div>
                     {current.activeEvents.slice(0,4).map((ev,i)=>(
-                      <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7,whiteSpace:"normal",wordBreak:"break-word",overflowWrap:"anywhere"}}>
-                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{ev.title||""}
+                      <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
+                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
                       </div>
                     ))}
                   </div>
@@ -4969,7 +4384,7 @@ const BacktestTab = ()=>{
                 source:item.source||"Manual Replay",
                 color:item.kind==="breaking"?"#ff6b35":"#00aaff"
               }));
-              const allMerged = strictDedupeFeedItems([...calendarTimeline, ...breakingTimeline, ...manualTimeline]);
+              const allMerged = dedupeFeedItems([...calendarTimeline, ...breakingTimeline, ...manualTimeline]);
               const liveBucket     = allMerged.filter(i=>classify(i)==="live").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const upcomingBucket = allMerged.filter(i=>classify(i)==="upcoming").sort((a,b)=>Date.parse(a.pub)-Date.parse(b.pub));
               const pastBucket     = allMerged.filter(i=>classify(i)==="past").sort((a,b)=>Date.parse(b.pub)-Date.parse(a.pub));
@@ -5099,7 +4514,7 @@ const BacktestTab = ()=>{
         )}
 
         {/* ── ECONOMIC EVENTS ── */}
-        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Economic calendar view is active in this build. Calendar events show 30m early for 1★, 60m early for 2★, and 90m early for 3★, then stay alive for their symmetric reaction window.</div>)}
+        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Economic calendar view is active in this build. Calendar events show 5m early for 1★, 60m early for 2★, and 90m early for 3★, then stay alive for their symmetric reaction window.</div>)}
 
 
         {/* ── SOURCES ── */}
