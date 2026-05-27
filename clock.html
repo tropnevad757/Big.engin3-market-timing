@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — V12 COUNTRY RATE BRAIN ENGINE</title>
+<title>THE BiGENGiN3 OF TIME — 5M MACRO PRIORITY ENGINE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -720,7 +720,7 @@ function App() {
   const [rpPlaying, setRpPlaying] = useState(false);
   const [rpEnded,   setRpEnded]   = useState(false);
   const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
-  const [rpTpMode, setRpTpMode] = useState("100"); // current ladder: 0.15 / 0.3 / 0.6 / 0.9
+  const [rpTpMode, setRpTpMode] = useState("100"); // Derrick ladder: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2
   const rpNewsFilter = false; // calendar first, breaking second, fallback third
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const [showNewsDebug, setShowNewsDebug] = useState(false);
@@ -2047,11 +2047,48 @@ function App() {
   function isJunkTickerOnlyHeadline(raw){
     const s = String(raw||"").trim();
     const u = s.toUpperCase();
-    const macro = /\b(PAKISTAN|SBP|PKR|RUPEE|RATE DECISION|CENTRAL BANK|INFLATION|CPI|PPI|GDP|PMI|NFP|FOMC|FED|TREASURY|YIELDS?|DOLLAR|OIL|CRUDE|TARIFF|SANCTION|WAR|JOBS|UNEMPLOYMENT|RETAIL SALES)\b/.test(u);
+    const macro = /\b(PAKISTAN|SBP|PKR|RUPEE|RATE DECISION|CENTRAL BANK|INFLATION|CPI|PPI|GDP|PMI|NFP|FOMC|FED|FEDERAL RESERVE|TREASURY|YIELDS?|DOLLAR|DXY|OIL|CRUDE|OPEC|TARIFF|SANCTION|WAR|JOBS|UNEMPLOYMENT|RETAIL SALES|BTC|BITCOIN|CRYPTO|ETF)\b/.test(u);
     if(macro) return false;
     if(/\b[A-Z]{1,6}\.(PK|OB|OTC|V)\b/.test(u)) return true;
-    if(/\b(REVIEW AND RATING|BROKER REVIEW|FOREX BROKER REVIEW|SCAM REVIEW)\b/.test(u)) return true;
+    if(/\b(REVIEW AND RATING|BROKER REVIEW|FOREX BROKER REVIEW|SCAM REVIEW|TRADING SIGNALS?|SIGNAL PROVIDER|PRICE PREDICTION|SPONSORED|PROMO|PRIMEFX|FXFELLOW|XAU\/USD GOLD TRADING SIGNALS?)\b/.test(u)) return true;
+    if(/\b(STOCK MARKET MAY|MAY RECLAIM|MAY OPEN|SET TO OPEN|POINT LEVEL|HOVER NEAR RECORD HIGHS|HEDGE FUND TECH POSITIONS|LTD\b|PLC\b)\b/.test(u)) return true;
     return false;
+  }
+
+  function isCalendarSource(ev){
+    const src = String(ev?.source || ev?.feedLabel || ev?.cat || ev?.feedType || "").toLowerCase();
+    const kind = String(ev?.kind || "").toLowerCase();
+    return kind === "event" || kind === "speech" || /calendar|myfxbook|forexfactory|trading\s*economics|faireconomy/.test(src);
+  }
+
+  function isReutersBloombergSource(ev){
+    const src = String(ev?.source || ev?.feedLabel || ev?.cat || ev?.link || "").toLowerCase();
+    const txt = String(ev?.title || ev?.l || ev?.label || ev?.headline || "").toLowerCase();
+    return /reuters|bloomberg/.test(src) || /\b(reuters|bloomberg)\b/.test(txt);
+  }
+
+  function isActionableBreakingHeadline(raw, ev={}){
+    const title = String(raw || ev?.title || ev?.l || ev?.label || ev?.headline || "").trim();
+    if(!title || isJunkTickerOnlyHeadline(title)) return false;
+    if(!isReutersBloombergSource(ev)) return false;
+    const text = `${title} ${ev?.desc||""} ${ev?.note||""}`.toLowerCase();
+    const bad = /review|rating|trading\s+signals?|primefx|fxfellow|broker|sponsored|price\s+prediction|stock market may|may reclaim|point level|hover near record highs|hedge fund tech positions|ltd\b|plc\b|penny stock|otc|\.pk\b|\.ob\b/i;
+    if(bad.test(text)) return false;
+    const macro = /\b(bitcoin|btc|crypto|ether|etf|fed|federal reserve|fomc|powell|rate decision|interest rates?|treasury|bond yields?|yields?|dollar|dxy|inflation|cpi|ppi|pce|gdp|pmi|nfp|jobs|unemployment|retail sales|oil|crude|opec|gold\b|stocks? (jump|fall|slide|rally|selloff|drop)|markets? (jump|fall|slide|rally|selloff|drop)|tariffs?|sanctions?|war|iran|russia|china|bank of japan|ecb|boe|boj|pboj|central bank)\b/i;
+    return macro.test(text);
+  }
+
+  function sourceTypeLabel(ev){
+    if(!ev) return "FALLBACK";
+    if(replayEventType(ev)==="speech") return "CALENDAR_SPEECH";
+    if(replayEventType(ev)!=="breaking") {
+      const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
+      return stars===3 ? "CALENDAR_⭐⭐⭐" : stars===2 ? "CALENDAR_⭐⭐" : "CALENDAR_⭐";
+    }
+    const src = String(ev?.source || ev?.feedLabel || "").toLowerCase();
+    if(src.includes("reuters")) return "BREAKING_REUTERS";
+    if(src.includes("bloomberg")) return "BREAKING_BLOOMBERG";
+    return "BREAKING_MACRO";
   }
 
   function canonicalNewsText(s){
@@ -2060,9 +2097,9 @@ function App() {
       .replace(/<[^>]+>/g," ")
       .replace(/&[^;]+;/g," ")
       .replace(/[“”"'’]/g,"")
-      .replace(/(breaking|update|live|exclusive|alert|analysis|report|reports|reported|says|said)/g," ")
-      .replace(/(reuters|bloomberg|cnbc|wsj|ft|marketwatch|myfxbook|trading economics|forex factory|google news|markets)/g," ")
-      .replace(/(usd|eur|gbp|jpy|aud|cad|nzd|chf|cny|sgd)/g," ")
+      .replace(/\b(breaking|update|live|exclusive|alert|analysis|report|reports|reported|says|said)\b/g," ")
+      .replace(/\b(reuters|bloomberg|cnbc|wsj|ft|marketwatch|myfxbook|trading economics|forex factory|google news|markets)\b/g," ")
+      .replace(/\b(usd|eur|gbp|jpy|aud|cad|nzd|chf|cny|sgd)\b/g," ")
       .replace(/[^a-z0-9%.$]+/g," ")
       .replace(/\s+/g," ")
       .trim();
@@ -2152,7 +2189,8 @@ function App() {
 
     const breaking = (newsArticles||[])
       .map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"breaking"}))
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter(ev=>replayEventType(ev)!=="breaking" || isActionableBreakingHeadline(ev.title, ev));
 
     const manual = (replayEvents||[]).map(ev=>toEvent(ev)).filter(Boolean);
 
@@ -2602,7 +2640,7 @@ function App() {
     }))
     .then(groups=>{
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
-      arts=dedupeFeedItems(arts);
+      arts=dedupeFeedItems(arts).map(a=>({...a, tradableBreaking:isActionableBreakingHeadline(a.title,a)}));
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
       setNewsArticles(arts.slice(0,30));
       setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
@@ -3351,7 +3389,7 @@ function App() {
   }
 
   // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
-  // Exit target starts at 0.03%; TP ladder tracks all eight requested levels.
+  // Exit target follows Derrick plan: burst 0.15%; star windows TP1/TP2/TP3, with distance ladder tracking.
   function getSignalWindow(activeEvents){
     const list = Array.isArray(activeEvents) ? activeEvents : [];
     if(!list.length){
@@ -3409,12 +3447,12 @@ function App() {
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
     const active = pool.filter(ev=>{
-      if(isJunkTickerOnlyHeadline(ev?.title||ev?.l||ev?.label||ev?.headline||"")) return false;
+      const title = ev?.title||ev?.l||ev?.label||ev?.headline||"";
+      if(isJunkTickerOnlyHeadline(title)) return false;
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
     }).map(ev=>{
-      // Re-classify polarity on-the-fly using current keyword list
       if(Number(ev.polarity)!==0) return ev;
       const txt = (ev.title||ev.l||"")+" "+(ev.desc||"");
       const cls = classifyEcoArticle(txt, "");
@@ -3423,10 +3461,8 @@ function App() {
     });
 
     const calendar = active.filter(ev=>replayEventType(ev)!=="breaking");
-    const breaking = active.filter(ev=>replayEventType(ev)==="breaking");
+    const breaking = active.filter(ev=>replayEventType(ev)==="breaking" && isActionableBreakingHeadline(ev?.title||ev?.l||"", ev));
 
-    // Priority rule: calendar first, then Reuters/Bloomberg breaking, then fallback.
-    // Breaking never mixes with Myfxbook/TradingEconomics/economic-calendar events.
     if(calendar.length) return calendar;
     if(breaking.length) return breaking;
     return [];
@@ -3445,6 +3481,9 @@ function App() {
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
       const replayWindowEnd = Date.now() + 90*60000;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
+        const title = ev?.title||ev?.l||ev?.label||ev?.headline||"";
+        if(isJunkTickerOnlyHeadline(title)) return false;
+        if(replayEventType(ev)==="breaking" && !isActionableBreakingHeadline(title, ev)) return false;
         const t = Date.parse(ev.pub||0);
         if(!t || Number.isNaN(t)) return false;
         const w = eventWindowMinutes(ev);
@@ -3468,56 +3507,74 @@ function App() {
         return candleByTs[sortedTs[idx+1]]||null;
       }
 
+      function getWindowCandles(ts, minutes){
+        const end = ts + Math.max(5, Number(minutes)||15) * 60000;
+        return sortedTs.filter(t=>t>=ts && t<=end).map(t=>candleByTs[t]).filter(Boolean);
+      }
+
       // ── SCORER — updated replay extension ladder ─────────────────────────────
       const RP_TP_LEVELS = [
         { key:"015",  label:"0.15%", value:0.0015 },
+        { key:"025",  label:"0.25%", value:0.0025 },
         { key:"030",  label:"0.3%",  value:0.003  },
+        { key:"040",  label:"0.4%",  value:0.004  },
         { key:"060",  label:"0.6%",  value:0.006  },
         { key:"090",  label:"0.9%",  value:0.009  },
+        { key:"120",  label:"1.2%",  value:0.012  },
       ];
 
-      function rpScore2(signal, c1, c2, sigWindow){
+      function rpScore2(signal, c1, windowCandles, sigWindow){
         if(!c1||!c1.open) return null;
         const {exitRule, tp: exitTP, tpLabel, tpPct} = sigWindow;
-        const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
-        const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
-        const close = c2 ? c2.close : c1.close;
+        const candlesInWindow = Array.isArray(windowCandles) && windowCandles.length ? windowCandles : [c1];
+        const open = c1.open;
+        const highs = candlesInWindow.map(x=>Number(x.high||0)).filter(Boolean);
+        const lows  = candlesInWindow.map(x=>Number(x.low||0)).filter(Boolean);
+        const high = Math.max(...(highs.length?highs:[open]));
+        const low  = Math.min(...(lows.length?lows:[open]));
+        const last = candlesInWindow[candlesInWindow.length-1] || c1;
+        const hitsForBuy  = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= open*(1+l.value)]));
+        const hitsForSell = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low  <= open*(1-l.value)]));
+
+        function firstTouch(dir){
+          const target = dir === "BUY" ? open*(1+exitTP) : open*(1-exitTP);
+          const stop   = dir === "BUY" ? open*(1-exitTP) : open*(1+exitTP);
+          for(const bar of candlesInWindow){
+            const tpHit   = dir === "BUY" ? Number(bar.high) >= target : Number(bar.low) <= target;
+            const stopHit = dir === "BUY" ? Number(bar.low) <= stop : Number(bar.high) >= stop;
+            if(tpHit && stopHit){
+              const closeConfirms = dir === "BUY" ? Number(bar.close) > Number(bar.open) : Number(bar.close) < Number(bar.open);
+              return { result: closeConfirms ? "tp" : "stop", tie:true, bar };
+            }
+            if(tpHit) return { result:"tp", tie:false, bar };
+            if(stopHit) return { result:"stop", tie:false, bar };
+          }
+          return { result:"none", tie:false, bar:last };
+        }
 
         if(signal==="BUY"){
-          const target = c1.open*(1+exitTP);
-          const stop   = c1.open*(1-exitTP);
-          const tpHit = high >= target;
-          const stopHit = low <= stop;
-          const same5m = tpHit && stopHit;
-          const closeConfirms = close > c1.open;
-          const hit = tpHit && (!stopHit || (same5m && closeConfirms));
-          const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
+          const ft = firstTouch("BUY");
+          const hit = ft.result === "tp";
+          const maxMove = (((high/open)-1)*100).toFixed(2);
           return {
-            correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : (stopHit && !same5m ? "STOP FIRST" : "MISS"),
-            detail: same5m
-              ? (closeConfirms ? "5m tie: TP and stop both touched; close confirmed BUY" : "5m tie: TP and stop both touched; close rejected BUY")
-              : hit ? "+"+tpPct+" hit in window" : (stopHit ? "Stop hit before "+tpLabel : "Max +"+maxMove+"% — needed +"+tpPct),
+            correct: hit, tp1Hit: hit, ...hitsForBuy,
+            label: hit ? "HIT "+tpLabel : (ft.result==="stop" ? "STOP FIRST" : "MISS"),
+            detail: ft.tie
+              ? (hit ? "5m tie: TP and stop touched; close confirmed BUY" : "5m tie: TP and stop touched; close rejected BUY")
+              : hit ? "+"+tpPct+" hit inside "+exitRule : (ft.result==="stop" ? "Stop hit before "+tpLabel : "Max +"+maxMove+"% — needed +"+tpPct),
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
         if(signal==="SELL"){
-          const target = c1.open*(1-exitTP);
-          const stop   = c1.open*(1+exitTP);
-          const tpHit = low <= target;
-          const stopHit = high >= stop;
-          const same5m = tpHit && stopHit;
-          const closeConfirms = close < c1.open;
-          const hit = tpHit && (!stopHit || (same5m && closeConfirms));
-          const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
+          const ft = firstTouch("SELL");
+          const hit = ft.result === "tp";
+          const maxDrop = (((open/low)-1)*100).toFixed(2);
           return {
-            correct: hit, tp1Hit: hit, ...hits,
-            label: hit ? "HIT "+tpLabel : (stopHit && !same5m ? "STOP FIRST" : "MISS"),
-            detail: same5m
-              ? (closeConfirms ? "5m tie: TP and stop both touched; close confirmed SELL" : "5m tie: TP and stop both touched; close rejected SELL")
-              : hit ? "-"+tpPct+" hit in window" : (stopHit ? "Stop hit before "+tpLabel : "Max -"+maxDrop+"% — needed -"+tpPct),
+            correct: hit, tp1Hit: hit, ...hitsForSell,
+            label: hit ? "HIT "+tpLabel : (ft.result==="stop" ? "STOP FIRST" : "MISS"),
+            detail: ft.tie
+              ? (hit ? "5m tie: TP and stop touched; close confirmed SELL" : "5m tie: TP and stop touched; close rejected SELL")
+              : hit ? "-"+tpPct+" hit inside "+exitRule : (ft.result==="stop" ? "Stop hit before "+tpLabel : "Max -"+maxDrop+"% — needed -"+tpPct),
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
@@ -3526,15 +3583,14 @@ function App() {
 
       const replaySlotLabelFor = (events)=>{
         const list = Array.isArray(events) ? events : [];
-        const hasSpeech = list.some(ev=>replayEventType(ev)==="speech");
-        const hasBreak  = list.some(ev=>replayEventType(ev)==="breaking");
-        const hasCal    = list.some(ev=>replayEventType(ev)==="event");
-        const uniqueCount = uniqueReplayEventCount(list);
-        if(hasSpeech) return uniqueCount >= 2 ? "MIXED_NEWS" : "NEWS_SINGLE";
-        if((hasBreak && hasCal) || uniqueCount > 1) return "MIXED_NEWS";
-        if(hasCal) return "NEWS_SINGLE";
-        if(hasBreak) return "NEWS_SINGLE";
-        return "NEWS_SINGLE";
+        if(!list.length) return "FALLBACK";
+        const primary = list[0];
+        if(list.some(ev=>replayEventType(ev)!=="breaking")) {
+          const maxStars = Math.max(...list.filter(ev=>replayEventType(ev)!=="breaking").map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
+          return maxStars===3 ? "CALENDAR_⭐⭐⭐" : maxStars===2 ? "CALENDAR_⭐⭐" : "CALENDAR_⭐";
+        }
+        if(list.length > 1) return "BREAKING_STACK";
+        return sourceTypeLabel(primary);
       };
 
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
@@ -3549,12 +3605,12 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const nextC = getNextCandle(c.ts);
-        const score = rpScore2(replay.signal, c, nextC, sigWindow);
+        const windowCandles = getWindowCandles(c.ts, sigWindow.windowMins);
+        const score = rpScore2(replay.signal, c, windowCandles, sigWindow);
 
         if(!replay.signal) continue;
 
-        const quality = slotLabel === "BREAK" ? "BREAKING" : slotLabel === "CAL" ? "CALENDAR" : slotLabel;
+        const quality = slotLabel.startsWith("CALENDAR") ? "CALENDAR" : slotLabel.startsWith("BREAKING") ? "BREAKING" : slotLabel==="BREAKING_STACK" ? "BREAKING" : "FALLBACK";
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
@@ -3567,7 +3623,7 @@ function App() {
         });
       }
 
-      const newsSessions = sessions.filter(s=>s.hasNews);
+      const newsSessions = sessions;
       const scoredRows = newsSessions.filter(s=>typeof s.score?.correct==="boolean");
       const wins   = scoredRows.filter(s=>s.score.correct===true).length;
       const losses = scoredRows.filter(s=>s.score.correct===false).length;
@@ -3579,8 +3635,8 @@ function App() {
         const wins = scoredRows.filter(s=>s.score?.["hit"+l.key]===true).length;
         return [l.key, { wins, wr: total>0 ? Math.round((wins/total)*100) : 0, label:l.label }];
       }));
-      const wr015 = tpStats["015"]?.wr || 0, wr030 = tpStats["030"]?.wr || 0, wr060 = tpStats["060"]?.wr || 0, wr090 = tpStats["090"]?.wr || 0;
-      const wr003 = wr015, wr006 = wr015, wr009 = wr015, wr012 = wr015, wr120 = wr090;
+      const wr015 = tpStats["015"]?.wr || 0, wr025 = tpStats["025"]?.wr || 0, wr030 = tpStats["030"]?.wr || 0, wr040 = tpStats["040"]?.wr || 0, wr060 = tpStats["060"]?.wr || 0, wr090 = tpStats["090"]?.wr || 0, wr120 = tpStats["120"]?.wr || 0;
+      const wr003 = wr015, wr006 = wr025, wr009 = wr030, wr012 = wr040;
       // Legacy aliases for any remaining display code
       const wins618 = tpStats["015"]?.wins || 0; const wins100 = tpStats["030"]?.wins || 0;
       const wr618 = wr015; const wr100 = wr030;
@@ -3595,7 +3651,9 @@ function App() {
       };
 
       const breakdown = {
+        calendar: wr4("CALENDAR"),
         breakingOnly: wr4("BREAKING"),
+        fallback: wr4("FALLBACK"),
       };
 
       const candleNote = candles.length >= 280 ? "5m candles" 
@@ -3660,13 +3718,13 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
+          Replay priority: CALENDAR first → Reuters/Bloomberg macro BREAKING second → FALLBACK timing only when no news is active.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div style={{borderRadius:12,border:"1px solid rgba(240,160,48,0.25)",background:"rgba(240,160,48,0.06)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>LOGGED EVENTS</div>
-            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.filter(ev=>replayEventType(ev)==="breaking").length}</div>
+            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.length}</div>
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
@@ -3690,7 +3748,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>NEWS: Calendar ±15/45/75 · Breaking 0-15 · Ladder: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
