@@ -206,12 +206,12 @@ const REGIME_CURRENCIES = {
 
 // NEWS REACTION WINDOWS — symmetric (before AND after event)
 // Stars → window in mins, TP targets as % move from entry
-// Updated for Derrick's 5m replay: breaking burst=15m, scheduled windows remain 20/50/80.
+// Fixed: breaking burst = 15m. Clean TP ladder starts at 0.15% for 5m trading.
 const NEWS_REACTION = {
-  break: { window: 15, fibs: [38.2], tps: [0.1146], label:"BREAKING NEWS" },
-  1:     { window: 20, fibs: [61.8], tps: [0.185],  label:"★" },
-  2:     { window: 50, fibs: [61.8], tps: [0.185],  label:"★★" },
-  3:     { window: 80, fibs: [61.8], tps: [0.185],  label:"★★★" },
+  break: { window: 15, fibs: [38.2], tps: [0.15,0.25,0.4], label:"BREAKING NEWS" },
+  1:     { window: 20, fibs: [61.8], tps: [0.15,0.25,0.4], label:"★" },
+  2:     { window: 50, fibs: [61.8], tps: [0.15,0.25,0.4], label:"★★" },
+  3:     { window: 80, fibs: [61.8], tps: [0.15,0.25,0.4], label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -2094,10 +2094,23 @@ function App() {
     return "breaking";
   }
 
+  // OTC / pink-sheet ticker noise guard.
+  // This keeps dot-suffix tickers such as HUPHY.PK out of the signal resolver.
+  // True Pakistan macro headlines still pass when they contain Pakistan/SBP/rupee/rates/etc.
+  function isOTCTickerNoise(rawText=""){
+    const s = String(rawText || "").trim();
+    const u = s.toUpperCase();
+    if(!/\b[A-Z]{2,6}\.PK\b/.test(u)) return false;
+    const macroPakistan = /\b(PAKISTAN|PAKISTANI|RUPEE|SBP|STATE BANK OF PAKISTAN|CENTRAL BANK|RATE|RATES|INFLATION|CPI|GDP|BUDGET|IMF|DEBT|BOND|BONDS|YIELD|YIELDS)\b/i.test(s);
+    const macroGlobal = /\b(FED|FOMC|TREASURY|YIELD|YIELDS|DOLLAR|DXY|OIL|WTI|CRUDE|CPI|PPI|NFP|JOLTS|GDP|RATES?|CENTRAL BANK|REUTERS|BLOOMBERG)\b/i.test(s);
+    return !(macroPakistan || macroGlobal);
+  }
+
+
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
-    if(type === "breaking") return {pre:0, post:20};
+    if(type === "breaking") return {pre:0, post:15};
     if(type === "speech") return {pre:0, post:45};
     if(stars === 1) return {pre:20, post:20};
     if(stars === 2) return {pre:50, post:50};
@@ -2119,7 +2132,9 @@ function App() {
   function buildUnifiedNewsEvents(nowMs = Date.now()){
     const toEvent = (raw, overrides={})=>{
       const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
+      const noteRaw = String(raw?.desc || raw?.btc || raw?.note || overrides.note || "");
       if(!title) return null;
+      if(isOTCTickerNoise(`${title} ${noteRaw}`)) return null;
       const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
       const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
       const rateValue = Number(raw?.rateValue ?? overrides.rateValue ?? getRateForSymbol(raw?.country || raw?.currency || overrides.country || ""));
@@ -2127,7 +2142,7 @@ function App() {
       const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
       const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
-      const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
+      const note = noteRaw;
       return { title, source, stars, polarity, kind, pub, country, note, rateValue };
     };
 
@@ -2204,8 +2219,9 @@ function App() {
       if(/\bASIA\b|EM ASIA|ASIAN|EMERGING MARKETS?/.test(t)) return "ASI";
       if(/\bUSD\b|DOLLAR|TREASURY|YIELDS?|FED\b|POWELL|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
 
-      // Trust fallback only when it is a clean currency code. Bad tags like LALT.V/PNGAF.PK fall through.
+      // Trust fallback only when it is a clean currency code. Dot-suffix tickers are not country logic.
       if(known.has(fb3)) return fb3;
+      if(/\b[A-Z]{2,6}\.[A-Z]{1,4}\b/.test(t) && !/PAKISTAN|PAKISTANI|RUPEE|SBP|CENTRAL BANK|RATES?|INFLATION|GDP|IMF/.test(t)) return "USD";
 
       try{ return inferCountryCode(rawText) || "USD"; }catch(_){ return "USD"; }
     }
@@ -2523,13 +2539,7 @@ function App() {
 
   function inferCountryCode(rawText="", fallback="") {
     const t = String(rawText||" ").toUpperCase();
-    // Keep macro country logic separate from exchange/ticker suffixes.
-    // A .PK suffix is ignored unless the headline is clearly Pakistan macro.
-    if(/[A-Z]{1,6}\.PK/.test(t) && !/PAKISTAN|KARACHI|PKR|STATE BANK OF PAKISTAN|SBP|PAKISTANI/.test(t)) return "";
-    if(fallback) {
-      const fb = String(fallback).toUpperCase().trim();
-      if(/^[A-Z]{3}$/.test(fb)) return fb;
-    }
+    if(fallback) return String(fallback).toUpperCase().slice(0,3);
     const checks = [
       [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
       [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
@@ -3188,10 +3198,9 @@ function App() {
     return { h24, m:minute, dayStr:`${bag.weekday} ${bag.month} ${bag.day}`, timeStr:`${bag.hour}:${bag.minute} ${dp}` };
   }
 
-  async function rpFetchCandles(daysBack=2, intervalMinutes=5){
-    // 5m candles — matches Derrick's trading chart. 1m is fetched only for ambiguous same-candle tie-breaks.
-    const interval = Number(intervalMinutes)||5;
-    const cacheKey="engin3Replay"+interval+"m_d"+daysBack;
+  async function rpFetchCandles(daysBack=2){
+    // 5m candles — replay now matches Derrick's actual trading chart.
+    const cacheKey="engin3Replay5m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
 
@@ -3214,65 +3223,135 @@ function App() {
       }catch(e){ return null; }
     };
 
-    const candleCount = Math.min(daysBack * (24*60/interval), interval===1 ? 1440 : 1500);
+    const candleCount = Math.min(Math.max(daysBack * 288, 300), 1000);
     const sinceMs = Date.now() - daysBack*24*60*60*1000;
     const sinceSec = Math.floor(sinceMs/1000);
 
-    // ── ATTEMPT 1: Kraken 5m/1m (iOS-safe, proper CORS) ─────────────────────
-    const krakenUrl = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval="+interval+"&since="+sinceSec;
+    // ATTEMPT 1: Kraken 5m
+    const krakenUrl = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=5&since="+sinceSec;
     try{
       const r = await fetch(krakenUrl, {cache:"no-cache"});
       if(r.ok){
         const data = await r.json();
         if(!data.error||!data.error.length){
           const c = normKraken(data);
-          if(c&&c.length>=Math.min(80,candleCount*0.35)) return persist(c);
+          if(c&&c.length>=80) return persist(c);
         }
       }
     }catch(e){}
 
-    // ── ATTEMPT 2: Bybit 5m/1m spot ────────────────────────────────────────
-    const bybitUrl = "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval="+interval+"&limit="+Math.min(1000,candleCount);
+    // ATTEMPT 2: Bybit 5m spot
+    const bybitUrl = "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=5&limit="+candleCount;
     try{
       const r = await fetch(bybitUrl, {cache:"no-cache"});
       if(r.ok){
         const data = await r.json();
         const list = data&&data.result&&data.result.list;
-        if(Array.isArray(list)&&list.length>=50){
+        if(Array.isArray(list)&&list.length>=80){
           const c = list.map(k=>({
             ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]),
             low:Number(k[3]), close:Number(k[4])
           })).filter(k=>k.ts>0&&k.open>0).sort((a,b)=>a.ts-b.ts);
-          if(c.length>=50) return persist(c);
+          if(c.length>=80) return persist(c);
         }
       }
     }catch(e){}
 
-    // ── ATTEMPT 3: Binance 5m/1m + proxy ───────────────────────────────────
-    const binanceInterval = interval+"m";
-    const bUrl = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval="+binanceInterval+"&limit="+Math.min(1000,candleCount);
-    for(const url of [bUrl, "https://corsproxy.io/?"+encodeURIComponent(bUrl),
-                           "https://api.allorigins.win/raw?url="+encodeURIComponent(bUrl)]){
+    // ATTEMPT 3: Binance 5m + proxy
+    const b5 = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit="+candleCount;
+    for(const url of [b5, "https://corsproxy.io/?"+encodeURIComponent(b5),
+                           "https://api.allorigins.win/raw?url="+encodeURIComponent(b5)]){
       try{
         const r = await fetch(url, {cache:"no-cache"});
         if(!r.ok) continue;
         const raw = await r.json();
-        const c = normK(Array.isArray(raw)?raw:(raw&&raw.contents?JSON.parse(raw.contents):null));
-        if(c&&c.length>=50) return persist(c);
+        const payload = Array.isArray(raw) ? raw : (raw&&raw.contents ? JSON.parse(raw.contents) : null);
+        const c = normK(payload);
+        if(c&&c.length>=80) return persist(c);
       }catch(e){}
     }
 
+    // ATTEMPT 4: CoinGecko market_chart synthetic 5m (last practical fallback)
+    try{
+      const cgUrl = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days="+Math.min(daysBack,7);
+      const r = await fetch(cgUrl, {cache:"no-cache"});
+      if(r.ok){
+        const data = await r.json();
+        const prices = data&&data.prices;
+        if(Array.isArray(prices)&&prices.length>=24){
+          const candles = [];
+          for(let i=1;i<prices.length;i++){
+            const prevTs = Number(prices[i-1][0]);
+            const prevP  = Number(prices[i-1][1]);
+            const curTs  = Number(prices[i][0]);
+            const curP   = Number(prices[i][1]);
+            const steps = Math.max(1, Math.round((curTs-prevTs)/(5*60*1000)));
+            for(let j=0;j<steps;j++){
+              const a = j/steps, b = (j+1)/steps;
+              const o = prevP + (curP-prevP)*a;
+              const cl = prevP + (curP-prevP)*b;
+              const ts = Math.round((prevTs + j*5*60*1000)/(5*60*1000))*(5*60*1000);
+              const spread = Math.abs(cl-o)*0.35 || o*0.0004;
+              candles.push({ts, open:o, high:Math.max(o,cl)+spread, low:Math.min(o,cl)-spread, close:cl});
+            }
+          }
+          const seen = new Set();
+          const deduped = candles.filter(c=>{if(seen.has(c.ts))return false;seen.add(c.ts);return c.open>0;})
+                                 .sort((a,b)=>a.ts-b.ts);
+          if(deduped.length>=80) return persist(deduped);
+        }
+      }
+    }catch(e){}
+
     const cached=fromCache();
     if(cached) return cached;
-    throw new Error("BTC "+interval+"m replay data unavailable");
+    throw new Error("BTC 5m replay data unavailable");
   }
 
-  async function rpFetchOneMinuteCandlesForWindow(startTs, endTs){
-    // Only used to resolve a same-5m-candle TP/stop tie. Keeps the normal replay on 5m.
+  async function rpFetchOneMinuteCandles(daysBack=2){
+    // 1m data is only for same-5m-candle TP/stop tie-breaks.
+    const normK=(raw)=>{
+      if(!Array.isArray(raw)||!raw.length) return [];
+      return raw.map(k=>({ts:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
+                .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0)
+                .sort((a,b)=>a.ts-b.ts);
+    };
+    const normKraken=(data)=>{
+      try{
+        const pair = data.result && (data.result["XXBTZUSD"] || data.result["XBTUSDT"] || Object.values(data.result).find(v=>Array.isArray(v)));
+        if(!Array.isArray(pair)||!pair.length) return [];
+        return pair.map(k=>({
+          ts: Number(k[0])*1000, open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4])
+        })).filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0).sort((a,b)=>a.ts-b.ts);
+      }catch(e){ return []; }
+    };
+    const limit = Math.min(Math.max(daysBack*24*60, 300), 1000);
+    const sinceSec = Math.floor((Date.now()-daysBack*24*60*60*1000)/1000);
+
     try{
-      const all = await rpFetchCandles(1, 1);
-      return all.filter(c=>c.ts>=startTs && c.ts<=endTs).sort((a,b)=>a.ts-b.ts);
-    }catch(e){ return []; }
+      const r=await fetch("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1&since="+sinceSec,{cache:"no-cache"});
+      if(r.ok){
+        const data=await r.json();
+        if(!data.error||!data.error.length){
+          const c=normKraken(data);
+          if(c.length>=20) return c;
+        }
+      }
+    }catch(e){}
+
+    const b1="https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit="+limit;
+    for(const url of [b1, "https://corsproxy.io/?"+encodeURIComponent(b1),
+                          "https://api.allorigins.win/raw?url="+encodeURIComponent(b1)]){
+      try{
+        const r=await fetch(url,{cache:"no-cache"});
+        if(!r.ok) continue;
+        const raw=await r.json();
+        const payload=Array.isArray(raw) ? raw : (raw&&raw.contents ? JSON.parse(raw.contents) : null);
+        const c=normK(payload);
+        if(c.length>=20) return c;
+      }catch(e){}
+    }
+    return [];
   }
 
   function uniqueReplayEventCount(events){
@@ -3364,12 +3443,12 @@ function App() {
     };
   }
 
-  // ── WIN/LOSS SCORING — 5m replay exit/extension ladder ────────────────────
-  // Removed tiny scalp levels (0.03/0.06/0.09/0.12). First validation target is now 0.15%.
+  // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
+  // Exit target starts at 0.15%; TP ladder tracks clean 5m levels.
   function getSignalWindow(activeEvents){
-    const TP_EXIT_VAL = 0.0015; // 0.15%
+    const TP_EXIT_VAL = 0.0015; // 0.15% — smallest clean TP for 5m trading
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:15, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"5m replay exit" };
+      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
@@ -3381,9 +3460,8 @@ function App() {
     return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"±20m symmetric window" };
   }
 
-  // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
+  // ── LEGACY WIN/LOSS SCORER — kept for compatibility; replay uses 5m rpScore2 below ─
   // A WIN = price moved the required % in the right direction before the window expired
-  // Using 1H candle H/L as proxy (we have hourly data; window is <=80min so 1H is fair)
   function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
     if(!openPrice) return null;
     const w = sigWindow || getSignalWindow([]);
@@ -3435,8 +3513,12 @@ function App() {
     setRpLoading(true); setRpError(""); setRpResults(null); setRpPlayIdx(0); setRpPlaying(false); setRpEnded(false);
     try {
       // Clear old cache so stale data doesn't block fresh fetch
-      try{ localStorage.removeItem("engin3Replay5m_d"+rpDaysBack); }catch(e){}
-      const candles = await rpFetchCandles(rpDaysBack, 5);
+      try{
+        localStorage.removeItem("engin3Replay30m_d"+rpDaysBack);
+        localStorage.removeItem("engin3Replay5m_d"+rpDaysBack);
+      }catch(e){}
+      const candles = await rpFetchCandles(rpDaysBack);
+      const candles1m = await rpFetchOneMinuteCandles(rpDaysBack).catch(()=>[]);
 
       // CLEAN TIMELINE V2: keep the original engine behavior, but feed it ALL
       // relevant market-moving events instead of breaking-only news. Calendar events
@@ -3459,13 +3541,34 @@ function App() {
       const candleByTs = {};
       for(const c of candles) candleByTs[c.ts] = c;
       const sortedTs = candles.map(c=>c.ts).sort((a,b)=>a-b);
+      const oneMinSorted = (Array.isArray(candles1m)?candles1m:[]).slice().sort((a,b)=>a.ts-b.ts);
 
-      function getCandlesInWindow(ts, windowMins){
-        const endTs = ts + Math.max(5, Number(windowMins)||5)*60000;
-        return candles.filter(k=>k.ts>=ts && k.ts<endTs);
+      function getNextCandle(ts){
+        const idx = sortedTs.indexOf(ts);
+        if(idx<0||idx>=sortedTs.length-1) return null;
+        return candleByTs[sortedTs[idx+1]]||null;
       }
 
-      // ── SCORER — Derrick 5m TP ladder ──────────────────────────────────────
+      function getOneMinuteSlice(startTs, endTs){
+        return oneMinSorted.filter(c=>c.ts>=startTs && c.ts<endTs);
+      }
+
+      function minutesUntilNextReversal(ts){
+        const d = new Date(ts);
+        const mins = d.getUTCHours()*60 + d.getUTCMinutes();
+        // ET reversal / anchor rhythm: :30 turns plus common execute hours.
+        // Offset is handled by using the timestamp's own replay clock elsewhere; this is a proximity tracker, not signal math.
+        const marks = [90,270,390,450,630,750,810,990,1110,1170,1350,30]; // 1:30,4:30,6:30,7:30,10:30,12:30,13:30,16:30,18:30,19:30,22:30,00:30
+        let best = 1440;
+        for(const m of marks){
+          let diff = m - mins;
+          if(diff < 0) diff += 1440;
+          if(diff < best) best = diff;
+        }
+        return best;
+      }
+
+      // ── SCORER — clean replay TP extension ladder ─────────────────────────────
       const RP_TP_LEVELS = [
         { key:"015",  label:"0.15%", value:0.0015 },
         { key:"025",  label:"0.25%", value:0.0025 },
@@ -3476,69 +3579,140 @@ function App() {
         { key:"120",  label:"1.2%",  value:0.012  },
       ];
 
-      async function resolveSame5mWith1m(signal, c5, target, stop){
-        const oneMin = await rpFetchOneMinuteCandlesForWindow(c5.ts, c5.ts + 5*60000);
-        if(!oneMin.length) return {resolved:false, outcome:"AMBIGUOUS_5M"};
-        for(const m1 of oneMin){
-          const tpTouch = signal==="BUY" ? m1.high>=target : m1.low<=target;
-          const slTouch = signal==="BUY" ? m1.low<=stop    : m1.high>=stop;
-          if(tpTouch && !slTouch) return {resolved:true, outcome:"TP_FIRST_1M"};
-          if(slTouch && !tpTouch) return {resolved:true, outcome:"STOP_FIRST_1M"};
-          if(tpTouch && slTouch)  return {resolved:false, outcome:"AMBIGUOUS_1M"};
-        }
-        return {resolved:false, outcome:"NO_1M_TOUCH"};
-      }
-
-      async function rpScore2(signal, c1, windowCandles, sigWindow){
+      function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
-        const {exitRule, tp: exitTP, tpLabel, tpPct} = sigWindow;
-        const list = (Array.isArray(windowCandles)&&windowCandles.length) ? windowCandles : [c1];
-        const high = Math.max(...list.map(k=>Number(k.high)||0));
-        const low  = Math.min(...list.map(k=>Number(k.low)||Infinity));
-        const open = c1.open;
-        const stopPct = exitTP; // symmetric validation stop for tie-break only
+        const {exitRule, type, tp: exitTP, tpLabel, tpPct} = sigWindow;
+        const windowMs = Math.max(5, Number(sigWindow?.windowMins || 5)) * 60000;
+        const endTs = c1.ts + windowMs;
+        const winCandles = sortedTs
+          .filter(ts=>ts>=c1.ts && ts<endTs)
+          .map(ts=>candleByTs[ts])
+          .filter(Boolean);
+        const rows = winCandles.length ? winCandles : [c1];
+
+        const high = Math.max(...rows.map(c=>Number(c.high||0)));
+        const low  = Math.min(...rows.map(c=>Number(c.low ||Infinity)));
+        const revMins = minutesUntilNextReversal(c1.ts);
+        const nearReversal = revMins <= 9;
+        const revText = nearReversal ? ` · near reversal in ${revMins}m` : "";
+
+        function oneMinuteTieBreak(c, target, stop, side){
+          const m1 = getOneMinuteSlice(c.ts, c.ts + 5*60000);
+          if(!m1.length) return {result:null, detail:"same 5m candle hit TP and stop; 1m tie-break unavailable"};
+          for(const m of m1){
+            if(side==="BUY"){
+              const stopHit = m.low <= stop;
+              const tpHit   = m.high >= target;
+              if(stopHit && tpHit) return {result:null, detail:"same 1m candle hit TP and stop"};
+              if(stopHit) return {result:false, detail:"1m tie-break: stop hit before TP"};
+              if(tpHit)   return {result:true,  detail:"1m tie-break: TP hit before stop"};
+            }else{
+              const stopHit = m.high >= stop;
+              const tpHit   = m.low <= target;
+              if(stopHit && tpHit) return {result:null, detail:"same 1m candle hit TP and stop"};
+              if(stopHit) return {result:false, detail:"1m tie-break: stop hit before TP"};
+              if(tpHit)   return {result:true,  detail:"1m tie-break: TP hit before stop"};
+            }
+          }
+          return {result:null, detail:"same 5m candle hit TP and stop; 1m did not resolve"};
+        }
 
         if(signal==="BUY"){
-          const target = open*(1+exitTP);
-          const stop   = open*(1-stopPct);
-          const hit = high >= target;
-          let stoppedFirst = false, tieNote = "";
-          const firstCandle = list[0] || c1;
-          const same5mBoth = firstCandle.high>=target && firstCandle.low<=stop;
-          if(same5mBoth){
-            const tie = await resolveSame5mWith1m(signal, firstCandle, target, stop);
-            tieNote = " · "+tie.outcome;
-            stoppedFirst = tie.outcome==="STOP_FIRST_1M";
+          const target = c1.open*(1+exitTP);
+          const stop   = c1.open*(1-exitTP);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
+          for(const c of rows){
+            const tpHit = c.high >= target;
+            const stopHit = c.low <= stop;
+            if(tpHit && stopHit){
+              const tb = oneMinuteTieBreak(c, target, stop, "BUY");
+              if(tb.result === null){
+                return {
+                  correct:null, ambiguous:true, tp1Hit:false, ...hits,
+                  label:"AMBIGUOUS",
+                  detail:`${tb.detail}${revText}`,
+                  windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+                };
+              }
+              return {
+                correct:tb.result, tp1Hit:tb.result, ...hits,
+                label: tb.result ? "HIT "+tpLabel : "STOP FIRST",
+                detail:`${tb.detail}${revText}`,
+                windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+              };
+            }
+            if(stopHit){
+              return {
+                correct:false, tp1Hit:false, ...hits,
+                label:"STOP FIRST",
+                detail:`5m validation: stop hit before ${tpLabel}${revText}`,
+                windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+              };
+            }
+            if(tpHit){
+              return {
+                correct:true, tp1Hit:true, ...hits,
+                label:"HIT "+tpLabel,
+                detail:`+${tpPct} hit inside ${exitRule}${revText}`,
+                windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+              };
+            }
           }
-          const finalHit = hit && !stoppedFirst;
-          const maxMove = (((high/open)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= open*(1+l.value)]));
+          const maxMove = (((high/c1.open)-1)*100).toFixed(2);
           return {
-            correct: finalHit, tp1Hit: finalHit, ...hits,
-            label: finalHit ? "HIT "+tpLabel : "MISS",
-            detail: finalHit ? "+"+tpPct+" hit in 5m replay window"+tieNote : "Max +"+maxMove+"% — needed +"+tpPct+tieNote,
+            correct:false, tp1Hit:false, ...hits,
+            label:"MISS",
+            detail:`Max +${maxMove}% — needed +${tpPct}${revText}`,
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
+
         if(signal==="SELL"){
-          const target = open*(1-exitTP);
-          const stop   = open*(1+stopPct);
-          const hit = low <= target;
-          let stoppedFirst = false, tieNote = "";
-          const firstCandle = list[0] || c1;
-          const same5mBoth = firstCandle.low<=target && firstCandle.high>=stop;
-          if(same5mBoth){
-            const tie = await resolveSame5mWith1m(signal, firstCandle, target, stop);
-            tieNote = " · "+tie.outcome;
-            stoppedFirst = tie.outcome==="STOP_FIRST_1M";
+          const target = c1.open*(1-exitTP);
+          const stop   = c1.open*(1+exitTP);
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
+          for(const c of rows){
+            const tpHit = c.low <= target;
+            const stopHit = c.high >= stop;
+            if(tpHit && stopHit){
+              const tb = oneMinuteTieBreak(c, target, stop, "SELL");
+              if(tb.result === null){
+                return {
+                  correct:null, ambiguous:true, tp1Hit:false, ...hits,
+                  label:"AMBIGUOUS",
+                  detail:`${tb.detail}${revText}`,
+                  windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+                };
+              }
+              return {
+                correct:tb.result, tp1Hit:tb.result, ...hits,
+                label: tb.result ? "HIT "+tpLabel : "STOP FIRST",
+                detail:`${tb.detail}${revText}`,
+                windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+              };
+            }
+            if(stopHit){
+              return {
+                correct:false, tp1Hit:false, ...hits,
+                label:"STOP FIRST",
+                detail:`5m validation: stop hit before ${tpLabel}${revText}`,
+                windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+              };
+            }
+            if(tpHit){
+              return {
+                correct:true, tp1Hit:true, ...hits,
+                label:"HIT "+tpLabel,
+                detail:`-${tpPct} hit inside ${exitRule}${revText}`,
+                windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+              };
+            }
           }
-          const finalHit = hit && !stoppedFirst;
-          const maxDrop = (((open/low)-1)*100).toFixed(2);
-          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= open*(1-l.value)]));
+          const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
           return {
-            correct: finalHit, tp1Hit: finalHit, ...hits,
-            label: finalHit ? "HIT "+tpLabel : "MISS",
-            detail: finalHit ? "-"+tpPct+" hit in 5m replay window"+tieNote : "Max -"+maxDrop+"% — needed -"+tpPct+tieNote,
+            correct:false, tp1Hit:false, ...hits,
+            label:"MISS",
+            detail:`Max -${maxDrop}% — needed -${tpPct}${revText}`,
             windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
           };
         }
@@ -3571,8 +3745,8 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const scoreWindow = getCandlesInWindow(c.ts, sigWindow.windowMins);
-        const score = await rpScore2(replay.signal, c, scoreWindow, sigWindow);
+        const nextC = getNextCandle(c.ts);
+        const score = rpScore2(replay.signal, c, nextC, sigWindow);
 
         if(!hasNews || !replay.signal) continue;
 
@@ -3596,15 +3770,15 @@ function App() {
       const total  = wins+losses;
       const wr     = total>0 ? Math.round((wins/total)*100) : 0;
 
-      // Multi-level TP hit tracking per updated eight-level ladder
+      // Multi-level TP hit tracking per clean 5m ladder
       const tpStats = Object.fromEntries(RP_TP_LEVELS.map(l=>{
         const wins = scoredRows.filter(s=>s.score?.["hit"+l.key]===true).length;
         return [l.key, { wins, wr: total>0 ? Math.round((wins/total)*100) : 0, label:l.label }];
       }));
-      const wr015 = tpStats["003"].wr, wr025 = tpStats["006"].wr, wr030 = tpStats["009"].wr, wr040 = tpStats["012"].wr;
-      const wr030 = tpStats["030"].wr, wr060 = tpStats["060"].wr, wr090 = tpStats["090"].wr, wr120 = tpStats["120"].wr;
+      const wr015 = tpStats["015"].wr, wr025 = tpStats["025"].wr, wr030 = tpStats["030"].wr, wr040 = tpStats["040"].wr;
+      const wr060 = tpStats["060"].wr, wr090 = tpStats["090"].wr, wr120 = tpStats["120"].wr;
       // Legacy aliases for any remaining display code
-      const wins618 = tpStats["003"].wins; const wins100 = tpStats["030"].wins;
+      const wins618 = tpStats["015"].wins; const wins100 = tpStats["030"].wins;
       const wr618 = wr015; const wr100 = wr030;
 
       // 4-way breakdown
@@ -3622,8 +3796,8 @@ function App() {
 
       const candleNote = candles.length >= 280 ? "5m candles" 
         : candles.length >= 140 ? "5m synthetic" 
-        : candles.length >= 80  ? "1H candles" 
-        : "4H candles (limited — re-run for better data)";
+        : candles.length >= 80  ? "5m/market fallback candles" 
+        : "limited candles — re-run for better data";
 
       // ── WEEK REGIME — BTC % change over the replay window ─────────────────
       // Tells you if this was a trend week, crash week, or choppy week
@@ -3645,7 +3819,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         newsSessions, wins, losses, total, wr,
-        tpStats, wr015, wr025, wr030, wr040, wr030, wr060, wr090, wr120,
+        tpStats, wr015, wr025, wr030, wr040, wr060, wr090, wr120,
         wr618, wr100, newsFilter: rpNewsFilter,
         eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
@@ -3712,7 +3886,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.15% · LADDER: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -3763,19 +3937,18 @@ function App() {
                   <div style={{fontSize:13,color:"#666",...mono}}>{results.breakdown.breakingOnly.n} setups</div>
                   
                 </div>
-                {/* 8-level TP hit ladder per spec */}
+                {/* Clean TP hit ladder per spec */}
                 <div style={{marginBottom:6}}>
                   <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — EXITS / EXTENSIONS</div>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {[
-                      {label:"EXT 1", pct:"0.03%", wr:results.wr015, primary:true},
-                      {label:"EXT 2", pct:"0.06%", wr:results.wr025},
-                      {label:"EXT 3", pct:"0.09%", wr:results.wr030},
-                      {label:"EXT 4", pct:"0.12%", wr:results.wr040},
-                      {label:"EXT 5", pct:"0.3%",  wr:results.wr030},
-                      {label:"EXT 6", pct:"0.6%",  wr:results.wr060},
-                      {label:"EXT 7", pct:"0.9%",  wr:results.wr090},
-                      {label:"EXT 8", pct:"1.2%",  wr:results.wr120},
+                      {label:"TP 1", pct:"0.15%", wr:results.wr015, primary:true},
+                      {label:"TP 2", pct:"0.25%", wr:results.wr025},
+                      {label:"TP 3", pct:"0.3%",  wr:results.wr030},
+                      {label:"TP 4", pct:"0.4%",  wr:results.wr040},
+                      {label:"TP 5", pct:"0.6%",  wr:results.wr060},
+                      {label:"TP 6", pct:"0.9%",  wr:results.wr090},
+                      {label:"TP 7", pct:"1.2%",  wr:results.wr120},
                     ].map(({label,pct,wr,primary})=>(
                       <div key={label} style={{flex:"1 1 72px",minWidth:68,borderRadius:8,
                         background:primary?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.03)",
@@ -4514,7 +4687,7 @@ const BacktestTab = ()=>{
         )}
 
         {/* ── ECONOMIC EVENTS ── */}
-        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Economic calendar view is active in this build. Calendar events show 5m early for 1★, 60m early for 2★, and 90m early for 3★, then stay alive for their symmetric reaction window.</div>)}
+        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Economic calendar view is active in this build. Calendar events show 30m early for 1★, 60m early for 2★, and 90m early for 3★, then stay alive for their symmetric reaction window.</div>)}
 
 
         {/* ── SOURCES ── */}
