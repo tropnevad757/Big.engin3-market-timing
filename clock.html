@@ -204,13 +204,14 @@ const REGIME_CURRENCIES = {
   },
 };
 
-// NEWS REACTION WINDOWS — symmetric (before AND after scheduled event)
-// Breaking news uses Derrick's 0–15m burst. Replay TP target starts at 0.15%.
+// NEWS REACTION WINDOWS — symmetric (before AND after event)
+// Stars → window in mins, TP targets as % move from entry
+// Updated: 1★=20m, 2★=50m, 3★=80m, breaking burst=20m
 const NEWS_REACTION = {
-  break: { window: 15, fibs: [], tps: [0.15], label:"BREAKING NEWS" },
-  1:     { window: 20, fibs: [], tps: [0.15], label:"★" },
-  2:     { window: 50, fibs: [], tps: [0.15], label:"★★" },
-  3:     { window: 80, fibs: [], tps: [0.15], label:"★★★" },
+  break: { window: 20, fibs: [38.2], tps: [0.1146], label:"BREAKING NEWS" },
+  1:     { window: 20, fibs: [61.8], tps: [0.185],  label:"★" },
+  2:     { window: 50, fibs: [61.8], tps: [0.185],  label:"★★" },
+  3:     { window: 80, fibs: [61.8], tps: [0.185],  label:"★★★" },
 };
 
 // POLARITY SIGN TABLE: Time sign × Value sign = direction
@@ -1623,7 +1624,8 @@ function App() {
     const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
+    const prioritizedBaseEvents = selectActiveEventsByPriority(buildUnifiedNewsEvents(nowMs), nowMs);
+    const allEvents = prioritizedBaseEvents.map(ev=>{
       const t = Date.parse(ev.pub||0);
       if(!t || Number.isNaN(t)) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
@@ -1631,11 +1633,7 @@ function App() {
       const isBreaking = replayEventType(ev) === "breaking";
       const isSpeech = replayEventType(ev) === "speech";
       const isAfter = minsUntil < 0;
-      const active = isBreaking || isSpeech
-        ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
-        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
-      if(!active) return null;
-      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
+      const windowSize = isBreaking ? win.post : Math.max(win.pre, win.post);
       const absMins = Math.abs(minsUntil);
       const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
       const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
@@ -1643,8 +1641,8 @@ function App() {
       if(isBreaking) pts = Math.round((Number(ev.polarity||0)===-1 ? -8 : 4) * prox);
       else if(!isAfter) pts = Number(ev.stars)===3 ? Math.round(-18*prox) : Number(ev.stars)===2 ? Math.round(-10*prox) : Math.round(-5*prox);
       else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
-      return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
-    }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
+      return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts, priorityRank:eventPriorityRank(ev)};
+    }).filter(Boolean).sort((a,b)=>a.priorityRank-b.priorityRank || a.absMins-b.absMins);
 
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
@@ -2093,40 +2091,55 @@ function App() {
     return "breaking";
   }
 
-  // Signal-quality gate: keep macro/country news, reject OTC/.PK ticker junk and review/rating spam.
-  function isMacroSignalEvent(ev){
-    const title = String(ev?.title || ev?.l || ev?.label || ev?.headline || "");
-    const note  = String(ev?.desc || ev?.note || "");
-    const t = `${title} ${note}`.toUpperCase();
-    const type = replayEventType(ev);
-
-    const otcTickerOnly = /(^|\s|[,(])([A-Z]{1,6}F?|[A-Z]{1,5}Y)\.PK(\s|$|[),:;])/i.test(t);
-    const junkReview = /\b(REVIEW AND RATING|REVIEW|RATINGS?|PRICE TARGET|STOCK ANALYSIS|PENNY STOCK|OTC)\b/i.test(t);
-
-    const macroCountry = /\b(PAKISTAN|SBP|RUPEE|PKR|RBNZ|NEW ZEALAND|NZ DOLLAR|KIWI|RBA|AUSTRALIA|AUSSIE|BOE|BRITAIN|UK|ECB|EUROZONE|BOJ|JAPAN|CANADA|CAD|CHINA|PBOC|YUAN|FED|FOMC|POWELL|TREASURY|YIELDS?|BONDS?|DOLLAR|DXY|USD|OIL|WTI|CRUDE|GOLD|INFLATION|CPI|PPI|PCE|GDP|PMI|ISM|JOBS?|PAYROLLS?|UNEMPLOYMENT|JOBLESS|RETAIL SALES|CONSUMER CONFIDENCE|SENTIMENT|TARIFFS?|SANCTIONS?|WAR|IRAN|ISRAEL|RUSSIA|UKRAINE|OPEC|CENTRAL BANK|RATE DECISION|INTEREST RATE)\b/i.test(t);
-    const directionalMacro = /\b(FALLS?|RISES?|DROPS?|JUMPS?|SURGES?|SLIDES?|TUMBLES?|RALLIES|SELL[- ]?OFF|REBOUNDS?|WEAKENS?|STRENGTHENS?|HIGHER|LOWER|RISK|RISKS|FEAR|PANIC|CRASH|COLLAPSE|BREAKS|CUTS?|HIKES?|HOLDS?)\b/i.test(t) && macroCountry;
-    const explicitCountry = String(ev?.country || ev?.currency || "").toUpperCase();
-    const cleanCurrency = /^(USD|EUR|GBP|JPY|AUD|CAD|CHF|NZD|CNY|CNH|SGD|INR|KRW|TWD|HKD|PKR)$/.test(explicitCountry);
-
-    if((otcTickerOnly || junkReview) && !macroCountry) return false;
-    if(type === "scheduled" || type === "speech") return true;
-    if(Number(ev?.polarity || 0) !== 0 && (macroCountry || cleanCurrency)) return true;
-    return macroCountry || directionalMacro || cleanCurrency;
-  }
-
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
+
+    // ENGiN3 priority model:
+    // 1) Economic calendar windows are symmetric and are checked FIRST.
+    //    ⭐ = ±15m, ⭐⭐ = ±45m, ⭐⭐⭐ = ±75m.
+    // 2) Reuters/Bloomberg breaking news is SECOND and only gets 0–15m AFTER release.
+    // 3) Fallback/step logic is used only when no calendar or breaking news is active.
     if(type === "breaking") return {pre:0, post:15};
-    if(type === "speech") return {pre:0, post:45};
-    if(stars === 1) return {pre:20, post:20};
-    if(stars === 2) return {pre:50, post:50};
-    return {pre:80, post:80};
+    if(type === "speech") return {pre:15, post:45};
+    if(stars === 1) return {pre:15, post:15};
+    if(stars === 2) return {pre:45, post:45};
+    return {pre:75, post:75};
   }
 
   function calendarAdvanceMinutes(item){
     const stars = Math.max(1, Math.min(3, Number(item?.stars || 1)));
-    return stars===3 ? 90 : stars===2 ? 60 : 30;
+    return stars===3 ? 75 : stars===2 ? 45 : 15;
+  }
+
+  function isCalendarNewsEvent(ev){
+    return replayEventType(ev) === "scheduled" || replayEventType(ev) === "speech" || ev?.feedType === "calendar";
+  }
+
+  function isBreakingNewsEvent(ev){
+    return replayEventType(ev) === "breaking" && ev?.feedType !== "calendar";
+  }
+
+  function isActiveAtTime(ev, tsMs){
+    const t = Date.parse(ev?.pub||ev?.date||0);
+    if(!t || Number.isNaN(t)) return false;
+    const w = eventWindowMinutes(ev);
+    return tsMs >= (t - w.pre*60000) && tsMs <= (t + w.post*60000);
+  }
+
+  function eventPriorityRank(ev){
+    if(isCalendarNewsEvent(ev)) return 1;
+    if(isBreakingNewsEvent(ev)) return 2;
+    return 3;
+  }
+
+  function selectActiveEventsByPriority(events, tsMs){
+    const active = (Array.isArray(events)?events:[]).filter(ev=>isActiveAtTime(ev, tsMs));
+    const calendar = active.filter(isCalendarNewsEvent);
+    if(calendar.length) return calendar.sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+    const breaking = active.filter(isBreakingNewsEvent);
+    if(breaking.length) return breaking.sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+    return [];
   }
 
   function isCalendarEventVisible(item, nowMs = Date.now()){
@@ -2171,7 +2184,7 @@ function App() {
         const age = nowMs - t;
         const isCalendar = ev.kind === "event" || ev.kind === "speech";
         const maxAge = isCalendar ? 90*24*60*60*1000 : 7*24*60*60*1000;
-        return age <= maxAge && isMacroSignalEvent(ev);
+        return age <= maxAge;
       })
       .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
   }
@@ -2286,7 +2299,7 @@ function App() {
       // 1) Get the news meaning first. If the headline is truly unknown and has
       // no polarity/cue, use the current USD/high-rate anchor sign as the fallback.
       let charge = (unknownAnchorFallback && !hasRawPol && !directionalCueHit)
-        ? 0
+        ? usdAnchorCharge
         : inferHeadlineCharge(ev, inferred);
 
       // 2) Apply Derrick's country interest-rate rule to the event's own country:
@@ -2684,10 +2697,32 @@ function App() {
       }).filter(Boolean);
     }).catch(()=>[]) : Promise.resolve([]);
 
-    Promise.all([ffPromise])
-      .then(([ffEvents])=>{
-        const visible = dedupeFeedItems(ffEvents).sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
-        setCalArticles(visible.slice(0,120));
+    const rssCalendarPromise = Promise.all(CALENDAR_FEEDS.filter(f=>f.type==="rss").map(feed=>
+      fetchRSS(feed.url).then(items=>items.map(item=>{
+        const norm = normalizeItem(item, feed.label, feed.color);
+        const cls = classifyEcoArticle(norm.title, norm.desc);
+        const stars = Math.max(1, Math.min(3, cls.stars || calStars(norm.title) || 1));
+        const ccy = norm.country || inferCountryCode(`${norm.title} ${norm.desc}`) || "USD";
+        return {
+          ...norm,
+          ...cls,
+          stars,
+          country: ccy,
+          currency: ccy,
+          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
+          feedType:"calendar",
+          polarity: cls.bearish ? -1 : cls.bullish ? 1 : 0,
+          rateValue: getRateForSymbol(ccy),
+        };
+      })).catch(()=>[])
+    )).then(groups=>groups.flat()).catch(()=>[]);
+
+    Promise.all([ffPromise, rssCalendarPromise])
+      .then(([ffEvents, rssEvents])=>{
+        const visible = dedupeFeedItems([...(ffEvents||[]), ...(rssEvents||[])])
+          .filter(ev=>ev.title && Date.parse(ev.pub||0))
+          .sort((a,b)=>(Date.parse(a.pub||0)||0)-(Date.parse(b.pub||0)||0));
+        setCalArticles(visible.slice(0,160));
       })
       .finally(()=>setCalLoading(false));
   },[]);
@@ -3203,7 +3238,7 @@ function App() {
   }
 
   async function rpFetchCandles(daysBack=2){
-    // 5m candles — matches Derrick's trading chart. 1m is used only for same-candle TP/stop tie-breaks.
+    // 5m candles — this matches the actual trade-management chart.
     const cacheKey="engin3Replay5m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
@@ -3226,8 +3261,8 @@ function App() {
       }catch(e){ return null; }
     };
 
-    // Candles needed: daysBack × 288 candles/day (5m). APIs cap around 1000 candles.
-    const candleCount = Math.min(daysBack * 288, 1000);
+    // Candles needed: daysBack × 288 candles/day (5m)
+    const candleCount = Math.min(daysBack * 288, 1500);
     const sinceMs = Date.now() - daysBack*24*60*60*1000;
     const sinceSec = Math.floor(sinceMs/1000);
 
@@ -3275,8 +3310,9 @@ function App() {
       }catch(e){}
     }
 
-    // ── ATTEMPT 4: CoinGecko market_chart → synthetic 5m fallback ─────────────
-    // Returns lower-resolution prices; used only if 5m exchanges fail.
+    // ── ATTEMPT 4: CoinGecko market_chart → synthetic 5m ────────────────────
+    // Returns hourly prices; we snap each price to nearest :00 ET slot
+    // and build a synthetic :30 candle between each pair
     try{
       const cgUrl = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days="+daysBack;
       const r = await fetch(cgUrl, {cache:"no-cache"});
@@ -3291,9 +3327,12 @@ function App() {
             const curTs  = Number(prices[i][0]);
             const curP   = Number(prices[i][1]);
             const spread = Math.abs(curP-prevP)*0.5 || curP*0.0005;
-            // Synthetic 5m candle snapped to nearest 5-minute boundary.
-            const fiveTs = Math.round(curTs/(5*60*1000))*(5*60*1000);
-            candles.push({ts:fiveTs, open:prevP, high:Math.max(prevP,curP)+spread, low:Math.min(prevP,curP)-spread, close:curP});
+            // :00 candle aligned to hour boundary
+            const hourTs = Math.round(curTs/(60*60*1000))*(60*60*1000);
+            candles.push({ts:hourTs, open:prevP, high:Math.max(prevP,curP)+spread, low:Math.min(prevP,curP)-spread, close:curP});
+            // :30 candle = midpoint
+            const midP = (prevP+curP)/2;
+            candles.push({ts:hourTs-30*60*1000, open:prevP, high:midP+spread, low:midP-spread, close:midP});
           }
           // Deduplicate by ts, sort ascending
           const seen = new Set();
@@ -3389,7 +3428,7 @@ function App() {
         equationPlain,
         newsCount: usedCount,
         fallbackWindow: fallback.window,
-        tp1: 0.0015, tp2: 0.0025, tp3: 0.003,
+        tp1: 0.003, tp2: 0.006, tp3: 0.009,
       };
     }
     const signal = applied.finalDirection === "buy" ? "BUY" : "SELL";
@@ -3418,25 +3457,25 @@ function App() {
       equationPlain,
       newsCount: usedCount,
       fallbackWindow: fallback.window,
-      tp1: 0.0015, tp2: 0.0025, tp3: 0.003,
+      tp1: 0.003, tp2: 0.006, tp3: 0.009,
     };
   }
 
-  // ── WIN/LOSS SCORING — 5m validation with clean TP ladder ────────────────
-  // Primary target starts at 0.15%; smaller noise targets were removed.
+  // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
+  // Exit target starts at 0.03%; TP ladder tracks all eight requested levels.
   function getSignalWindow(activeEvents){
-    const TP_EXIT_VAL = 0.0015; // 0.15%
+    const TP_EXIT_VAL = 0.0003; // 0.03%
     if(!activeEvents || !activeEvents.length){
-      return { type:"none", stars:0, windowMins:5, tp:TP_EXIT_VAL, stop:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"5m validation" };
+      return { type:"none", stars:0, windowMins:30, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"step exit" };
     }
     const breaking = activeEvents.filter(ev=>replayEventType(ev)==="breaking");
     if(breaking.length > 0){
-      return { type:"break", stars:0, windowMins:15, tp:TP_EXIT_VAL, stop:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"0-15m burst" };
+      return { type:"break", stars:0, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"0-15m burst" };
     }
     const maxStars = Math.max(...activeEvents.map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:TP_EXIT_VAL, stop:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"±80m symmetric window" };
-    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:TP_EXIT_VAL, stop:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"±50m symmetric window" };
-    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, stop:TP_EXIT_VAL, tpLabel:"TP 0.15", tpPct:"0.15%", exitRule:"±20m symmetric window" };
+    if(maxStars===3) return { type:"star", stars:3, windowMins:80, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±80m symmetric window" };
+    if(maxStars===2) return { type:"star", stars:2, windowMins:50, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±50m symmetric window" };
+    return             { type:"star", stars:1, windowMins:20, tp:TP_EXIT_VAL, tpLabel:"EXT 1", tpPct:"0.03%", exitRule:"±20m symmetric window" };
   }
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
@@ -3475,12 +3514,9 @@ function App() {
 
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
-    return pool.filter(ev=>{
-      const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
-      const w=eventWindowMinutes(ev);
-      return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
-    }).map(ev=>{
-      // Re-classify polarity on-the-fly using current keyword list
+    return selectActiveEventsByPriority(pool, tsMs).map(ev=>{
+      // Re-classify polarity on-the-fly using current keyword list,
+      // but only after priority selection so breaking news cannot override active calendar news.
       if(Number(ev.polarity)!==0) return ev;
       const text = (ev.title||ev.l||"")+" "+(ev.desc||"");
       const cls = classifyEcoArticle(text, "");
@@ -3493,18 +3529,17 @@ function App() {
     setRpLoading(true); setRpError(""); setRpResults(null); setRpPlayIdx(0); setRpPlaying(false); setRpEnded(false);
     try {
       // Clear old cache so stale data doesn't block fresh fetch
-      try{ localStorage.removeItem("engin3Replay30m_d"+rpDaysBack); localStorage.removeItem("engin3Replay5m_d"+rpDaysBack); }catch(e){}
+      try{ localStorage.removeItem("engin3Replay5m_d"+rpDaysBack); localStorage.removeItem("engin3Replay5m_d"+rpDaysBack); }catch(e){}
       const candles = await rpFetchCandles(rpDaysBack);
 
       // CLEAN TIMELINE V2: keep the original engine behavior, but feed it ALL
       // relevant market-moving events instead of breaking-only news. Calendar events
       // are kept if their symmetric window can overlap the replay candle range.
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
-      const replayWindowEnd = Date.now() + 90*60000;
+      const replayWindowEnd = Date.now() + 75*60000;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
         const t = Date.parse(ev.pub||0);
         if(!t || Number.isNaN(t)) return false;
-        if(!isMacroSignalEvent(ev)) return false;
         const w = eventWindowMinutes(ev);
         return (t + w.post*60000) >= replayWindowStart && (t - w.pre*60000) <= replayWindowEnd;
       });
@@ -3525,107 +3560,45 @@ function App() {
         return candleByTs[sortedTs[idx+1]]||null;
       }
 
-      // ── SCORER — 5m primary validation + clean TP ladder ─────────────────────
+      // ── SCORER — updated replay extension ladder ─────────────────────────────
       const RP_TP_LEVELS = [
-        { key:"015", label:"0.15%", value:0.0015 },
-        { key:"025", label:"0.25%", value:0.0025 },
-        { key:"030", label:"0.3%",  value:0.003  },
-        { key:"040", label:"0.4%",  value:0.004  },
-        { key:"060", label:"0.6%",  value:0.006  },
-        { key:"090", label:"0.9%",  value:0.009  },
-        { key:"120", label:"1.2%",  value:0.012  },
+        { key:"003",  label:"0.03%", value:0.0003 },
+        { key:"006",  label:"0.06%", value:0.0006 },
+        { key:"009",  label:"0.09%", value:0.0009 },
+        { key:"012",  label:"0.12%", value:0.0012 },
+        { key:"030",  label:"0.3%",  value:0.003  },
+        { key:"060",  label:"0.6%",  value:0.006  },
+        { key:"090",  label:"0.9%",  value:0.009  },
+        { key:"120",  label:"1.2%",  value:0.012  },
       ];
 
-      const oneMinuteTieCache = {};
-      async function fetchOneMinuteTieCandles(ts){
-        const key = String(ts);
-        if(oneMinuteTieCache[key]) return oneMinuteTieCache[key];
-        const sinceSec = Math.floor((ts - 60*1000) / 1000);
-        const urls = [
-          "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1&since="+sinceSec,
-          "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&startTime="+(ts-60*1000)+"&endTime="+(ts+6*60*1000)+"&limit=10",
-        ];
-        for(const url of urls){
-          try{
-            const r = await fetch(url,{cache:"no-cache"});
-            if(!r.ok) continue;
-            const data = await r.json();
-            let rows = [];
-            if(data?.result){
-              const pair = data.result["XXBTZUSD"] || Object.values(data.result).find(v=>Array.isArray(v));
-              if(Array.isArray(pair)) rows = pair.map(k=>({ts:Number(k[0])*1000, open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4])}));
-            } else if(Array.isArray(data)) {
-              rows = data.map(k=>({ts:Number(k[0]), open:Number(k[1]), high:Number(k[2]), low:Number(k[3]), close:Number(k[4])}));
-            }
-            rows = rows.filter(k=>k.ts>=ts && k.ts<ts+5*60000 && k.open>0 && k.high>0 && k.low>0 && k.close>0).sort((a,b)=>a.ts-b.ts);
-            if(rows.length){ oneMinuteTieCache[key]=rows; return rows; }
-          }catch(e){}
-        }
-        oneMinuteTieCache[key]=[];
-        return [];
-      }
-
-      async function rpScore2(signal, c1, sigWindow){
+      function rpScore2(signal, c1, c2, sigWindow){
         if(!c1||!c1.open) return null;
-        const {exitRule, tp: exitTP, stop: stopTP=exitTP, tpLabel, tpPct} = sigWindow;
-        const high = c1.high;
-        const low  = c1.low;
-        const stopLabel = (stopTP*100).toFixed(2).replace(/0+$/,'').replace(/\.$/,'') + "%";
-
-        const makeHits = (dir)=>Object.fromEntries(RP_TP_LEVELS.map(l=>[
-          "hit"+l.key,
-          dir === "BUY" ? high >= c1.open*(1+l.value) : low <= c1.open*(1-l.value)
-        ]));
-
-        const resolveTie = async (dir, tpPrice, stopPrice)=>{
-          const oneM = await fetchOneMinuteTieCandles(c1.ts);
-          for(const k of oneM){
-            const tpHit = dir === "BUY" ? k.high >= tpPrice : k.low <= tpPrice;
-            const stHit = dir === "BUY" ? k.low <= stopPrice : k.high >= stopPrice;
-            if(tpHit && !stHit) return {correct:true, note:"1m tie-break: TP hit before stop"};
-            if(stHit && !tpHit) return {correct:false, note:"1m tie-break: stop hit before TP"};
-            if(tpHit && stHit) return {correct:false, note:"1m tie-break: same 1m candle hit both — counted loss"};
-          }
-          return {correct:null, note:"5m same-candle TP/stop — 1m unavailable"};
-        };
+        const {exitRule, type, tp: exitTP, tpLabel, tpPct} = sigWindow;
+        const high = c2 ? Math.max(c1.high, c2.high) : c1.high;
+        const low  = c2 ? Math.min(c1.low,  c2.low)  : c1.low;
 
         if(signal==="BUY"){
-          const tpPrice = c1.open*(1+exitTP), stopPrice = c1.open*(1-stopTP);
-          const hitTP = high >= tpPrice;
-          const hitStop = low <= stopPrice;
+          const hit = high >= c1.open*(1+exitTP);
           const maxMove = (((high/c1.open)-1)*100).toFixed(2);
-          const hits = makeHits("BUY");
-          if(hitTP && hitStop){
-            const tie = await resolveTie("BUY", tpPrice, stopPrice);
-            return {correct: tie.correct===true, tp1Hit: tie.correct===true, ...hits,
-              label: tie.correct===true ? "HIT TP 0.15" : "STOP FIRST",
-              detail: `${tie.note} ${tpPct}`,
-              windowLabel: exitRule, tp: exitTP, tpPct, tpLabel};
-          }
-          if(hitStop) return {correct:false, tp1Hit:false, ...hits, label:"STOP FIRST", detail:`5m validation: stop hit before ${tpLabel}`, windowLabel:exitRule, tp:exitTP, tpPct, tpLabel};
-          return {correct: hitTP, tp1Hit: hitTP, ...hits,
-            label: hitTP ? "HIT TP 0.15" : "MISS",
-            detail: hitTP ? `+${tpPct} hit in 5m` : `Max +${maxMove}% — needed +${tpPct}`,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel};
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= c1.open*(1+l.value)]));
+          return {
+            correct: hit, tp1Hit: hit, ...hits,
+            label: hit ? "HIT "+tpLabel : "MISS",
+            detail: hit ? "+"+tpPct+" hit in window" : "Max +"+maxMove+"% — needed +"+tpPct,
+            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+          };
         }
         if(signal==="SELL"){
-          const tpPrice = c1.open*(1-exitTP), stopPrice = c1.open*(1+stopTP);
-          const hitTP = low <= tpPrice;
-          const hitStop = high >= stopPrice;
+          const hit = low <= c1.open*(1-exitTP);
           const maxDrop = (((c1.open/low)-1)*100).toFixed(2);
-          const hits = makeHits("SELL");
-          if(hitTP && hitStop){
-            const tie = await resolveTie("SELL", tpPrice, stopPrice);
-            return {correct: tie.correct===true, tp1Hit: tie.correct===true, ...hits,
-              label: tie.correct===true ? "HIT TP 0.15" : "STOP FIRST",
-              detail: `${tie.note} ${tpPct}`,
-              windowLabel: exitRule, tp: exitTP, tpPct, tpLabel};
-          }
-          if(hitStop) return {correct:false, tp1Hit:false, ...hits, label:"STOP FIRST", detail:`5m validation: stop hit before ${tpLabel}`, windowLabel:exitRule, tp:exitTP, tpPct, tpLabel};
-          return {correct: hitTP, tp1Hit: hitTP, ...hits,
-            label: hitTP ? "HIT TP 0.15" : "MISS",
-            detail: hitTP ? `-${tpPct} hit in 5m` : `Max -${maxDrop}% — needed -${tpPct}`,
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel};
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low <= c1.open*(1-l.value)]));
+          return {
+            correct: hit, tp1Hit: hit, ...hits,
+            label: hit ? "HIT "+tpLabel : "MISS",
+            detail: hit ? "-"+tpPct+" hit in window" : "Max -"+maxDrop+"% — needed -"+tpPct,
+            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
+          };
         }
         return null;
       }
@@ -3656,7 +3629,8 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const score = await rpScore2(replay.signal, c, sigWindow);
+        const scoreWindow = getFutureCandles(c.ts, 3); // 3 × 5m candles = 15m management window
+        const score = rpScoreTimeBased(replay.signal, scoreWindow, sigWindow);
 
         if(!hasNews || !replay.signal) continue;
 
@@ -3685,8 +3659,8 @@ function App() {
         const wins = scoredRows.filter(s=>s.score?.["hit"+l.key]===true).length;
         return [l.key, { wins, wr: total>0 ? Math.round((wins/total)*100) : 0, label:l.label }];
       }));
-      const wr015 = tpStats["015"].wr, wr025 = tpStats["025"].wr;
-      const wr030 = tpStats["030"].wr, wr040 = tpStats["040"].wr, wr060 = tpStats["060"].wr, wr090 = tpStats["090"].wr, wr120 = tpStats["120"].wr;
+      const wr015 = tpStats["015"].wr, wr025 = tpStats["025"].wr, wr030 = tpStats["030"].wr, wr040 = tpStats["040"].wr;
+      const wr060 = tpStats["060"].wr, wr090 = tpStats["090"].wr, wr120 = tpStats["120"].wr;
       // Legacy aliases for any remaining display code
       const wins618 = tpStats["015"].wins; const wins100 = tpStats["030"].wins;
       const wr618 = wr015; const wr100 = wr030;
@@ -3705,9 +3679,9 @@ function App() {
       };
 
       const candleNote = candles.length >= 280 ? "5m candles" 
-        : candles.length >= 140 ? "5m/synthetic" 
-        : candles.length >= 80  ? "higher-TF fallback" 
-        : "limited candles — re-run for better data";
+        : candles.length >= 140 ? "5m synthetic" 
+        : candles.length >= 80  ? "1H candles" 
+        : "4H candles (limited — re-run for better data)";
 
       // ── WEEK REGIME — BTC % change over the replay window ─────────────────
       // Tells you if this was a trend week, crash week, or choppy week
@@ -3729,7 +3703,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         newsSessions, wins, losses, total, wr,
-        tpStats, wr015, wr025, wr030, wr040, wr060, wr090, wr120,
+        tpStats, wr003, wr006, wr009, wr012, wr030, wr060, wr090, wr120,
         wr618, wr100, newsFilter: rpNewsFilter,
         eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
@@ -3766,7 +3740,7 @@ function App() {
       <div style={{padding:14}}>
         <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
-          Replay runs MARKET-MOVING-NEWS-ONLY on 5m candles. 1m is used only to break same-candle TP/stop ties.
+          Replay now runs in MARKET-MOVING-NEWS-ONLY mode. It trades active directed breaking-news windows only, 24/7.
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
@@ -3796,7 +3770,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.15% · LADDER: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>EXIT: 0.03% · LADDER: 0.03 / 0.06 / 0.09 / 0.12 / 0.3 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -3852,13 +3826,14 @@ function App() {
                   <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — EXITS / EXTENSIONS</div>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {[
-                      {label:"TP 1", pct:"0.15%", wr:results.wr015, primary:true},
-                      {label:"TP 2", pct:"0.25%", wr:results.wr025},
-                      {label:"TP 3", pct:"0.3%",  wr:results.wr030},
-                      {label:"TP 4", pct:"0.4%",  wr:results.wr040},
-                      {label:"TP 5", pct:"0.6%",  wr:results.wr060},
-                      {label:"TP 6", pct:"0.9%",  wr:results.wr090},
-                      {label:"TP 7", pct:"1.2%",  wr:results.wr120},
+                      {label:"EXT 1", pct:"0.03%", wr:results.wr003, primary:true},
+                      {label:"EXT 2", pct:"0.06%", wr:results.wr006},
+                      {label:"EXT 3", pct:"0.09%", wr:results.wr009},
+                      {label:"EXT 4", pct:"0.12%", wr:results.wr012},
+                      {label:"EXT 5", pct:"0.3%",  wr:results.wr030},
+                      {label:"EXT 6", pct:"0.6%",  wr:results.wr060},
+                      {label:"EXT 7", pct:"0.9%",  wr:results.wr090},
+                      {label:"EXT 8", pct:"1.2%",  wr:results.wr120},
                     ].map(({label,pct,wr,primary})=>(
                       <div key={label} style={{flex:"1 1 72px",minWidth:68,borderRadius:8,
                         background:primary?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.03)",
@@ -4597,7 +4572,7 @@ const BacktestTab = ()=>{
         )}
 
         {/* ── ECONOMIC EVENTS ── */}
-        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Economic calendar view is active in this build. Calendar events show 30m early for 1★, 60m early for 2★, and 90m early for 3★, then stay alive for their symmetric reaction window.</div>)}
+        {newsView==="calendar"&&(<div style={{padding:"18px",color:"#888",fontFamily:"'Share Tech Mono',monospace"}}>Economic calendar view is active in this build. Calendar events show 5m early for 1★, 60m early for 2★, and 90m early for 3★, then stay alive for their symmetric reaction window.</div>)}
 
 
         {/* ── SOURCES ── */}
