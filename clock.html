@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — 5M MACRO PRIORITY ENGINE</title>
+<title>THE BiGENGiN3 OF TIME — 5M CLEAN MACRO PRIORITY ENGINE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -30,7 +30,7 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>THE BiGENGiN3 OF TIME</p>
 </div>
 <div id="root"></div>
-<!-- V12 COUNTRY RATE BRAIN ENGINE: active news uses headline sign + each country interest-rate relation, then compares against odd/even hour; no-news fallback unchanged. -->
+<!-- 5M CLEAN MACRO PRIORITY ENGINE: calendar first, Reuters/Bloomberg macro breaking second, fallback timing third. Same-topic catalysts are de-duped before stacking. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
@@ -720,7 +720,7 @@ function App() {
   const [rpPlaying, setRpPlaying] = useState(false);
   const [rpEnded,   setRpEnded]   = useState(false);
   const [rpDaysBack, setRpDaysBack] = useState(7); // how many days back to fetch candles
-  const [rpTpMode, setRpTpMode] = useState("100"); // Derrick ladder: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2
+  const [rpTpMode, setRpTpMode] = useState("100"); // clean ladder: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2
   const rpNewsFilter = false; // calendar first, breaking second, fallback third
   const [rpWeekOffset, setRpWeekOffset] = useState(0); // 0=current, 1=1 week ago, 2=2 weeks ago, 3=3 weeks ago
   const [showNewsDebug, setShowNewsDebug] = useState(false);
@@ -1237,6 +1237,8 @@ function App() {
     { sym:"AUD", rate:4.10 },
     { sym:"NOK", rate:4.00 },
     { sym:"GBP", rate:3.75 },
+    { sym:"CDF", rate:7.50 }, // Congo / DRC anchor for country-news logic
+    { sym:"DRC", rate:7.50 }, // Alias so DRC-coded headlines stay positive vs USD
     { sym:"EUR", rate:2.15 },
     { sym:"CAD", rate:2.25 },
     { sym:"NZD", rate:2.25 },
@@ -1324,10 +1326,10 @@ function App() {
   loadLiveRates();
   setInterval(loadLiveRates, LIVE_RATE_REFRESH_MS);
 
-  // NEW REGIME TEST V7
-  // BUY CORE REGIME  — Connector: − = mirror, USD− anchor
+  // CLEAN REGIME RULEBOOK
+  // MIRROR  — Connector: − = USD− anchor
   //   12:30–1:30 / 3:30–4:30 / 6:30–7:30 / 9:30–10:30 (AM + PM)
-  // SELL RESET REGIME — Connector: + = aligned, USD+ anchor
+  // ALIGNED — Connector: + = USD+ anchor
   //   1:30–3:30 / 4:30–6:30 / 7:30–9:30 / 10:30–12:30 (AM + PM)
   const MIRROR_RANGES = [
     [30, 90],     // 12:30 AM – 1:30 AM
@@ -1650,10 +1652,15 @@ function App() {
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
     }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
 
-    const activeEvent = allEvents[0] || null;
-    const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
-    const negativeDirectional = allEvents.some(ev=>Number(ev.polarity) === -1);
-    const positiveDirectional = allEvents.some(ev=>Number(ev.polarity) === 1);
+    const calendarLive = allEvents.filter(ev=>replayEventType(ev) !== "breaking");
+    const breakingLive = allEvents.filter(ev=>replayEventType(ev) === "breaking");
+    // Priority: calendar first, then breaking, then fallback. Never combine calendar + breaking.
+    // Cap to two active event blocks to prevent replay/live clustering.
+    const priorityEvents = (calendarLive.length ? calendarLive : breakingLive).slice(0,2);
+    const activeEvent = priorityEvents[0] || null;
+    const suppressPts = Math.max(-30, Math.min(15, priorityEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
+    const negativeDirectional = priorityEvents.some(ev=>Number(ev.polarity) === -1);
+    const positiveDirectional = priorityEvents.some(ev=>Number(ev.polarity) === 1);
     const conflict = negativeDirectional && positiveDirectional ? true : (activeEvent && Number(activeEvent.polarity||0)!==0 ? Number(activeEvent.polarity)!==slotCharge : false);
 
     let tpLevels = null;
@@ -1668,10 +1675,10 @@ function App() {
     }
 
     return {
-      active: allEvents.length > 0,
+      active: priorityEvents.length > 0,
       suppressPts,
       activeEvent,
-      nearEvents: allEvents,
+      nearEvents: priorityEvents,
       tpLevels,
       conflict,
       level: activeEvent?.isBreaking ? "break" : activeEvent?.stars===3 ? "high" : activeEvent?.stars===2 ? "med" : activeEvent ? "low" : "none",
@@ -1752,7 +1759,7 @@ function App() {
   // ── TWO-MODE POLARITY MATH (runs here — after internalStep + newsReaction both available) ──
   const _stepDir = internalStep.direction;
   const liveSlotPolarity = newsReaction.active
-    ? ((et.h24 % 2 === 0) ? "positive" : "negative")
+    ? getNewsSlotPolarity(et.h24, et.m).polarity
     : (_stepDir === "buy" ? "positive" : "negative");
   const polarityState = buildPolarityState(_stepDir, liveSlotPolarity);
   const livePolarityApplied = resolveStackedNewsSign(polarityState.baseDirection, liveSlotPolarity, newsReaction.nearEvents || [], et.h24, et.m);
@@ -1890,7 +1897,7 @@ function App() {
   // Reuters: google news search locked to reuters.com domain
   // Bloomberg: google news search locked to bloomberg.com domain
   const NEWS_FEEDS = [
-    { id:"combo", label:"MARKET + CALENDAR + BREAKING", color:"#ffb347",
+    { id:"combo", label:"CALENDAR → BREAKING → FALLBACK", color:"#ffb347",
       urls:[
         "https://news.google.com/rss/search?q=when:7d+allinurl:bloomberg.com+markets&hl=en-US&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=when:7d+(site:bloomberg.com/markets+OR+site:bloomberg.com/news)+(%22Bitcoin%22+OR+crypto+OR+stocks+OR+markets+OR+Fed+OR+inflation+OR+Treasury+yields)&hl=en-US&gl=US&ceid=US:en",
@@ -2047,48 +2054,11 @@ function App() {
   function isJunkTickerOnlyHeadline(raw){
     const s = String(raw||"").trim();
     const u = s.toUpperCase();
-    const macro = /\b(PAKISTAN|SBP|PKR|RUPEE|RATE DECISION|CENTRAL BANK|INFLATION|CPI|PPI|GDP|PMI|NFP|FOMC|FED|FEDERAL RESERVE|TREASURY|YIELDS?|DOLLAR|DXY|OIL|CRUDE|OPEC|TARIFF|SANCTION|WAR|JOBS|UNEMPLOYMENT|RETAIL SALES|BTC|BITCOIN|CRYPTO|ETF)\b/.test(u);
+    const macro = /\b(PAKISTAN|SBP|PKR|RUPEE|RATE DECISION|CENTRAL BANK|INFLATION|CPI|PPI|GDP|PMI|NFP|FOMC|FED|TREASURY|YIELDS?|DOLLAR|OIL|CRUDE|TARIFF|SANCTION|WAR|JOBS|UNEMPLOYMENT|RETAIL SALES)\b/.test(u);
     if(macro) return false;
     if(/\b[A-Z]{1,6}\.(PK|OB|OTC|V)\b/.test(u)) return true;
-    if(/\b(REVIEW AND RATING|BROKER REVIEW|FOREX BROKER REVIEW|SCAM REVIEW|TRADING SIGNALS?|SIGNAL PROVIDER|PRICE PREDICTION|SPONSORED|PROMO|PRIMEFX|FXFELLOW|XAU\/USD GOLD TRADING SIGNALS?)\b/.test(u)) return true;
-    if(/\b(STOCK MARKET MAY|MAY RECLAIM|MAY OPEN|SET TO OPEN|POINT LEVEL|HOVER NEAR RECORD HIGHS|HEDGE FUND TECH POSITIONS|LTD\b|PLC\b)\b/.test(u)) return true;
+    if(/\b(REVIEW AND RATING|BROKER REVIEW|FOREX BROKER REVIEW|SCAM REVIEW)\b/.test(u)) return true;
     return false;
-  }
-
-  function isCalendarSource(ev){
-    const src = String(ev?.source || ev?.feedLabel || ev?.cat || ev?.feedType || "").toLowerCase();
-    const kind = String(ev?.kind || "").toLowerCase();
-    return kind === "event" || kind === "speech" || /calendar|myfxbook|forexfactory|trading\s*economics|faireconomy/.test(src);
-  }
-
-  function isReutersBloombergSource(ev){
-    const src = String(ev?.source || ev?.feedLabel || ev?.cat || ev?.link || "").toLowerCase();
-    const txt = String(ev?.title || ev?.l || ev?.label || ev?.headline || "").toLowerCase();
-    return /reuters|bloomberg/.test(src) || /\b(reuters|bloomberg)\b/.test(txt);
-  }
-
-  function isActionableBreakingHeadline(raw, ev={}){
-    const title = String(raw || ev?.title || ev?.l || ev?.label || ev?.headline || "").trim();
-    if(!title || isJunkTickerOnlyHeadline(title)) return false;
-    if(!isReutersBloombergSource(ev)) return false;
-    const text = `${title} ${ev?.desc||""} ${ev?.note||""}`.toLowerCase();
-    const bad = /review|rating|trading\s+signals?|primefx|fxfellow|broker|sponsored|price\s+prediction|stock market may|may reclaim|point level|hover near record highs|hedge fund tech positions|ltd\b|plc\b|penny stock|otc|\.pk\b|\.ob\b/i;
-    if(bad.test(text)) return false;
-    const macro = /\b(bitcoin|btc|crypto|ether|etf|fed|federal reserve|fomc|powell|rate decision|interest rates?|treasury|bond yields?|yields?|dollar|dxy|inflation|cpi|ppi|pce|gdp|pmi|nfp|jobs|unemployment|retail sales|oil|crude|opec|gold\b|stocks? (jump|fall|slide|rally|selloff|drop)|markets? (jump|fall|slide|rally|selloff|drop)|tariffs?|sanctions?|war|iran|russia|china|bank of japan|ecb|boe|boj|pboj|central bank)\b/i;
-    return macro.test(text);
-  }
-
-  function sourceTypeLabel(ev){
-    if(!ev) return "FALLBACK";
-    if(replayEventType(ev)==="speech") return "CALENDAR_SPEECH";
-    if(replayEventType(ev)!=="breaking") {
-      const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
-      return stars===3 ? "CALENDAR_⭐⭐⭐" : stars===2 ? "CALENDAR_⭐⭐" : "CALENDAR_⭐";
-    }
-    const src = String(ev?.source || ev?.feedLabel || "").toLowerCase();
-    if(src.includes("reuters")) return "BREAKING_REUTERS";
-    if(src.includes("bloomberg")) return "BREAKING_BLOOMBERG";
-    return "BREAKING_MACRO";
   }
 
   function canonicalNewsText(s){
@@ -2117,6 +2087,52 @@ function App() {
     const small = Math.min(A.size, B.size);
     const big = Math.max(A.size, B.size);
     return (inter / small >= 0.86) || (inter >= 8 && inter / big >= 0.72);
+  }
+
+  // Same-topic de-dupe for signal stacking. Feed can show multiple headlines,
+  // but the resolver only counts one catalyst per topic/window.
+  function sameTopicKey(raw){
+    const t = String(raw||"").toUpperCase();
+    if(/\b(FED|FOMC|POWELL|FEDERAL RESERVE|RATE DECISION|INTEREST RATE|RATES?)\b/.test(t)) return "USD_FED_RATES";
+    if(/\b(TREASURY|YIELDS?|BONDS?|AUCTION)\b/.test(t)) return "USD_TREASURY_YIELDS";
+    if(/\b(CPI|INFLATION|PCE|PPI|PRICES)\b/.test(t)) return "INFLATION";
+    if(/\b(NFP|PAYROLLS?|JOBS?|UNEMPLOYMENT|JOBLESS|WAGES?)\b/.test(t)) return "LABOR_JOBS";
+    if(/\b(GDP|PMI|ISM|RETAIL SALES|CONSUMER CONFIDENCE|SENTIMENT)\b/.test(t)) return "GROWTH_DATA";
+    if(/\b(DOLLAR|DXY|USD)\b/.test(t)) return "USD_DOLLAR";
+    if(/\b(OIL|CRUDE|WTI|BRENT|OPEC)\b/.test(t)) return "OIL_ENERGY";
+    if(/\b(TARIFF|SANCTION|WAR|IRAN|CHINA|RUSSIA|GEOPOLITIC|PEACE)\b/.test(t)) return "GEOPOLITICAL_RISK";
+    if(/\b(BITCOIN|BTC|CRYPTO|ETF|SEC|CFTC|REGULAT)\b/.test(t)) return "CRYPTO_REGULATION";
+    const canon = canonicalNewsText(raw);
+    return canon.split(/\s+/).slice(0,8).join("_");
+  }
+
+  function isWeakOrPromoHeadline(raw){
+    const t = String(raw||"").toUpperCase();
+    if(/\b(REVIEW|RATING|BROKER|TRADING SIGNALS?|SIGNAL SERVICE|PRIMEFX|FXFELLOW|PROMO|ADVERTISEMENT|SPONSORED)\b/.test(t)) return true;
+    if(/\b(CHARGED|ARRESTED|INDICTED|LAWSUIT|INSIDER TRADING)\b/.test(t) && !/\b(SEC|CFTC|FED|REGULAT|SYSTEMIC|MARKET-WIDE|EXCHANGE|BAN|RESTRICT)\b/.test(t)) return true;
+    if(/\b[A-Z]{1,6}\.(PK|OB|OTC|V)\b/.test(t) && !/\b(FED|FOMC|CPI|GDP|PMI|NFP|TREASURY|YIELDS?|DOLLAR|OIL|CENTRAL BANK|INFLATION)\b/.test(t)) return true;
+    return false;
+  }
+
+  function isMacroMarketMoverHeadline(raw, source=""){
+    const t = String(raw||"").toUpperCase();
+    const src = String(source||"").toUpperCase();
+    if(isWeakOrPromoHeadline(t)) return false;
+    const fromTrustedBreaking = /REUTERS|BLOOMBERG/.test(src) || /REUTERS|BLOOMBERG/.test(t);
+    if(!fromTrustedBreaking) return false;
+
+    // Country-coded Reuters/Bloomberg headlines can be traded by Derrick's rate-sign logic.
+    // This replaces the old global-risk override: no Ebola/WHO/oil/AUKUS headline is forced
+    // negative just because it sounds global. It must resolve through country + interest rate.
+    try{ if(inferCountryCode(t)) return true; }catch(_){}
+
+    // True market movers for BiG ENGiN3: macro, policy, USD/liquidity, inflation/labor/growth,
+    // oil/energy, geopolitics, or broad crypto regulation. They still resolve through country/rate math.
+    if(/\b(FED|FOMC|POWELL|FEDERAL RESERVE|RATE DECISION|INTEREST RATE|RATES?|TREASURY|YIELDS?|BONDS?|DOLLAR|DXY|USD|CPI|PCE|PPI|INFLATION|NFP|PAYROLLS?|JOBS?|UNEMPLOYMENT|GDP|PMI|ISM|RETAIL SALES|CENTRAL BANK|ECB|BOE|BOJ|OIL|PETROL|DIESEL|RESERVES?|CRUDE|WTI|BRENT|OPEC|AUKUS|TARIFF|SANCTION|WAR|IRAN|CHINA|RUSSIA|BITCOIN|BTC|CRYPTO ETF|SEC|CFTC|REGULAT)\b/.test(t)) return true;
+
+    // Generic stocks/markets only count when tied to liquidity/macro context.
+    if(/\b(STOCKS?|MARKETS?|FUTURES?|WALL STREET)\b/.test(t) && /\b(DOLLAR|OIL|PETROL|DIESEL|RATE|YIELD|FED|INFLATION|TARIFF|WAR|IRAN|CHINA|RISK|LIQUIDITY)\b/.test(t)) return true;
+    return false;
   }
 
   function dedupeFeedItems(items){
@@ -2170,16 +2186,17 @@ function App() {
   function buildUnifiedNewsEvents(nowMs = Date.now()){
     const toEvent = (raw, overrides={})=>{
       const title = String(raw?.title || raw?.l || raw?.label || overrides.title || "").trim();
-      if(!title || isJunkTickerOnlyHeadline(title)) return null;
+      const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
+      const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
+      const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
+      if(!title || isJunkTickerOnlyHeadline(title) || isWeakOrPromoHeadline(`${title} ${note}`)) return null;
+      if(kind === "breaking" && !isMacroMarketMoverHeadline(`${title} ${note}`, source)) return null;
       const stars = Math.max(1, Math.min(3, Number(raw?.stars || overrides.stars || (raw?.imp==="high"?3:raw?.imp==="med"?2:1) || 1)));
       const polarity = Number(raw?.polarity ?? overrides.polarity ?? (raw?.bearish ? -1 : raw?.bullish ? 1 : 0));
       const rateValue = Number(raw?.rateValue ?? overrides.rateValue ?? getRateForSymbol(raw?.country || raw?.currency || overrides.country || ""));
-      const kind = overrides.kind || raw?.kind || (raw?.t && raw?.d ? "event" : "breaking");
-      const source = overrides.source || raw?.source || raw?.feedLabel || raw?.cat || "live";
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
-      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${raw?.desc||raw?.note||""}`) || "";
-      const note = raw?.desc || raw?.btc || raw?.note || overrides.note || "";
-      return { title, source, stars, polarity, kind, pub, country, note, rateValue };
+      const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${note}`) || "";
+      return { title, source, stars, polarity, kind, pub, country, note, rateValue, topicKey: sameTopicKey(`${title} ${note}`) };
     };
 
     const scheduled = [
@@ -2189,8 +2206,7 @@ function App() {
 
     const breaking = (newsArticles||[])
       .map(ev=>toEvent(ev,{kind:/powell|speech|remarks|testimony|presser|press conference/i.test(ev?.title||"")?"speech":"breaking"}))
-      .filter(Boolean)
-      .filter(ev=>replayEventType(ev)!=="breaking" || isActionableBreakingHeadline(ev.title, ev));
+      .filter(Boolean);
 
     const manual = (replayEvents||[]).map(ev=>toEvent(ev)).filter(Boolean);
 
@@ -2212,20 +2228,25 @@ function App() {
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
-    const hourCharge = Number.isFinite(Number(h24)) && (Number(h24) % 2 === 0) ? 1 : -1;
+    const slotTimePolarity = Number.isFinite(Number(h24)) ? getNewsSlotPolarity(Number(h24), Number(m)||0) : null;
+    const hourCharge = slotTimePolarity ? (slotTimePolarity.sign === "+" ? 1 : -1) : slotCharge;
 
-    // De-dupe first so the same headline does not count twice in the stack.
+    // De-dupe first so the same catalyst does not count twice in the stack.
+    // This handles exact duplicate headlines AND different headlines about the same Fed/oil/dollar/etc. story.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
     const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || ev?.headline || "").slice(0,160);
+    const topicKeyOf = (ev)=> ev?.topicKey || sameTopicKey(`${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||""} ${ev?.note||""}`);
     const duplicateEvents = [];
     const allActive = [];
     rawActive.forEach(ev=>{
       const key = normalizeNewsKey(ev);
+      const topic = topicKeyOf(ev);
       const t = Date.parse(ev?.pub||ev?.date||0);
-      const isDup = key && allActive.some(prev=>{
+      const isDup = (key || topic) && allActive.some(prev=>{
         const pt = Date.parse(prev?.pub||prev?.date||0);
-        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 90*60000;
-        return closeTime && newsTextSimilar(key, normalizeNewsKey(prev));
+        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 120*60000;
+        const sameTopic = topic && topicKeyOf(prev) && topic === topicKeyOf(prev);
+        return closeTime && (sameTopic || newsTextSimilar(key, normalizeNewsKey(prev)));
       });
       if(isDup) duplicateEvents.push(ev);
       else allActive.push(ev);
@@ -2248,13 +2269,15 @@ function App() {
       const t = String(rawText||"").toUpperCase();
       const fbRaw = String(fallback||"").toUpperCase().trim();
       const fb3 = fbRaw.slice(0,3);
-      const known = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR"]);
+      const known = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR","CDF","DRC"]);
 
       // Clean headline classification first so dirty ticker/source tags do not win.
+      if(/\b(CONGO|DRC|DEMOCRATIC REPUBLIC OF THE CONGO|KINSHASA|CDF)\b/.test(t)) return "CDF";
+      if(/\b(AUKUS|ASX|AUSTRALIA|AUSSIE|\bAUD\b)/.test(t)) return "AUD";
+      if(/\b(GBP|BOE|BRITAIN|UNITED KINGDOM|U\.?K\.?|ENGLAND|LONDON|LIVERPOOL|BP)\b/.test(t)) return "GBP";
       if(/\bLALT\.V\b|\bTSX\b|CANADA|CANADIAN|\bCAD\b/.test(t)) return "CAD";
-      if(/\bASX\b|AUSTRALIA|AUSSIE|\bAUD\b/.test(t)) return "AUD";
       if(/\bASIA\b|EM ASIA|ASIAN|EMERGING MARKETS?/.test(t)) return "ASI";
-      if(/\bUSD\b|DOLLAR|TREASURY|YIELDS?|FED\b|POWELL|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|WTI|CRUDE/.test(t)) return "USD";
+      if(/\bUSD\b|DOLLAR|TREASURY|YIELDS?|FED\b|POWELL|FOMC|WALL STREET|U\.?S\.?|UNITED STATES|GOVERNMENT|PREDICTION MARKETS|OIL|PETROL|DIESEL|WTI|CRUDE/.test(t)) return "USD";
 
       // Trust fallback only when it is a clean currency code. Bad tags like LALT.V/PNGAF.PK fall through.
       if(known.has(fb3)) return fb3;
@@ -2264,6 +2287,11 @@ function App() {
 
     function inferHeadlineCharge(ev, country){
       const t = textOf(ev).toUpperCase();
+      const type = replayEventType(ev);
+      const countryCode = String(country||"").toUpperCase();
+      // Reuters/Bloomberg country headlines start positive, then the interest-rate rule can flip them.
+      // This keeps Congo/UK/Australia/AUKUS from being forced negative by global-risk wording.
+      if(type === "breaking" && countryCode && !["USD","ASI"].includes(countryCode)) return 1;
       const rawPol = Number(ev?.polarity);
       if(Number.isFinite(rawPol) && rawPol !== 0) return rawPol > 0 ? 1 : -1;
 
@@ -2285,6 +2313,7 @@ function App() {
       // Avoid treating every generic "stocks" headline as plural; ASX/dividend/markets are intentional.
       return /\b(MULTIPLE|SEVERAL|MANY|TWO OR MORE)\b/.test(t)
         || /\bPREDICTION MARKETS\b/.test(t)
+        || /\bAUKUS\b/.test(t)
         || /\bASX\b/.test(t)
         || /\bDIVIDEND STOCKS\b/.test(t)
         || replayEventType(ev)==="speech";
@@ -2299,7 +2328,7 @@ function App() {
       const rawUpper = rawText.toUpperCase();
       const fallbackRaw = String(ev?.country || ev?.currency || "").toUpperCase().trim();
       const fallback3 = fallbackRaw.slice(0,3);
-      const cleanCurrencyCodes = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR","AOA","NOK","BRL","TRY","MXN","ISK","ZAR","HUF","RON","PLN","CZK"]);
+      const cleanCurrencyCodes = new Set(["USD","EUR","GBP","JPY","AUD","CAD","CHF","NZD","SGD","CNY","CNH","KRW","TWD","HKD","MYR","THB","INR","CDF","DRC","AOA","NOK","BRL","TRY","MXN","ISK","ZAR","HUF","RON","PLN","CZK"]);
 
       const inferred = inferBrainCountry(rawText, fallbackRaw);
 
@@ -2307,7 +2336,7 @@ function App() {
       // that only fell back to the USD/high-rate anchor. This keeps real USD news
       // from being treated as "unknown" while still giving unknown news a safe anchor.
       const explicitCountryHit = cleanCurrencyCodes.has(fallback3)
-        || /\b(USD|DOLLAR|FED|FOMC|POWELL|TREASURY|YIELDS?|UNITED STATES|U\.?S\.?|CAD|CANADA|CANADIAN|TSX|LALT\.V|AUD|AUSTRALIA|AUSSIE|ASX|GBP|BOE|BRITAIN|UNITED KINGDOM|JPY|JAPAN|BOJ|EUR|ECB|EUROZONE|CHF|SWISS|NZD|RBNZ)\b/.test(rawUpper);
+        || /\b(USD|DOLLAR|FED|FOMC|POWELL|TREASURY|YIELDS?|UNITED STATES|U\.?S\.?|CDF|DRC|CONGO|DEMOCRATIC REPUBLIC OF THE CONGO|CAD|CANADA|CANADIAN|TSX|LALT\.V|AUD|AUSTRALIA|AUSSIE|ASX|AUKUS|GBP|BOE|BRITAIN|UNITED KINGDOM|ENGLAND|LONDON|LIVERPOOL|BP|JPY|JAPAN|BOJ|EUR|ECB|EUROZONE|CHF|SWISS|NZD|RBNZ)\b/.test(rawUpper);
 
       const directionalCueHit = /OIL PRICE SURGE|YIELDS AROUND|LOW P\/?E|INCOME STOCKS|DIVIDEND STOCKS|YIELDS SURGE|YIELD[S]?|FUTURES EDGE HIGHER|EDGE HIGHER|HIGHER AFTER|PEACE TALKS|PREDICTION MARKETS.*GOVERNMENT.*TEST|GOVERNMENT TO THE TEST|DOLLAR WEAKNESS|DOLLAR WEAK|WEAKNESS|STOCKS FALL|FALL IN ASIA|SELL[- ]?OFF|THREATENS.*SELLOFF|WARNS|WARNING|DEEPEN SELLOFF/.test(rawUpper);
 
@@ -2563,10 +2592,11 @@ function App() {
 
   function getEventChargeFromRates(ev){
     const code = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
+    const raw = Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : 1;
     const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
-    if(!Number.isFinite(rate)) return Number(ev?.polarity||0) > 0 ? 1 : Number(ev?.polarity||0) < 0 ? -1 : 0;
-    const base = rate >= USD_RATE ? 1 : -1;
-    return rate < USD_RATE ? -base : base;
+    if(!Number.isFinite(rate)) return raw;
+    // Derrick rule: >= USD interest rate keeps the event sign; < USD flips it.
+    return rate >= USD_RATE ? raw : -raw;
   }
 
   function inferCountryCode(rawText="", fallback="") {
@@ -2575,9 +2605,10 @@ function App() {
     const checks = [
       [/(^|\W)(USD|US|UNITED STATES|FOMC|FED|NFP|CPI|PPI|JOLTS|NONFARM|TREASURY)(\W|$)/, "USD"],
       [/(^|\W)(EUR|ECB|EURO|EUROZONE|GERMANY|FRANCE|ITALY|SPAIN)(\W|$)/, "EUR"],
-      [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM)(\W|$)/, "GBP"],
+      [/(^|\W)(GBP|UK|U\.?K\.?|BOE|BRITAIN|UNITED KINGDOM|ENGLAND|LONDON|LIVERPOOL|BP)(\W|$)/, "GBP"],
       [/(^|\W)(JPY|JAPAN|BOJ|TOKYO|YEN)(\W|$)/, "JPY"],
-      [/(^|\W)(AUD|AUSTRALIA|RBA|ASX)(\W|$)/, "AUD"],
+      [/(^|\W)(AUD|AUSTRALIA|RBA|ASX|AUKUS)(\W|$)/, "AUD"],
+      [/(^|\W)(CDF|DRC|CONGO|DEMOCRATIC REPUBLIC OF THE CONGO|KINSHASA)(\W|$)/, "CDF"],
       [/(^|\W)(CAD|CANADA|BOC)(\W|$)/, "CAD"],
       [/(^|\W)(CHF|SWISS|SWITZERLAND|SNB)(\W|$)/, "CHF"],
       [/(^|\W)(NZD|NEW ZEALAND|RBNZ)(\W|$)/, "NZD"],
@@ -2640,7 +2671,7 @@ function App() {
     }))
     .then(groups=>{
       let arts=groups.flat().filter(a=>a.title&&a.title.length>4);
-      arts=dedupeFeedItems(arts).map(a=>({...a, tradableBreaking:isActionableBreakingHeadline(a.title,a)}));
+      arts=dedupeFeedItems(arts);
       arts.sort((a,b)=>(Date.parse(b.pub||0)||0)-(Date.parse(a.pub||0)||0));
       setNewsArticles(arts.slice(0,30));
       setNewsError(arts.length?"":"No recent articles found. Try refreshing.");
@@ -3389,7 +3420,7 @@ function App() {
   }
 
   // ── WIN/LOSS SCORING — updated replay exit/extension ladder ────────────────
-  // Exit target follows Derrick plan: burst 0.15%; star windows TP1/TP2/TP3, with distance ladder tracking.
+  // Breaking burst starts at 0.15%; calendar TP levels are 0.3 / 0.6 / 0.9 and the replay ladder also tracks 0.25 / 0.4 / 1.2 extensions.
   function getSignalWindow(activeEvents){
     const list = Array.isArray(activeEvents) ? activeEvents : [];
     if(!list.length){
@@ -3412,7 +3443,7 @@ function App() {
 
   // ── WIN/LOSS SCORER — uses signal's own window as the exit, not full 1H candle ─
   // A WIN = price moved the required % in the right direction before the window expired
-  // Using 1H candle H/L as proxy (we have hourly data; window is <=80min so 1H is fair)
+  // Uses 5m candles across the full signal window. Wicks can locate risk; closes confirm direction.
   function rpScore(signal, openPrice, highPrice, lowPrice, sigWindow){
     if(!openPrice) return null;
     const w = sigWindow || getSignalWindow([]);
@@ -3447,12 +3478,12 @@ function App() {
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
     const active = pool.filter(ev=>{
-      const title = ev?.title||ev?.l||ev?.label||ev?.headline||"";
-      if(isJunkTickerOnlyHeadline(title)) return false;
+      if(isJunkTickerOnlyHeadline(ev?.title||ev?.l||ev?.label||ev?.headline||"")) return false;
       const t=Date.parse(ev.pub||0); if(!t||Number.isNaN(t))return false;
       const w=eventWindowMinutes(ev);
       return tsMs>=(t-w.pre*60000)&&tsMs<=(t+w.post*60000);
     }).map(ev=>{
+      // Re-classify polarity on-the-fly using current keyword list
       if(Number(ev.polarity)!==0) return ev;
       const txt = (ev.title||ev.l||"")+" "+(ev.desc||"");
       const cls = classifyEcoArticle(txt, "");
@@ -3460,11 +3491,15 @@ function App() {
       return freshPol !== 0 ? {...ev, polarity: freshPol} : ev;
     });
 
-    const calendar = active.filter(ev=>replayEventType(ev)!=="breaking");
-    const breaking = active.filter(ev=>replayEventType(ev)==="breaking" && isActionableBreakingHeadline(ev?.title||ev?.l||"", ev));
+    const byNearTime = (a,b)=>Math.abs((Date.parse(a.pub||0)||0)-tsMs)-Math.abs((Date.parse(b.pub||0)||0)-tsMs);
+    const calendar = active.filter(ev=>replayEventType(ev)!=="breaking").sort(byNearTime);
+    const breaking = active.filter(ev=>replayEventType(ev)==="breaking").sort(byNearTime);
 
-    if(calendar.length) return calendar;
-    if(breaking.length) return breaking;
+    // Priority rule: calendar first, then Reuters/Bloomberg breaking, then fallback.
+    // Breaking never mixes with Myfxbook/TradingEconomics/economic-calendar events.
+    // Grade max two active event blocks to avoid cluster-on-cluster replay.
+    if(calendar.length) return calendar.slice(0,2);
+    if(breaking.length) return breaking.slice(0,2);
     return [];
   }
 
@@ -3481,9 +3516,6 @@ function App() {
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
       const replayWindowEnd = Date.now() + 90*60000;
       const replayNewsEvents = loggedLastWeek.filter(ev=>{
-        const title = ev?.title||ev?.l||ev?.label||ev?.headline||"";
-        if(isJunkTickerOnlyHeadline(title)) return false;
-        if(replayEventType(ev)==="breaking" && !isActionableBreakingHeadline(title, ev)) return false;
         const t = Date.parse(ev.pub||0);
         if(!t || Number.isNaN(t)) return false;
         const w = eventWindowMinutes(ev);
@@ -3507,76 +3539,94 @@ function App() {
         return candleByTs[sortedTs[idx+1]]||null;
       }
 
-      function getWindowCandles(ts, minutes){
-        const end = ts + Math.max(5, Number(minutes)||15) * 60000;
-        return sortedTs.filter(t=>t>=ts && t<=end).map(t=>candleByTs[t]).filter(Boolean);
-      }
-
       // ── SCORER — updated replay extension ladder ─────────────────────────────
       const RP_TP_LEVELS = [
         { key:"015",  label:"0.15%", value:0.0015 },
-        { key:"025",  label:"0.25%", value:0.0025 },
         { key:"030",  label:"0.3%",  value:0.003  },
-        { key:"040",  label:"0.4%",  value:0.004  },
         { key:"060",  label:"0.6%",  value:0.006  },
         { key:"090",  label:"0.9%",  value:0.009  },
-        { key:"120",  label:"1.2%",  value:0.012  },
       ];
 
-      function rpScore2(signal, c1, windowCandles, sigWindow){
+      function rpScore2(signal, c1, sigWindow, eventsPool=[], entryEvents=[]){
         if(!c1||!c1.open) return null;
         const {exitRule, tp: exitTP, tpLabel, tpPct} = sigWindow;
-        const candlesInWindow = Array.isArray(windowCandles) && windowCandles.length ? windowCandles : [c1];
-        const open = c1.open;
-        const highs = candlesInWindow.map(x=>Number(x.high||0)).filter(Boolean);
-        const lows  = candlesInWindow.map(x=>Number(x.low||0)).filter(Boolean);
-        const high = Math.max(...(highs.length?highs:[open]));
-        const low  = Math.min(...(lows.length?lows:[open]));
-        const last = candlesInWindow[candlesInWindow.length-1] || c1;
-        const hitsForBuy  = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, high >= open*(1+l.value)]));
-        const hitsForSell = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, low  <= open*(1-l.value)]));
+        const entryTs = Number(c1.ts);
+        const maxHoldMs = 15*60000;
+        const entryKeys = new Set((entryEvents||[]).map(ev=>`${sameTopicKey(`${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||""} ${ev?.note||""}`)}|${replayEventType(ev)}`));
+        const nextInterrupt = (eventsPool||[])
+          .map(ev=>({ev, t:Date.parse(ev.pub||0)}))
+          .filter(x=>x.t && !Number.isNaN(x.t) && x.t>entryTs && x.t<=entryTs+maxHoldMs)
+          .filter(x=>!entryKeys.has(`${sameTopicKey(`${x.ev?.title||x.ev?.l||x.ev?.label||x.ev?.headline||""} ${x.ev?.desc||""} ${x.ev?.note||""}`)}|${replayEventType(x.ev)}`))
+          .sort((a,b)=>a.t-b.t)[0];
+        const deadline = Math.min(entryTs + maxHoldMs, nextInterrupt ? nextInterrupt.t : entryTs + maxHoldMs);
+        const forwardTs = sortedTs.filter(t=>t>=entryTs && t<=deadline).slice(0,3);
+        const candlesToCheck = forwardTs.map(t=>candleByTs[t]).filter(Boolean);
+        if(!candlesToCheck.length) candlesToCheck.push(c1);
 
-        function firstTouch(dir){
-          const target = dir === "BUY" ? open*(1+exitTP) : open*(1-exitTP);
-          const stop   = dir === "BUY" ? open*(1-exitTP) : open*(1+exitTP);
-          for(const bar of candlesInWindow){
-            const tpHit   = dir === "BUY" ? Number(bar.high) >= target : Number(bar.low) <= target;
-            const stopHit = dir === "BUY" ? Number(bar.low) <= stop : Number(bar.high) >= stop;
-            if(tpHit && stopHit){
-              const closeConfirms = dir === "BUY" ? Number(bar.close) > Number(bar.open) : Number(bar.close) < Number(bar.open);
-              return { result: closeConfirms ? "tp" : "stop", tie:true, bar };
+        const interrupted = !!nextInterrupt;
+        const interruptLabel = interrupted ? ` · interrupted by ${String(nextInterrupt.ev?.title||'news').slice(0,44)}` : "";
+
+        let bestHigh = c1.high, bestLow = c1.low;
+        for(const c of candlesToCheck){
+          bestHigh = Math.max(bestHigh, c.high);
+          bestLow = Math.min(bestLow, c.low);
+          const close = c.close;
+          if(signal==="BUY"){
+            const target = c1.open*(1+exitTP);
+            const stop   = c1.open*(1-exitTP);
+            const tpHit = c.high >= target;
+            const stopHit = c.low <= stop;
+            const same5m = tpHit && stopHit;
+            if(stopHit && !tpHit) return {
+              correct:false, tp1Hit:false, ...Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, bestHigh >= c1.open*(1+l.value)])),
+              label:"STOP FIRST", detail:`Stop hit before ${tpLabel}${interruptLabel}`, windowLabel:exitRule, tp:exitTP, tpPct, tpLabel
+            };
+            if(tpHit){
+              const closeConfirms = close > c1.open;
+              const hit = !same5m || closeConfirms;
+              return {
+                correct:hit, tp1Hit:hit, ...Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, bestHigh >= c1.open*(1+l.value)])),
+                label:hit ? "HIT "+tpLabel : "STOP FIRST",
+                detail: same5m
+                  ? (closeConfirms ? `5m tie: TP and stop touched; close confirmed BUY${interruptLabel}` : `5m tie: TP and stop touched; close rejected BUY${interruptLabel}`)
+                  : `+${tpPct} hit before 15m exit${interruptLabel}`,
+                windowLabel:exitRule, tp:exitTP, tpPct, tpLabel
+              };
             }
-            if(tpHit) return { result:"tp", tie:false, bar };
-            if(stopHit) return { result:"stop", tie:false, bar };
           }
-          return { result:"none", tie:false, bar:last };
+          if(signal==="SELL"){
+            const target = c1.open*(1-exitTP);
+            const stop   = c1.open*(1+exitTP);
+            const tpHit = c.low <= target;
+            const stopHit = c.high >= stop;
+            const same5m = tpHit && stopHit;
+            if(stopHit && !tpHit) return {
+              correct:false, tp1Hit:false, ...Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, bestLow <= c1.open*(1-l.value)])),
+              label:"STOP FIRST", detail:`Stop hit before ${tpLabel}${interruptLabel}`, windowLabel:exitRule, tp:exitTP, tpPct, tpLabel
+            };
+            if(tpHit){
+              const closeConfirms = close < c1.open;
+              const hit = !same5m || closeConfirms;
+              return {
+                correct:hit, tp1Hit:hit, ...Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, bestLow <= c1.open*(1-l.value)])),
+                label:hit ? "HIT "+tpLabel : "STOP FIRST",
+                detail: same5m
+                  ? (closeConfirms ? `5m tie: TP and stop touched; close confirmed SELL${interruptLabel}` : `5m tie: TP and stop touched; close rejected SELL${interruptLabel}`)
+                  : `-${tpPct} hit before 15m exit${interruptLabel}`,
+                windowLabel:exitRule, tp:exitTP, tpPct, tpLabel
+              };
+            }
+          }
         }
-
         if(signal==="BUY"){
-          const ft = firstTouch("BUY");
-          const hit = ft.result === "tp";
-          const maxMove = (((high/open)-1)*100).toFixed(2);
-          return {
-            correct: hit, tp1Hit: hit, ...hitsForBuy,
-            label: hit ? "HIT "+tpLabel : (ft.result==="stop" ? "STOP FIRST" : "MISS"),
-            detail: ft.tie
-              ? (hit ? "5m tie: TP and stop touched; close confirmed BUY" : "5m tie: TP and stop touched; close rejected BUY")
-              : hit ? "+"+tpPct+" hit inside "+exitRule : (ft.result==="stop" ? "Stop hit before "+tpLabel : "Max +"+maxMove+"% — needed +"+tpPct),
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
-          };
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, bestHigh >= c1.open*(1+l.value)]));
+          const maxMove = (((bestHigh/c1.open)-1)*100).toFixed(2);
+          return {correct:false, tp1Hit:false, ...hits, label: interrupted?"NEWS EXIT":"MISS", detail:`Exit after 15m/news. Max +${maxMove}% — needed +${tpPct}${interruptLabel}`, windowLabel:exitRule, tp:exitTP, tpPct, tpLabel};
         }
         if(signal==="SELL"){
-          const ft = firstTouch("SELL");
-          const hit = ft.result === "tp";
-          const maxDrop = (((open/low)-1)*100).toFixed(2);
-          return {
-            correct: hit, tp1Hit: hit, ...hitsForSell,
-            label: hit ? "HIT "+tpLabel : (ft.result==="stop" ? "STOP FIRST" : "MISS"),
-            detail: ft.tie
-              ? (hit ? "5m tie: TP and stop touched; close confirmed SELL" : "5m tie: TP and stop touched; close rejected SELL")
-              : hit ? "-"+tpPct+" hit inside "+exitRule : (ft.result==="stop" ? "Stop hit before "+tpLabel : "Max -"+maxDrop+"% — needed -"+tpPct),
-            windowLabel: exitRule, tp: exitTP, tpPct, tpLabel,
-          };
+          const hits = Object.fromEntries(RP_TP_LEVELS.map(l=>["hit"+l.key, bestLow <= c1.open*(1-l.value)]));
+          const maxDrop = (((c1.open/bestLow)-1)*100).toFixed(2);
+          return {correct:false, tp1Hit:false, ...hits, label: interrupted?"NEWS EXIT":"MISS", detail:`Exit after 15m/news. Max -${maxDrop}% — needed -${tpPct}${interruptLabel}`, windowLabel:exitRule, tp:exitTP, tpPct, tpLabel};
         }
         return null;
       }
@@ -3584,13 +3634,12 @@ function App() {
       const replaySlotLabelFor = (events)=>{
         const list = Array.isArray(events) ? events : [];
         if(!list.length) return "FALLBACK";
-        const primary = list[0];
-        if(list.some(ev=>replayEventType(ev)!=="breaking")) {
-          const maxStars = Math.max(...list.filter(ev=>replayEventType(ev)!=="breaking").map(ev=>Math.max(1,Math.min(3,Number(ev.stars||1)))));
-          return maxStars===3 ? "CALENDAR_⭐⭐⭐" : maxStars===2 ? "CALENDAR_⭐⭐" : "CALENDAR_⭐";
-        }
-        if(list.length > 1) return "BREAKING_STACK";
-        return sourceTypeLabel(primary);
+        const hasBreak = list.some(ev=>replayEventType(ev)==="breaking");
+        const hasCal = list.some(ev=>replayEventType(ev)!=="breaking");
+        // rpActiveEventsFor already enforces calendar > breaking, never mixed.
+        if(hasCal) return "CALENDAR";
+        if(hasBreak) return "BREAKING";
+        return "FALLBACK";
       };
 
       // ── BUILD SESSIONS — clean hours only ─────────────────────────────────
@@ -3605,12 +3654,12 @@ function App() {
 
         const sigWindow = getSignalWindow(activeEvents);
         const replay = rpSignal(et.h24, et.m, activeEvents);
-        const windowCandles = getWindowCandles(c.ts, sigWindow.windowMins);
-        const score = rpScore2(replay.signal, c, windowCandles, sigWindow);
+        const nextC = getNextCandle(c.ts);
+        const score = rpScore2(replay.signal, c, sigWindow, replayNewsEvents, activeEvents);
 
         if(!replay.signal) continue;
 
-        const quality = slotLabel.startsWith("CALENDAR") ? "CALENDAR" : slotLabel.startsWith("BREAKING") ? "BREAKING" : slotLabel==="BREAKING_STACK" ? "BREAKING" : "FALLBACK";
+        const quality = hasNews ? (activeEvents.some(ev=>replayEventType(ev)!=="breaking") ? "CALENDAR" : "BREAKING") : "FALLBACK";
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
@@ -3623,7 +3672,7 @@ function App() {
         });
       }
 
-      const newsSessions = sessions;
+      const newsSessions = sessions; // includes calendar, macro breaking, and fallback timing setups
       const scoredRows = newsSessions.filter(s=>typeof s.score?.correct==="boolean");
       const wins   = scoredRows.filter(s=>s.score.correct===true).length;
       const losses = scoredRows.filter(s=>s.score.correct===false).length;
@@ -3635,9 +3684,10 @@ function App() {
         const wins = scoredRows.filter(s=>s.score?.["hit"+l.key]===true).length;
         return [l.key, { wins, wr: total>0 ? Math.round((wins/total)*100) : 0, label:l.label }];
       }));
-      const wr015 = tpStats["015"]?.wr || 0, wr025 = tpStats["025"]?.wr || 0, wr030 = tpStats["030"]?.wr || 0, wr040 = tpStats["040"]?.wr || 0, wr060 = tpStats["060"]?.wr || 0, wr090 = tpStats["090"]?.wr || 0, wr120 = tpStats["120"]?.wr || 0;
+      const wr015 = tpStats["015"]?.wr || 0, wr025 = tpStats["025"]?.wr || 0, wr030 = tpStats["030"]?.wr || 0,
+            wr040 = tpStats["040"]?.wr || 0, wr060 = tpStats["060"]?.wr || 0, wr090 = tpStats["090"]?.wr || 0, wr120 = tpStats["120"]?.wr || 0;
+      // Legacy aliases stay mapped to clean ladder values only, so no tiny old levels display.
       const wr003 = wr015, wr006 = wr025, wr009 = wr030, wr012 = wr040;
-      // Legacy aliases for any remaining display code
       const wins618 = tpStats["015"]?.wins || 0; const wins100 = tpStats["030"]?.wins || 0;
       const wr618 = wr015; const wr100 = wr030;
 
@@ -3651,10 +3701,12 @@ function App() {
       };
 
       const breakdown = {
+        primary: wr4("CALENDAR") || wr4("BREAKING") || wr4("FALLBACK"),
         calendar: wr4("CALENDAR"),
-        breakingOnly: wr4("BREAKING"),
+        breaking: wr4("BREAKING"),
         fallback: wr4("FALLBACK"),
       };
+      breakdown.breakingOnly = breakdown.primary; // backwards compatible display key
 
       const candleNote = candles.length >= 280 ? "5m candles" 
         : candles.length >= 140 ? "5m limited" 
@@ -3681,7 +3733,7 @@ function App() {
       if(!sessions.length) setRpError("No trap/execute candles found. Check internet connection and re-run.");
       setRpResults({
         newsSessions, wins, losses, total, wr,
-        tpStats, wr003, wr006, wr009, wr012, wr030, wr060, wr090, wr120,
+        tpStats, wr015, wr025, wr030, wr040, wr060, wr090, wr120, wr003, wr006, wr009, wr012,
         wr618, wr100, newsFilter: rpNewsFilter,
         eventsUsed: replayNewsEvents.length,
         candleNote, breakdown,
@@ -3724,7 +3776,7 @@ function App() {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div style={{borderRadius:12,border:"1px solid rgba(240,160,48,0.25)",background:"rgba(240,160,48,0.06)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>LOGGED EVENTS</div>
-            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.length}</div>
+            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.filter(ev=>replayEventType(ev)==="breaking").length}</div>
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
@@ -3748,7 +3800,7 @@ function App() {
         {/* Spec info + news filter */}
         <div style={{display:"flex",gap:6,marginBottom:12}}>
           <div style={{flex:2,borderRadius:8,padding:"7px 10px",background:"rgba(0,255,136,0.06)",border:"1px solid rgba(0,255,136,0.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>NEWS: Calendar ±15/45/75 · Breaking 0-15 · Ladder: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2</span>
+            <span style={{fontSize:9,color:"#00ff88",...mono,letterSpacing:1}}>NEWS: Calendar ±15/45/75 · Breaking 0–15 · Ladder: 0.15 / 0.25 / 0.3 / 0.4 / 0.6 / 0.9 / 1.2</span>
           </div>
           <div
             style={{flex:1,padding:"7px 0",borderRadius:8,fontSize:10,fontWeight:900,
@@ -3788,10 +3840,10 @@ function App() {
 
         {results&&(
           <>
-            {/* PRIMARY SIGNAL HEADLINE — EXECUTE+NEWS win rate */}
+            {/* PRIMARY SIGNAL HEADLINE — clean macro priority win rate */}
             {results.breakdown?.breakingOnly&&(
               <div style={{borderRadius:12,border:`1px solid ${G}44`,background:`${G}0d`,padding:"12px 14px",marginBottom:8}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>PRIMARY SETUP — BREAKING NEWS ONLY</div>
+                <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono,marginBottom:4}}>PRIMARY SETUP — CALENDAR → BREAKING → FALLBACK</div>
                 <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:6}}>
                   <div style={{fontSize:36,fontWeight:900,color:results.breakdown.breakingOnly.wr>=50?G:results.breakdown.breakingOnly.wr>=40?A:R,...mono,lineHeight:1}}>
                     {results.breakdown.breakingOnly.wr}%
@@ -3799,19 +3851,18 @@ function App() {
                   <div style={{fontSize:13,color:"#666",...mono}}>{results.breakdown.breakingOnly.n} setups</div>
                   
                 </div>
-                {/* 8-level TP hit ladder per spec */}
+                {/* Clean TP/time-extension ladder per Derrick rulebook */}
                 <div style={{marginBottom:6}}>
-                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP HIT LADDER — EXITS / EXTENSIONS</div>
+                  <div style={{fontSize:9,color:"#555",...mono,marginBottom:5,letterSpacing:1}}>TP / EXTENSION LADDER — CLEAN LEVELS ONLY</div>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {[
-                      {label:"EXT 1", pct:"0.03%", wr:results.wr003, primary:true},
-                      {label:"EXT 2", pct:"0.06%", wr:results.wr006},
-                      {label:"EXT 3", pct:"0.09%", wr:results.wr009},
-                      {label:"EXT 4", pct:"0.12%", wr:results.wr012},
-                      {label:"EXT 5", pct:"0.3%",  wr:results.wr030},
-                      {label:"EXT 6", pct:"0.6%",  wr:results.wr060},
-                      {label:"EXT 7", pct:"0.9%",  wr:results.wr090},
-                      {label:"EXT 8", pct:"1.2%",  wr:results.wr120},
+                      {label:"BURST", pct:"0.15%", wr:results.wr015, primary:true},
+                      {label:"EXT",   pct:"0.25%", wr:results.wr025},
+                      {label:"TP1",   pct:"0.3%",  wr:results.wr030},
+                      {label:"EXT",   pct:"0.4%",  wr:results.wr040},
+                      {label:"TP2",   pct:"0.6%",  wr:results.wr060},
+                      {label:"TP3",   pct:"0.9%",  wr:results.wr090},
+                      {label:"FULL",  pct:"1.2%",  wr:results.wr120},
                     ].map(({label,pct,wr,primary})=>(
                       <div key={label} style={{flex:"1 1 72px",minWidth:68,borderRadius:8,
                         background:primary?"rgba(0,255,136,0.08)":"rgba(255,255,255,0.03)",
@@ -3865,11 +3916,12 @@ function App() {
                   <div style={{fontSize:9,color:"#444",letterSpacing:2,...mono}}>SETUP QUALITY BREAKDOWN</div>
                   {results.candleNote&&<div style={{fontSize:9,color:"#333",...mono}}>{results.candleNote}</div>}
                 </div>
-                {/* All 4 quality tiers — clean-hour scoring */}
-                <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY NEWS SETUP</div>
+                <div style={{fontSize:9,color:"#555",...mono,marginBottom:4,letterSpacing:1}}>WIN RATE BY PRIORITY SETUP</div>
                 {[
-                  {l:"MARKET + CALENDAR + BREAKING", key:"breakingOnly", c:G, note:"Calendar, speeches, and breaking windows together"},
-                                  ].map(r=>{
+                  {l:"CALENDAR FIRST", key:"calendar", c:A, note:"⭐ ±15 · ⭐⭐ ±45 · ⭐⭐⭐ ±75"},
+                  {l:"REUTERS/BLOOMBERG MACRO BREAKING", key:"breaking", c:G, note:"0–15m after only; no calendar mixing"},
+                  {l:"FALLBACK TIMING", key:"fallback", c:"#88aaff", note:"Only when no calendar or breaking news is active"},
+                ].map(r=>{
                   const d = results.breakdown[r.key];
                   if(!d) return null;
                   const col = d.wr>=60?G:d.wr>=45?A:R;
@@ -4355,7 +4407,7 @@ const BacktestTab = ()=>{
         {newsView==="feed"&&(
           <>
             <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
-              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · MARKET + CALENDAR + BREAKING NEWS</div>
+              <div style={{fontSize:13,color:"#888",fontFamily:"'Share Tech Mono',monospace",flexShrink:0}}>UNIFIED TIMELINE · CALENDAR → BREAKING → FALLBACK NEWS</div>
               <div style={{fontSize:10,color:"#555",fontFamily:"'Share Tech Mono',monospace",marginLeft:4}}>
                 {calArticles.length>0&&`${calArticles.length} events (90d)`}
               </div>
@@ -4468,8 +4520,8 @@ const BacktestTab = ()=>{
                         <div style={{fontSize:13,fontWeight:700,color:isLive?G:isUp?"#ffe":"#ddd",lineHeight:1.45,marginBottom:item.desc?5:0}}>{item.title}</div>
                         {item.desc&&<div style={{fontSize:13,color:"#999",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.6}}>{item.desc.slice(0,160)}{item.desc.length>160?"...":""}</div>}
                         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:6}}>
-                          {item.feedType==="calendar"&&<span style={{fontSize:12,color:isLive?G+"cc":isUp?A+"cc":"#556",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {calendarAdvanceMinutes(item)}m EARLY · SYMMETRIC ±{Number(item.stars||1)===3?80:Number(item.stars||1)===2?50:20}m · TARGET {item.feedType==="calendar"?"61.8 · 0.185%":"38.2 · 0.1146%"}</span>}
-                          {item.feedType!=="calendar"&&<span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>MARKET BURST 0–20m · 38.2 · 0.1146%</span>}
+                          {item.feedType==="calendar"&&<span style={{fontSize:12,color:isLive?G+"cc":isUp?A+"cc":"#556",fontFamily:"'Share Tech Mono',monospace"}}>SHOWS {calendarAdvanceMinutes(item)}m EARLY · SYMMETRIC ±{Number(item.stars||1)===3?75:Number(item.stars||1)===2?45:15}m · TARGET {Number(item.stars||1)===3?"TP3 261 · 0.9%":Number(item.stars||1)===2?"TP2 161 · 0.6%":"TP1 100 · 0.3%"}</span>}
+                          {item.feedType!=="calendar"&&<span style={{fontSize:12,color:"#8aa",fontFamily:"'Share Tech Mono',monospace"}}>MACRO BURST 0–15m · 61.8–78.6 · 0.15%</span>}
                         </div>
                       </div>
                     </div>
