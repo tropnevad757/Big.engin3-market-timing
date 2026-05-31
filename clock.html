@@ -1372,7 +1372,7 @@ function App() {
   }
 
   function assignRawCharge(currencyRate, connectorMode) {
-    const aboveUSD = currencyRate >= USD_RATE;
+    const aboveUSD = currencyRate > USD_RATE; // Derrick rule: equal-to-USD is treated as lower/opposite
     if (connectorMode === "mirror") return aboveUSD ? -1 : 1;
     return aboveUSD ? 1 : -1;
   }
@@ -2307,6 +2307,83 @@ function App() {
       return 1;
     }
 
+    // ── DERRICK SPORTS PAIR ENGINE ────────────────────────────────────────────
+    // Sports signals are not read from bullish/bearish words. They are read from
+    // the teams/entities inside the matchup. Example: White Sox vs Tigers =
+    // USD + USD. If the USD anchor is negative at that time, that becomes
+    // negative + negative -> positive. Different-country matchups resolve by
+    // the same pair math, using each team's country/rate relationship.
+    function isSportsHeadline(ev){
+      const t = textOf(ev).toUpperCase();
+      return /\b(MLB|NBA|NFL|NHL|MLS|UEFA|CHAMPIONS LEAGUE|WORLD CUP|SOCCER|FOOTBALL|BASEBALL|BASKETBALL|HOCKEY|WHITE SOX|TIGERS|PSG|ARSENAL|YANKEES|METS|DODGERS|LAKERS|CELTICS|BRAVES|FALCONS|HAWKS|BULLS|BEARS)\b/.test(t);
+    }
+
+    function inferSportsEntities(ev){
+      const t = textOf(ev).toUpperCase();
+      const found = [];
+      const add = (name, country, ccy)=>{
+        if(!found.some(x=>x.name===name)) found.push({name, country, ccy});
+      };
+
+      // U.S. teams/leagues
+      if(/\bWHITE SOX\b/.test(t)) add('White Sox','US','USD');
+      if(/\bTIGERS\b/.test(t)) add('Tigers','US','USD');
+      if(/\bYANKEES\b/.test(t)) add('Yankees','US','USD');
+      if(/\bMETS\b/.test(t)) add('Mets','US','USD');
+      if(/\bDODGERS\b/.test(t)) add('Dodgers','US','USD');
+      if(/\bBRAVES\b/.test(t)) add('Braves','US','USD');
+      if(/\bLAKERS\b/.test(t)) add('Lakers','US','USD');
+      if(/\bCELTICS\b/.test(t)) add('Celtics','US','USD');
+      if(/\bBULLS\b/.test(t)) add('Bulls','US','USD');
+      if(/\bBEARS\b/.test(t)) add('Bears','US','USD');
+      if(/\bFALCONS\b/.test(t)) add('Falcons','US','USD');
+      if(/\bHAWKS\b/.test(t)) add('Hawks','US','USD');
+
+      // Europe / UK examples we already discussed
+      if(/\bPSG\b|PARIS SAINT[- ]GERMAIN/.test(t)) add('PSG','FR','EUR');
+      if(/\bARSENAL\b/.test(t)) add('Arsenal','GB','GBP');
+
+      // Generic league fallback: if a U.S. sports headline clearly has a versus/over/against pattern,
+      // treat it as two USD sides when specific team names are not in the dictionary yet.
+      if(found.length < 2 && /\b(MLB|NBA|NFL|NHL|MLS)\b/.test(t) && /\b(VS\.?|VERSUS|OVER|AGAINST|BEAT|BEATS|WIN|WINS|DEFEAT|DEFEATS)\b/.test(t)){
+        while(found.length < 2) add(`US Team ${found.length+1}`,'US','USD');
+      }
+
+      return found.slice(0,2); // Derrick rule: use the two most relevant sides first
+    }
+
+    function sportsEntityCharge(entity){
+      const code = String(entity?.ccy || entity?.country || 'USD').toUpperCase().slice(0,3);
+      const rate = Number(getRateForSymbol(code));
+      // Team sign comes from its money/country relationship to the USD anchor.
+      // USD or strictly above USD = same as anchor. Equal/below USD = opposite.
+      if(code === 'USD') return { charge: usdAnchorCharge, relation:'sports-usd-anchor-same', rate: USD_RATE, code };
+      if(Number.isFinite(rate) && rate > USD_RATE) return { charge: usdAnchorCharge, relation:'sports-above-usd-same', rate, code };
+      return { charge: -usdAnchorCharge, relation:'sports-equal-or-below-usd-opposite', rate: Number.isFinite(rate) ? rate : null, code };
+    }
+
+    function expandSportsPairEvents(ev){
+      if(!isSportsHeadline(ev)) return null;
+      const entities = inferSportsEntities(ev);
+      if(entities.length < 2) return null;
+      return entities.map((entity, idx)=>{
+        const res = sportsEntityCharge(entity);
+        return {
+          ...ev,
+          title: `${ev.title||ev.headline||ev.label||'Sports headline'} · ${entity.name}`,
+          country: res.code,
+          effectiveCharge: res.charge,
+          eventWeight: 1,
+          unknownCountryFallback: false,
+          rateRelation: res.relation,
+          rateValue: res.rate,
+          sportsPair: true,
+          sportsEntity: entity.name,
+          sportsPairIndex: idx+1,
+        };
+      });
+    }
+
     function isPluralBrainEvent(ev){
       const t = textOf(ev).toUpperCase();
       // Count only Derrick-style plural/multiple ideas as two charges.
@@ -2357,8 +2434,8 @@ function App() {
       const rate = Number(ev?.rateValue ?? getRateForSymbol(inferred));
       let rateRelation = "unknown";
       if(Number.isFinite(rate)){
-        if(inferred === "USD" || rate >= USD_RATE){
-          rateRelation = inferred === "USD" ? "usd-anchor-same" : "at-or-above-usd-same";
+        if(inferred === "USD" || rate > USD_RATE){
+          rateRelation = inferred === "USD" ? "usd-anchor-same" : "above-usd-same";
         } else {
           rateRelation = "below-usd-inverted";
           charge = -charge;
@@ -2375,16 +2452,19 @@ function App() {
     };
 
     const chargedEvents = allActive
-      .map(ev=>{
+      .flatMap(ev=>{
+        const sportsExpanded = expandSportsPairEvents(ev);
+        if(sportsExpanded) return sportsExpanded;
         const resolved = getNewsEventCharge(ev);
-        return {
+        return [{
           ...ev,
           country: resolved.country,
           effectiveCharge: resolved.charge,
           eventWeight: weightOf(ev),
           unknownCountryFallback: !!resolved.unknownCountryFallback,
+          rateRelation: resolved.rateRelation,
           rateValue: resolved.rateValue,
-        };
+        }];
       })
       .filter(ev=>ev.effectiveCharge!==0);
 
@@ -2490,7 +2570,7 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Brain logic: unique news only; plural/multiple headlines can count as 2; dynamic rate override applies before stacking; active news compares to odd/even hour.",
+      rule: "Brain logic: unique news only; plural/multiple headlines can count as 2; sports uses team-vs-team country signs; equal-to-USD is lower/opposite; dynamic rate override applies before stacking; active news compares to odd/even hour.",
       foldSteps,
     };
 
@@ -2596,7 +2676,7 @@ function App() {
     const rate = Number(ev?.rateValue ?? getRateForSymbol(code));
     if(!Number.isFinite(rate)) return raw;
     // Derrick rule: >= USD interest rate keeps the event sign; < USD flips it.
-    return rate >= USD_RATE ? raw : -raw;
+    return rate > USD_RATE ? raw : -raw; // equal-to-USD is treated as lower/opposite
   }
 
   function inferCountryCode(rawText="", fallback="") {
