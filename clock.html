@@ -1082,22 +1082,24 @@ function App() {
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
-    // No-news scheduled programming — exact repeating AM + PM
+    // No-news fallback table — Derrick canonical AM/PM repeat
     [   0,  "buy",  "Up"  ],  // 12:00 AM
     [  30,  "sell", "Down"],  // 12:30 AM
     [  60,  "buy",  "Up"  ],  // 1:00 AM
     [  90,  "sell", "Down"],  // 1:30 AM
     [ 120,  "buy",  "Up"  ],  // 2:00 AM
     [ 180,  "sell", "Down"],  // 3:00 AM
-    [ 240,  "buy",  "Up"  ],  // 4:00 AM
-    [ 270,  "sell", "Down"],  // 4:30 AM
-    [ 300,  "buy",  "Up"  ],  // 5:00 AM
-    [ 360,  "sell", "Down"],  // 6:00 AM
-    [ 390,  "buy",  "Up"  ],  // 6:30 AM
-    [ 420,  "sell", "Down"],  // 7:00 AM
-    [ 450,  "buy",  "Up"  ],  // 7:30 AM
-    [ 480,  "sell", "Down"],  // 8:00 AM
-    [ 540,  "buy",  "Up"  ],  // 9:00 AM
+    [ 210,  "buy",  "Up"  ],  // 3:30 AM
+    [ 240,  "sell", "Down"],  // 4:00 AM
+    [ 270,  "buy",  "Up"  ],  // 4:30 AM
+    [ 300,  "sell", "Down"],  // 5:00 AM
+    [ 360,  "buy",  "Up"  ],  // 6:00 AM
+    [ 390,  "sell", "Down"],  // 6:30 AM
+    [ 420,  "buy",  "Up"  ],  // 7:00 AM
+    [ 450,  "sell", "Down"],  // 7:30 AM
+    [ 480,  "buy",  "Up"  ],  // 8:00 AM
+    [ 540,  "sell", "Down"],  // 9:00 AM
+    [ 570,  "buy",  "Up"  ],  // 9:30 AM
     [ 600,  "sell", "Down"],  // 10:00 AM
     [ 630,  "buy",  "Up"  ],  // 10:30 AM
     [ 660,  "sell", "Down"],  // 11:00 AM
@@ -1107,15 +1109,17 @@ function App() {
     [ 810,  "sell", "Down"],  // 1:30 PM
     [ 840,  "buy",  "Up"  ],  // 2:00 PM
     [ 900,  "sell", "Down"],  // 3:00 PM
-    [ 960,  "buy",  "Up"  ],  // 4:00 PM
-    [ 990,  "sell", "Down"],  // 4:30 PM
-    [1020,  "buy",  "Up"  ],  // 5:00 PM
-    [1080,  "sell", "Down"],  // 6:00 PM
-    [1110,  "buy",  "Up"  ],  // 6:30 PM
-    [1140,  "sell", "Down"],  // 7:00 PM
-    [1170,  "buy",  "Up"  ],  // 7:30 PM
-    [1200,  "sell", "Down"],  // 8:00 PM
-    [1260,  "buy",  "Up"  ],  // 9:00 PM
+    [ 930,  "buy",  "Up"  ],  // 3:30 PM
+    [ 960,  "sell", "Down"],  // 4:00 PM
+    [ 990,  "buy",  "Up"  ],  // 4:30 PM
+    [1020,  "sell", "Down"],  // 5:00 PM
+    [1080,  "buy",  "Up"  ],  // 6:00 PM
+    [1110,  "sell", "Down"],  // 6:30 PM
+    [1140,  "buy",  "Up"  ],  // 7:00 PM
+    [1170,  "sell", "Down"],  // 7:30 PM
+    [1200,  "buy",  "Up"  ],  // 8:00 PM
+    [1260,  "sell", "Down"],  // 9:00 PM
+    [1290,  "buy",  "Up"  ],  // 9:30 PM
     [1320,  "sell", "Down"],  // 10:00 PM
     [1350,  "buy",  "Up"  ],  // 10:30 PM
     [1380,  "sell", "Down"],  // 11:00 PM
@@ -1123,15 +1127,14 @@ function App() {
   ];
 
   const NEWS_SLOT_STEPS = [
-    // News-time polarity — CANONICAL SPEC (both doc 1 & doc 2 agree)
-    // 12:00=+ 12:30=+ 1:00=- 1:30=- 2:00=+ 3:00=- 4:00=+ 4:30=+
-    // 5:00=- 6:00=+ 6:30=+ 7:00=- 7:30=- 8:00=+ 9:00=- 10:00=+ 10:30=+ 11:00=-
+    // With-news hour charge table — Derrick canonical AM/PM repeat
     [    0,  "positive", "+" ], // 12:00 AM
     [   30,  "positive", "+" ], // 12:30 AM
     [   60,  "negative", "-" ], // 1:00 AM
     [   90,  "negative", "-" ], // 1:30 AM
     [  120,  "positive", "+" ], // 2:00 AM
     [  180,  "negative", "-" ], // 3:00 AM
+    [  210,  "negative", "-" ], // 3:30 AM
     [  240,  "positive", "+" ], // 4:00 AM
     [  270,  "positive", "+" ], // 4:30 AM
     [  300,  "negative", "-" ], // 5:00 AM
@@ -1141,6 +1144,7 @@ function App() {
     [  450,  "negative", "-" ], // 7:30 AM
     [  480,  "positive", "+" ], // 8:00 AM
     [  540,  "negative", "-" ], // 9:00 AM
+    [  570,  "negative", "-" ], // 9:30 AM
     [  600,  "positive", "+" ], // 10:00 AM
     [  630,  "positive", "+" ], // 10:30 AM
     [  660,  "negative", "-" ], // 11:00 AM
@@ -1150,6 +1154,7 @@ function App() {
     [  810,  "negative", "-" ], // 1:30 PM
     [  840,  "positive", "+" ], // 2:00 PM
     [  900,  "negative", "-" ], // 3:00 PM
+    [  930,  "negative", "-" ], // 3:30 PM
     [  960,  "positive", "+" ], // 4:00 PM
     [  990,  "positive", "+" ], // 4:30 PM
     [ 1020,  "negative", "-" ], // 5:00 PM
@@ -1159,11 +1164,12 @@ function App() {
     [ 1170,  "negative", "-" ], // 7:30 PM
     [ 1200,  "positive", "+" ], // 8:00 PM
     [ 1260,  "negative", "-" ], // 9:00 PM
+    [ 1290,  "negative", "-" ], // 9:30 PM
     [ 1320,  "positive", "+" ], // 10:00 PM
     [ 1350,  "positive", "+" ], // 10:30 PM
     [ 1380,  "negative", "-" ], // 11:00 PM
     [ 1440,  "positive", "+" ], // sentinel
-  ]
+  ];
 
   function getInternalStep(h24, m) {
     const t = h24*60+m;
@@ -2393,15 +2399,16 @@ function App() {
     const breakingEvents = allActive.filter(ev=>replayEventType(ev)==="breaking").length;
 
     if(!activeCount){
-      // No active news: use the USD/STEP/regime anchor fallback exactly like V7.
-      const anchorDirection = usdAnchorCharge === slotCharge ? "buy" : "sell";
-      const anchorFinalCharge = anchorDirection === "buy" ? 1 : -1;
-      const equationPlain = `ANCHOR ${usdAnchorCharge===1?'+':'-'} · STEP ${slotCharge===1?'+':'-'} · FINAL ${anchorDirection.toUpperCase()}`;
+      // No active news: use Derrick's clean fallback table ONLY.
+      // Do not compare USD anchor sign to the step sign here; that was forcing too many BUY rows in replay.
+      const fallbackDirection = baseDirection;
+      const fallbackFinalCharge = fallbackDirection === "buy" ? 1 : -1;
+      const equationPlain = `NO NEWS · FALLBACK TABLE · FINAL ${fallbackDirection.toUpperCase()}`;
       return {
-        finalDirection: anchorDirection,
+        finalDirection: fallbackDirection,
         baseCharge,
-        finalCharge: anchorFinalCharge,
-        newsFlip: anchorDirection === baseDirection ? 1 : -1,
+        finalCharge: fallbackFinalCharge,
+        newsFlip: 1,
         negativePressure: 0,
         positivePressure: 0,
         breakingCount: 0,
@@ -2411,13 +2418,13 @@ function App() {
         activeEvents: [],
         chargeFlip: false,
         clusterResult: null,
-        dominantSource: "USD/high-rate anchor fallback",
-        newsSign: usdAnchorCharge===1?"+":"-",
-        slotSign: slotCharge===1?"+":"-",
+        dominantSource: "clean no-news fallback table",
+        newsSign: "0",
+        slotSign: fallbackDirection === "buy" ? "+" : "-",
         hourSign: hourCharge===1?"+":"-",
-        stepSign: usdAnchorCharge===1?"+":"-",
+        stepSign: fallbackDirection === "buy" ? "+" : "-",
         sellRestriction: false,
-        reason: "USD/high-rate anchor fallback",
+        reason: "no active news: fallback table direction",
         equation: equationPlain,
         equationPlain,
       };
