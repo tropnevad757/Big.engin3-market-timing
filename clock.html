@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — 5M CLEAN MACRO PRIORITY ENGINE</title>
+<title>THE BiGENGiN3 OF TIME — 3M CLEAN MACRO PRIORITY ENGINE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -30,7 +30,7 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>THE BiGENGiN3 OF TIME</p>
 </div>
 <div id="root"></div>
-<!-- 5M CLEAN MACRO PRIORITY ENGINE: calendar first, Reuters/Bloomberg macro breaking second, fallback timing third. Same-topic catalysts are de-duped before stacking. -->
+<!-- 3M CLEAN MACRO PRIORITY ENGINE: calendar first, Reuters/Bloomberg macro breaking second, fallback timing third. Same-number exact duplicates are filtered, but different reported numbers count separately. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
@@ -1082,86 +1082,92 @@ function App() {
   // LAYER 2 — Internal step sequence (exact, repeating AM + PM)
   // Each entry: [startMins, direction, label]
   const INTERNAL_STEPS = [
-    // No-news scheduled programming — exact repeating AM + PM
-    [   0,  "buy",  "Up"  ],  // 12:00 AM
-    [  30,  "sell", "Down"],  // 12:30 AM
-    [  60,  "buy",  "Up"  ],  // 1:00 AM
-    [  90,  "sell", "Down"],  // 1:30 AM
-    [ 120,  "buy",  "Up"  ],  // 2:00 AM
-    [ 180,  "sell", "Down"],  // 3:00 AM
-    [ 240,  "buy",  "Up"  ],  // 4:00 AM
-    [ 270,  "sell", "Down"],  // 4:30 AM
-    [ 300,  "buy",  "Up"  ],  // 5:00 AM
-    [ 360,  "sell", "Down"],  // 6:00 AM
-    [ 390,  "buy",  "Up"  ],  // 6:30 AM
-    [ 420,  "sell", "Down"],  // 7:00 AM
-    [ 450,  "buy",  "Up"  ],  // 7:30 AM
-    [ 480,  "sell", "Down"],  // 8:00 AM
-    [ 540,  "buy",  "Up"  ],  // 9:00 AM
-    [ 600,  "sell", "Down"],  // 10:00 AM
-    [ 630,  "buy",  "Up"  ],  // 10:30 AM
-    [ 660,  "sell", "Down"],  // 11:00 AM
-    [ 720,  "buy",  "Up"  ],  // 12:00 PM
-    [ 750,  "sell", "Down"],  // 12:30 PM
-    [ 780,  "buy",  "Up"  ],  // 1:00 PM
-    [ 810,  "sell", "Down"],  // 1:30 PM
-    [ 840,  "buy",  "Up"  ],  // 2:00 PM
-    [ 900,  "sell", "Down"],  // 3:00 PM
-    [ 960,  "buy",  "Up"  ],  // 4:00 PM
-    [ 990,  "sell", "Down"],  // 4:30 PM
-    [1020,  "buy",  "Up"  ],  // 5:00 PM
-    [1080,  "sell", "Down"],  // 6:00 PM
-    [1110,  "buy",  "Up"  ],  // 6:30 PM
-    [1140,  "sell", "Down"],  // 7:00 PM
-    [1170,  "buy",  "Up"  ],  // 7:30 PM
-    [1200,  "sell", "Down"],  // 8:00 PM
-    [1260,  "buy",  "Up"  ],  // 9:00 PM
-    [1320,  "sell", "Down"],  // 10:00 PM
-    [1350,  "buy",  "Up"  ],  // 10:30 PM
-    [1380,  "sell", "Down"],  // 11:00 PM
+    // No-news fallback table — Derrick's exact AM + PM repeat.
+    // Fallback is last resort only; do not use this when calendar/breaking news is active.
+    [   0,  "buy",  "Up"  ],  // 12:00
+    [  30,  "sell", "Down"],  // 12:30
+    [  60,  "buy",  "Up"  ],  // 1:00
+    [  90,  "sell", "Down"],  // 1:30
+    [ 120,  "buy",  "Up"  ],  // 2:00
+    [ 180,  "sell", "Down"],  // 3:00
+    [ 210,  "buy",  "Up"  ],  // 3:30
+    [ 240,  "sell", "Down"],  // 4:00
+    [ 270,  "buy",  "Up"  ],  // 4:30
+    [ 300,  "sell", "Down"],  // 5:00
+    [ 360,  "buy",  "Up"  ],  // 6:00
+    [ 390,  "sell", "Down"],  // 6:30
+    [ 420,  "buy",  "Up"  ],  // 7:00
+    [ 450,  "sell", "Down"],  // 7:30
+    [ 480,  "buy",  "Up"  ],  // 8:00
+    [ 540,  "sell", "Down"],  // 9:00
+    [ 570,  "buy",  "Up"  ],  // 9:30
+    [ 600,  "sell", "Down"],  // 10:00
+    [ 630,  "buy",  "Up"  ],  // 10:30
+    [ 660,  "sell", "Down"],  // 11:00
+    [ 720,  "buy",  "Up"  ],  // 12:00
+    [ 750,  "sell", "Down"],  // 12:30
+    [ 780,  "buy",  "Up"  ],  // 1:00
+    [ 810,  "sell", "Down"],  // 1:30
+    [ 840,  "buy",  "Up"  ],  // 2:00
+    [ 900,  "sell", "Down"],  // 3:00
+    [ 930,  "buy",  "Up"  ],  // 3:30
+    [ 960,  "sell", "Down"],  // 4:00
+    [ 990,  "buy",  "Up"  ],  // 4:30
+    [1020,  "sell", "Down"],  // 5:00
+    [1080,  "buy",  "Up"  ],  // 6:00
+    [1110,  "sell", "Down"],  // 6:30
+    [1140,  "buy",  "Up"  ],  // 7:00
+    [1170,  "sell", "Down"],  // 7:30
+    [1200,  "buy",  "Up"  ],  // 8:00
+    [1260,  "sell", "Down"],  // 9:00
+    [1290,  "buy",  "Up"  ],  // 9:30
+    [1320,  "sell", "Down"],  // 10:00
+    [1350,  "buy",  "Up"  ],  // 10:30
+    [1380,  "sell", "Down"],  // 11:00
     [1440,  "buy",  "Up"  ],  // sentinel
   ];
-
   const NEWS_SLOT_STEPS = [
-    // News-time polarity — CANONICAL SPEC (both doc 1 & doc 2 agree)
-    // 12:00=+ 12:30=+ 1:00=- 1:30=- 2:00=+ 3:00=- 4:00=+ 4:30=+
-    // 5:00=- 6:00=+ 6:30=+ 7:00=- 7:30=- 8:00=+ 9:00=- 10:00=+ 10:30=+ 11:00=-
-    [    0,  "positive", "+" ], // 12:00 AM
-    [   30,  "positive", "+" ], // 12:30 AM
-    [   60,  "negative", "-" ], // 1:00 AM
-    [   90,  "negative", "-" ], // 1:30 AM
-    [  120,  "positive", "+" ], // 2:00 AM
-    [  180,  "negative", "-" ], // 3:00 AM
-    [  240,  "positive", "+" ], // 4:00 AM
-    [  270,  "positive", "+" ], // 4:30 AM
-    [  300,  "negative", "-" ], // 5:00 AM
-    [  360,  "positive", "+" ], // 6:00 AM
-    [  390,  "positive", "+" ], // 6:30 AM
-    [  420,  "negative", "-" ], // 7:00 AM
-    [  450,  "negative", "-" ], // 7:30 AM
-    [  480,  "positive", "+" ], // 8:00 AM
-    [  540,  "negative", "-" ], // 9:00 AM
-    [  600,  "positive", "+" ], // 10:00 AM
-    [  630,  "positive", "+" ], // 10:30 AM
-    [  660,  "negative", "-" ], // 11:00 AM
-    [  720,  "positive", "+" ], // 12:00 PM
-    [  750,  "positive", "+" ], // 12:30 PM
-    [  780,  "negative", "-" ], // 1:00 PM
-    [  810,  "negative", "-" ], // 1:30 PM
-    [  840,  "positive", "+" ], // 2:00 PM
-    [  900,  "negative", "-" ], // 3:00 PM
-    [  960,  "positive", "+" ], // 4:00 PM
-    [  990,  "positive", "+" ], // 4:30 PM
-    [ 1020,  "negative", "-" ], // 5:00 PM
-    [ 1080,  "positive", "+" ], // 6:00 PM
-    [ 1110,  "positive", "+" ], // 6:30 PM
-    [ 1140,  "negative", "-" ], // 7:00 PM
-    [ 1170,  "negative", "-" ], // 7:30 PM
-    [ 1200,  "positive", "+" ], // 8:00 PM
-    [ 1260,  "negative", "-" ], // 9:00 PM
-    [ 1320,  "positive", "+" ], // 10:00 PM
-    [ 1350,  "positive", "+" ], // 10:30 PM
-    [ 1380,  "negative", "-" ], // 11:00 PM
+    // With-news hour charge table — Derrick's exact AM + PM repeat.
+    [    0,  "positive", "+" ], // 12:00
+    [   30,  "positive", "+" ], // 12:30
+    [   60,  "negative", "-" ], // 1:00
+    [   90,  "negative", "-" ], // 1:30
+    [  120,  "positive", "+" ], // 2:00
+    [  180,  "negative", "-" ], // 3:00
+    [  210,  "negative", "-" ], // 3:30
+    [  240,  "positive", "+" ], // 4:00
+    [  270,  "positive", "+" ], // 4:30
+    [  300,  "negative", "-" ], // 5:00
+    [  360,  "positive", "+" ], // 6:00
+    [  390,  "positive", "+" ], // 6:30
+    [  420,  "negative", "-" ], // 7:00
+    [  450,  "negative", "-" ], // 7:30
+    [  480,  "positive", "+" ], // 8:00
+    [  540,  "negative", "-" ], // 9:00
+    [  570,  "negative", "-" ], // 9:30
+    [  600,  "positive", "+" ], // 10:00
+    [  630,  "positive", "+" ], // 10:30
+    [  660,  "negative", "-" ], // 11:00
+    [  720,  "positive", "+" ], // 12:00
+    [  750,  "positive", "+" ], // 12:30
+    [  780,  "negative", "-" ], // 1:00
+    [  810,  "negative", "-" ], // 1:30
+    [  840,  "positive", "+" ], // 2:00
+    [  900,  "negative", "-" ], // 3:00
+    [  930,  "negative", "-" ], // 3:30
+    [  960,  "positive", "+" ], // 4:00
+    [  990,  "positive", "+" ], // 4:30
+    [ 1020,  "negative", "-" ], // 5:00
+    [ 1080,  "positive", "+" ], // 6:00
+    [ 1110,  "positive", "+" ], // 6:30
+    [ 1140,  "negative", "-" ], // 7:00
+    [ 1170,  "negative", "-" ], // 7:30
+    [ 1200,  "positive", "+" ], // 8:00
+    [ 1260,  "negative", "-" ], // 9:00
+    [ 1290,  "negative", "-" ], // 9:30
+    [ 1320,  "positive", "+" ], // 10:00
+    [ 1350,  "positive", "+" ], // 10:30
+    [ 1380,  "negative", "-" ], // 11:00
     [ 1440,  "positive", "+" ], // sentinel
   ]
 
@@ -2019,7 +2025,7 @@ function App() {
     }
 
     // Try rss2json first (most reliable for Google News RSS)
-    const api = "https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(url)+"&api_key=public&count=25";
+    const api = "https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(url)+"&count=50";
     return withTimeout(fetch(api,{cache:"no-cache"}).then(r=>r.ok?r.json():Promise.reject()))
       .then(d=>{
         if(d.status==="ok"&&d.items&&d.items.length) return d.items;
@@ -3266,8 +3272,8 @@ function App() {
   }
 
   async function rpFetchCandles(daysBack=2){
-    // 5m candles — matches Derrick's live trading chart. 1m is reserved only for tie-break logic.
-    const cacheKey="engin3Replay5m_d"+daysBack;
+    // 3m candles — matches Derrick's current replay chart.
+    const cacheKey="engin3Replay3m_d"+daysBack;
     const persist=c=>{try{localStorage.setItem(cacheKey,JSON.stringify(c));}catch(e){}return c;};
     const fromCache=()=>{try{const r=JSON.parse(localStorage.getItem(cacheKey)||"null");return Array.isArray(r)&&r.length?r:null;}catch(e){return null;}};
 
@@ -3277,34 +3283,24 @@ function App() {
                 .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0)
                 .sort((a,b)=>a.ts-b.ts);
     };
-    const normKraken=(data)=>{
+
+    const candleCount = Math.min(daysBack * 480, 1000);
+    const b3 = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=3m&limit="+candleCount;
+
+    // ATTEMPT 1: Binance 3m + proxies
+    for(const url of [b3, "https://corsproxy.io/?"+encodeURIComponent(b3), "https://api.allorigins.win/raw?url="+encodeURIComponent(b3)]){
       try{
-        const pair = data.result && (data.result["XXBTZUSD"] || data.result["XBTUSDT"] || Object.values(data.result).find(v=>Array.isArray(v)));
-        if(!Array.isArray(pair)||!pair.length) return null;
-        return pair.map(k=>({ts:Number(k[0])*1000,open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4])}))
-          .filter(k=>k.ts>0&&k.open>0&&k.high>0&&k.low>0&&k.close>0).sort((a,b)=>a.ts-b.ts);
-      }catch(e){ return null; }
-    };
+        const r = await fetch(url, {cache:"no-cache"});
+        if(!r.ok) continue;
+        const raw = await r.json();
+        const c = normK(Array.isArray(raw)?raw:(raw&&raw.contents?JSON.parse(raw.contents):null));
+        if(c&&c.length>=80) return persist(c);
+      }catch(e){}
+    }
 
-    const candleCount = Math.min(daysBack * 288, 1000);
-    const sinceMs = Date.now() - daysBack*24*60*60*1000;
-    const sinceSec = Math.floor(sinceMs/1000);
-
-    // ATTEMPT 1: Kraken 5m
+    // ATTEMPT 2: Bybit 3m spot
     try{
-      const r = await fetch("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=5&since="+sinceSec, {cache:"no-cache"});
-      if(r.ok){
-        const data = await r.json();
-        if(!data.error||!data.error.length){
-          const c = normKraken(data);
-          if(c&&c.length>=80) return persist(c);
-        }
-      }
-    }catch(e){}
-
-    // ATTEMPT 2: Bybit 5m spot
-    try{
-      const r = await fetch("https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=5&limit="+candleCount, {cache:"no-cache"});
+      const r = await fetch("https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=3&limit="+candleCount, {cache:"no-cache"});
       if(r.ok){
         const data = await r.json();
         const list = data&&data.result&&data.result.list;
@@ -3316,22 +3312,9 @@ function App() {
       }
     }catch(e){}
 
-    // ATTEMPT 3: Binance 5m + proxies
-    const b5 = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit="+candleCount;
-    for(const url of [b5, "https://corsproxy.io/?"+encodeURIComponent(b5), "https://api.allorigins.win/raw?url="+encodeURIComponent(b5)]){
-      try{
-        const r = await fetch(url, {cache:"no-cache"});
-        if(!r.ok) continue;
-        const raw = await r.json();
-        const c = normK(Array.isArray(raw)?raw:(raw&&raw.contents?JSON.parse(raw.contents):null));
-        if(c&&c.length>=80) return persist(c);
-      }catch(e){}
-    }
-
-    // Last resort: existing cache only
     const cached=fromCache();
     if(cached) return cached;
-    throw new Error("BTC replay 5m data unavailable");
+    throw new Error("BTC replay 3m data unavailable");
   }
 
   function uniqueReplayEventCount(events){
@@ -3479,6 +3462,126 @@ function App() {
     return null;
   }
 
+  function replayNumberFingerprint(raw){
+    return (String(raw||"").match(/\$?\d+(?:\.\d+)?%?|\d{1,3}(?:,\d{3})+/g)||[]).join("|");
+  }
+
+  function dedupeReplayEventsExact(items){
+    const seen = new Set();
+    return (items||[]).filter(Boolean).filter(ev=>{
+      const text = `${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||ev?.note||""}`;
+      if(!String(text).trim()) return false;
+      const pubMs = Date.parse(ev?.pub||ev?.date||0);
+      const bucket = pubMs && !Number.isNaN(pubMs) ? Math.floor(pubMs/(3*60000)) : "na";
+      const key = [
+        replayEventType(ev),
+        canonicalNewsText(text),
+        replayNumberFingerprint(text),
+        bucket
+      ].join("|");
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  async function fetchJsonReplay(url){
+    const urls = [url, "https://api.allorigins.win/raw?url="+encodeURIComponent(url), "https://corsproxy.io/?"+encodeURIComponent(url)];
+    for(const u of urls){
+      try{
+        const r = await fetch(u,{cache:"no-cache"});
+        if(!r.ok) continue;
+        const txt = await r.text();
+        return JSON.parse(txt);
+      }catch(e){}
+    }
+    return null;
+  }
+
+  async function fetchReplayDirectEvents(){
+    const out = [];
+
+    const newsUrls = [...new Set((NEWS_FEEDS||[]).flatMap(f=>f.urls||[]))];
+    const newsGroups = await Promise.all(newsUrls.map(url=>{
+      let src = /reuters/i.test(url) ? "Reuters Markets" : /bloomberg/i.test(url) ? "Bloomberg Markets" : "Google News";
+      return fetchRSS(url).then(items=>(items||[]).map(item=>{
+        const norm = normalizeItem(item, src, /bloomberg/i.test(url)?"#f0a030":"#ff6b35");
+        const cls = classifyEcoArticle(norm.title, norm.desc);
+        return {
+          ...norm,
+          ...cls,
+          polarity: cls.bearish ? -1 : cls.bullish ? 1 : 0,
+          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"breaking",
+          feedType:"news",
+          country:norm.country||inferCountryCode(`${norm.title} ${norm.desc}`),
+          rateValue:getRateForSymbol(norm.country||inferCountryCode(`${norm.title} ${norm.desc}`)),
+        };
+      })).catch(()=>[]);
+    }));
+    out.push(...newsGroups.flat());
+
+    const ffFeed = (CALENDAR_FEEDS||[]).find(f=>f.type==="ff_json");
+    if(ffFeed){
+      const rows = await fetchJsonReplay(ffFeed.url);
+      if(Array.isArray(rows)){
+        rows.forEach(row=>{
+          const title = String(row.title || row.event || row.name || "").trim();
+          if(!title) return;
+          const currency = String(row.country || row.currency || row.ccy || inferCountryCode(title) || "").toUpperCase().slice(0,3);
+          const impactRaw = String(row.impact || row.impact_title || row.impactTitle || row.impactName || row.level || "").toLowerCase();
+          let stars = Number(row.stars || row.impactNum || row.impact_num || 0);
+          if(!stars) stars = /high|holiday|red/.test(impactRaw) ? 3 : /medium|med|orange|yellow/.test(impactRaw) ? 2 : 1;
+          stars = Math.max(1, Math.min(3, stars));
+          const date = String(row.date || row.day || row.datetime || "").trim();
+          const time = String(row.time || row.event_time || "").trim();
+          let pub = String(row.pub || row.timestamp || row.datetime || "").trim();
+          if(pub && /^\d{10}$/.test(pub)) pub = new Date(Number(pub)*1000).toISOString();
+          if(!Date.parse(pub)) pub = Date.parse(date) ? date : ((date && time) ? `${date} ${time} GMT-0400` : date);
+          out.push({
+            title,
+            desc: String(row.actual || row.forecast || row.previous || "").trim(),
+            source: ffFeed.label,
+            color: ffFeed.color,
+            country: currency,
+            currency,
+            stars,
+            pub,
+            kind:/powell|speech|remarks|testimony|presser|press conference/i.test(title)?"speech":"event",
+            feedType:"calendar",
+            polarity:0,
+            rateValue:getRateForSymbol(currency),
+          });
+        });
+      }
+    }
+
+    const calGroups = await Promise.all((CALENDAR_FEEDS||[]).filter(f=>f.type==="rss").map(feed=>
+      fetchRSS(feed.url).then(items=>(items||[]).map(item=>{
+        const norm = normalizeItem(item, feed.label, feed.color);
+        const cls = classifyEcoArticle(norm.title, norm.desc);
+        const stars = Math.max(1, cls.stars || calStars(norm.title) || 1);
+        return {
+          ...norm,
+          ...cls,
+          stars,
+          kind:/powell|speech|remarks|testimony|presser|press conference/i.test(norm.title||"")?"speech":"event",
+          feedType:"calendar",
+          polarity: cls.bearish ? -1 : cls.bullish ? 1 : 0,
+          rateValue:getRateForSymbol(norm.country || inferCountryCode(`${norm.title} ${norm.desc}`)),
+        };
+      })).catch(()=>[])
+    ));
+    out.push(...calGroups.flat());
+
+    return dedupeReplayEventsExact(out).filter(ev=>{
+      const t = Date.parse(ev.pub||0);
+      if(!t || Number.isNaN(t)) return false;
+      if(isJunkTickerOnlyHeadline(ev.title||"")) return false;
+      if(/(WHITE SOX|TIGERS|YANKEES|METS|DODGERS|LAKERS|CELTICS|NFL|NBA|MLB|NHL|SOCCER|FOOTBALL|BASEBALL|HOMERS?|GAME|MATCH|VS\.?|BEAT|WIN OVER)/i.test(String(ev.title||""))) return false;
+      return true;
+    });
+  }
+
   function rpActiveEventsFor(tsMs, eventsPool){
     const pool = eventsPool || loggedLastWeek;
     const active = pool.filter(ev=>{
@@ -3512,15 +3615,17 @@ function App() {
     setRpLoading(true); setRpError(""); setRpResults(null); setRpPlayIdx(0); setRpPlaying(false); setRpEnded(false);
     try {
       // Clear old cache so stale data doesn't block fresh fetch
-      try{ localStorage.removeItem("engin3Replay5m_d"+rpDaysBack); }catch(e){}
+      try{ localStorage.removeItem("engin3Replay3m_d"+rpDaysBack); }catch(e){}
       const candles = await rpFetchCandles(rpDaysBack);
+      const freshReplayEvents = await fetchReplayDirectEvents().catch(()=>[]);
 
       // CLEAN TIMELINE V2: keep the original engine behavior, but feed it ALL
       // relevant market-moving events instead of breaking-only news. Calendar events
       // are kept if their symmetric window can overlap the replay candle range.
       const replayWindowStart = Date.now() - rpDaysBack*24*60*60*1000;
       const replayWindowEnd = Date.now() + 90*60000;
-      const replayNewsEvents = loggedLastWeek.filter(ev=>{
+      const replayEventPool = dedupeReplayEventsExact([...(loggedLastWeek||[]), ...(freshReplayEvents||[]), ...(replayEvents||[])]);
+      const replayNewsEvents = replayEventPool.filter(ev=>{
         const t = Date.parse(ev.pub||0);
         if(!t || Number.isNaN(t)) return false;
         const w = eventWindowMinutes(ev);
@@ -3604,15 +3709,15 @@ function App() {
         return "FALLBACK";
       };
 
-      function floorTo5(ts){ return Math.floor(ts/(5*60000))*5*60000; }
+      function floorTo3(ts){ return Math.floor(ts/(3*60000))*3*60000; }
       function newsEntryTs(ev){
         const t = Date.parse(ev?.pub||0); if(!t||Number.isNaN(t)) return 0;
         const w = eventWindowMinutes(ev);
-        return floorTo5(t - w.pre*60000);
+        return floorTo3(t - w.pre*60000);
       }
       function isNewsEntrySlot(ts, events){
         const list = Array.isArray(events) ? events : [];
-        return list.some(ev=>Math.abs(Number(ts)-newsEntryTs(ev)) < 60000);
+        return list.some(ev=>Math.abs(Number(ts)-newsEntryTs(ev)) < 90000);
       }
       function upcomingInterruptTs(ts, eventsPool){
         const candidates = [];
@@ -3640,7 +3745,7 @@ function App() {
         const et = rpGetETParts(c.ts);
         const activeEvents = rpActiveEventsFor(c.ts, replayNewsEvents);
         const hasNews = activeEvents.length > 0;
-        // No 5-minute overtrading: news trades only at their calculated window entry.
+        // No 3-minute overtrading: news trades only at their calculated window entry candle.
         // Fallback trades only at Derrick table times, only when 15m+ space exists.
         if(hasNews){
           if(!isNewsEntrySlot(c.ts, activeEvents)) continue;
@@ -3707,9 +3812,9 @@ function App() {
       };
       breakdown.breakingOnly = breakdown.primary; // backwards compatible display key
 
-      const candleNote = candles.length >= 280 ? "5m candles" 
-        : candles.length >= 140 ? "5m limited" 
-        : candles.length >= 80  ? "5m/backup candles" 
+      const candleNote = candles.length >= 420 ? "3m candles" 
+        : candles.length >= 180 ? "3m limited" 
+        : candles.length >= 80  ? "3m/backup candles" 
         : "limited candles — re-run for better data";
 
       // ── WEEK REGIME — BTC % change over the replay window ─────────────────
@@ -3747,7 +3852,7 @@ function App() {
     } catch(e){
       const msg=(e&&e.message)?String(e.message):"Replay unavailable";
       setRpError(msg.includes("BTC replay data unavailable")
-        ?"Replay could not fetch BTC candles. Run once in a browser with internet to cache candles."
+        ?"Replay could not fetch BTC 3m candles. Run once in a browser with internet to cache candles."
         :`Replay error: ${msg}`);
     }
     setRpLoading(false);
@@ -3767,7 +3872,7 @@ function App() {
 
     return(
       <div style={{padding:14}}>
-        <div style={lbl("#999",{marginBottom:10})}>REPLAY — LAST 2 DAYS</div>
+        <div style={lbl("#999",{marginBottom:10})}>REPLAY — 3M CHART</div>
         <div style={{fontSize:12,color:"#555",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.8,marginBottom:12}}>
           Replay priority: CALENDAR first → Reuters/Bloomberg macro BREAKING second → FALLBACK timing only when no news is active.
         </div>
@@ -3775,7 +3880,7 @@ function App() {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div style={{borderRadius:12,border:"1px solid rgba(240,160,48,0.25)",background:"rgba(240,160,48,0.06)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>LOGGED EVENTS</div>
-            <div style={{fontSize:22,color:A,fontWeight:900}}>{loggedLastWeek.filter(ev=>replayEventType(ev)==="breaking").length}</div>
+            <div style={{fontSize:22,color:A,fontWeight:900}}>{results?.eventsUsed ?? loggedLastWeek.filter(ev=>replayEventType(ev)==="breaking").length}</div>
           </div>
           <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.03)",padding:"10px 12px"}}>
             <div style={{fontSize:10,color:"#555",letterSpacing:2,marginBottom:4}}>RUN WINDOW</div>
@@ -3806,7 +3911,7 @@ function App() {
               background:`rgba(136,170,255,0.15)`,
               border:`1px solid #88aaff`,
               color:"#88aaff",...mono,textAlign:"center"}}>
-            NEWS ONLY
+            3M PRIORITY
           </div>
           <button onClick={()=>setShowNewsDebug(v=>!v)}
             style={{padding:"7px 10px",borderRadius:8,fontSize:10,fontWeight:900,cursor:"pointer",background:showNewsDebug?"rgba(136,170,255,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${showNewsDebug?"#88aaff":"rgba(255,255,255,0.08)"}`,color:showNewsDebug?"#88aaff":"#555",...mono}}>
