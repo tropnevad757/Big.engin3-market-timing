@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>THE BiGENGiN3 OF TIME — 5M CLEAN STACK/FLIP LOCKED ENGINE</title>
+<title>THE BiGENGiN3 OF TIME — 5M MERGED CALENDAR STACK/FLIP ENGINE</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#06071a"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
@@ -30,14 +30,7 @@ input,textarea,select,button{font-family:'Orbitron',monospace;outline:none}
   <p>THE BiGENGiN3 OF TIME</p>
 </div>
 <div id="root"></div>
-<!-- 5M CLEAN STACK/FLIP LOCKED ENGINE
-Rules locked:
-1) Calendar/economic windows first; Reuters/Bloomberg breaking only if no calendar window is active; fallback last.
-2) Symmetric star windows: 1★ ±15m, 2★ ±45m, 3★ ±75m; breaking 0–15m after.
-3) Stack and flip: one event keeps sign; 2+ same-sign components flip once; mixed signs resolve through Derrick's news math.
-4) De-dupe exact repeated reports only. Same broad topic (YoY vs MoM, yearly vs monthly, imports vs exports) stays separate and stacks.
-5) Trade balance/imports/exports/current account count as multi-report stack components.
--->
+<!-- 5M CLEAN MACRO PRIORITY ENGINE: calendar first, Reuters/Bloomberg macro breaking second, fallback timing third. Same-topic catalysts are de-duped before stacking. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.5/babel.min.js"></script>
@@ -1640,7 +1633,7 @@ function App() {
     const zDir = appZType || (getWindowAt(et.h24, et.m).pol===+1 ? "buy" : "sell");
     const slotCharge = getConnectorMode(et.h24, et.m) === "aligned" ? 1 : -1;
     const nowMs = Date.now();
-    let allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
+    const allEvents = buildUnifiedNewsEvents(nowMs).map(ev=>{
       const t = Date.parse(ev.pub||0);
       if(!t || Number.isNaN(t)) return null;
       const minsUntil = Math.round((t - nowMs)/60000);
@@ -1648,11 +1641,11 @@ function App() {
       const isBreaking = replayEventType(ev) === "breaking";
       const isSpeech = replayEventType(ev) === "speech";
       const isAfter = minsUntil < 0;
-      const active = isBreaking || isSpeech
+      const active = isBreaking
         ? (minsUntil <= 0 && Math.abs(minsUntil) <= win.post)
-        : (nowMs >= (t - win.pre*60000) && nowMs <= (t + win.post*60000));
+        : (Math.abs(minsUntil) <= Math.max(win.pre, win.post));
       if(!active) return null;
-      const windowSize = isBreaking || isSpeech ? win.post : Math.max(win.pre, win.post);
+      const windowSize = isBreaking ? win.post : Math.max(win.pre, win.post);
       const absMins = Math.abs(minsUntil);
       const prox = 1 - Math.min(1, absMins / Math.max(1, windowSize));
       const cfg = isBreaking ? NEWS_REACTION.break : NEWS_REACTION[Number(ev.stars)||1] || NEWS_REACTION[1];
@@ -1662,11 +1655,6 @@ function App() {
       else pts = Number(ev.stars)===3 ? Math.round(10*prox) : Number(ev.stars)===2 ? Math.round(6*prox) : Math.round(3*prox);
       return {...ev, minsUntil, absMins, prox, cfg, isAfter, isBreaking, isSpeech, pts};
     }).filter(Boolean).sort((a,b)=>a.absMins-b.absMins);
-
-    // Priority: calendar/economic windows first; breaking only if no calendar is active.
-    const calendarActive = allEvents.filter(ev=>replayEventType(ev)!=="breaking");
-    const breakingActive = allEvents.filter(ev=>replayEventType(ev)==="breaking");
-    allEvents = calendarActive.length ? calendarActive : breakingActive;
 
     const activeEvent = allEvents[0] || null;
     const suppressPts = Math.max(-30, Math.min(15, allEvents.reduce((n,ev)=>n + Number(ev.pts||0), 0)));
@@ -2103,24 +2091,21 @@ function App() {
     return (inter / small >= 0.86) || (inter >= 8 && inter / big >= 0.72);
   }
 
-  // Exact-report key for de-dupe. Related topics are NOT duplicates.
-  // Example: Car Registrations YoY and Car Registrations MoM are separate events.
-  // Example: Imports and Exports are separate reports and should stack.
+  // Same-topic de-dupe for signal stacking. Feed can show multiple headlines,
+  // but the resolver only counts one catalyst per topic/window.
   function sameTopicKey(raw){
     const t = String(raw||"").toUpperCase();
+    if(/\b(FED|FOMC|POWELL|FEDERAL RESERVE|RATE DECISION|INTEREST RATE|RATES?)\b/.test(t)) return "USD_FED_RATES";
+    if(/\b(TREASURY|YIELDS?|BONDS?|AUCTION)\b/.test(t)) return "USD_TREASURY_YIELDS";
+    if(/\b(CPI|INFLATION|PCE|PPI|PRICES)\b/.test(t)) return "INFLATION";
+    if(/\b(NFP|PAYROLLS?|JOBS?|UNEMPLOYMENT|JOBLESS|WAGES?)\b/.test(t)) return "LABOR_JOBS";
+    if(/\b(GDP|PMI|ISM|RETAIL SALES|CONSUMER CONFIDENCE|SENTIMENT)\b/.test(t)) return "GROWTH_DATA";
+    if(/\b(DOLLAR|DXY|USD)\b/.test(t)) return "USD_DOLLAR";
+    if(/\b(OIL|CRUDE|WTI|BRENT|OPEC)\b/.test(t)) return "OIL_ENERGY";
+    if(/\b(TARIFF|SANCTION|WAR|IRAN|CHINA|RUSSIA|GEOPOLITIC|PEACE)\b/.test(t)) return "GEOPOLITICAL_RISK";
+    if(/\b(BITCOIN|BTC|CRYPTO|ETF|SEC|CFTC|REGULAT)\b/.test(t)) return "CRYPTO_REGULATION";
     const canon = canonicalNewsText(raw);
-    const period = [];
-    if(/(YOY|YEAR[- ]?OVER[- ]?YEAR|YEARLY|ANNUAL)/.test(t)) period.push("YOY");
-    if(/(MOM|MONTH[- ]?OVER[- ]?MONTH|MONTHLY)/.test(t)) period.push("MOM");
-    if(/(QOQ|QUARTER[- ]?OVER[- ]?QUARTER|QUARTERLY)/.test(t)) period.push("QOQ");
-    if(/(WOW|WEEK[- ]?OVER[- ]?WEEK|WEEKLY)/.test(t)) period.push("WOW");
-    if(/(PRELIM|PRELIMINARY|FINAL|REVISED|FLASH|ADVANCE)/.test(t)) period.push((t.match(/(PRELIM|PRELIMINARY|FINAL|REVISED|FLASH|ADVANCE)/)||[""])[0]);
-    const month = (t.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*/)||[""])[0];
-    if(month) period.push(month.slice(0,3));
-    const country = (()=>{ try{return inferCountryCode(raw)||"";}catch(_){return "";} })();
-    const nums = (t.match(/[-+]?\d+(?:\.\d+)?\s?(?:%|B|M|K)?/g)||[]).slice(0,4).join("|");
-    const head = canon.split(/\s+/).filter(Boolean).slice(0,12).join("_");
-    return [country, period.join("-"), head, nums].filter(Boolean).join("__");
+    return canon.split(/\s+/).slice(0,8).join("_");
   }
 
   function isWeakOrPromoHeadline(raw){
@@ -2149,23 +2134,25 @@ function App() {
 
   function dedupeFeedItems(items){
     const kept=[];
+    const exactKey = (item)=>{
+      const title = canonicalNewsText(item?.title||item?.l||item?.label||item?.headline||"");
+      if(!title) return "";
+      const country = String(item?.country||item?.currency||"").toUpperCase().slice(0,3);
+      const source = String(item?.source||item?.feedLabel||item?.cat||"").toUpperCase().slice(0,40);
+      const kind = String(item?.kind||((item?.t && item?.d)?"event":"breaking")).toUpperCase();
+      const stars = String(item?.stars||item?.impactNum||item?.impact_num||item?.imp||"");
+      const t = Date.parse(item?.pub||item?.date||0);
+      const minute = (!t || Number.isNaN(t)) ? "NO_TIME" : String(Math.floor(t/60000));
+      return [kind,country,source,stars,minute,title].join("|");
+    };
     return (items||[]).filter(Boolean).filter(item=>{
       if(isJunkTickerOnlyHeadline(item.title||item.l||item.label||item.headline||"")) return false;
-      const rawTitle = item.title||item.l||item.label||item.headline||"";
-      const title = canonicalNewsText(rawTitle);
-      if(!title) return false;
-      const reportKey = sameTopicKey(`${rawTitle} ${item.desc||item.note||item.btc||""}`);
-      const t = Date.parse(item.pub||item.date||0);
-      const dup = kept.some(prev=>{
-        const pt = Date.parse(prev.pub||prev.date||0);
-        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 120*60000;
-        const sameReport = reportKey && prev.__reportKey && reportKey === prev.__reportKey;
-        // Exact repeated report only. Do NOT collapse same category with different period/report.
-        return closeTime && sameReport && newsTextSimilar(title, prev.__canonTitle||prev.title||"");
-      });
+      const key = exactKey(item);
+      if(!key) return false;
+      const dup = kept.some(prev=>prev.__exactNewsKey === key);
       if(dup) return false;
-      item.__canonTitle = title;
-      item.__reportKey = reportKey;
+      item.__exactNewsKey = key;
+      item.__canonTitle = canonicalNewsText(item.title||item.l||item.label||item.headline||"");
       kept.push(item);
       return true;
     });
@@ -2180,11 +2167,40 @@ function App() {
   function eventWindowMinutes(ev){
     const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
     const type = replayEventType(ev);
+    // Breaking headlines are 0-15m after only.
     if(type === "breaking") return {pre:0, post:15};
-    if(type === "speech") return {pre:0, post:45};
+    // Speeches are calendar/star events in Derrick's system, so they use the full symmetric star window.
     if(stars === 1) return {pre:15, post:15};
     if(stars === 2) return {pre:45, post:45};
     return {pre:75, post:75};
+  }
+
+  function replaySourceUsedForEvents(events){
+    const list = Array.isArray(events) ? events : [];
+    if(!list.length) return "FALLBACK";
+    return list.some(ev=>replayEventType(ev)!=="breaking") ? "CALENDAR" : "BREAKING";
+  }
+
+  function replaySourceLabel(ev){
+    const type = replayEventType(ev);
+    if(type === "breaking") return "BREAKING";
+    if(type === "speech") return "CALENDAR · SPEECH";
+    if(type === "scheduled") return "CALENDAR";
+    return "FALLBACK";
+  }
+
+  function replayImpactLabel(ev){
+    const type = replayEventType(ev);
+    if(type === "breaking") return "BREAKING · 0–15m after";
+    const stars = Math.max(1, Math.min(3, Number(ev?.stars||1)));
+    const win = eventWindowMinutes(ev);
+    return `${"★".repeat(stars)} ${stars}★ · ±${Math.max(win.pre, win.post)}m`;
+  }
+
+  function replayCountriesLabel(ev){
+    const raw = ev?.countryList || ev?.countries || ev?.country || ev?.currency || "";
+    if(Array.isArray(raw)) return raw.filter(Boolean).map(x=>String(x).toUpperCase()).join(" / ") || "USD";
+    return String(raw||"USD").toUpperCase();
   }
 
   function calendarAdvanceMinutes(item){
@@ -2195,8 +2211,8 @@ function App() {
   function isCalendarEventVisible(item, nowMs = Date.now()){
     const t = Date.parse(item?.pub || ((item?.date && item?.time) ? `${item.date}T${String(item.time).replace(/\s/g,"")}` : "") || 0);
     if(!t || Number.isNaN(t)) return false;
-    const w = eventWindowMinutes(item);
-    return nowMs >= (t - w.pre*60000) && nowMs <= (t + w.post*60000);
+    const pre = calendarAdvanceMinutes(item);
+    return nowMs >= (t - pre*60000) && nowMs <= t;
   }
 
   function buildUnifiedNewsEvents(nowMs = Date.now()){
@@ -2212,7 +2228,7 @@ function App() {
       const rateValue = Number(raw?.rateValue ?? overrides.rateValue ?? getRateForSymbol(raw?.country || raw?.currency || overrides.country || ""));
       const pub = raw?.pub || raw?.date || overrides.pub || (raw?.d && raw?.t ? `${raw.d}T${raw.t}:00` : "");
       const country = raw?.country || raw?.currency || overrides.country || inferCountryCode(`${title} ${note}`) || "";
-      return { title, source, stars, polarity, kind, pub, country, note, rateValue, topicKey: sameTopicKey(`${title} ${note}`), exactReportKey: sameTopicKey(`${title} ${note}`) };
+      return { title, source, stars, polarity, kind, pub, country, note, rateValue, topicKey: sameTopicKey(`${title} ${note}`) };
     };
 
     const scheduled = [
@@ -2244,28 +2260,31 @@ function App() {
   function computeReplayPolarity(baseDirection, slotPolarity, activeEvents, h24=null, m=0){
     const baseCharge = baseDirection === "buy" ? 1 : -1;
     const slotCharge = slotPolarity === "positive" ? 1 : -1;
-    const withNewsSlot = (Number.isFinite(Number(h24)) && typeof getNewsSlotPolarity === "function") ? getNewsSlotPolarity(Number(h24), Number(m)||0) : null;
-    const hourCharge = withNewsSlot ? (withNewsSlot.sign === "+" ? 1 : -1) : (Number.isFinite(Number(h24)) && (Number(h24) % 2 === 0) ? 1 : -1);
+    const hourCharge = Number.isFinite(Number(h24)) && (Number(h24) % 2 === 0) ? 1 : -1;
 
-    // De-dupe first so the exact same repeated report does not count twice.
-    // Same broad topic with different period/report stays separate and stacks.
+    // De-dupe exact repeated reports only. Related reports still stack.
+    // Example: YoY + MoM, yearly + monthly, imports + exports, or speech + data report are NOT duplicates.
     const rawActive = Array.isArray(activeEvents) ? activeEvents : [];
-    const normalizeNewsKey = (ev)=>canonicalNewsText(ev?.title || ev?.l || ev?.label || ev?.headline || "").slice(0,160);
-    const topicKeyOf = (ev)=> sameTopicKey(`${ev?.title||ev?.l||ev?.label||ev?.headline||""} ${ev?.desc||""} ${ev?.note||""}`);
+    const exactNewsKey = (ev)=>{
+      const title = canonicalNewsText(ev?.title || ev?.l || ev?.label || ev?.headline || "");
+      const country = String(ev?.country || ev?.currency || "").toUpperCase().slice(0,3);
+      const source = String(ev?.source || ev?.feedLabel || ev?.cat || "").toUpperCase().slice(0,40);
+      const kind = replayEventType(ev);
+      const stars = String(ev?.stars || "");
+      const t = Date.parse(ev?.pub||ev?.date||0);
+      const minute = (!t || Number.isNaN(t)) ? "NO_TIME" : String(Math.floor(t/60000));
+      return [kind,country,source,stars,minute,title].join("|");
+    };
     const duplicateEvents = [];
     const allActive = [];
-    rawActive.forEach(ev=>{
-      const key = normalizeNewsKey(ev);
-      const topic = topicKeyOf(ev);
-      const t = Date.parse(ev?.pub||ev?.date||0);
-      const isDup = (key || topic) && allActive.some(prev=>{
-        const pt = Date.parse(prev?.pub||prev?.date||0);
-        const closeTime = (!t || !pt || Number.isNaN(t) || Number.isNaN(pt)) ? true : Math.abs(t-pt) <= 120*60000;
-        const sameExactReport = topic && topicKeyOf(prev) && topic === topicKeyOf(prev);
-        return closeTime && sameExactReport && newsTextSimilar(key, normalizeNewsKey(prev));
-      });
-      if(isDup) duplicateEvents.push(ev);
-      else allActive.push(ev);
+    const seenExact = new Set();
+    rawActive.forEach((ev, idx)=>{
+      const key = exactNewsKey(ev);
+      if(key && seenExact.has(key)) duplicateEvents.push(ev);
+      else {
+        if(key) seenExact.add(key);
+        allActive.push({...ev, __engineKey:key || String(idx)});
+      }
     });
 
     // USD / high-interest-rate anchor sign for unknown-country fallback.
@@ -2434,7 +2453,9 @@ function App() {
           for(let i=0; i<w; i++){
             units.push({
               ...ev,
+              sourceKey: ev.__engineKey,
               country: resolved.country,
+              countryList: countries,
               effectiveCharge: resolved.charge,
               eventWeight: 1,
               sourceStackWeight: w,
@@ -2443,12 +2464,35 @@ function App() {
               rateRelation: resolved.rateRelation,
               rateValue: resolved.rateValue,
               semanticCharge: resolved.semanticCharge,
+              sourceUsed: replaySourceUsedForEvents([ev]),
+              impactLabel: replayImpactLabel(ev),
             });
           }
         });
         return units;
       })
       .filter(ev=>ev.effectiveCharge!==0);
+
+    const displayEvents = allActive.map(ev=>{
+      const rawText = textOf(ev);
+      const fallbackRaw = String(ev?.country || ev?.currency || "").toUpperCase().trim();
+      const countries = inferBrainCountries(rawText, fallbackRaw);
+      const w = Math.max(1, weightOf(ev));
+      const units = chargedEvents.filter(u=>u.sourceKey === ev.__engineKey);
+      const unitSigns = units.map(u=>u.effectiveCharge===1?"+":"-");
+      return {
+        ...ev,
+        countryList: countries,
+        countries,
+        sourceStackWeight: w,
+        sourceUsed: replaySourceUsedForEvents([ev]),
+        sourceLabel: replaySourceLabel(ev),
+        impactLabel: replayImpactLabel(ev),
+        unitSigns,
+        resolvedSigns: unitSigns.join(" ") || "0",
+        effectiveCharge: units.length ? units[0].effectiveCharge : 0,
+      };
+    });
 
     const activeCount = chargedEvents.length;
     const negatives = chargedEvents.reduce((n, ev)=>n + (ev.effectiveCharge < 0 ? ev.eventWeight : 0), 0);
@@ -2473,6 +2517,8 @@ function App() {
         rawActiveCount: rawActive.length,
         duplicateCount,
         activeEvents: [],
+        displayEvents: [],
+        sourceUsed: "FALLBACK",
         chargeFlip: false,
         clusterResult: null,
         dominantSource: "direct fallback table",
@@ -2508,7 +2554,7 @@ function App() {
     duplicateEvents.forEach(ev=>foldSteps.push(`DEDUPED ${String(ev.title||'unknown').slice(0,90)} — duplicate headline ignored`));
     chargedEvents.forEach(ev=>{
       const rateTxt = Number.isFinite(Number(ev.rateValue)) ? Number(ev.rateValue).toFixed(2) : "?";
-      foldSteps.push(`${ev.eventWeight>1?"MULTI ":""}${ev.unknownCountryFallback?"UNKNOWN→USD/HIGH ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} ${ev.rateRelation?"("+ev.rateRelation+")":""} => ${ev.effectiveCharge===1?'+':'-'} x${ev.eventWeight}`);
+      foldSteps.push(`${ev.sourceStackWeight>1?"MULTI ":""}${ev.unknownCountryFallback?"UNKNOWN→USD/HIGH ANCHOR":"EVENT"} ${ev.country||"USD"} ${rateTxt} vs USD ${USD_RATE.toFixed(2)} ${ev.rateRelation?"("+ev.rateRelation+")":""} => ${ev.effectiveCharge===1?'+':'-'} unit ${ev.stackUnit||1}/${ev.sourceStackWeight||1}`);
     });
 
     if(chargedEvents.length === 1 && chargedEvents[0].eventWeight === 1){
@@ -2554,12 +2600,13 @@ function App() {
       dominantCount: Math.max(positives, negatives),
       secondarySign: positives > 0 && negatives > 0 ? (positives >= negatives ? "-" : "+") : "0",
       secondaryCount: positives > 0 && negatives > 0 ? Math.min(positives, negatives) : 0,
-      rule: "Brain logic: exact duplicates only removed; related YoY/MoM/monthly/yearly reports stay separate; plural/current-account/trade-balance items count as 2; active news compares to with-news hour sign.",
+      rule: "Brain logic: exact duplicate reports only are removed; related reports stay separate; speeches/current account/trade balance count as multi-report stacks; active news compares to even/odd hour sign.",
       foldSteps,
     };
 
     // FINAL DIRECTION LAYER — DERRICK BRAIN LOGIC
-    // Active news: compare resolved NEWS SIGN to WITH-NEWS SLOT SIGN.
+    // Active news: compare resolved NEWS SIGN to ODD/EVEN HOUR SIGN.
+    // Even hour = +. Odd hour = -.
     // Same signs = BUY. Different signs = SELL.
     const hourSign = hourCharge === 1 ? "+" : "-";
     let finalDirection = newsCharge === 0
@@ -2574,7 +2621,7 @@ function App() {
     const newsSign = newsCharge === 1 ? "+" : newsCharge === -1 ? "-" : "0";
     const equationPlain = newsCharge === 0
       ? `HOUR ${hourSign} · NEWS ACTIVE BUT NO DIRECTED SIGN · FINAL WAIT`
-      : `NEWS ${newsSign} · WITH-NEWS SLOT ${hourSign} · FINAL ${finalDirection.toUpperCase()}`;
+      : `NEWS ${newsSign} · HOUR ${hourSign} · FINAL ${finalDirection.toUpperCase()}`;
 
     return {
       finalDirection,
@@ -2588,6 +2635,8 @@ function App() {
       rawActiveCount: rawActive.length,
       duplicateCount,
       activeEvents: chargedEvents,
+      displayEvents,
+      sourceUsed: replaySourceUsedForEvents(allActive),
       chargeFlip,
       clusterResult,
       dominantSource,
@@ -3434,7 +3483,7 @@ function App() {
   //       even hour = +, odd hour = -. Same signs = BUY, different signs = SELL.
   //       unknown country → USD/high-rate anchor.
   //       no active news → use existing USD/STEP/regime fallback.
-  //       duplicate headlines count once.
+  //       exact duplicate reports count once; related reports still stack.
   function rpSignal(h24, m, activeEvents){
     const fallback = getSixHourFallback_430_1030_standard(h24, m);
     const hasActiveNews = Array.isArray(activeEvents) && activeEvents.length > 0;
@@ -3443,10 +3492,12 @@ function App() {
     const applied = resolveStackedNewsSign(fallback.direction, regimePolarity, activeEvents, h24, m);
     const equationPlain = (applied.equationPlain||"").replace(/^BASE\s+/i, "STEP ");
     // Count unique events for labels only. Do not use weighted counts to decide NEWS_SINGLE vs MIXED_NEWS.
-    const uniqueCount = uniqueReplayEventCount(applied.activeEvents || activeEvents);
+    const displayEvents = applied.displayEvents || activeEvents || [];
+    const uniqueCount = uniqueReplayEventCount(displayEvents);
     const usedCount = hasActiveNews ? uniqueCount : 0;
-    const regimeLabel = hasActiveNews ? (usedCount > 1 ? "MIXED_NEWS" : "NEWS_SINGLE") : "USD_STEP_ANCHOR";
-    const modeLabel = hasActiveNews ? (usedCount > 1 ? "mixed-news" : "news-single") : "usd-step-anchor";
+    const sourceUsed = hasActiveNews ? (applied.sourceUsed || replaySourceUsedForEvents(activeEvents)) : "FALLBACK";
+    const regimeLabel = hasActiveNews ? (sourceUsed === "CALENDAR" ? (usedCount > 1 ? "CALENDAR_MIXED" : "CALENDAR_SINGLE") : (usedCount > 1 ? "BREAKING_MIXED" : "BREAKING_SINGLE")) : "FALLBACK";
+    const modeLabel = hasActiveNews ? sourceUsed.toLowerCase() : "fallback";
     if(!applied.finalDirection){
       return {
         signal: null,
@@ -3458,6 +3509,8 @@ function App() {
         clusterResult: applied.clusterResult,
         sellRestriction: false,
         activeEvents: applied.activeEvents || activeEvents,
+        displayEvents,
+        sourceUsed,
         activeCount: applied.activeCount,
         uniqueNewsCount: usedCount,
         negativePressure: applied.negativePressure,
@@ -3487,6 +3540,8 @@ function App() {
       clusterResult: applied.clusterResult,
       sellRestriction: applied.sellRestriction,
       activeEvents: applied.activeEvents || activeEvents,
+      displayEvents,
+      sourceUsed,
       activeCount: applied.activeCount,
       uniqueNewsCount: usedCount,
       negativePressure: applied.negativePressure,
@@ -3710,7 +3765,7 @@ function App() {
 
         if(!replay.signal) continue;
 
-        const quality = slotLabel === "BREAK" ? "BREAKING" : slotLabel === "CAL" ? "CALENDAR" : slotLabel;
+        const quality = replay.sourceUsed || (hasNews ? replaySourceUsedForEvents(activeEvents) : "FALLBACK");
 
         sessions.push({
           ts: c.ts, h24: et.h24, m: et.m,
@@ -4069,20 +4124,38 @@ function App() {
                 </div>
 
                 {/* Active news events driving the signal */}
-                {current.activeCount>0 && current.activeEvents?.length>0 ? (
+                {current.activeCount>0 && ((current.displayEvents||current.activeEvents||[]).length>0) ? (()=>{
+                  const newsRows = current.displayEvents || current.activeEvents || [];
+                  const countries = Array.from(new Set(newsRows.flatMap(ev=>Array.isArray(ev.countryList||ev.countries)?(ev.countryList||ev.countries):[ev.country||ev.currency||"USD"]).filter(Boolean).map(x=>String(x).toUpperCase()))).join(" / ") || "USD";
+                  return (
                   <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
-                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE ({current.uniqueNewsCount||current.activeEvents?.length||0})</div>
-                    {current.activeEvents.slice(0,4).map((ev,i)=>(
-                      <div key={i} style={{fontSize:11,color:"#888",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.7}}>
-                        {"★".repeat(ev.stars||1)} {replayEventType(ev)==="speech"?"🎤 SPEECH ":replayEventType(ev)==="event"?"📅 CAL ":replayEventType(ev)==="breaking"?"⚡ BREAK ":""}{(ev.title||"").slice(0,55)}
+                    <div style={{fontSize:10,color:"#444",letterSpacing:2,marginBottom:4,...mono}}>NEWS ACTIVE · SOURCE USED: {current.sourceUsed||"CALENDAR"} · COUNTRIES: {countries}</div>
+                    <div style={{fontSize:10,color:"#777",...mono,lineHeight:1.6,marginBottom:6}}>EQUATION: {current.equationPlain||current.equation||""}</div>
+                    {newsRows.slice(0,6).map((ev,i)=>{
+                      const src = ev.sourceLabel || replaySourceLabel(ev);
+                      const impact = ev.impactLabel || replayImpactLabel(ev);
+                      const ctry = replayCountriesLabel(ev);
+                      const stack = Number(ev.sourceStackWeight||1)>1 ? ` · STACK x${ev.sourceStackWeight}` : "";
+                      const signs = ev.resolvedSigns ? ` · SIGNS ${ev.resolvedSigns}` : (Number(ev.effectiveCharge)?` · SIGN ${Number(ev.effectiveCharge)>0?'+':'-'}`:"");
+                      return (
+                      <div key={i} style={{fontSize:11,color:"#aaa",fontFamily:"'Share Tech Mono',monospace",lineHeight:1.75,padding:"5px 0",borderTop:i?"1px solid rgba(255,255,255,0.04)":"0"}}>
+                        <div style={{color:"#ddd"}}>{src} · {impact} · {ctry}{stack}{signs}</div>
+                        <div style={{color:"#888"}}>{(ev.title||"").slice(0,92)}</div>
                       </div>
-                    ))}
+                      );
+                    })}
+                    {current.clusterResult?.foldSteps?.length ? (
+                      <div style={{marginTop:6,fontSize:10,color:"#7788aa",...mono,lineHeight:1.55}}>
+                        {current.clusterResult.foldSteps.slice(0,8).map((st,i)=><div key={i}>• {st}</div>)}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                  );
+                })() : null}
 
                 {showNewsDebug&&(<div style={{background:"rgba(136,170,255,0.06)",border:"1px solid rgba(136,170,255,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <div style={{fontSize:10,color:"#88aaff",letterSpacing:2,marginBottom:4,...mono}}>REPLAY STACK DEBUG</div>
-                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    activeCount: current.activeCount||0,                    activeEvents: (current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev),                      sign:Number(ev.polarity)>0?'+':Number(ev.polarity)<0?'-':'0',                      qualifiesForStack:Number(ev.polarity)!==0,                      pub:ev.pub||'', country:ev.country||''                    })),                    directedCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length,                    posCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)>0).length,                    negCount: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)<0).length,                    stackingActive: (current.activeEvents||[]).filter(ev=>Number(ev?.polarity)!==0).length >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    finalResolvedSign: current.newsSign||'0',                    finalSlotSign: current.slotSign||'',                    flippedByStacking: !!current.chargeFlip,                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
+                  <pre style={{margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:10,lineHeight:1.6,color:"#9ab",fontFamily:"'Share Tech Mono',monospace"}}>{JSON.stringify({                    sourceUsed: current.sourceUsed||'FALLBACK',                    activeCount: current.activeCount||0,                    displayEvents: (current.displayEvents||current.activeEvents||[]).map(ev=>({                      title:ev.title||'', type:replayEventType(ev), source:ev.sourceLabel||replaySourceLabel(ev), impact:ev.impactLabel||replayImpactLabel(ev), stackWeight:ev.sourceStackWeight||1, signs:ev.resolvedSigns||'', pub:ev.pub||'', countries:ev.countryList||ev.countries||ev.country||''                    })),                    stackUnits: (current.activeEvents||[]).map(ev=>({title:ev.title||'', country:ev.country||'', unit:`${ev.stackUnit||1}/${ev.sourceStackWeight||1}`, sign:ev.effectiveCharge===1?'+':ev.effectiveCharge===-1?'-':'0'})),                    posCount: current.positivePressure||0,                    negCount: current.negativePressure||0,                    stackingActive: (current.activeCount||0) >= 2,                    stackRule: current.clusterResult?.rule || '-/- = +, +/+ = -, -/+ = -',                    foldSteps: current.clusterResult?.foldSteps || [],                    finalResolvedSign: current.newsSign||'0',                    hourSign: current.hourSign||'',                    finalDirection: current.signal,                    engineUsed: 'computeReplayPolarity (shared live+replay)'                  }, null, 2)}</pre>
                 </div>)}
 
                 {/* Price data */}
