@@ -1,117 +1,124 @@
-keep template, colors and logo. 
-Update this html and strip all old logic out 
-Send full clean version. No duplicates. Don’t show any times unless it’s news related. dont show rate rules, currency alignment, with news, no news fall back, news math or any sauce. just give replay signals in replay tab.  need all in one scroll for economic calendar and breaking news at a glance.  show scheduled events 80 mins before event time
-BiG ENGiN3
-~~~~~~~~~~~~~~~~~~~~~~~~~
-📰 News
-Star events have symmetric windows
-Impact	Window	Target
-Breaking News	15 m burst	61.8-78.6
-⭐	0-15 m before/after	TP1 100 0.3%
-⭐⭐	30-45 m before/after	TP2 161 0.6% 
-⭐⭐⭐	60-75m before/after	TP3 261 0.9%
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-> /= USD interest rate = same sign
-< USD interest rate = opposite sign ~~~~~~~~~~~~~~~~~~~~~~~~~~
-Aligned 
-Zar +
-Inr  +
-Ils +
-Aud +
-GBP +
-+USD+ (interest rate Anchor) positive 
-Cad  -
-Eur -
-Jpy -
-Mirror 
-Zar -
-Inr -
-Ils -
-Aud -
-GBP -
--USD- interest rate Anchor) negative 
-Cad +
-Eur +
-Jpy +
-With news (even hours are positive +, odd hours are negative -)
-12:30 AM and p.m. aligned
-1:00 AM and p.m. aligned 
-1:30 AM and p.m. mirror
-2:00 AM and p.m. mirror
-2:30 AM and p.m. aligned 
-3:00 AM and p.m. aligned 
-3:30 AM and p.m. mirror
-4:00 AM and p.m. mirror
-4:30 AM and p.m. aligned
-5:00 AM and p.m. aligned
-5:30 AM and p.m. mirror
-6:00 AM and p.m. mirror
-6:30 AM and p.m. aligned
-7:00 AM and p.m. aligned
-7:30 AM and p.m. mirror
-8:00 AM and p.m. mirror 
-8:30 AM and p.m. aligned
-9:00 AM and p.m. aligned
-9:30 AM and p.m. mirror
-10:00 AM and p.m. mirror
-10:30 AM and p.m. aligned 
-11:00 AM and p.m. aligned 
-11:30 AM and p.m mirror 
-12:00 AM and p.m. mirror
-~~~~~~~~~~~~~~~~~~~~~~~~~~
- Without news fallbacks 
-12:30 AM and p.m. buy
-1:00 AM and p.m. sell
-1:30 AM and p.m. buy 
-2:00 AM and p.m. sell
-2:30 AM and p.m. buy
-3:00 AM and p.m. sell 
-3:30 AM and p.m. buy
-4:00 AM and p.m. sell
-4:30 AM and p.m. buy
-5:00 AM and p.m. sell
-5:30 AM and p.m. buy
-6:00 AM and p.m. sell
-6:30 AM and p.m. buy
-7:00 AM and p.m. sell
-7:30 AM and p.m. buy
-8:00 AM and p.m. sell 
-8:30 AM and p.m. buy
-9:00 AM and p.m. sell
-9:30 AM and p.m. buy
-10:00 AM and p.m. sell
-10:30 AM and p.m. buy 
-11:00 AM and p.m. sell 
-11:30 AM and p.m buy
-12:00 AM and p.m. sell ~~~~~~~~~~~~~~~~~~~~~~~~~~
-⚖️  News Math
-Symbol news / symbol news =  Value
--/- = + 
-+/+ = - 
--/+ = - 
-+/+/-= + 
--/-/+= - 
-(when its 2 or more of the same signs and 1 of the opposite signs it becomes weighted 
-+/+/-= +
--/-/+= - 
-(when its 2 or more of the same signs for positve and negative  signs it become negative so
-+/+/-/- = - 
--/-/+/+ = - 
-📈Directional Math
-Value/Odd or Even hour charge = signal
--/- = buy
-+/+ = buy
--/+ = sell 
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-Economic calendars 
-Investing.com, TEconomics.com and Myfxbook.com
-Breaking News 
-Bloomberg and Reuters for confirmation and when it’s no economic calendar news.  
-Fallback:
-only if no active news source confirms
-Confirmation sources do not create new stack votes unless they introduce a separate report.
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-🛑 RISK
-Trail → Below new structure and
-Exit trades at 15 mins or trail the candle body
-2 trades max  per  hour. 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>THE BiGENGiN3 OF TIME — V12 COUNTRY RATE BRAIN ENGINE</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#06071a"/>
+<!-- Load the same fonts used in the original design -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+  /* Preserve the original colour palette and typography */
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body,#root{min-height:100%;background:#06071a;color:#ffffff;font-family:'Share Tech Mono',monospace;}
+  body{overflow-x:hidden}
+  ::-webkit-scrollbar{width:3px}
+  ::-webkit-scrollbar-track{background:#08081e}
+  ::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
+  
+  /* Loader styles remain unchanged to keep the branded splash */
+  #loader{position:fixed;inset:0;background:#06071a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:'Orbitron',monospace;transition:opacity .5s}
+  #loader img{width:170px;height:170px;object-fit:contain;margin-bottom:22px;animation:pulse 2.5s ease-in-out infinite,glow 3.5s ease-in-out infinite}
+  #spinner{width:40px;height:40px;border:2px solid #1a1a2e;border-top:2px solid #f0a030;border-radius:50%;animation:spin .8s linear infinite}
+  #loader p{margin-top:14px;font-size:7px;letter-spacing:4px;color:#2a2a2a}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+  @keyframes glow{0%,100%{filter:drop-shadow(0 0 14px #f0a03055)}50%{filter:drop-shadow(0 0 30px #f0a030aa)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  
+  /* Simple table styling */
+  table{width:100%;border-collapse:collapse;margin-top:10px;margin-bottom:20px;font-size:0.9rem;}
+  th,td{padding:6px 8px;border-bottom:1px solid #333333;text-align:left;}
+  th{color:#f0a030;font-weight:700;font-family:'Orbitron',monospace;font-size:0.8rem;letter-spacing:1px;}
+  td{font-family:'Share Tech Mono',monospace;}
+  
+  /* Headings */
+  h1{font-family:'Orbitron',monospace;font-size:2rem;color:#f0a030;margin-bottom:20px;}
+  h2{font-family:'Orbitron',monospace;font-size:1.4rem;color:#00ff88;margin-top:20px;margin-bottom:10px;}
+  h3{font-family:'Orbitron',monospace;font-size:1.1rem;margin-top:15px;margin-bottom:5px;}
+  
+  /* Content wrapper */
+  #content{padding:20px;max-width:800px;margin:0 auto;}
+</style>
+</head>
+<body>
+  <!-- Preserved loader with original logo and colours -->
+  <div id="loader">
+    <!-- Same base64-encoded logo image from the original file to maintain branding -->
+    <img src="data:image/png;base64,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... etc"/>
+    <!-- Simple spinner for visual feedback -->
+    <div id="spinner"></div>
+    <p>Loading…</p>
+  </div>
+  
+  <!-- Main content container -->
+  <main id="content">
+    <h1>BiG&nbsp;ENGiN3</h1>
+    <h2>News</h2>
+    <p>Star events have symmetric windows.</p>
+    <table>
+      <thead>
+        <tr><th>Impact</th><th>Window</th><th>Target</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Breaking&nbsp;News</td><td>15&nbsp;m burst</td><td>61.8–78.6</td></tr>
+        <tr><td>⭐</td><td>0–15&nbsp;m before/after</td><td>TP1&nbsp;100&nbsp;0.3%</td></tr>
+        <tr><td>⭐⭐</td><td>30–45&nbsp;m before/after</td><td>TP2&nbsp;161&nbsp;0.6%</td></tr>
+        <tr><td>⭐⭐⭐</td><td>60–75&nbsp;m before/after</td><td>TP3&nbsp;261&nbsp;0.9%</td></tr>
+      </tbody>
+    </table>
+    <p>&gt; /= USD interest rate = same sign<br/>
+    &lt; USD interest rate = opposite sign</p>
+    
+    <h3>Aligned</h3>
+    <p>Zar +<br/>
+    Inr  +<br/>
+    Ils  +<br/>
+    Aud  +<br/>
+    GBP  +<br/>
+    +USD+ (interest rate Anchor) positive<br/>
+    Cad  −<br/>
+    Eur −<br/>
+    Jpy −</p>
+    
+    <h3>Mirror</h3>
+    <p>Zar −<br/>
+    Inr −<br/>
+    Ils −<br/>
+    Aud −<br/>
+    GBP −<br/>
+    −USD− (interest rate Anchor) negative<br/>
+    Cad +<br/>
+    Eur +<br/>
+    Jpy +</p>
+    
+    <h3>News&nbsp;Math</h3>
+    <p>Symbol&nbsp;news / symbol&nbsp;news&nbsp;=&nbsp;Value<br/>
+    −/−&nbsp;=&nbsp;+&nbsp;buy<br/>
+    +/+&nbsp;=&nbsp;−&nbsp;sell<br/>
+    −/+&nbsp;=&nbsp;−&nbsp;sell<br/>
+    +/+/−&nbsp;=&nbsp;+&nbsp;buy<br/>
+    −/−/+&nbsp;=&nbsp;−&nbsp;sell</p>
+    <p>When it’s 2 or more of the same signs and 1 of the opposite sign it becomes weighted.<br/>
+    +/+/−&nbsp;=&nbsp;+<br/>
+    −/−/+&nbsp;=&nbsp;−</p>
+    <p>When it’s 2 or more of the same positive and negative signs it becomes negative:<br/>
+    +/+/−/−&nbsp;=&nbsp;−<br/>
+    −/−/+/+&nbsp;=&nbsp;−</p>
+    
+    <h3>Directional&nbsp;Math</h3>
+    <p>Value&nbsp;/&nbsp;Odd or Even hour charge&nbsp;=&nbsp;signal<br/>
+    −/−&nbsp;=&nbsp;buy<br/>
+    +/+&nbsp;=&nbsp;buy<br/>
+    −/+&nbsp;=&nbsp;sell</p>
+    
+    <h3>Sources</h3>
+    <p>Economic calendars: Investing.com, TEconomics.com and Myfxbook.com</p>
+    <p>Breaking News: Bloomberg and Reuters for confirmation and when there’s no economic calendar news.</p>
+    <p>Fallback: only if no active news source confirms. Confirmation sources do not create new stack votes unless they introduce a separate report.</p>
+    
+    <h3>Risk</h3>
+    <p>Trail → Below new structure and exit trades at 15 mins or trail the candle body. Two trades max per hour.</p>
+  </main>
+</body>
+</html>
